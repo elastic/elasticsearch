@@ -197,10 +197,15 @@ The update operation supports similar parameters as the index API,
 including:
 
 [horizontal]
-`routing`::     Sets the routing that will be used to route the 
-                document to the relevant shard.
+`routing`::     Routing is used to route the update request to the right shard
+                and sets the routing for the upsert request if the document being
+                updated doesn't exist. Can't be used to update the routing of an
+                existing document.
 
-`parent`::      Simply sets the routing.
+`parent`::      Parent is used to route the update request to the right shard
+                and sets the parent for the upsert request if the document being
+                updated doesn't exist. Can't be used to update the `parent` of an
+                existing document.
 
 `timeout`::     Timeout waiting for a shard to become available.
 

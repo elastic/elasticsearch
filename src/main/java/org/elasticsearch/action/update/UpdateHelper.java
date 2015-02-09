@@ -118,15 +118,16 @@ public class UpdateHelper extends AbstractComponent {
                     update.setGetResult(getResult);
                     return new Result(update, Operation.NONE, upsertDoc, XContentType.JSON);
                 }
-                indexRequest.source((Map)ctx.get("_source"));
+                indexRequest.source((Map) ctx.get("_source"));
             }
 
             indexRequest.index(request.index()).type(request.type()).id(request.id())
                     // it has to be a "create!"
                     .create(true)                    
-                    .routing(request.routing())
                     .ttl(ttl)
                     .refresh(request.refresh())
+                    .routing(request.routing())
+                    .parent(request.parent())
                     .consistencyLevel(request.consistencyLevel());
             indexRequest.operationThreaded(false);
             if (request.versionType() != VersionType.INTERNAL) {

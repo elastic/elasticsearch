@@ -131,6 +131,14 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     }
 
     /**
+     * Set the offset that is applied to computed bucket boundaries.
+     */
+    public DateHistogramBuilder offset(String offset) {
+        this.offset = offset;
+        return this;
+    }
+
+    /**
      * Set a factor to apply to values of the field, typically used if times
      * are stored in seconds instead of milliseconds.
      */

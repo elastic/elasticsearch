@@ -25,6 +25,9 @@ using the appropriate mapping attributes:
 }
 --------------------------------------------------
 
+==== path
+deprecated[v1.5.0]
+
 The `_id` mapping can also be associated with a `path` that will be used
 to extract the id from a different location in the source document. For
 example, having the following mapping:

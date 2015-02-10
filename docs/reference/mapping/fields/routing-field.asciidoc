@@ -26,6 +26,7 @@ is required.
 
 [float]
 ==== path
+deprecated[v1.5.0]
 
 The routing value can be provided as an external value when indexing
 (and still stored as part of the document, in much the same way

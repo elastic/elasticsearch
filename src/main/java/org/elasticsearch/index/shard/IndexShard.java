@@ -335,6 +335,11 @@ public class IndexShard extends AbstractIndexShardComponent {
                 // Recovery creates a new engine, we only need to preset the
                 // state to RECOVERING
                 state = IndexShardState.RECOVERING;
+                try {
+                    performRecoveryRestart();
+                } catch (IOException ex) {
+                    failShard("failed to perform recovery restart", ex);
+                }
                 IndexShardGateway.recover(this, this.logger, this.mappingUpdatedAction,
                         this.cancellableThreads, true, new RecoveryState(shardId()),
                         // TODO make this configurable, or get it from IndexShardGateway
@@ -1174,8 +1179,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (state == IndexShardState.CLOSED) {
                 throw new EngineClosedException(shardId);
             }
-            // TODO we need to remove this assert, but should it be replaced with something?
-            // assert this.currentEngineReference.get() == null;
+            assert this.currentEngineReference.get() == null;
             this.currentEngineReference.set(engineFactory.newEngine(config));
         }
     }

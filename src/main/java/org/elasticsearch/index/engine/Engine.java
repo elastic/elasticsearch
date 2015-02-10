@@ -49,6 +49,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -122,7 +123,7 @@ public abstract class Engine implements Closeable {
     }
 
     protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
-        return new EngineSearcher(source, searcher, manager, engineConfig.getStore(), logger);
+        return new EngineSearcher(source, searcher, manager, store, logger);
     }
 
     public final EngineConfig config() {
@@ -234,8 +235,39 @@ public abstract class Engine implements Closeable {
      *
      * @see Searcher#close()
      */
-    public abstract Searcher acquireSearcher(String source) throws EngineException;
-
+    public final Searcher acquireSearcher(String source) throws EngineException {
+        boolean success = false;
+         /* Acquire order here is store -> manager since we need
+          * to make sure that the store is not closed before
+          * the searcher is acquired. */
+        store.incRef();
+        try {
+            final SearcherManager manager = getSearcherManager(); // can never be null
+            assert manager != null : "SearcherManager is null";
+            /* This might throw NPE but that's fine we will run ensureOpen()
+            *  in the catch block and throw the right exception */
+            final IndexSearcher searcher = manager.acquire();
+            try {
+                final Searcher retVal = newSearcher(source, searcher, manager);
+                success = true;
+                return retVal;
+            } finally {
+                if (!success) {
+                    manager.release(searcher);
+                }
+            }
+        } catch (EngineClosedException ex) {
+            throw ex;
+        } catch (Throwable ex) {
+            ensureOpen(); // throw EngineCloseException here if we are already closed
+            logger.error("failed to acquire searcher, source {}", ex, source);
+            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
+        } finally {
+            if (!success) {  // release the ref in the case of an error...
+                store.decRef();
+            }
+        }
+    }
 
     protected void ensureOpen() {
         if (isClosed.get()) {
@@ -253,10 +285,26 @@ public abstract class Engine implements Closeable {
      */
     public abstract List<Segment> segments(boolean verbose);
 
-    /**
-     * Returns <tt>true</tt> if a refresh is really needed.
-     */
-    public abstract boolean refreshNeeded();
+    public final boolean refreshNeeded() {
+        if (store.tryIncRef()) {
+            /*
+              we need to inc the store here since searcherManager.isSearcherCurrent()
+              acquires a searcher internally and that might keep a file open on the
+              store. this violates the assumption that all files are closed when
+              the store is closed so we need to make sure we increment it here
+             */
+            try {
+                return !getSearcherManager().isSearcherCurrent();
+            } catch (IOException e) {
+                logger.error("failed to access searcher manager", e);
+                failEngine("failed to access searcher manager", e);
+                throw new EngineException(shardId, "failed to access searcher manager", e);
+            } finally {
+                store.decRef();
+            }
+        }
+        return false;
+    }
 
     /**
      * Refreshes the engine for new search operations to reflect the latest
@@ -816,4 +864,6 @@ public abstract class Engine implements Closeable {
             }
         }
     }
+
+    protected abstract SearcherManager getSearcherManager();
 }

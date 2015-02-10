@@ -541,63 +541,6 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public final Searcher acquireSearcher(String source) throws EngineException {
-        boolean success = false;
-         /* Acquire order here is store -> manager since we need
-          * to make sure that the store is not closed before
-          * the searcher is acquired. */
-        store.incRef();
-        try {
-            final SearcherManager manager = this.searcherManager; // can never be null
-            assert manager != null : "SearcherManager is null";
-            /* This might throw NPE but that's fine we will run ensureOpen()
-            *  in the catch block and throw the right exception */
-            final IndexSearcher searcher = manager.acquire();
-            try {
-                final Searcher retVal = newSearcher(source, searcher, manager);
-                success = true;
-                return retVal;
-            } finally {
-                if (!success) {
-                    manager.release(searcher);
-                }
-            }
-        } catch (EngineClosedException ex) {
-            throw ex;
-        } catch (Throwable ex) {
-            ensureOpen(); // throw EngineCloseException here if we are already closed
-            logger.error("failed to acquire searcher, source {}", ex, source);
-            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
-        } finally {
-            if (!success) {  // release the ref in the case of an error...
-                store.decRef();
-            }
-        }
-    }
-
-    @Override
-    public boolean refreshNeeded() {
-        if (store.tryIncRef()) {
-            /*
-              we need to inc the store here since searcherManager.isSearcherCurrent()
-              acquires a searcher internally and that might keep a file open on the
-              store. this violates the assumption that all files are closed when
-              the store is closed so we need to make sure we increment it here
-             */
-            try {
-                return !searcherManager.isSearcherCurrent();
-            } catch (IOException e) {
-                logger.error("failed to access searcher manager", e);
-                failEngine("failed to access searcher manager", e);
-                throw new EngineException(shardId, "failed to access searcher manager", e);
-            } finally {
-                store.decRef();
-            }
-        }
-        return false;
-    }
-
-    @Override
     public void refresh(String source) throws EngineException {
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
@@ -833,7 +776,6 @@ public class InternalEngine extends Engine {
             });
         }
     }
-
 
     @Override
     public SnapshotIndexCommit snapshotIndex() throws EngineException {
@@ -1136,6 +1078,11 @@ public class InternalEngine extends Engine {
         } else {
             logger.debug("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason, failure);
         }
+    }
+
+    @Override
+    protected SearcherManager getSearcherManager() {
+        return searcherManager;
     }
 
     private Object dirtyLock(BytesRef uid) {

@@ -30,6 +30,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
@@ -57,38 +58,32 @@ public class ShadowEngine extends Engine {
     private volatile boolean closedOrFailed = false;
     private volatile SearcherManager searcherManager;
 
-    private DirectoryReader indexReader = null;
-
-    public ShadowEngine(EngineConfig engineConfig) {
+    public ShadowEngine(EngineConfig engineConfig)  {
         super(engineConfig);
-        store.incRef();
         SearcherFactory searcherFactory = new EngineSearcherFactory(engineConfig);
         this.onGoingRecoveries = new RecoveryCounter(store);
         try {
-            openNewReader();
-            this.searcherManager = new SearcherManager(this.indexReader, searcherFactory);
-        } catch (IOException e) {
-            logger.warn("failed to create new reader", e);
-            store.decRef();
+            DirectoryReader reader = null;
+            store.incRef();
+            boolean success = false;
+            try {
+                reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(store.directory()), shardId);
+                this.searcherManager = new SearcherManager(reader, searcherFactory);
+                success = true;
+            } catch (Throwable e) {
+                logger.warn("failed to create new reader", e);
+                throw e;
+            } finally {
+                if (success == false) {
+                    IOUtils.closeWhileHandlingException(reader);
+                    store.decRef();
+                }
+            }
+        } catch (IOException ex) {
+            throw new ElasticsearchException("failed to open index reader", ex);
         }
     }
 
-    private final void openNewReader() throws IOException {
-        try (ReleasableLock _ = writeLock.acquire()) {
-            if (indexReader == null) {
-                Directory d = store.directory();
-                indexReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(d), shardId);
-            } else {
-                // TODO might not need this, the reader is never re-opened here
-                DirectoryReader oldReader = indexReader;
-                DirectoryReader newReader = DirectoryReader.openIfChanged(indexReader);
-                if (newReader != null) {
-                    indexReader = ElasticsearchDirectoryReader.wrap(newReader, shardId);
-                    oldReader.close();
-                }
-            }
-        }
-    }
 
     @Override
     public void create(Create create) throws EngineException {
@@ -140,53 +135,13 @@ public class ShadowEngine extends Engine {
         return getFromSearcher(get);
     }
 
-    protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
-        return new EngineSearcher(source, searcher, manager, store, logger);
-    }
-
-    @Override
-    public Searcher acquireSearcher(String source) throws EngineException {
-        boolean success = false;
-         /* Acquire order here is store -> manager since we need
-          * to make sure that the store is not closed before
-          * the searcher is acquired. */
-        store.incRef();
-        try {
-            final SearcherManager manager = this.searcherManager; // can never be null
-            assert manager != null : "SearcherManager is null";
-            /* This might throw NPE but that's fine we will run ensureOpen()
-            *  in the catch block and throw the right exception */
-            final IndexSearcher searcher = manager.acquire();
-            try {
-                final Searcher retVal = newSearcher(source, searcher, manager);
-                success = true;
-                return retVal;
-            } finally {
-                if (!success) {
-                    manager.release(searcher);
-                }
-            }
-        } catch (EngineClosedException ex) {
-            throw ex;
-        } catch (Throwable ex) {
-            ensureOpen(); // throw EngineCloseException here if we are already closed
-            logger.error("failed to acquire searcher, source {}", ex, source);
-            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
-        } finally {
-            if (!success) {  // release the ref in the case of an error...
-                store.decRef();
-            }
-        }
-    }
-
     @Override
     public SegmentsStats segmentsStats() {
         ensureOpen();
         try (final Searcher searcher = acquireSearcher("segments_stats")) {
             SegmentsStats stats = new SegmentsStats();
             for (LeafReaderContext reader : searcher.reader().leaves()) {
-                // TODO refactor segmentReader into abstract or utility class?
-                final SegmentReader segmentReader = InternalEngine.segmentReader(reader.reader());
+                final SegmentReader segmentReader = segmentReader(reader.reader());
                 stats.add(1, segmentReader.ramBytesUsed());
                 stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPostingsReader()));
                 stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
@@ -213,7 +168,7 @@ public class ShadowEngine extends Engine {
             Searcher searcher = acquireSearcher("segments");
             try {
                 for (LeafReaderContext reader : searcher.reader().leaves()) {
-                    SegmentCommitInfo info = InternalEngine.segmentReader(reader.reader()).getSegmentInfo();
+                    SegmentCommitInfo info = segmentReader(reader.reader()).getSegmentInfo();
                     assert !segments.containsKey(info.info.name);
                     Segment segment = new Segment(info.info.name);
                     segment.search = true;
@@ -245,7 +200,6 @@ public class ShadowEngine extends Engine {
                     return (int) (o1.getGeneration() - o2.getGeneration());
                 }
             });
-
             // fill in the merges flag
             // TODO uncomment me
 //            Set<OnGoingMerge> onGoingMerges = mergeScheduler.onGoingMerges();
@@ -262,29 +216,6 @@ public class ShadowEngine extends Engine {
 
             return Arrays.asList(segmentsArr);
         }
-    }
-
-    @Override
-    public boolean refreshNeeded() {
-        if (store.tryIncRef()) {
-            /*
-              we need to inc the store here since searcherManager.isSearcherCurrent()
-              acquires a searcher internally and that might keep a file open on the
-              store. this violates the assumption that all files are closed when
-              the store is closed so we need to make sure we increment it here
-             */
-            try {
-                // if a merge has finished, we should refresh
-                return searcherManager.isSearcherCurrent() == false;
-            } catch (IOException e) {
-                logger.error("failed to access searcher manager", e);
-                failEngine("failed to access searcher manager", e);
-                throw new EngineException(shardId, "failed to access searcher manager", e);
-            } finally {
-                store.decRef();
-            }
-        }
-        return false;
     }
 
     @Override
@@ -421,13 +352,18 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
+    protected SearcherManager getSearcherManager() {
+        return searcherManager;
+    }
+
+    @Override
     public void close() throws IOException {
         logger.debug("shadow replica close now acquiring writeLock");
         try (ReleasableLock _ = writeLock.acquire()) {
             logger.debug("shadow replica close acquired writeLock");
             if (isClosed.compareAndSet(false, true)) {
                 try {
-                    logger.debug("shadow replica close searcher manager");
+                    logger.debug("shadow replica close searcher manager refCount: {}", store.refCount());
                     IOUtils.close(searcherManager);
                 } catch (Throwable t) {
                     logger.warn("shadow replica failed to close searcher manager", t);

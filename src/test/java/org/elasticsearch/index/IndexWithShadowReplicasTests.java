@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -46,6 +47,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     @TestLogging("_root:DEBUG,env:TRACE")
+    @Repeat(iterations = 5)
     public void leesFavoriteTest() throws Exception {
         Settings nodeSettings = ImmutableSettings.builder()
                 .put("node.add_id_to_custom_path", false)

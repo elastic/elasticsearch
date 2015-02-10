@@ -23,8 +23,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.support.FileUtils;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.Map;
 
@@ -55,6 +53,14 @@ public class RestSpec {
                 try {
                     XContentParser parser = JsonXContent.jsonXContent.createParser(new FileInputStream(jsonFile));
                     RestApi restApi = new RestApiParser().parse(parser);
+                    if (restApi.getMethods().contains("GET") && restApi.isBodySupported()) {
+                        if (!restApi.getMethods().contains("POST")) {
+                            throw new IllegalArgumentException(restApi.getName() + " supports GET with a body but doesn't support POST");
+                        }
+                        if (!restApi.getParams().contains("source")) {
+                            throw new IllegalArgumentException(restApi.getName() + " supports GET with a body but doesn't support the source query string parameter");
+                        }
+                    }
                     restSpec.addApi(restApi);
                 } catch (Throwable ex) {
                     throw new IOException("Can't parse rest spec file: [" + jsonFile + "]", ex);

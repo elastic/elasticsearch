@@ -23,6 +23,10 @@
          }
       },
       "params": {
+        "source": {
+          "type" : "string",
+          "description" : "The URL-encoded request definition"
+        },
         "term_statistics" : {
           "type" : "boolean",
           "description" : "Specifies if total term frequency and document frequency should be returned.",

@@ -28,9 +28,9 @@ import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
@@ -108,8 +108,16 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
         assertThat(tzRounding.round(0), equalTo(0l - TimeValue.timeValueHours(24 + timezoneOffset).millis()));
         assertThat(tzRounding.nextRoundingValue(0l - TimeValue.timeValueHours(24 + timezoneOffset).millis()), equalTo(0l - TimeValue.timeValueHours(timezoneOffset).millis()));
 
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(DateTimeZone.forID("-08:00")).build();
+        assertThat(tzRounding.round(utc("2012-04-01T04:15:30Z")), equalTo(utc("2012-03-31T08:00:00Z")));
+        assertThat(toUTCDateString(tzRounding.nextRoundingValue(utc("2012-03-31T08:00:00Z"))), equalTo(toUTCDateString(utc("2012-04-01T08:0:00Z"))));
+
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.MONTH_OF_YEAR).timeZone(DateTimeZone.forID("-08:00")).build();
+        assertThat(tzRounding.round(utc("2012-04-01T04:15:30Z")), equalTo(utc("2012-03-01T08:00:00Z")));
+        assertThat(toUTCDateString(tzRounding.nextRoundingValue(utc("2012-03-01T08:00:00Z"))), equalTo(toUTCDateString(utc("2012-04-01T08:0:00Z"))));
+
         // date in Feb-3rd, but still in Feb-2nd in -02:00 timezone
-        tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(DateTimeZone.forOffsetHours(-2)).build();
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(DateTimeZone.forID("-02:00")).build();
         assertThat(tzRounding.round(utc("2009-02-03T01:01:01")), equalTo(utc("2009-02-02T02:00:00")));
         long roundKey = tzRounding.roundKey(utc("2009-02-03T01:01:01"));
         assertThat(roundKey, equalTo(tzRounding.roundKey(utc("2009-02-02T02:00:00.000Z"))));
@@ -117,7 +125,7 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
         assertThat(tzRounding.nextRoundingValue(utc("2009-02-02T02:00:00")), equalTo(utc("2009-02-03T02:00:00")));
 
         // date in Feb-3rd, also in -02:00 timezone
-        tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(DateTimeZone.forOffsetHours(-2)).build();
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(DateTimeZone.forID("-02:00")).build();
         assertThat(tzRounding.round(utc("2009-02-03T02:01:01")), equalTo(utc("2009-02-03T02:00:00")));
         roundKey = tzRounding.roundKey(utc("2009-02-03T02:01:01"));
         assertThat(roundKey, equalTo(tzRounding.roundKey(utc("2009-02-03T02:00:00.000Z"))));

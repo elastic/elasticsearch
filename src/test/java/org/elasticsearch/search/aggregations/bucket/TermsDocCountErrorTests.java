@@ -52,7 +52,6 @@ public class TermsDocCountErrorTests extends ElasticsearchIntegrationTest{
     private static final String STRING_FIELD_NAME = "s_value";
     private static final String LONG_FIELD_NAME = "l_value";
     private static final String DOUBLE_FIELD_NAME = "d_value";
-    private static final String ROUTING_FIELD_NAME = "route";
 
     public static String randomExecutionHint() {
         return randomBoolean() ? null : randomFrom(ExecutionMode.values()).toString();
@@ -84,14 +83,15 @@ public class TermsDocCountErrorTests extends ElasticsearchIntegrationTest{
                     .endObject()));
         }
         numRoutingValues = between(1,40);
-        assertAcked(prepareCreate("idx_with_routing").addMapping("type", "{ \"type\" : { \"_routing\" : { \"required\" : true, \"path\" : \"" + ROUTING_FIELD_NAME + "\" } } }"));
+        assertAcked(prepareCreate("idx_with_routing").addMapping("type", "{ \"type\" : { \"_routing\" : { \"required\" : true } } }"));
         for (int i = 0; i < numDocs; i++) {
-            builders.add(client().prepareIndex("idx_single_shard", "type", ""+i).setSource(jsonBuilder()
+            builders.add(client().prepareIndex("idx_single_shard", "type", "" + i)
+                .setRouting(String.valueOf(randomInt(numRoutingValues)))
+                .setSource(jsonBuilder()
                     .startObject()
                     .field(STRING_FIELD_NAME, "val" + randomInt(numUniqueTerms))
                     .field(LONG_FIELD_NAME, randomInt(numUniqueTerms))
                     .field(DOUBLE_FIELD_NAME, 1.0 * randomInt(numUniqueTerms))
-                    .field(ROUTING_FIELD_NAME, String.valueOf(randomInt(numRoutingValues)))
                     .endObject()));
         }
         indexRandom(true, builders);

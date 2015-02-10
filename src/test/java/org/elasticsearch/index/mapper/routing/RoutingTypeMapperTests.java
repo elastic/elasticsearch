@@ -61,13 +61,11 @@ public class RoutingTypeMapperTests extends ElasticsearchSingleNodeTest {
                 .startObject("_routing")
                 .field("store", "no")
                 .field("index", "no")
-                .field("path", "route")
                 .endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         assertThat(docMapper.routingFieldMapper().fieldType().stored(), equalTo(false));
         assertEquals(IndexOptions.NONE, docMapper.routingFieldMapper().fieldType().indexOptions());
-        assertThat(docMapper.routingFieldMapper().path(), equalTo("route"));
     }
 
     @Test

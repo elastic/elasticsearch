@@ -6,13 +6,17 @@
 package org.elasticsearch.shield.transport.netty;
 
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
 import org.elasticsearch.common.netty.channel.ChannelPipeline;
 import org.elasticsearch.common.netty.channel.ChannelPipelineFactory;
+import org.elasticsearch.common.netty.channel.ExceptionEvent;
+import org.elasticsearch.common.netty.handler.ssl.NotSslRecordException;
 import org.elasticsearch.common.netty.handler.ssl.SslHandler;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
+import org.elasticsearch.http.netty.VisibleNettyHttpServerTransport;
 import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 
@@ -21,7 +25,7 @@ import javax.net.ssl.SSLEngine;
 /**
  *
  */
-public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
+public class ShieldNettyHttpServerTransport extends VisibleNettyHttpServerTransport {
 
     private final IPFilter ipFilter;
     private final ServerSSLService sslService;
@@ -34,6 +38,20 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
         this.ipFilter = ipFilter;
         this.ssl = settings.getAsBoolean("shield.http.ssl", false);
         this.sslService =  sslService;
+    }
+
+    @Override
+    protected void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
+        if (e.getCause() instanceof NotSslRecordException) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("received plaintext http traffic on a https channel, closing connection {}", e.getCause(), ctx.getChannel());
+            } else {
+                logger.warn("received plaintext http traffic on a https channel, closing connection {}", ctx.getChannel());
+            }
+            ctx.getChannel().close();
+        } else {
+            super.exceptionCaught(ctx, e);
+        }
     }
 
     @Override

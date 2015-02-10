@@ -8,6 +8,7 @@ package org.elasticsearch.shield.authc.ldap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.support.ldap.AbstractLdapSslSocketFactory;
 import org.elasticsearch.shield.authc.support.ldap.ConnectionFactory;
 import org.elasticsearch.shield.authc.support.ldap.LdapSslSocketFactory;
@@ -31,7 +32,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.*;
 
 @Network
-public class SearchGroupsResolverTest extends ElasticsearchTestCase {
+public class SearchGroupsResolverTests extends ElasticsearchTestCase {
 
     public static final String BRUCE_BANNER_DN = "uid=hulk,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com";
     private InitialDirContext ldapContext;
@@ -39,7 +40,7 @@ public class SearchGroupsResolverTest extends ElasticsearchTestCase {
     @Before
     public void setup() throws Exception {
         super.setUp();
-        Path keystore = Paths.get(SearchGroupsResolverTest.class.getResource("../support/ldap/ldaptrust.jks").toURI()).toAbsolutePath();
+        Path keystore = Paths.get(SearchGroupsResolverTests.class.getResource("../support/ldap/ldaptrust.jks").toURI()).toAbsolutePath();
 
         /*
          * Prior to each test we reinitialize the socket factory with a new SSLService so that we get a new SSLContext.
@@ -128,21 +129,43 @@ public class SearchGroupsResolverTest extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testSearchWithoutSpecifyingBaseDN() throws Exception {
+        Settings settings = ImmutableSettings.builder()
+                .put("scope", SearchScope.SUB_TREE)
+                .build();
+
+        try {
+            new SearchGroupsResolver(settings);
+        } catch (ShieldSettingsException e) {
+            assertThat(e.getMessage(), containsString("base_dn must be specified"));
+        }
+    }
+
+    @Test
     public void testReadUserAttribute() throws Exception {
         {
-            Settings settings = ImmutableSettings.builder().put("user_attribute", "uid").build();
+            Settings settings = ImmutableSettings.builder()
+                    .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
+                    .put("user_attribute", "uid")
+                    .build();
             SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
             assertThat(resolver.readUserAttribute(ldapContext, BRUCE_BANNER_DN), is("hulk"));
         }
 
         {
-            Settings settings = ImmutableSettings.builder().put("user_attribute", "cn").build();
+            Settings settings = ImmutableSettings.builder()
+                    .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
+                    .put("user_attribute", "cn")
+                    .build();
             SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
             assertThat(resolver.readUserAttribute(ldapContext, BRUCE_BANNER_DN), is("Bruce Banner"));
         }
 
         try {
-            Settings settings = ImmutableSettings.builder().put("user_attribute", "doesntExists").build();
+            Settings settings = ImmutableSettings.builder()
+                    .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
+                    .put("user_attribute", "doesntExists")
+                    .build();
             SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
             resolver.readUserAttribute(ldapContext, BRUCE_BANNER_DN);
             fail("searching for a non-existing attribute should throw an LdapException");
@@ -151,7 +174,10 @@ public class SearchGroupsResolverTest extends ElasticsearchTestCase {
         }
 
         try {
-            Settings settings = ImmutableSettings.builder().put("user_attribute", "userPassword").build();
+            Settings settings = ImmutableSettings.builder()
+                    .put("base_dn", "dc=oldap,dc=test,dc=elasticsearch,dc=com")
+                    .put("user_attribute", "userPassword")
+                    .build();
             SearchGroupsResolver resolver = new SearchGroupsResolver(settings);
             resolver.readUserAttribute(ldapContext, BRUCE_BANNER_DN);
             fail("searching for a binary attribute should throw an LdapException");

@@ -9,6 +9,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.support.ldap.AbstractLdapConnection;
 import org.elasticsearch.shield.authc.support.ldap.ClosableNamingEnumeration;
 import org.elasticsearch.shield.authc.support.ldap.SearchScope;
@@ -34,6 +35,9 @@ class SearchGroupsResolver implements AbstractLdapConnection.GroupsResolver {
 
     public SearchGroupsResolver(Settings settings) {
         baseDn = settings.get("base_dn");
+        if (baseDn == null) {
+            throw new ShieldSettingsException("base_dn must be specified");
+        }
         filter = settings.get("filter", GROUP_SEARCH_DEFAULT_FILTER);
         userAttribute = filter == null ? null : settings.get("user_attribute");
         scope = SearchScope.resolve(settings.get("scope"), SearchScope.SUB_TREE);

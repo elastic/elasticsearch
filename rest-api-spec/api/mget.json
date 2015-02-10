@@ -16,6 +16,10 @@
         }
       },
       "params": {
+        "source": {
+          "type" : "string",
+          "description" : "The URL-encoded request definition"
+        },
         "fields": {
           "type": "list",
           "description" : "A comma-separated list of fields to return in the response"

@@ -12,6 +12,10 @@
         }
       },
       "params": {
+        "source": {
+          "type" : "string",
+          "description" : "The URL-encoded request definition"
+        },
         "scroll": {
           "type" : "duration",
           "description" : "Specify how long a consistent view of the index should be maintained for scrolled search"

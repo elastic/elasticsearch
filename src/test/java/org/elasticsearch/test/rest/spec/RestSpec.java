@@ -55,6 +55,14 @@ public class RestSpec {
                 try {
                     XContentParser parser = JsonXContent.jsonXContent.createParser(new FileInputStream(jsonFile));
                     RestApi restApi = new RestApiParser().parse(parser);
+                    if (restApi.getMethods().contains("GET") && restApi.isBodySupported()) {
+                        if (!restApi.getMethods().contains("POST")) {
+                            throw new IllegalArgumentException(restApi.getName() + " supports GET with a body but doesn't support POST");
+                        }
+                        if (!restApi.getParams().contains("source")) {
+                            throw new IllegalArgumentException(restApi.getName() + " supports GET with a body but doesn't support the source query string parameter");
+                        }
+                    }
                     restSpec.addApi(restApi);
                 } catch (Throwable ex) {
                     throw new IOException("Can't parse rest spec file: [" + jsonFile + "]", ex);

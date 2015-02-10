@@ -22,7 +22,9 @@ import javax.net.ssl.SSLHandshakeException;
 import javax.net.ssl.SSLSessionContext;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.*;
@@ -206,5 +208,27 @@ public class ClientSSLServiceTests extends ElasticsearchTestCase {
                 .put("shield.ssl.keystore.path", testclientStore)
                 .build());
         sslService.sslContext();
+    }
+
+    @Test
+    public void validCiphersAndInvalidCiphersWork() throws Exception {
+        List<String> ciphers = new ArrayList<>(Arrays.asList(AbstractSSLService.DEFAULT_CIPHERS));
+        ciphers.add("foo");
+        ciphers.add("bar");
+        ClientSSLService sslService = new ClientSSLService(settingsBuilder()
+                .putArray("shield.ssl.ciphers", ciphers.toArray(new String[ciphers.size()]))
+                .build());
+        SSLEngine engine = sslService.createSSLEngine();
+        assertThat(engine, is(notNullValue()));
+        String[] enabledCiphers = engine.getEnabledCipherSuites();
+        assertThat(Arrays.asList(enabledCiphers), not(contains("foo", "bar")));
+    }
+
+    @Test(expected = ShieldSettingsException.class)
+    public void invalidCiphersOnlyThrowsException() throws Exception {
+        ClientSSLService sslService = new ClientSSLService(settingsBuilder()
+                .putArray("shield.ssl.ciphers", new String[] { "foo", "bar" })
+                .build());
+        sslService.createSSLEngine();
     }
 }

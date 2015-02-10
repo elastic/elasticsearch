@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.ssl;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.CacheLoader;
 import org.elasticsearch.common.cache.LoadingCache;
@@ -16,11 +17,15 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.UncheckedExecutionException;
+import org.elasticsearch.shield.ShieldSettingsException;
 
 import javax.net.ssl.*;
 import java.io.FileInputStream;
 import java.security.KeyStore;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  * This service houses the private key and trust managers needed for SSL/TLS negotiation.  It is the central place to
@@ -92,7 +97,9 @@ public abstract class AbstractSSLService extends AbstractComponent {
     SSLEngine createSSLEngine(SSLContext sslContext, String[] ciphers, String[] supportedProtocols, String host, int port) {
         SSLEngine sslEngine = sslContext.createSSLEngine(host, port);
         try {
-            sslEngine.setEnabledCipherSuites(ciphers);
+            sslEngine.setEnabledCipherSuites(supportedCiphers(sslEngine.getSupportedCipherSuites(), ciphers));
+        } catch (ElasticsearchException e) {
+            throw e;
         } catch (Throwable t) {
             throw new ElasticsearchSSLException("failed loading cipher suites [" + Arrays.asList(ciphers) + "]", t);
         }
@@ -103,6 +110,38 @@ public abstract class AbstractSSLService extends AbstractComponent {
             throw new ElasticsearchSSLException("failed setting supported protocols [" + Arrays.asList(supportedProtocols) + "]", e);
         }
         return sslEngine;
+    }
+
+    String[] supportedCiphers(String[] supportedCiphers, String[] requestedCiphers) {
+        List<String> requestedCiphersList = new ArrayList<>(requestedCiphers.length);
+        List<String> unsupportedCiphers = new LinkedList<>();
+        boolean found;
+        for (String requestedCipher : requestedCiphers) {
+            found = false;
+            for (String supportedCipher : supportedCiphers) {
+                if (supportedCipher.equals(requestedCipher)) {
+                    found = true;
+                    requestedCiphersList.add(requestedCipher);
+                    break;
+                }
+            }
+
+            if (!found) {
+                unsupportedCiphers.add(requestedCipher);
+            }
+        }
+
+        if (requestedCiphersList.isEmpty()) {
+            throw new ShieldSettingsException("none of the ciphers [" + Arrays.asList(requestedCiphers) + "] are supported by this JVM");
+        }
+
+        if (!unsupportedCiphers.isEmpty()) {
+            logger.error("unsupported ciphers [{}] were requested but cannot be used in this JVM. If you are trying to use ciphers\n" +
+                    "with a key length greater than 128 bits on an Oracle JVM, you will need to install the unlimited strength\n" +
+                    "JCE policy files. Additionally, please ensure the PKCS11 provider is enabled for your JVM.", unsupportedCiphers);
+        }
+
+        return requestedCiphersList.toArray(new String[requestedCiphersList.size()]);
     }
 
     private class SSLContextCacheLoader extends CacheLoader<SSLSettings, SSLContext> {

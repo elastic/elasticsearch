@@ -44,6 +44,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -66,6 +67,7 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -752,9 +754,13 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 final ProcessClusterState processClusterState = new ProcessClusterState(newClusterState, newStateProcessed);
                 processNewClusterStates.add(processClusterState);
 
-
                 assert newClusterState.nodes().masterNode() != null : "received a cluster state without a master";
                 assert !newClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock()) : "received a cluster state with a master block";
+
+                ClusterState currentState = clusterService.state();
+                if (shouldIgnoreNewClusterState(logger, currentState, newClusterState)) {
+                    return;
+                }
 
                 clusterService.submitStateUpdateTask("zen-disco-receive(from master [" + newClusterState.nodes().masterNode() + "])", Priority.URGENT, new ProcessedClusterStateNonMasterUpdateTask() {
                     @Override
@@ -769,49 +775,18 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         // to figure out if we need to use it or not, and only once we picked the latest one, parse the whole state
 
 
-                        // try and get the state with the highest version out of all the ones with the same master node id
-                        ProcessClusterState stateToProcess = processNewClusterStates.poll();
-                        if (stateToProcess == null) {
-                            return currentState;
+                        ClusterState updatedState = selectNextStateToProcess(processNewClusterStates);
+                        if (updatedState == null) {
+                            updatedState = currentState;
                         }
-                        stateToProcess.processed = true;
-                        while (true) {
-                            ProcessClusterState potentialState = processNewClusterStates.peek();
-                            // nothing else in the queue, bail
-                            if (potentialState == null) {
-                                break;
-                            }
-                            // if its not from the same master, then bail
-                            if (!Objects.equal(stateToProcess.clusterState.nodes().masterNodeId(), potentialState.clusterState.nodes().masterNodeId())) {
-                                break;
-                            }
-
-                            // we are going to use it for sure, poll (remove) it
-                            potentialState = processNewClusterStates.poll();
-                            if (potentialState == null) {
-                                // might happen if the queue is drained
-                                break;
-                            }
-
-                            potentialState.processed = true;
-
-                            if (potentialState.clusterState.version() > stateToProcess.clusterState.version()) {
-                                // we found a new one
-                                stateToProcess = potentialState;
-                            }
-                        }
-
-                        ClusterState updatedState = stateToProcess.clusterState;
-
-                        // if the new state has a smaller version, and it has the same master node, then no need to process it
-                        if (updatedState.version() < currentState.version() && Objects.equal(updatedState.nodes().masterNodeId(), currentState.nodes().masterNodeId())) {
+                        if (shouldIgnoreNewClusterState(logger, currentState, updatedState)) {
                             return currentState;
                         }
 
                         // we don't need to do this, since we ping the master, and get notified when it has moved from being a master
                         // because it doesn't have enough master nodes...
                         //if (!electMaster.hasEnoughMasterNodes(newState.nodes())) {
-                        //    return disconnectFromCluster(newState, "not enough master nodes on new cluster state received from [" + newState.nodes().masterNode() + "]");
+                        //    return disconnectFromCluster(newState, "not enough master nodes on new cluster state wreceived from [" + newState.nodes().masterNode() + "]");
                         //}
 
                         // check to see that we monitor the correct master of the cluster
@@ -871,6 +846,65 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     }
                 });
             }
+        }
+    }
+
+    /**
+     * Picks the cluster state with highest version with the same master from the queue. All cluster states with
+     * lower versions are ignored. If a cluster state with a different master is seen the processing logic stops and the
+     * last processed state is returned.
+     */
+    static ClusterState selectNextStateToProcess(Queue<ProcessClusterState> processNewClusterStates) {
+        // try and get the state with the highest version out of all the ones with the same master node id
+        ProcessClusterState stateToProcess = processNewClusterStates.poll();
+        if (stateToProcess == null) {
+            return null;
+        }
+        stateToProcess.processed = true;
+        while (true) {
+            ProcessClusterState potentialState = processNewClusterStates.peek();
+            // nothing else in the queue, bail
+            if (potentialState == null) {
+                break;
+            }
+            // if its not from the same master, then bail
+            if (!Objects.equal(stateToProcess.clusterState.nodes().masterNodeId(), potentialState.clusterState.nodes().masterNodeId())) {
+                break;
+            }
+            // we are going to use it for sure, poll (remove) it
+            potentialState = processNewClusterStates.poll();
+            if (potentialState == null) {
+                // might happen if the queue is drained
+                break;
+            }
+            potentialState.processed = true;
+
+            if (potentialState.clusterState.version() > stateToProcess.clusterState.version()) {
+                // we found a new one
+                stateToProcess = potentialState;
+            }
+        }
+        return stateToProcess.clusterState;
+    }
+
+    /**
+     * In the case we follow an elected master the new cluster state needs to have the same elected master and
+     * the new cluster state version needs to be equal or higher than our cluster state version. If either conditions
+     * are true then the cluster state is dated and we should ignore it.
+     */
+    static boolean shouldIgnoreNewClusterState(ESLogger logger, ClusterState currentState, ClusterState newClusterState) {
+        if (currentState.nodes().masterNodeId() == null) {
+            return false;
+        }
+        if (!currentState.nodes().masterNodeId().equals(newClusterState.nodes().masterNodeId())) {
+            logger.warn("received a cluster state from a different master then the current one, ignoring (received {}, current {})", newClusterState.nodes().masterNode(), currentState.nodes().masterNode());
+            return true;
+        } else if (newClusterState.version() < currentState.version()) {
+            // if the new state has a smaller version, and it has the same master node, then no need to process it
+            logger.debug("received a cluster state that has a lower version than the current one, ignoring (received {}, current {})", newClusterState.version(), currentState.version());
+            return true;
+        } else {
+            return false;
         }
     }
 

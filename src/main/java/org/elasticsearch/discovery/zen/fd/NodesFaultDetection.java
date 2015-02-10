@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.zen.fd;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;

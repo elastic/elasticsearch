@@ -51,6 +51,7 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -1290,11 +1291,20 @@ public final class InternalTestCluster extends TestCluster {
 
 
     /**
-     * get the name of the current master node
+     * Returns the name of the current master node in the cluster.
      */
     public String getMasterName() {
+        return getMasterName(null);
+    }
+
+    /**
+     * Returns the name of the current master node in the cluster and executes the request via the node specified
+     * in the viaNode parameter. If viaNode isn't specified a random node will be picked to the send the request to.
+     */
+    public String getMasterName(@Nullable String viaNode) {
         try {
-            ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+            Client client = viaNode != null ? client(viaNode) : client();
+            ClusterState state = client.admin().cluster().prepareState().execute().actionGet().getState();
             return state.nodes().masterNode().name();
         } catch (Throwable e) {
             logger.warn("Can't fetch cluster state", e);

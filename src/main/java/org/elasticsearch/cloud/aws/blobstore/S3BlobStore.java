@@ -67,7 +67,7 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
 
         this.bufferSize = (bufferSize != null) ? bufferSize : MIN_BUFFER_SIZE;
         if (this.bufferSize.getBytes() < MIN_BUFFER_SIZE.getBytes()) {
-            throw new BlobStoreException("\"Detected a buffer_size for the S3 storage lower than [" + MIN_BUFFER_SIZE + "]");
+            throw new BlobStoreException("Detected a buffer_size for the S3 storage lower than [" + MIN_BUFFER_SIZE + "]");
         }
 
         this.numberOfRetries = maxRetries;

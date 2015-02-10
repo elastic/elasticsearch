@@ -152,6 +152,7 @@ public class ThreadPool extends AbstractComponent {
         this.scheduler = new ScheduledThreadPoolExecutor(1, EsExecutors.daemonThreadFactory(settings, "scheduler"), new EsAbortPolicy());
         this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         this.scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+        this.scheduler.setRemoveOnCancelPolicy(true);
         if (nodeSettingsService != null) {
             nodeSettingsService.addListener(new ApplySettings());
         }

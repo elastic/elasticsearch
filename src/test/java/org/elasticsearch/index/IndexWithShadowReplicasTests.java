@@ -47,26 +47,23 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     @TestLogging("_root:DEBUG,env:TRACE")
-    @Repeat(iterations = 5)
+    @Repeat(iterations = 10)
     public void leesFavoriteTest() throws Exception {
         Settings nodeSettings = ImmutableSettings.builder()
                 .put("node.add_id_to_custom_path", false)
                 .put("node.enable_custom_paths", true)
-                // check-on-close for shadow replicas does *NOT* work
-                .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
-                // disable all the mock stuff, this isn't how to use this though...
-                .put(InternalTestCluster.TESTS_ENABLE_MOCK_MODULES, false)
                 .build();
 
         String node1 = internalCluster().startNode(nodeSettings);
         String node2 = internalCluster().startNode(nodeSettings);
+        String node3 = internalCluster().startNode(nodeSettings);
 
         final String IDX = "test";
         final Path dataPath = newTempDirPath();
 
         Settings idxSettings = ImmutableSettings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
                 .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
                 .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
                 .build();
@@ -91,8 +88,10 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> restarting both nodes");
         if (randomBoolean()) {
+            logger.info("--> rolling restart");
             internalCluster().rollingRestart();
         } else {
+            logger.info("--> full restart");
             internalCluster().fullRestart();
         }
 
@@ -100,7 +99,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
             @Override
             public void run() {
                 logger.info("--> waiting for green...");
-                assertThat(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().getStatus(), equalTo(ClusterHealthStatus.GREEN));
+                assertThat(client().admin().cluster().prepareHealth().setWaitForNodes("3").get().getStatus(), equalTo(ClusterHealthStatus.GREEN));
             }
         });
 

@@ -330,20 +330,8 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (currentRouting.primary() == false && // currently a replica
                     newRouting.primary() == true && // becoming a primary
                     indexSettings.getAsBoolean(IndexMetaData.SETTING_SHADOW_REPLICAS, false)) {
-                this.engineFactory = new InternalEngineFactory();
-
-                // Recovery creates a new engine, we only need to preset the
-                // state to RECOVERING
-                state = IndexShardState.RECOVERING;
-                try {
-                    performRecoveryRestart();
-                } catch (IOException ex) {
-                    failShard("failed to perform recovery restart", ex);
-                }
-                IndexShardGateway.recover(this, this.logger, this.mappingUpdatedAction,
-                        this.cancellableThreads, true, new RecoveryState(shardId()),
-                        // TODO make this configurable, or get it from IndexShardGateway
-                        TimeValue.timeValueSeconds(30));
+                failShard("foobar", new RuntimeException("Can't promote shadow replica"));
+                return this;
             }
         }
 

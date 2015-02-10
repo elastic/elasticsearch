@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -81,7 +82,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                                                    @IndexSettings Settings indexSettings) {
                     if (indexShard != null && shardId.equals(sid)) {
                         logger.info("Shard state before potentially flushing is {}", indexShard.state());
-                        if (validCheckIndexStates.contains(indexShard.state())) {
+                        if (validCheckIndexStates.contains(indexShard.state()) && indexShard.engine() instanceof InternalEngine) {
                             canRun = true;
                             // When the the internal engine closes we do a rollback, which removes uncommitted segments
                             // By doing a commit flush we perform a Lucene commit, but don't clear the translog,

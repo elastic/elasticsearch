@@ -78,19 +78,16 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         } else if (!(command instanceof PrioritizedFutureTask)) { // it might be a callable wrapper...
             command = new TieBreakingPrioritizedRunnable(command, Priority.NORMAL, insertionOrder.incrementAndGet());
         }
-        super.execute(command);
         if (timeout.nanos() >= 0) {
-            final Runnable fCommand = command;
-            timer.schedule(new Runnable() {
-                @Override
-                public void run() {
-                    boolean removed = getQueue().remove(fCommand);
-                    if (removed) {
-                        timeoutCallback.run();
-                    }
-                }
-            }, timeout.nanos(), TimeUnit.NANOSECONDS);
+            if (command instanceof TieBreakingPrioritizedRunnable) {
+                ((TieBreakingPrioritizedRunnable) command).scheduleTimeout(timer, timeoutCallback, timeout);
+            } else {
+                // We really shouldn't be here. The only way we can get here if somebody created PrioritizedFutureTask
+                // and passed it to execute, which doesn't make much sense
+                throw new UnsupportedOperationException("Execute with timeout is not supported for future tasks");
+            }
         }
+        super.execute(command);
     }
 
     @Override
@@ -133,10 +130,11 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         }
     }
 
-    static class TieBreakingPrioritizedRunnable extends PrioritizedRunnable {
+    private final class TieBreakingPrioritizedRunnable extends PrioritizedRunnable {
 
-        final Runnable runnable;
-        final long insertionOrder;
+        private Runnable runnable;
+        private final long insertionOrder;
+        private ScheduledFuture<?> timeoutFuture;
 
         TieBreakingPrioritizedRunnable(PrioritizedRunnable runnable, long insertionOrder) {
             this(runnable, runnable.priority(), insertionOrder);
@@ -150,7 +148,10 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
 
         @Override
         public void run() {
-            runnable.run();
+            if (timeoutFuture != null) {
+                timeoutFuture.cancel(false);
+            }
+            runAndClean(runnable);
         }
 
         @Override
@@ -161,9 +162,35 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
             }
             return insertionOrder < ((TieBreakingPrioritizedRunnable) pr).insertionOrder ? -1 : 1;
         }
+
+        public void scheduleTimeout(ScheduledExecutorService timer, final Runnable timeoutCallback, TimeValue timeValue) {
+            timeoutFuture = timer.schedule(new Runnable() {
+                @Override
+                public void run() {
+                    if (remove(TieBreakingPrioritizedRunnable.this)) {
+                        runAndClean(timeoutCallback);
+                    }
+                }
+            }, timeValue.nanos(), TimeUnit.NANOSECONDS);
+        }
+
+        /**
+         * Timeout callback might remain in the timer scheduling queue for some time and it might hold
+         * the pointers to other objects. As a result it's possible to run out of memory if a large number of
+         * tasks are executed
+         */
+        private void runAndClean(Runnable run) {
+            try {
+                run.run();
+            } finally {
+                runnable = null;
+                timeoutFuture = null;
+            }
+        }
+
     }
 
-    static class PrioritizedFutureTask<T> extends FutureTask<T> implements Comparable<PrioritizedFutureTask> {
+    private final class PrioritizedFutureTask<T> extends FutureTask<T> implements Comparable<PrioritizedFutureTask> {
 
         final Object task;
         final Priority priority;

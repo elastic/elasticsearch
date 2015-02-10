@@ -31,7 +31,6 @@ import java.util.List;
  * Overrides bounding box logic in ShapeCollection base class to comply with
  * OGC OpenGIS Abstract Specification: An Object Model for Interoperable Geoprocessing.
  *
- * This class also overrides the 'relate' method to leverage the updated bbox logic.
  * NOTE: This algorithm is O(N) and can possibly be improved O(log n) using an internal R*-Tree
  * data structure for a collection of bounding boxes
  */

@@ -27,8 +27,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -38,6 +37,7 @@ import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -557,7 +557,7 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
 
         String oldMasterNode = internalCluster().getMasterName();
         // a very long GC, but it's OK as we remove the disruption when it has had an effect
-        SingleNodeDisruption masterNodeDisruption = new LongGCDisruption(oldMasterNode, getRandom(), 100, 200, 30000, 60000);
+        SingleNodeDisruption masterNodeDisruption = new IntermittentLongGCDisruption(oldMasterNode, getRandom(), 100, 200, 30000, 60000);
         internalCluster().setDisruptionScheme(masterNodeDisruption);
         masterNodeDisruption.startDisrupting();
 
@@ -575,14 +575,7 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
         ensureStableCluster(2, oldNonMasterNodes.get(0));
 
         logger.info("waiting for any pinging to stop");
-        for (final String node : oldNonMasterNodes) {
-            assertTrue("node [" + node + "] is still joining master", awaitBusy(new Predicate<Object>() {
-                @Override
-                public boolean apply(Object input) {
-                    return !((ZenDiscovery) internalCluster().getInstance(Discovery.class, node)).joiningCluster();
-                }
-            }, 30, TimeUnit.SECONDS));
-        }
+        assertDiscoveryCompleted(oldNonMasterNodes);
 
         // restore GC
         masterNodeDisruption.stopDisrupting();
@@ -593,6 +586,99 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
         String newMaster = internalCluster().getMasterName();
         assertThat(newMaster, not(equalTo(oldMasterNode)));
         assertMaster(newMaster, nodes);
+    }
+
+    /**
+     * Tests that emulates a frozen elected master node that unfreezes and pushes his cluster state to other nodes
+     * that already are following another elected master node. These nodes should reject this cluster state and prevent
+     * them from following the stale master.
+     */
+    @Test
+    public void testStaleMasterNotHijackingMajority() throws Exception {
+        // TODO: on mac OS multicast threads are shared between nodes and we therefore we can't simulate GC and stop pinging for just one node
+        // find a way to block thread creation in the generic thread pool to avoid this.
+        // 3 node cluster with unicast discovery and minimum_master_nodes set to 2:
+        List<String> nodes = startUnicastCluster(3, null, 2);
+
+        // Save the current master node as old master node, because that node will get frozen
+        final String oldMasterNode = internalCluster().getMasterName();
+        for (String node : nodes) {
+            ensureStableCluster(3, node);
+        }
+        assertMaster(oldMasterNode, nodes);
+
+        // Simulating a painful gc by suspending all threads for a long time on the current elected master node.
+        SingleNodeDisruption masterNodeDisruption = new LongGCDisruption(getRandom(), oldMasterNode);
+
+        // Save the majority side
+        final List<String> majoritySide = new ArrayList<>(nodes);
+        majoritySide.remove(oldMasterNode);
+
+        // Keeps track of the previous and current master when a master node transition took place on each node on the majority side:
+        final Map<String, List<Tuple<String, String>>> masters = Collections.synchronizedMap(new HashMap<String, List<Tuple<String, String>>>());
+        for (final String node : majoritySide) {
+            masters.put(node, new ArrayList<Tuple<String, String>>());
+            internalCluster().getInstance(ClusterService.class, node).add(new ClusterStateListener() {
+                @Override
+                public void clusterChanged(ClusterChangedEvent event) {
+                    DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
+                    DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
+                    if (!Objects.equals(previousMaster, currentMaster)) {
+                        String previousMasterNodeName = previousMaster != null ? previousMaster.name() : null;
+                        String currentMasterNodeName = currentMaster != null ? currentMaster.name() : null;
+                        masters.get(node).add(new Tuple<>(previousMasterNodeName, currentMasterNodeName));
+                    }
+                }
+            });
+        }
+
+        internalCluster().setDisruptionScheme(masterNodeDisruption);
+        logger.info("freezing node [{}]", oldMasterNode);
+        masterNodeDisruption.startDisrupting();
+
+        // Wait for the majority side to get stable
+        ensureStableCluster(2, majoritySide.get(0));
+        ensureStableCluster(2, majoritySide.get(1));
+
+        // The old master node is frozen, but here we submit a cluster state update task that doesn't get executed,
+        // but will be queued and once the old master node un-freezes it gets executed.
+        // The old master node will send this update + the cluster state where he is flagged as master to the other
+        // nodes that follow the new master. These nodes should ignore this update.
+        internalCluster().getInstance(ClusterService.class, oldMasterNode).submitStateUpdateTask("sneaky-update", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                return ClusterState.builder(currentState).build();
+            }
+
+            @Override
+            public void onFailure(String source, Throwable t) {
+                logger.warn("failure [{}]", t, source);
+            }
+        });
+
+        // Save the new elected master node
+        final String newMasterNode = internalCluster().getMasterName(majoritySide.get(0));
+        logger.info("new detected master node [{}]", newMasterNode);
+
+        // Stop disruption
+        logger.info("Unfreeze node [{}]", oldMasterNode);
+        masterNodeDisruption.stopDisrupting();
+
+        // Make sure that the end state is consistent on all nodes:
+        assertDiscoveryCompleted(nodes);
+        assertMaster(newMasterNode, nodes);
+
+
+        assertThat(masters.size(), equalTo(2));
+        for (Map.Entry<String, List<Tuple<String, String>>> entry : masters.entrySet()) {
+            String nodeName = entry.getKey();
+            List<Tuple<String, String>> recordedMasterTransition = entry.getValue();
+            assertThat("[" + nodeName + "] Each node should only record two master node transitions", recordedMasterTransition.size(), equalTo(2));
+            assertThat("[" + nodeName + "] First transition's previous master should be [null]", recordedMasterTransition.get(0).v1(), equalTo(oldMasterNode));
+            assertThat("[" + nodeName + "] First transition's current master should be [" + newMasterNode + "]", recordedMasterTransition.get(0).v2(), nullValue());
+            assertThat("[" + nodeName + "] Second transition's previous master should be [null]", recordedMasterTransition.get(1).v1(), nullValue());
+            assertThat("[" + nodeName + "] jSecond transition's current master should be [" + newMasterNode + "]", recordedMasterTransition.get(1).v2(), equalTo(newMasterNode));
+        }
     }
 
     /**
@@ -960,6 +1046,17 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
             String failMsgSuffix = "cluster_state:\n" + state.prettyPrint();
             assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().size(), equalTo(nodes.size()));
             assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, state.nodes().masterNode().name(), equalTo(masterNode));
+        }
+    }
+
+    private void assertDiscoveryCompleted(List<String> nodes) throws InterruptedException {
+        for (final String node : nodes) {
+            assertTrue("node [" + node + "] is still joining master", awaitBusy(new Predicate<Object>() {
+                @Override
+                public boolean apply(Object input) {
+                    return !((ZenDiscovery) internalCluster().getInstance(Discovery.class, node)).joiningCluster();
+                }
+            }, 30, TimeUnit.SECONDS));
         }
     }
 }

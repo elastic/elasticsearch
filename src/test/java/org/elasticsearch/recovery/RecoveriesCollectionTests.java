@@ -116,9 +116,8 @@ public class RecoveriesCollectionTests extends ElasticsearchSingleNodeTest {
     long startRecovery(RecoveriesCollection collection, RecoveryTarget.RecoveryListener listener, TimeValue timeValue) {
         IndicesService indexServices = getInstanceFromNode(IndicesService.class);
         IndexShard indexShard = indexServices.indexServiceSafe("test").shard(0);
-        return collection.startRecovery(
-                indexShard, new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT),
-                new RecoveryState(indexShard.shardId()), listener, timeValue);
+        final DiscoveryNode sourceNode = new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT);
+        return collection.startRecovery(indexShard, sourceNode, listener, timeValue);
     }
 
 }

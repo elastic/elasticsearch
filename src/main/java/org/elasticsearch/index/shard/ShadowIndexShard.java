@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -33,7 +33,6 @@ import org.elasticsearch.index.cache.query.ShardQueryCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
@@ -82,14 +81,14 @@ public final class ShadowIndexShard extends IndexShard {
                             IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache,
                             ShardBitsetFilterCache shardBitsetFilterCache, @Nullable IndicesWarmer warmer,
                             SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService,
-                            MergePolicyProvider mergePolicyProvider, EngineFactory factory) {
+                            MergePolicyProvider mergePolicyProvider, EngineFactory factory, ClusterService clusterService) {
         super(shardId, indexSettings, indexSettingsService, indicesLifecycle, store, mergeScheduler,
                 translog, threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
                 indexingService, getService, searchService, shardWarmerService, shardFilterCache,
                 shardFieldData, percolatorQueriesRegistry, shardPercolateService, codecService,
                 termVectorsService, indexFieldDataService, indexService, shardSuggestService,
                 shardQueryCache, shardBitsetFilterCache, warmer, deletionPolicy, similarityService,
-                mergePolicyProvider, factory);
+                mergePolicyProvider, factory, clusterService);
     }
 
     /**

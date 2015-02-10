@@ -26,6 +26,8 @@ import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
+import java.util.concurrent.TimeUnit;
+
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -199,6 +201,37 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
             assertThat("Rounded value smaller or equal than unrounded, regardless of timezone", roundedDate, lessThanOrEqualTo(date));
             assertThat("NextRounding value should be greater than date", nextRoundingValue, greaterThan(roundedDate));
             assertThat("NextRounding value should be a rounded date", nextRoundingValue, equalTo(rounding.round(nextRoundingValue)));
+        }
+    }
+
+    /**
+     * randomized test on UTC/Day/TimeIntervalTimeZoneRounding with random interval and time zone offsets
+     */
+    @Test
+    public void testIntervalRoundingRandom() {
+        for (int i = 0; i < 1000; ++i) {
+            // max random interval is a year, can be negative
+            long interval = Math.abs(randomLong() % (TimeUnit.DAYS.toMillis(365)));
+            TimeZoneRounding rounding;
+            int timezoneOffset = randomIntBetween(-23, 23);
+            if (timezoneOffset==0) {
+                rounding = new TimeZoneRounding.UTCIntervalTimeZoneRounding(interval);
+            } else {
+                if (randomBoolean()) {
+                    rounding = new TimeZoneRounding.DayIntervalTimeZoneRounding(interval, DateTimeZone.forOffsetHours(timezoneOffset));
+                } else {
+                    rounding = new TimeZoneRounding.TimeIntervalTimeZoneRounding(interval, DateTimeZone.forOffsetHours(timezoneOffset));
+                }
+            }
+            long date = Math.abs(randomLong() % ((long) 10e11));
+            final long roundedDate = rounding.round(date);
+            final long nextRoundingValue = rounding.nextRoundingValue(roundedDate);
+            assertThat("Rounding should be idempotent", roundedDate, equalTo(rounding.round(roundedDate)));
+            assertThat("Rounded value smaller or equal than unrounded, regardless of timezone", roundedDate, lessThanOrEqualTo(date));
+            assertThat("NextRounding value should be greater than date", nextRoundingValue, greaterThan(roundedDate));
+            assertThat("NextRounding value should be interval from rounded value", nextRoundingValue - roundedDate, equalTo(interval));
+            assertThat("NextRounding value should be a rounded date", nextRoundingValue,
+                    equalTo(rounding.round(nextRoundingValue)));
         }
     }
 

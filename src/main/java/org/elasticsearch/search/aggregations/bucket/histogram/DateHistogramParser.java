@@ -43,6 +43,9 @@ import java.io.IOException;
 public class DateHistogramParser implements Aggregator.Parser {
 
     static final ParseField EXTENDED_BOUNDS = new ParseField("extended_bounds");
+    static final ParseField TIME_ZONE = new ParseField("time_zone");
+    static final ParseField OFFSET = new ParseField("offset");
+    static final ParseField INTERVAL = new ParseField("interval");
 
     private final ImmutableMap<String, DateTimeUnit> dateFieldUnits;
 
@@ -96,11 +99,11 @@ public class DateHistogramParser implements Aggregator.Parser {
             } else if (vsParser.token(currentFieldName, token, parser)) {
                 continue;
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
+                if (TIME_ZONE.match(currentFieldName)) {
                     timeZone = DateTimeZone.forID(parser.text());
-                } else if ("offset".equals(currentFieldName)) {
+                } else if (OFFSET.match(currentFieldName)) {
                     offset = parseOffset(parser.text());
-                } else if ("interval".equals(currentFieldName)) {
+                } else if (INTERVAL.match(currentFieldName)) {
                     interval = parser.text();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");

@@ -52,8 +52,6 @@ public abstract class TimeZoneRounding extends Rounding {
 
         private long offset;
 
-        private boolean preZoneAdjustLargeInterval = false;
-
         public Builder(DateTimeUnit unit) {
             this.unit = unit;
             this.interval = -1;
@@ -68,16 +66,6 @@ public abstract class TimeZoneRounding extends Rounding {
             this.timeZone = timeZone;
             return this;
         }
-
-        public Builder preZoneAdjustLargeInterval(boolean preZoneAdjustLargeInterval) {
-            this.preZoneAdjustLargeInterval = preZoneAdjustLargeInterval;
-            return this;
-        }
-
-//        public Builder postZone(DateTimeZone postTz) {
-//            this.postTz = postTz;
-//            return this;
-//        }
 
         public Builder offset(long offset) {
             this.offset = offset;
@@ -94,18 +82,18 @@ public abstract class TimeZoneRounding extends Rounding {
             if (unit != null) {
                 if (timeZone.equals(DateTimeZone.UTC)) {
                     timeZoneRounding = new UTCTimeZoneRoundingFloor(unit);
-                } else if (preZoneAdjustLargeInterval || unit.field().getDurationField().getUnitMillis() < DateTimeConstants.MILLIS_PER_HOUR * 12) {
-                    timeZoneRounding = new TimeTimeZoneRoundingFloor(unit, timeZone, timeZone);
+                } else if (unit.field().getDurationField().getUnitMillis() < DateTimeConstants.MILLIS_PER_HOUR * 12) {
+                    timeZoneRounding = new TimeTimeZoneRoundingFloor(unit, timeZone);
                 } else {
-                    timeZoneRounding = new DayTimeZoneRoundingFloor(unit, timeZone, timeZone);
+                    timeZoneRounding = new DayTimeZoneRoundingFloor(unit, timeZone);
                 }
             } else {
                 if (timeZone.equals(DateTimeZone.UTC)) {
                     timeZoneRounding = new UTCIntervalTimeZoneRounding(interval);
-                } else if (preZoneAdjustLargeInterval || interval < DateTimeConstants.MILLIS_PER_HOUR * 12) {
-                    timeZoneRounding = new TimeIntervalTimeZoneRounding(interval, timeZone, timeZone);
+                } else if (interval < DateTimeConstants.MILLIS_PER_HOUR * 12) {
+                    timeZoneRounding = new TimeIntervalTimeZoneRounding(interval, timeZone);
                 } else {
-                    timeZoneRounding = new DayIntervalTimeZoneRounding(interval, timeZone, timeZone);
+                    timeZoneRounding = new DayIntervalTimeZoneRounding(interval, timeZone);
                 }
             }
             if (offset != 0) {
@@ -125,18 +113,16 @@ public abstract class TimeZoneRounding extends Rounding {
         private DateTimeUnit unit;
         private DateTimeField field;
         private DurationField durationField;
-        private DateTimeZone preTz;
-        private DateTimeZone postTz;
+        private DateTimeZone timeZone;
 
         TimeTimeZoneRoundingFloor() { // for serialization
         }
 
-        TimeTimeZoneRoundingFloor(DateTimeUnit unit, DateTimeZone preTz, DateTimeZone postTz) {
+        TimeTimeZoneRoundingFloor(DateTimeUnit unit, DateTimeZone timeZone) {
             this.unit = unit;
             field = unit.field();
             durationField = field.getDurationField();
-            this.preTz = preTz;
-            this.postTz = postTz;
+            this.timeZone = timeZone;
         }
 
         @Override
@@ -146,21 +132,21 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long roundKey(long utcMillis) {
-            long offset = preTz.getOffset(utcMillis);
-            long time = utcMillis + offset;
-            return field.roundFloor(time) - offset;
+            long timeLocal = timeZone.convertUTCToLocal(utcMillis);
+            return field.roundFloor(timeLocal);
         }
 
         @Override
         public long valueForKey(long time) {
-            // now apply post Tz
-//            time = time + postTz.getOffset(time);
-            return time;
+            assert field.roundFloor(time) == time;
+            return timeZone.convertLocalToUTC(time, true);
         }
 
         @Override
-        public long nextRoundingValue(long value) {
-            return durationField.add(value, 1);
+        public long nextRoundingValue(long time) {
+            long timeUtc = timeZone.convertUTCToLocal(time);
+            long nextInLocalTime = durationField.add(timeUtc, 1);
+            return timeZone.convertLocalToUTC(nextInLocalTime, true);
         }
 
         @Override
@@ -168,15 +154,13 @@ public abstract class TimeZoneRounding extends Rounding {
             unit = DateTimeUnit.resolve(in.readByte());
             field = unit.field();
             durationField = field.getDurationField();
-            preTz = DateTimeZone.forID(in.readString());
-            postTz = DateTimeZone.forID(in.readString());
+            timeZone = DateTimeZone.forID(in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByte(unit.id());
-            out.writeString(preTz.getID());
-            out.writeString(postTz.getID());
+            out.writeString(timeZone.getID());
         }
     }
 
@@ -237,18 +221,16 @@ public abstract class TimeZoneRounding extends Rounding {
         private DateTimeUnit unit;
         private DateTimeField field;
         private DurationField durationField;
-        private DateTimeZone preTz;
-        private DateTimeZone postTz;
+        private DateTimeZone timeZone;
 
         DayTimeZoneRoundingFloor() { // for serialization
         }
 
-        DayTimeZoneRoundingFloor(DateTimeUnit unit, DateTimeZone preTz, DateTimeZone postTz) {
+        DayTimeZoneRoundingFloor(DateTimeUnit unit, DateTimeZone timeZone) {
             this.unit = unit;
             field = unit.field();
             durationField = field.getDurationField();
-            this.preTz = preTz;
-            this.postTz = postTz;
+            this.timeZone = timeZone;
         }
 
         @Override
@@ -258,21 +240,21 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long roundKey(long utcMillis) {
-            long time = utcMillis + preTz.getOffset(utcMillis);
-            return field.roundFloor(time);
+            long timeLocal = timeZone.convertUTCToLocal(utcMillis);
+            return field.roundFloor(timeLocal);
         }
 
         @Override
         public long valueForKey(long time) {
-            // after rounding, since its day level (and above), its actually UTC!
-            // now apply post Tz
-            time = time - postTz.getOffset(time);
-            return time;
+            assert field.roundFloor(time) == time;
+            return timeZone.convertLocalToUTC(time, true);
         }
 
         @Override
-        public long nextRoundingValue(long value) {
-            return durationField.add(value, 1);
+        public long nextRoundingValue(long time) {
+            long timeUtc = timeZone.convertUTCToLocal(time);
+            long nextInLocalTime = durationField.add(timeUtc, 1);
+            return timeZone.convertLocalToUTC(nextInLocalTime, true);
         }
 
         @Override
@@ -280,15 +262,13 @@ public abstract class TimeZoneRounding extends Rounding {
             unit = DateTimeUnit.resolve(in.readByte());
             field = unit.field();
             durationField = field.getDurationField();
-            preTz = DateTimeZone.forID(in.readString());
-            postTz = DateTimeZone.forID(in.readString());
+            timeZone = DateTimeZone.forID(in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByte(unit.id());
-            out.writeString(preTz.getID());
-            out.writeString(postTz.getID());
+            out.writeString(timeZone.getID());
         }
     }
 
@@ -342,16 +322,14 @@ public abstract class TimeZoneRounding extends Rounding {
         final static byte ID = 5;
 
         private long interval;
-        private DateTimeZone preTz;
-        private DateTimeZone postTz;
+        private DateTimeZone timeZone;
 
         TimeIntervalTimeZoneRounding() { // for serialization
         }
 
-        TimeIntervalTimeZoneRounding(long interval, DateTimeZone preTz, DateTimeZone postTz) {
+        TimeIntervalTimeZoneRounding(long interval, DateTimeZone timeZone) {
             this.interval = interval;
-            this.preTz = preTz;
-            this.postTz = postTz;
+            this.timeZone = timeZone;
         }
 
         @Override
@@ -361,37 +339,33 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long roundKey(long utcMillis) {
-            long time = utcMillis + preTz.getOffset(utcMillis);
-            return Rounding.Interval.roundKey(time, interval);
+            long timeLocal = timeZone.convertUTCToLocal(utcMillis);
+            return Rounding.Interval.roundKey(timeLocal, interval);
         }
 
         @Override
         public long valueForKey(long key) {
-            long time = Rounding.Interval.roundValue(key, interval);
-            // now, time is still in local, move it to UTC
-            time = time - preTz.getOffset(time);
-            // now apply post Tz
-            //time = time - postTz.getOffset(time);
-            return time;
+            long localTime = Rounding.Interval.roundValue(key, interval);
+            return timeZone.convertLocalToUTC(localTime, true);
         }
 
         @Override
         public long nextRoundingValue(long value) {
-            return value + interval;
+            long timeLocal = timeZone.convertUTCToLocal(value);
+            long next = timeLocal + interval;
+            return timeZone.convertLocalToUTC(next, true);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             interval = in.readVLong();
-            preTz = DateTimeZone.forID(in.readString());
-            postTz = DateTimeZone.forID(in.readString());
+            timeZone = DateTimeZone.forID(in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
-            out.writeString(preTz.getID());
-            out.writeString(postTz.getID());
+            out.writeString(timeZone.getID());
         }
     }
 
@@ -400,16 +374,14 @@ public abstract class TimeZoneRounding extends Rounding {
         final static byte ID = 6;
 
         private long interval;
-        private DateTimeZone preTz;
-        private DateTimeZone postTz;
+        private DateTimeZone timeZone;
 
         DayIntervalTimeZoneRounding() { // for serialization
         }
 
-        DayIntervalTimeZoneRounding(long interval, DateTimeZone preTz, DateTimeZone postTz) {
+        DayIntervalTimeZoneRounding(long interval, DateTimeZone timeZone) {
             this.interval = interval;
-            this.preTz = preTz;
-            this.postTz = postTz;
+            this.timeZone = timeZone;
         }
 
         @Override
@@ -419,36 +391,33 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long roundKey(long utcMillis) {
-            long time = utcMillis + preTz.getOffset(utcMillis);
+            long time = utcMillis + timeZone.getOffset(utcMillis);
             return Rounding.Interval.roundKey(time, interval);
         }
 
         @Override
         public long valueForKey(long key) {
-            long time = Rounding.Interval.roundValue(key, interval);
-            // after rounding, since its day level (and above), its actually UTC!
-            // now apply post Tz
-            time = time - postTz.getOffset(time);
-            return time;
+            long localTime = Rounding.Interval.roundValue(key, interval);
+            return timeZone.convertLocalToUTC(localTime, true);
         }
 
         @Override
         public long nextRoundingValue(long value) {
-            return value + interval;
+            long timeLocal = timeZone.convertUTCToLocal(value);
+            long next = timeLocal + interval;
+            return timeZone.convertLocalToUTC(next, true);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             interval = in.readVLong();
-            preTz = DateTimeZone.forID(in.readString());
-            postTz = DateTimeZone.forID(in.readString());
+            timeZone = DateTimeZone.forID(in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
-            out.writeString(preTz.getID());
-            out.writeString(postTz.getID());
+            out.writeString(timeZone.getID());
         }
     }
 }

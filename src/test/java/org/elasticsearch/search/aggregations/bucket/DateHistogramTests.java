@@ -1121,48 +1121,6 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getDocCount(), equalTo(3l));
     }
 
-    @Test
-    public void singleValue_WithPreZone_WithAdjustLargeInterval() throws Exception {
-        prepareCreate("idx2").addMapping("type", "date", "type=date").execute().actionGet();
-        IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];
-        DateTime date = date("2014-03-11T00:00:00+00:00");
-        for (int i = 0; i < reqs.length; i++) {
-            reqs[i] = client().prepareIndex("idx2", "type", "" + i).setSource(jsonBuilder().startObject().field("date", date).endObject());
-            date = date.plusHours(1);
-        }
-        indexRandom(true, reqs);
-
-        SearchResponse response = client().prepareSearch("idx2")
-                .setQuery(matchAllQuery())
-                .addAggregation(dateHistogram("date_histo")
-                        .field("date")
-                        .timeZone("-02:00")
-                        .interval(DateHistogramInterval.DAY)
-                        .preZoneAdjustLargeInterval(true)
-                        .format("yyyy-MM-dd'T'HH:mm:ss"))
-                .execute().actionGet();
-
-        assertThat(response.getHits().getTotalHits(), equalTo(5l));
-
-        Histogram histo = response.getAggregations().get("date_histo");
-        List<? extends Histogram.Bucket> buckets = histo.getBuckets();
-        assertThat(buckets.size(), equalTo(2));
-
-        DateTime key = new DateTime(2014, 3, 10, 2, 0, DateTimeZone.UTC);
-        Histogram.Bucket bucket = buckets.get(0);
-        assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsString(), equalTo("2014-03-10T02:00:00"));
-        //assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(2l));
-
-        key = new DateTime(2014, 3, 11, 2, 0, DateTimeZone.UTC);
-        bucket = buckets.get(1);
-        assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsString(), equalTo("2014-03-11T02:00:00"));
-        //assertThat(((DateTime) bucket.getKey()), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(3l));
-    }
-
     @Override
     public Settings indexSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
@@ -1281,7 +1239,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void singleValue_WithMultipleDateFormatsFromMapping() throws Exception {
-        
+
         String mappingJson = jsonBuilder().startObject().startObject("type").startObject("properties").startObject("date").field("type", "date").field("format", "dateOptionalTime||dd-MM-yyyy").endObject().endObject().endObject().endObject().string();
         prepareCreate("idx2").addMapping("type", mappingJson).execute().actionGet();
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];

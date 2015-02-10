@@ -38,7 +38,6 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     private Object extendedBoundsMin;
     private Object extendedBoundsMax;
     private String timeZone;
-    private boolean preZoneAdjustLargeInterval;
     private String format;
     private String offset;
     private float factor = 1.0f;
@@ -88,14 +87,6 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
      */
     public DateHistogramBuilder timeZone(String timeZone) {
         this.timeZone = timeZone;
-        return this;
-    }
-
-    /**
-     * Set whether to adjust large intervals, when using days or larger intervals.
-     */
-    public DateHistogramBuilder preZoneAdjustLargeInterval(boolean preZoneAdjustLargeInterval) {
-        this.preZoneAdjustLargeInterval = preZoneAdjustLargeInterval;
         return this;
     }
 
@@ -179,10 +170,6 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
 
         if (timeZone != null) {
             builder.field("time_zone", timeZone);
-        }
-
-        if (preZoneAdjustLargeInterval) {
-            builder.field("pre_zone_adjust_large_interval", true);
         }
 
         if (offset != null) {

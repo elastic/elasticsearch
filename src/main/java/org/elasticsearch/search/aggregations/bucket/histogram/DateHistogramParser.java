@@ -85,7 +85,6 @@ public class DateHistogramParser implements Aggregator.Parser {
         ExtendedBounds extendedBounds = null;
         InternalOrder order = (InternalOrder) Histogram.Order.KEY_ASC;
         String interval = null;
-        boolean preZoneAdjustLargeInterval = false;
         DateTimeZone timeZone = DateTimeZone.UTC;
         long offset = 0;
 
@@ -109,8 +108,6 @@ public class DateHistogramParser implements Aggregator.Parser {
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
-                } else if ("pre_zone_adjust_large_interval".equals(currentFieldName) || "preZoneAdjustLargeInterval".equals(currentFieldName)) {
-                    preZoneAdjustLargeInterval = parser.booleanValue();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -183,7 +180,6 @@ public class DateHistogramParser implements Aggregator.Parser {
 
         Rounding rounding = tzRoundingBuilder
                 .timeZone(timeZone)
-                .preZoneAdjustLargeInterval(preZoneAdjustLargeInterval)
                 .offset(offset).build();
 
         return new HistogramAggregator.Factory(aggregationName, vsParser.config(), rounding, order, keyed, minDocCount, extendedBounds,

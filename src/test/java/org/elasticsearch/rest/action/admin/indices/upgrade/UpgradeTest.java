@@ -157,7 +157,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         logger.info("--> Single index upgrade complete");
         
         logger.info("--> Running upgrade on the rest of the indexes");
-        runUpgrade(httpClient, null, "wait_for_completion", "true");
+        runUpgrade(httpClient, null);
         logSegmentsState();
         logger.info("--> Full upgrade complete");
         assertUpgraded(httpClient, null);

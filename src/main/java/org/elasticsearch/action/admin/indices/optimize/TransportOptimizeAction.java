@@ -108,7 +108,7 @@ public class TransportOptimizeAction extends TransportBroadcastOperationAction<O
     protected ShardOptimizeResponse shardOperation(ShardOptimizeRequest request) throws ElasticsearchException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
         indexShard.optimize(new OptimizeRequest().flush(request.flush()).onlyExpungeDeletes(request.onlyExpungeDeletes())
-                .maxNumSegments(request.maxNumSegments()).waitForMerge(request.waitForMerge()).upgrade(request.upgrade()));
+                .maxNumSegments(request.maxNumSegments()).upgrade(request.upgrade()));
         return new ShardOptimizeResponse(request.shardId());
     }
 

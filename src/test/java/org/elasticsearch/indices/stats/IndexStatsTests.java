@@ -368,7 +368,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         // Optimize & flush and wait; else we sometimes get a "Delete Index failed - not acked"
         // when ElasticsearchIntegrationTest.after tries to remove indices created by the test:
         logger.info("test: now optimize");
-        client().admin().indices().prepareOptimize("test").setWaitForMerge(true).get();
+        client().admin().indices().prepareOptimize("test").get();
         flush();
         logger.info("test: test done");
     }
@@ -505,7 +505,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
             client().prepareIndex("test1", "type2", Integer.toString(i)).setSource("field", "value").execute().actionGet();
             client().admin().indices().prepareFlush().execute().actionGet();
         }
-        client().admin().indices().prepareOptimize().setWaitForMerge(true).setMaxNumSegments(1).execute().actionGet();
+        client().admin().indices().prepareOptimize().setMaxNumSegments(1).execute().actionGet();
         stats = client().admin().indices().prepareStats()
                 .setMerge(true)
                 .execute().actionGet();
@@ -532,7 +532,7 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
         assertThat(stats.getTotal().getSegments().getVersionMapMemoryInBytes(), greaterThan(0l));
 
         client().admin().indices().prepareFlush().get();
-        client().admin().indices().prepareOptimize().setWaitForMerge(true).setMaxNumSegments(1).execute().actionGet();
+        client().admin().indices().prepareOptimize().setMaxNumSegments(1).execute().actionGet();
         stats = client().admin().indices().prepareStats().setSegments(true).get();
 
         assertThat(stats.getTotal().getSegments(), notNullValue());

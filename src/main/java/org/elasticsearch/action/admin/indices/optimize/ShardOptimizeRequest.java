@@ -32,8 +32,7 @@ import java.io.IOException;
  *
  */
 class ShardOptimizeRequest extends BroadcastShardOperationRequest {
-
-    private boolean waitForMerge = OptimizeRequest.Defaults.WAIT_FOR_MERGE;
+    
     private int maxNumSegments = OptimizeRequest.Defaults.MAX_NUM_SEGMENTS;
     private boolean onlyExpungeDeletes = OptimizeRequest.Defaults.ONLY_EXPUNGE_DELETES;
     private boolean flush = OptimizeRequest.Defaults.FLUSH;
@@ -44,15 +43,10 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
 
     ShardOptimizeRequest(ShardId shardId, OptimizeRequest request) {
         super(shardId, request);
-        waitForMerge = request.waitForMerge();
         maxNumSegments = request.maxNumSegments();
         onlyExpungeDeletes = request.onlyExpungeDeletes();
         flush = request.flush();
         upgrade = request.force() || request.upgrade();
-    }
-
-    boolean waitForMerge() {
-        return waitForMerge;
     }
 
     int maxNumSegments() {
@@ -74,7 +68,9 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        waitForMerge = in.readBoolean();
+        if (in.getVersion().before(Version.V_1_5_0)) {
+            in.readBoolean(); // backcompat for waitForMerges, no longer exists
+        }
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
@@ -86,7 +82,9 @@ class ShardOptimizeRequest extends BroadcastShardOperationRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(waitForMerge);
+        if (out.getVersion().before(Version.V_1_5_0)) {
+            out.writeBoolean(true);
+        }
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);

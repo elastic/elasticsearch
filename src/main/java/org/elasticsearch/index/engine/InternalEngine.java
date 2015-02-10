@@ -77,12 +77,9 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public class InternalEngine extends Engine {
 
-    protected final ESLogger logger;
     protected final ShardId shardId;
-    private final EngineConfig engineConfig;
     private final FailEngineOnMergeFailure mergeSchedulerFailureListener;
     private final MergeSchedulerListener mergeSchedulerListener;
-    private final EngineConfig.EngineSettingsListener listener;
 
     /** When we last pruned expired tombstones from versionMap.deletes: */
     private volatile long lastDeleteVersionPruneTimeMSec;
@@ -135,7 +132,6 @@ public class InternalEngine extends Engine {
         super(engineConfig);
         this.store = engineConfig.getStore();
         this.shardId = engineConfig.getShardId();
-        this.logger = Loggers.getLogger(getClass(), engineConfig.getIndexSettings(), shardId);
         this.versionMap = new LiveVersionMap();
         store.incRef();
         IndexWriter writer = null;
@@ -157,15 +153,7 @@ public class InternalEngine extends Engine {
 
             this.failedEngineListener = engineConfig.getFailedEngineListener();
             throttle = new IndexThrottle();
-            this.engineConfig = engineConfig;
             this.searcherFactory = new SearchFactory(engineConfig);
-            listener = new EngineConfig.EngineSettingsListener(logger, engineConfig) {
-                @Override
-                protected void onChange() {
-                    updateSettings();
-                }
-            };
-            engineConfig.getIndexSettingsService().addListener(listener);
             try {
                 writer = createWriter();
             } catch (IOException e) {
@@ -187,31 +175,6 @@ public class InternalEngine extends Engine {
                     // failure we need to dec the store reference
                     store.decRef();
                 }
-            }
-        }
-    }
-
-    @Override
-    public void updateIndexingBufferSize(ByteSizeValue indexingBufferSize) {
-        ByteSizeValue preValue = engineConfig.getIndexingBufferSize();
-        try (ReleasableLock _ = readLock.acquire()) {
-            ensureOpen();
-            engineConfig.setIndexingBufferSize(indexingBufferSize);
-            indexWriter.getConfig().setRAMBufferSizeMB(indexingBufferSize.mbFrac());
-        }
-        if (preValue.bytes() != indexingBufferSize.bytes()) {
-            // its inactive, make sure we do a refresh / full IW flush in this case, since the memory
-            // changes only after a "data" change has happened to the writer
-            // the index writer lazily allocates memory and a refresh will clean it all up.
-            if (indexingBufferSize == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER && preValue != EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER) {
-                logger.debug("updating index_buffer_size from [{}] to (inactive) [{}]", preValue, indexingBufferSize);
-                try {
-                    refresh("update index buffer");
-                } catch (Throwable e) {
-                    logger.warn("failed to refresh after setting shard to inactive", e);
-                }
-            } else {
-                logger.debug("updating index_buffer_size from [{}] to [{}]", preValue, indexingBufferSize);
             }
         }
     }
@@ -261,17 +224,15 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void updateSettings() {
-        if (isClosed.get() == false) {
+    private void updateIndexWriterSettings() {
+        try {
             final LiveIndexWriterConfig iwc = indexWriter.getConfig();
+            iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().mbFrac());
             iwc.setUseCompoundFile(engineConfig.isCompoundOnFlush());
             iwc.setCheckIntegrityAtMerge(engineConfig.isChecksumOnMerge());
+        } catch (AlreadyClosedException ex) {
+            // ignore
         }
-    }
-
-    @Override
-    public ByteSizeValue indexingBufferSize() {
-        return engineConfig.getIndexingBufferSize();
     }
 
     @Override
@@ -701,6 +662,7 @@ public class InternalEngine extends Engine {
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
         try (ReleasableLock _ = readLock.acquire()) {
             ensureOpen();
+            updateIndexWriterSettings();
             searcherManager.maybeRefreshBlocking();
         } catch (AlreadyClosedException e) {
             ensureOpen();
@@ -731,6 +693,7 @@ public class InternalEngine extends Engine {
 
     private void flush(boolean commitTranslog, boolean force, boolean waitIfOngoing) throws EngineException {
         ensureOpen();
+        updateIndexWriterSettings();
         if (commitTranslog) {
             // check outside the lock as well so we can check without blocking on the write lock
             if (onGoingRecoveries.get() > 0) {
@@ -1216,7 +1179,6 @@ public class InternalEngine extends Engine {
                 store.decRef();
                 this.mergeScheduler.removeListener(mergeSchedulerListener);
                 this.mergeScheduler.removeFailureListener(mergeSchedulerFailureListener);
-                engineConfig.getIndexSettingsService().removeListener(listener);
                 logger.debug("engine closed [{}]", reason);
             }
         }
@@ -1462,10 +1424,6 @@ public class InternalEngine extends Engine {
                 }
             }
         }
-    }
-
-    EngineConfig config() {
-        return engineConfig;
     }
 
 

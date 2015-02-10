@@ -90,7 +90,7 @@ public class RestUpgradeAction extends BaseRestHandler {
     
     void handlePost(RestRequest request, RestChannel channel, Client client) {
         OptimizeRequest optimizeReq = new OptimizeRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        optimizeReq.waitForMerge(request.paramAsBoolean("wait_for_completion", false));
+        optimizeReq.waitForMerge(request.paramAsBoolean("wait_for_completion", true));
         optimizeReq.flush(true);
         optimizeReq.upgrade(true);
         optimizeReq.maxNumSegments(Integer.MAX_VALUE); // we just want to upgrade the segments, not actually optimize to a single segment

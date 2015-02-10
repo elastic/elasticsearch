@@ -8,24 +8,19 @@ package org.elasticsearch.alerts.actions.email;
 import org.elasticsearch.alerts.AlertContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.actions.Action;
-import org.elasticsearch.alerts.actions.ActionException;
+import org.elasticsearch.alerts.actions.email.service.*;
 import org.elasticsearch.alerts.support.StringTemplateUtils;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.ScriptService;
 
-import javax.mail.*;
-import javax.mail.internet.AddressException;
-import javax.mail.internet.InternetAddress;
-import javax.mail.internet.MimeMessage;
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  */
@@ -33,37 +28,33 @@ public class EmailAction extends Action<EmailAction.Result> {
 
     public static final String TYPE = "email";
 
-    private final List<InternetAddress> emailAddresses;
+    private final Email.Builder email;
+    private final Authentication auth;
+    private final Profile profile;
+    private final String account;
+    private final StringTemplateUtils.Template subject;
+    private final StringTemplateUtils.Template textBody;
+    private final StringTemplateUtils.Template htmlBody;
+    private final boolean attachPayload;
 
-    //Optional, can be null, will use defaults from emailSettings (EmailServiceConfig)
-    private final String fromAddress;
-    private final StringTemplateUtils.Template subjectTemplate;
-    private final StringTemplateUtils.Template messageTemplate;
-
-    private static final StringTemplateUtils.Template DEFAULT_SUBJECT_TEMPLATE = new StringTemplateUtils.Template(
-            "Elasticsearch Alert {{alert_name}} triggered", null, "mustache", ScriptService.ScriptType.INLINE);
-
-    private static final StringTemplateUtils.Template DEFAULT_MESSAGE_TEMPLATE = new StringTemplateUtils.Template(
-            "{{alert_name}} triggered with {{response.hits.total}} results", null, "mustache", ScriptService.ScriptType.INLINE);
-
-
+    private final EmailService emailService;
     private final StringTemplateUtils templateUtils;
-    private final EmailSettingsService emailSettingsService;
 
-    protected EmailAction(ESLogger logger, EmailSettingsService emailSettingsService,
-                          StringTemplateUtils templateUtils, @Nullable StringTemplateUtils.Template subjectTemplate,
-                          @Nullable StringTemplateUtils.Template messageTemplate, @Nullable String fromAddress,
-                          List<InternetAddress> emailAddresses) {
+    protected EmailAction(ESLogger logger, EmailService emailService, StringTemplateUtils templateUtils,
+                          Email.Builder email, Authentication auth, Profile profile, String account,
+                          StringTemplateUtils.Template subject, StringTemplateUtils.Template textBody,
+                          StringTemplateUtils.Template htmlBody, boolean attachPayload) {
         super(logger);
-
+        this.emailService = emailService;
         this.templateUtils = templateUtils;
-        this.emailSettingsService = emailSettingsService;
-
-        this.emailAddresses = new ArrayList<>();
-        this.emailAddresses.addAll(emailAddresses);
-        this.subjectTemplate = subjectTemplate;
-        this.messageTemplate = messageTemplate;
-        this.fromAddress = fromAddress;
+        this.email = email;
+        this.auth = auth;
+        this.profile = profile;
+        this.account = account;
+        this.subject = subject;
+        this.textBody = textBody;
+        this.htmlBody = htmlBody;
+        this.attachPayload = attachPayload;
     }
 
     @Override
@@ -73,122 +64,72 @@ public class EmailAction extends Action<EmailAction.Result> {
 
     @Override
     public Result execute(AlertContext ctx, Payload payload) throws IOException {
+        email.id(ctx.runId());
 
-        final EmailSettingsService.EmailServiceConfig emailSettings = emailSettingsService.emailServiceConfig();
+        Map<String, Object> alertParams = new HashMap<>();
+        alertParams.put(Action.ALERT_NAME_VARIABLE_NAME, ctx.alert().name());
+        alertParams.put(RESPONSE_VARIABLE_NAME, payload.data());
 
-        Properties props = new Properties();
-        props.put("mail.smtp.auth", "true");
-        props.put("mail.smtp.starttls.enable", "true");
-        props.put("mail.smtp.host", emailSettings.host());
-        props.put("mail.smtp.port", emailSettings.port());
-        final Session session;
+        String text = templateUtils.executeTemplate(subject, alertParams);
+        email.subject(text);
 
-        if (emailSettings.password() != null) {
-            final String username;
-            if (emailSettings.username() != null) {
-                username = emailSettings.username();
-            } else {
-                username = emailSettings.defaultFromAddress();
-            }
+        text = templateUtils.executeTemplate(textBody, alertParams);
+        email.textBody(text);
 
-            if (username == null) {
-                return new Result.Failure("unable to send email for alert [" +
-                        ctx.alert().name() + "]. username or the default [from] address is not set");
-            }
-
-            session = Session.getInstance(props,
-                    new javax.mail.Authenticator() {
-                        protected PasswordAuthentication getPasswordAuthentication() {
-                            return new PasswordAuthentication(username, emailSettings.password());
-                        }
-                    });
-        } else {
-            session = Session.getDefaultInstance(props);
+        if (htmlBody != null) {
+            text = templateUtils.executeTemplate(htmlBody, alertParams);
+            email.htmlBody(text);
         }
 
-        String subject = null;
-        String body = null;
+        if (attachPayload) {
+            Attachment.Bytes attachment = new Attachment.XContent.Yaml("payload", "payload.yml", "alert execution output", payload);
+            email.attach(attachment);
+        }
 
         try {
-            Message email = new MimeMessage(session);
-
-            String fromAddressToUse = emailSettings.defaultFromAddress();
-            if (fromAddress != null) {
-                fromAddressToUse = fromAddress;
-            }
-
-            email.setFrom(new InternetAddress(fromAddressToUse));
-
-            email.setRecipients(Message.RecipientType.TO, emailAddresses.toArray(new Address[1]));
-
-            Map<String, Object> alertParams = new HashMap<>();
-            alertParams.put(Action.ALERT_NAME_VARIABLE_NAME, ctx.alert().name());
-            alertParams.put(RESPONSE_VARIABLE_NAME, payload.data());
-
-
-            subject = templateUtils.executeTemplate(
-                    subjectTemplate != null ? subjectTemplate : DEFAULT_SUBJECT_TEMPLATE,
-                    alertParams);
-            email.setSubject(subject);
-
-            body = templateUtils.executeTemplate(
-                    messageTemplate != null ? messageTemplate : DEFAULT_MESSAGE_TEMPLATE,
-                    alertParams);
-            email.setText(body);
-
-            Transport.send(email);
-
-            return new Result.Success(fromAddressToUse, emailAddresses, subject, body);
-
-        } catch (MessagingException me) {
-            logger.error("failed to send mail for alert [{}]", me, ctx.alert().name());
-            return new Result.Failure(me.getMessage());
+            EmailService.EmailSent sent = emailService.send(email.build(), auth, profile, account);
+            return new Result.Success(sent);
+        } catch (EmailException ee) {
+            logger.error("could not send email for alert [{}]", ee, ctx.alert().name());
+            return new Result.Failure("could not send email for alert [" + ctx.alert().name() + "]. error: " + ee.getMessage());
         }
-
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Parser.ADDRESSES_FIELD.getPreferredName());
-        builder.startArray();
-        for (Address emailAddress : emailAddresses){
-            builder.value(emailAddress.toString());
+        if (account != null) {
+            builder.field(Parser.ACCOUNT_FIELD.getPreferredName(), account);
         }
-        builder.endArray();
-
-        if (subjectTemplate != null) {
-            StringTemplateUtils.writeTemplate(Parser.SUBJECT_TEMPLATE_FIELD.getPreferredName(), subjectTemplate, builder, params);
+        if (profile != null) {
+            builder.field(Parser.PROFILE_FIELD.getPreferredName(), profile);
         }
-
-        if (messageTemplate != null) {
-            StringTemplateUtils.writeTemplate(Parser.MESSAGE_TEMPLATE_FIELD.getPreferredName(), messageTemplate, builder, params);
+        builder.array(Email.TO_FIELD.getPreferredName(), email.to());
+        if (subject != null) {
+            StringTemplateUtils.writeTemplate(Email.SUBJECT_FIELD.getPreferredName(), subject, builder, params);
         }
-
-        if (fromAddress != null) {
-            builder.field(Parser.FROM_FIELD.getPreferredName(), fromAddress);
+        if (textBody != null) {
+            StringTemplateUtils.writeTemplate(Email.TEXT_BODY_FIELD.getPreferredName(), textBody, builder, params);
         }
-
-        builder.endObject();
-        return builder;
-
+        return builder.endObject();
     }
 
     public static class Parser extends AbstractComponent implements Action.Parser<EmailAction> {
 
-        public static final ParseField FROM_FIELD = new ParseField("from");
-        public static final ParseField ADDRESSES_FIELD = new ParseField("addresses");
-        public static final ParseField MESSAGE_TEMPLATE_FIELD = new ParseField("message_template");
-        public static final ParseField SUBJECT_TEMPLATE_FIELD = new ParseField("subject_template");
+        public static final ParseField ACCOUNT_FIELD = new ParseField("account");
+        public static final ParseField PROFILE_FIELD = new ParseField("profile");
+        public static final ParseField USER_FIELD = new ParseField("user");
+        public static final ParseField PASSWD_FIELD = new ParseField("password");
+        public static final ParseField ATTACH_PAYLOAD_FIELD = new ParseField("attach_payload");
 
         private final StringTemplateUtils templateUtils;
-        private final EmailSettingsService emailSettingsService;
+        private final EmailService emailService;
 
         @Inject
-        public Parser(Settings settings, EmailSettingsService emailSettingsService, StringTemplateUtils templateUtils) {
+        public Parser(Settings settings, EmailService emailService, StringTemplateUtils templateUtils) {
             super(settings);
+            this.emailService = emailService;
             this.templateUtils = templateUtils;
-            this.emailSettingsService = emailSettingsService;
         }
 
         @Override
@@ -198,49 +139,68 @@ public class EmailAction extends Action<EmailAction.Result> {
 
         @Override
         public EmailAction parse(XContentParser parser) throws IOException {
-            StringTemplateUtils.Template subjectTemplate = null;
-            StringTemplateUtils.Template messageTemplate = null;
-            String fromAddress = null;
-
-            List<InternetAddress> addresses = new ArrayList<>();
+            String user = null;
+            String password = null;
+            String account = null;
+            Profile profile = null;
+            Email.Builder email = Email.builder();
+            StringTemplateUtils.Template subject = null;
+            StringTemplateUtils.Template textBody = null;
+            StringTemplateUtils.Template htmlBody = null;
+            boolean attachPayload = false;
 
             String currentFieldName = null;
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (token.isValue()) {
-                    if (SUBJECT_TEMPLATE_FIELD.match(currentFieldName)) {
-                        subjectTemplate = StringTemplateUtils.readTemplate(parser);
-                    } else if (MESSAGE_TEMPLATE_FIELD.match(currentFieldName)) {
-                        messageTemplate = StringTemplateUtils.readTemplate(parser);
-                    } else if (FROM_FIELD.match(currentFieldName)) {
-                        fromAddress = parser.text();
+                } else if (Email.FROM_FIELD.match(currentFieldName)) {
+                    email.from(Email.Address.parse(currentFieldName, token, parser));
+                } else if (Email.REPLY_TO_FIELD.match(currentFieldName)) {
+                    email.replyTo(Email.AddressList.parse(currentFieldName, token, parser));
+                } else if (Email.TO_FIELD.match(currentFieldName)) {
+                    email.to(Email.AddressList.parse(currentFieldName, token, parser));
+                } else if (Email.CC_FIELD.match(currentFieldName)) {
+                    email.cc(Email.AddressList.parse(currentFieldName, token, parser));
+                } else if (Email.BCC_FIELD.match(currentFieldName)) {
+                    email.bcc(Email.AddressList.parse(currentFieldName, token, parser));
+                } else if (token == XContentParser.Token.VALUE_STRING) {
+                    if (Email.PRIORITY_FIELD.match(currentFieldName)) {
+                        email.priority(Email.Priority.resolve(parser.text()));
+                    } else if (Email.SUBJECT_FIELD.match(currentFieldName)) {
+                        subject = StringTemplateUtils.readTemplate(parser);
+                    } else if (Email.TEXT_BODY_FIELD.match(currentFieldName)) {
+                        textBody = StringTemplateUtils.readTemplate(parser);
+                    } else if (Email.HTML_BODY_FIELD.match(currentFieldName)) {
+                        htmlBody = StringTemplateUtils.readTemplate(parser);
+                    } else if (ACCOUNT_FIELD.match(currentFieldName)) {
+                        account = parser.text();
+                    } else if (USER_FIELD.match(currentFieldName)) {
+                        user = parser.text();
+                    } else if (PASSWD_FIELD.match(currentFieldName)) {
+                        password = parser.text();
+                    } else if (PROFILE_FIELD.match(currentFieldName)) {
+                        profile = Profile.resolve(parser.text());
                     } else {
-                        throw new ActionException("could not parse email action. unexpected field [" + currentFieldName + "]");
+                        throw new EmailException("could not parse email action. unrecognized string field [" + currentFieldName + "]");
                     }
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    if (ADDRESSES_FIELD.match(currentFieldName)) {
-                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            try {
-                                addresses.add(InternetAddress.parse(parser.text())[0]);
-                            } catch (AddressException ae) {
-                                throw new ActionException("could not parse email action. unable to parse [" + parser.text() + "] as an email address", ae);
-                            }
-                        }
+                } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                    if (ATTACH_PAYLOAD_FIELD.match(currentFieldName)) {
+                        attachPayload = parser.booleanValue();
                     } else {
-                        throw new ActionException("could not parse email action. unexpected field [" + currentFieldName + "]");
+                        throw new EmailException("could not parse email action. unrecognized boolean field [" + currentFieldName + "]");
                     }
                 } else {
-                    throw new ActionException("could not parse email action. unexpected token [" + token + "]");
+                    throw new EmailException("could not parse email action. unexpected token [" + token + "]");
                 }
             }
 
-            if (addresses.isEmpty()) {
-                throw new ActionException("could not parse email action. [addresses] was not found or was empty");
+            if (email.to() == null || email.to().isEmpty()) {
+                throw new EmailException("could not parse email action. [to] was not found or was empty");
             }
 
-            return new EmailAction(logger, emailSettingsService, templateUtils, subjectTemplate, messageTemplate, fromAddress, addresses);
+            Authentication auth = new Authentication(user, password);
+            return new EmailAction(logger, emailService, templateUtils, email, auth, profile, account, subject, textBody, htmlBody, attachPayload);
         }
     }
 
@@ -252,44 +212,26 @@ public class EmailAction extends Action<EmailAction.Result> {
 
         public static class Success extends Result {
 
-            private final String from;
-            private final List<InternetAddress> recipients;
-            private final String subject;
-            private final String body;
+            private final EmailService.EmailSent sent;
 
-            private Success(String from, List<InternetAddress> recipients, String subject, String body) {
+            private Success(EmailService.EmailSent sent) {
                 super(TYPE, true);
-                this.from = from;
-                this.recipients = recipients;
-                this.subject = subject;
-                this.body = body;
+                this.sent = sent;
             }
 
             @Override
             public XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                builder.field("fromAddress", from);
-                builder.field("subject", subject);
-                builder.array("to", recipients);
-                builder.field("body", body);
-                return builder;
+                return builder.field("account", sent.account())
+                        .field("email", sent.email());
             }
 
-            public String from() {
-                return from;
+            public String account() {
+                return sent.account();
             }
 
-            public String subject() {
-                return subject;
+            public Email email() {
+                return sent.email();
             }
-
-            public String body() {
-                return body;
-            }
-
-            public List<InternetAddress> recipients() {
-                return recipients;
-            }
-
         }
 
         public static class Failure extends Result {

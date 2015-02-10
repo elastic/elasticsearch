@@ -275,7 +275,7 @@ public class AlertsService extends AbstractComponent {
         if (state.compareAndSet(State.STOPPED, State.STARTING)) {
             ClusterState clusterState = initialState;
 
-            // Try to load alert store before the action manager, b/c action depends on alert store
+            // Try to load alert store before the action service, b/c action depends on alert store
             while (true) {
                 if (alertsStore.start(clusterState)) {
                     break;

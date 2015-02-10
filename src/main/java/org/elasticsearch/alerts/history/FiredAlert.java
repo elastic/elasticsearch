@@ -57,7 +57,7 @@ public class FiredAlert implements ToXContent {
     }
 
     public FiredAlert(Alert alert, DateTime scheduledTime, DateTime fireTime, State state) {
-        this.id = alert.name() + "#" + scheduledTime.toDateTimeISO();
+        this.id = firedAlertId(alert, scheduledTime);
         this.name = alert.name();
         this.fireTime = fireTime;
         this.scheduledTime = scheduledTime;
@@ -89,6 +89,10 @@ public class FiredAlert implements ToXContent {
         } else {
              state = State.NO_ACTION_NEEDED;
         }
+    }
+
+    public static String firedAlertId(Alert alert, DateTime dateTime) {
+        return alert.name() + "#" + dateTime.toDateTimeISO();
     }
 
     public DateTime scheduledTime() {

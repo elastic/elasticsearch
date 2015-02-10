@@ -6,7 +6,8 @@
 package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.alerts.actions.email.EmailAction;
-import org.elasticsearch.alerts.actions.email.EmailSettingsService;
+import org.elasticsearch.alerts.actions.email.service.EmailService;
+import org.elasticsearch.alerts.actions.email.service.InternalEmailService;
 import org.elasticsearch.alerts.actions.index.IndexAction;
 import org.elasticsearch.alerts.actions.webhook.HttpClient;
 import org.elasticsearch.alerts.actions.webhook.WebhookAction;
@@ -39,7 +40,6 @@ public class ActionModule extends AbstractModule {
         bind(IndexAction.Parser.class).asEagerSingleton();
         parsersBinder.addBinding(IndexAction.TYPE).to(IndexAction.Parser.class);
 
-
         for (Map.Entry<String, Class<? extends Action.Parser>> entry : parsers.entrySet()) {
             bind(entry.getValue()).asEagerSingleton();
             parsersBinder.addBinding(entry.getKey()).to(entry.getValue());
@@ -47,7 +47,7 @@ public class ActionModule extends AbstractModule {
 
         bind(ActionRegistry.class).asEagerSingleton();
         bind(HttpClient.class).asEagerSingleton();
-        bind(EmailSettingsService.class).asEagerSingleton();
+        bind(EmailService.class).to(InternalEmailService.class).asEagerSingleton();
     }
 
 

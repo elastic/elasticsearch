@@ -6,6 +6,7 @@
 package org.elasticsearch.alerts;
 
 import org.elasticsearch.alerts.actions.Action;
+import org.elasticsearch.alerts.history.FiredAlert;
 import org.elasticsearch.alerts.throttle.Throttler;
 import org.elasticsearch.alerts.transform.Transform;
 import org.elasticsearch.alerts.trigger.Trigger;
@@ -19,6 +20,7 @@ import java.util.Map;
  */
 public class AlertContext {
 
+    private final String runId;
     private final Alert alert;
     private final DateTime fireTime;
     private final DateTime scheduledTime;
@@ -30,9 +32,14 @@ public class AlertContext {
     private Map<String, Action.Result> actionsResults = new HashMap<>();
 
     public AlertContext(Alert alert, DateTime fireTime, DateTime scheduledTime) {
+        this.runId = FiredAlert.firedAlertId(alert, scheduledTime);
         this.alert = alert;
         this.fireTime = fireTime;
         this.scheduledTime = scheduledTime;
+    }
+
+    public String runId() {
+        return runId;
     }
 
     public Alert alert() {

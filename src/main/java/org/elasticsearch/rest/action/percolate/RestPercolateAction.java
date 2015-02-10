@@ -87,7 +87,7 @@ public class RestPercolateAction extends BaseRestHandler {
         percolateRequest.getRequest(getRequest);
         percolateRequest.routing(restRequest.param("percolate_routing"));
         percolateRequest.preference(restRequest.param("percolate_preference"));
-        percolateRequest.source(restRequest.content(), restRequest.contentUnsafe());
+        percolateRequest.source(RestActions.getRestContent(restRequest), restRequest.contentUnsafe());
 
         percolateRequest.indicesOptions(IndicesOptions.fromRequest(restRequest, percolateRequest.indicesOptions()));
         executePercolate(percolateRequest, restChannel, client);

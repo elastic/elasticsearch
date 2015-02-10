@@ -424,10 +424,10 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
 
     private void validateIndexRecoveryState(RecoveryState.Index indexState) {
         assertThat(indexState.time(), greaterThanOrEqualTo(0L));
-        assertThat(indexState.percentFilesRecovered(), greaterThanOrEqualTo(0.0f));
-        assertThat(indexState.percentFilesRecovered(), lessThanOrEqualTo(100.0f));
-        assertThat(indexState.percentBytesRecovered(), greaterThanOrEqualTo(0.0f));
-        assertThat(indexState.percentBytesRecovered(), lessThanOrEqualTo(100.0f));
+        assertThat(indexState.recoveredFilesPercent(), greaterThanOrEqualTo(0.0f));
+        assertThat(indexState.recoveredFilesPercent(), lessThanOrEqualTo(100.0f));
+        assertThat(indexState.recoveredBytesPercent(), greaterThanOrEqualTo(0.0f));
+        assertThat(indexState.recoveredBytesPercent(), lessThanOrEqualTo(100.0f));
     }
 
     @Test

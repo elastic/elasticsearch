@@ -28,9 +28,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.HashMap;
 
 /**
  * Information regarding the recovery state of indices and their associated shards.
@@ -64,17 +64,6 @@ public class RecoveryResponse extends BroadcastOperationResponse implements ToXC
         return shardResponses.size() > 0;
     }
 
-    public void addShardRecovery(String index, ShardRecoveryResponse shardRecoveryResponse) {
-
-        List<ShardRecoveryResponse> shardRecoveries = shardResponses.get(index);
-        if (shardRecoveries == null) {
-            shardRecoveries = new ArrayList<>();
-            shardResponses.put(index, shardRecoveries);
-        }
-
-        shardRecoveries.add(shardRecoveryResponse);
-    }
-
     public boolean detailed() {
         return detailed;
     }
@@ -99,7 +88,6 @@ public class RecoveryResponse extends BroadcastOperationResponse implements ToXC
                 builder.startArray("shards");
                 for (ShardRecoveryResponse recoveryResponse : responses) {
                     builder.startObject();
-                    recoveryResponse.detailed(this.detailed);
                     recoveryResponse.toXContent(builder, params);
                     builder.endObject();
                 }

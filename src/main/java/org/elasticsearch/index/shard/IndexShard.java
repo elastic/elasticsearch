@@ -32,9 +32,12 @@ import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.action.WriteFailureException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
-import org.elasticsearch.action.WriteFailureException;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
@@ -43,6 +46,7 @@ import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -64,12 +68,6 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.*;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineClosedException;
-import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
-import org.elasticsearch.index.engine.RefreshFailedEngineException;
-import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
@@ -153,6 +151,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndexService indexService;
     private final ShardSuggestService shardSuggestService;
     private final ShardBitsetFilterCache shardBitsetFilterCache;
+    private final DiscoveryNode localNode;
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
@@ -192,7 +191,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
                       ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
                       ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
-                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory) {
+                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory,
+                      ClusterService clusterService) {
         super(shardId, indexSettings);
         Preconditions.checkNotNull(store, "Store must be provided to the index shard");
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the index shard");
@@ -223,6 +223,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.codecService = codecService;
         this.shardSuggestService = shardSuggestService;
         this.shardBitsetFilterCache = shardBitsetFilterCache;
+        assert clusterService.lifecycleState() == Lifecycle.State.STARTED; // otherwise localNode is still none;
+        this.localNode = clusterService.localNode();
         state = IndexShardState.CREATED;
         this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
         this.flushOnClose = indexSettings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, true);
@@ -358,10 +360,23 @@ public class IndexShard extends AbstractIndexShardComponent {
         return this;
     }
 
+
     /**
-     * Marks the shard as recovering, fails with exception is recovering is not allowed to be set.
+     * Marks the shard as recovering based on a remote or local node, fails with exception is recovering is not allowed to be set.
      */
-    public IndexShardState recovering(String reason) throws IndexShardStartedException,
+    public IndexShardState recovering(String reason, RecoveryState.Type type, DiscoveryNode sourceNode) throws IndexShardStartedException,
+            IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
+        return recovering(reason, new RecoveryState(shardId, shardRouting.primary(), type, sourceNode, localNode));
+    }
+
+    /**
+     * Marks the shard as recovering based on a restore, fails with exception is recovering is not allowed to be set.
+     */
+    public IndexShardState recovering(String reason, RecoveryState.Type type, RestoreSource restoreSource) throws IndexShardStartedException {
+        return recovering(reason, new RecoveryState(shardId, shardRouting.primary(), type, restoreSource, localNode));
+    }
+
+    private IndexShardState recovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
             IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
@@ -379,6 +394,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (state == IndexShardState.POST_RECOVERY) {
                 throw new IndexShardRecoveringException(shardId);
             }
+            this.recoveryState = recoveryState;
             return changeState(IndexShardState.RECOVERING, reason);
         }
     }
@@ -766,15 +782,11 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     /**
-     * The peer recovery state if this shard recovered from a peer shard, null o.w.
+     * Returns the current {@link RecoveryState} if this shard is recovering or has been recovering.
+     * Returns null if the recovery has not yet started or shard was not recovered (created via an API).
      */
     public RecoveryState recoveryState() {
         return this.recoveryState;
-    }
-
-    public void performRecoveryFinalization(boolean withFlush, RecoveryState recoveryState) throws ElasticsearchException {
-        performRecoveryFinalization(withFlush);
-        this.recoveryState = recoveryState;
     }
 
     public void performRecoveryFinalization(boolean withFlush) throws ElasticsearchException {
@@ -1171,7 +1183,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         return engine;
     }
 
-    class ShardEngineFailListener implements  Engine.FailedEngineListener {
+    class ShardEngineFailListener implements Engine.FailedEngineListener {
         private final CopyOnWriteArrayList<Engine.FailedEngineListener> delegates = new CopyOnWriteArrayList<>();
 
         // called by the current engine

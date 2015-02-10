@@ -215,7 +215,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
 
         // Optimize does a waitForMerges, which we must do to make sure all in-flight (throttled) merges finish:
         logger.info("test: optimize");
-        client().admin().indices().prepareOptimize("test").setWaitForMerge(true).get();
+        client().admin().indices().prepareOptimize("test").get();
         logger.info("test: optimize done");
 
         // Record current throttling so far
@@ -253,7 +253,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
         // when ElasticsearchIntegrationTest.after tries to remove indices created by the test:
 
         // Wait for merges to finish
-        client().admin().indices().prepareOptimize("test").setWaitForMerge(true).get();
+        client().admin().indices().prepareOptimize("test").get();
         flush();
 
         logger.info("test: test done");
@@ -369,7 +369,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
                              .put(ConcurrentMergeSchedulerProvider.MAX_THREAD_COUNT, "1")
                              )
                 .get();
-
+            
             // Make sure we log the change:
             assertTrue(mockAppender.sawUpdateMaxThreadCount);
 

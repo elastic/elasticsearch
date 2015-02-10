@@ -411,30 +411,9 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     public void testSegmentsWithMergeFlag() throws Exception {
         final Store store = createStore();
         ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
-        final AtomicReference<CountDownLatch> waitTillMerge = new AtomicReference<>();
-        final AtomicReference<CountDownLatch> waitForMerge = new AtomicReference<>();
-        mergeSchedulerProvider.addListener(new MergeSchedulerProvider.Listener() {
-            @Override
-            public void beforeMerge(OnGoingMerge merge) {
-                try {
-                    if (waitTillMerge.get() != null) {
-                        waitTillMerge.get().countDown();
-                    }
-                    if (waitForMerge.get() != null) {
-                        waitForMerge.get().await();
-                    }
-                } catch (InterruptedException e) {
-                    throw ExceptionsHelper.convertToRuntime(e);
-                }
-            }
-
-            @Override
-            public void afterMerge(OnGoingMerge merge) {
-            }
-        });
-
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         final Engine engine = createEngine(indexSettingsService, store, createTranslog(), mergeSchedulerProvider);
+        
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
         Engine.Index index = new Engine.Index(null, newUid("1"), doc);
         engine.index(index);
@@ -456,24 +435,13 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         for (Segment segment : segments) {
             assertThat(segment.getMergeId(), nullValue());
         }
-
-        waitTillMerge.set(new CountDownLatch(1));
-        waitForMerge.set(new CountDownLatch(1));
-        engine.forceMerge(false, false);
-        waitTillMerge.get().await();
-
-        for (Segment segment : engine.segments(false)) {
-            assertThat(segment.getMergeId(), notNullValue());
-        }
-
-        waitForMerge.get().countDown();
-
+        
         index = new Engine.Index(null, newUid("4"), doc);
         engine.index(index);
         engine.flush();
         final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
         // now, optimize and wait for merges, see that we have no merge flag
-        engine.forceMerge(true, true);
+        engine.forceMerge(true);
 
         for (Segment segment : engine.segments(false)) {
             assertThat(segment.getMergeId(), nullValue());
@@ -483,25 +451,14 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
         final boolean flush = randomBoolean();
         final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
-        engine.forceMerge(flush, false);
-        waitTillMerge.get().await();
+        engine.forceMerge(flush);
         for (Segment segment : engine.segments(false)) {
             assertThat(segment.getMergeId(), nullValue());
         }
-        waitForMerge.get().countDown();
 
         if (flush) {
-            awaitBusy(new Predicate<Object>() {
-                @Override
-                public boolean apply(Object o) {
-                    try {
-                        // we should have had just 1 merge, so last generation should be exact
-                        return store.readLastCommittedSegmentsInfo().getLastGeneration() == gen2;
-                    } catch (IOException e) {
-                        throw ExceptionsHelper.convertToRuntime(e);
-                    }
-                }
-            });
+            // we should have had just 1 merge, so last generation should be exact
+            assertEquals(gen2 + 1, store.readLastCommittedSegmentsInfo().getLastGeneration());
         }
 
         engine.close();

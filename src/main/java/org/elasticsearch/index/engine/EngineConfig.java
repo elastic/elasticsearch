@@ -272,14 +272,6 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns an {@link org.elasticsearch.index.settings.IndexSettingsService} used to register a {@link org.elasticsearch.index.engine.EngineConfig.EngineSettingsListener} instance
-     * in order to get notification for realtime changeable settings exposed in this {@link org.elasticsearch.index.engine.EngineConfig}.
-     */
-    public IndexSettingsService getIndexSettingsService() {
-        return indexSettingsService;
-    }
-
-    /**
      * Returns an {@link org.elasticsearch.indices.IndicesWarmer} used to warm new searchers before they are used for searching.
      * Note: This method might retrun <code>null</code>
      */
@@ -365,58 +357,30 @@ public final class EngineConfig {
     }
 
     /**
-     * Basic realtime updateable settings listener that can be used ot receive notification
-     * if an index setting changed.
+     * Sets the GC deletes cycle in milliseconds.
      */
-    public static abstract class EngineSettingsListener implements IndexSettingsService.Listener {
+    public void setGcDeletesInMillis(long gcDeletesInMillis) {
+        this.gcDeletesInMillis = gcDeletesInMillis;
+    }
 
-        private final ESLogger logger;
-        private final EngineConfig config;
+    /**
+     * Sets if flushed segments should be written as compound file system. Defaults to <code>true</code>
+     */
+    public void setCompoundOnFlush(boolean compoundOnFlush) {
+        this.compoundOnFlush = compoundOnFlush;
+    }
 
-        public EngineSettingsListener(ESLogger logger, EngineConfig config) {
-            this.logger = logger;
-            this.config = config;
-        }
+    /**
+     * Sets if the engine should be failed in the case of a corrupted index. Defaults to <code>true</code>
+     */
+    public void setFailEngineOnCorruption(boolean failEngineOnCorruption) {
+        this.failEngineOnCorruption = failEngineOnCorruption;
+    }
 
-        @Override
-        public final void onRefreshSettings(Settings settings) {
-            boolean change = false;
-            long gcDeletesInMillis = settings.getAsTime(EngineConfig.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(config.getGcDeletesInMillis())).millis();
-            if (gcDeletesInMillis != config.getGcDeletesInMillis()) {
-                logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(config.getGcDeletesInMillis()), TimeValue.timeValueMillis(gcDeletesInMillis));
-                config.gcDeletesInMillis = gcDeletesInMillis;
-                change = true;
-            }
-
-            final boolean compoundOnFlush = settings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, config.isCompoundOnFlush());
-            if (compoundOnFlush != config.isCompoundOnFlush()) {
-                logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_COMPOUND_ON_FLUSH, config.isCompoundOnFlush(), compoundOnFlush);
-                config.compoundOnFlush = compoundOnFlush;
-                change = true;
-            }
-
-            final boolean failEngineOnCorruption = settings.getAsBoolean(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, config.isFailEngineOnCorruption());
-            if (failEngineOnCorruption != config.isFailEngineOnCorruption()) {
-                logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, config.isFailEngineOnCorruption(), failEngineOnCorruption);
-                config.failEngineOnCorruption = failEngineOnCorruption;
-                change = true;
-            }
-            final boolean failOnMergeFailure = settings.getAsBoolean(EngineConfig.INDEX_FAIL_ON_MERGE_FAILURE_SETTING, config.isFailOnMergeFailure());
-            if (failOnMergeFailure != config.isFailOnMergeFailure()) {
-                logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_FAIL_ON_MERGE_FAILURE_SETTING, config.isFailOnMergeFailure(), failOnMergeFailure);
-                config.failOnMergeFailure = failOnMergeFailure;
-                change = true;
-            }
-
-            if (change) {
-               onChange();
-            }
-        }
-
-        /**
-         * This method is called if  any of the settings that are exposed as realtime updateble settings has changed.
-         * This method should be overwritten by subclasses to react on settings changes.
-         */
-        protected abstract void onChange();
+    /**
+     * Sets if the engine should be failed if a merge error is hit. Defaults to <code>true</code>
+     */
+    public void setFailOnMergeFailure(boolean failOnMergeFailure) {
+        this.failOnMergeFailure = failOnMergeFailure;
     }
 }

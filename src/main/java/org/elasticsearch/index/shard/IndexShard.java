@@ -44,6 +44,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -911,20 +912,34 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public void updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
-        Engine engine = engine();
-        engine.updateIndexingBufferSize(shardIndexingBufferSize);
+        ByteSizeValue preValue = config.getIndexingBufferSize();
+        config.setIndexingBufferSize(shardIndexingBufferSize);
+        if (preValue.bytes() != shardIndexingBufferSize.bytes()) {
+            // its inactive, make sure we do a refresh / full IW flush in this case, since the memory
+            // changes only after a "data" change has happened to the writer
+            // the index writer lazily allocates memory and a refresh will clean it all up.
+            if (shardIndexingBufferSize == EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER && preValue != EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER) {
+                logger.debug("updating index_buffer_size from [{}] to (inactive) [{}]", preValue, shardIndexingBufferSize);
+                try {
+                    refresh("update index buffer");
+                } catch (Throwable e) {
+                    logger.warn("failed to refresh after setting shard to inactive", e);
+                }
+            } else {
+                logger.debug("updating index_buffer_size from [{}] to [{}]", preValue, shardIndexingBufferSize);
+            }
+        }
         translog().updateBuffer(shardTranslogBufferSize);
     }
 
     public void markAsInactive() {
-        Engine engine = engine();
-        engine.updateIndexingBufferSize(EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER);
-        translog().updateBuffer(Translog.INACTIVE_SHARD_TRANSLOG_BUFFER);
+        updateBufferSize(EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER, Translog.INACTIVE_SHARD_TRANSLOG_BUFFER);
     }
 
     private class ApplyRefreshSettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
+            boolean change = false;
             synchronized (mutex) {
                 if (state == IndexShardState.CLOSED) {
                     return;
@@ -944,6 +959,36 @@ public class IndexShard extends AbstractIndexShardComponent {
                         refreshScheduledFuture = threadPool.schedule(refreshInterval, ThreadPool.Names.SAME, new EngineRefresher());
                     }
                 }
+
+                long gcDeletesInMillis = settings.getAsTime(EngineConfig.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(config.getGcDeletesInMillis())).millis();
+                if (gcDeletesInMillis != config.getGcDeletesInMillis()) {
+                    logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_GC_DELETES_SETTING, TimeValue.timeValueMillis(config.getGcDeletesInMillis()), TimeValue.timeValueMillis(gcDeletesInMillis));
+                    config.setGcDeletesInMillis(gcDeletesInMillis);
+                    change = true;
+                }
+
+                final boolean compoundOnFlush = settings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, config.isCompoundOnFlush());
+                if (compoundOnFlush != config.isCompoundOnFlush()) {
+                    logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_COMPOUND_ON_FLUSH, config.isCompoundOnFlush(), compoundOnFlush);
+                    config.setCompoundOnFlush(compoundOnFlush);
+                    change = true;
+                }
+
+                final boolean failEngineOnCorruption = settings.getAsBoolean(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, config.isFailEngineOnCorruption());
+                if (failEngineOnCorruption != config.isFailEngineOnCorruption()) {
+                    logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, config.isFailEngineOnCorruption(), failEngineOnCorruption);
+                    config.setFailEngineOnCorruption(failEngineOnCorruption);
+                    change = true;
+                }
+                final boolean failOnMergeFailure = settings.getAsBoolean(EngineConfig.INDEX_FAIL_ON_MERGE_FAILURE_SETTING, config.isFailOnMergeFailure());
+                if (failOnMergeFailure != config.isFailOnMergeFailure()) {
+                    logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_FAIL_ON_MERGE_FAILURE_SETTING, config.isFailOnMergeFailure(), failOnMergeFailure);
+                    config.setFailOnMergeFailure(failOnMergeFailure);
+                    change = true;
+                }
+            }
+            if (change) {
+                refresh("apply settings");
             }
         }
     }
@@ -1103,5 +1148,4 @@ public class IndexShard extends AbstractIndexShardComponent {
             this.currentEngineReference.set(engineFactory.newEngine(config));
         }
     }
-
 }

@@ -59,8 +59,8 @@ import java.util.concurrent.locks.ReentrantLock;
  */
 public abstract class Engine implements Closeable {
 
-    private final ESLogger logger;
-    private final EngineConfig engineConfig;
+    protected final ESLogger logger;
+    protected final EngineConfig engineConfig;
 
     protected Engine(EngineConfig engineConfig) {
         Preconditions.checkNotNull(engineConfig.getStore(), "Store must be provided to the engine");
@@ -108,6 +108,10 @@ public abstract class Engine implements Closeable {
 
     protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) {
         return new EngineSearcher(source, searcher, manager, engineConfig.getStore(), logger);
+    }
+
+    public final EngineConfig config() {
+        return engineConfig;
     }
 
     /** A throttling class that can be activated, causing the
@@ -168,8 +172,6 @@ public abstract class Engine implements Closeable {
             throw new UnsupportedOperationException("NoOpLock can't provide a condition");
         }
     }
-
-    public abstract void updateIndexingBufferSize(ByteSizeValue indexingBufferSize);
 
     public abstract void create(Create create) throws EngineException;
 
@@ -247,8 +249,6 @@ public abstract class Engine implements Closeable {
 
     /** fail engine due to some error. the engine will also be closed. */
     public abstract void failEngine(String reason, Throwable failure);
-
-    public abstract ByteSizeValue indexingBufferSize();
 
     public static interface FailedEngineListener {
         void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t);

@@ -175,6 +175,15 @@ def generate_index(client, version):
         }
       }
     }
+    mappings['meta_fields'] = {
+      '_id': {
+        'path': 'myid'
+      },
+      '_routing': {
+        'path': 'myrouting'
+      } 
+    }
+
 
   client.indices.create(index='test', body={
       'settings': {

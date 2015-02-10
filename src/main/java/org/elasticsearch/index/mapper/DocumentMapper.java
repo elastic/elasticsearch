@@ -183,19 +183,11 @@ public class DocumentMapper implements ToXContent {
             this.indexSettings = indexSettings;
             this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
             this.rootObjectMapper = builder.build(builderContext);
-            IdFieldMapper idFieldMapper = new IdFieldMapper();
-            if (indexSettings != null) {
-                String idIndexed = indexSettings.get("index.mapping._id.indexed");
-                if (idIndexed != null && Booleans.parseBoolean(idIndexed, false)) {
-                    FieldType fieldType = new FieldType(IdFieldMapper.Defaults.FIELD_TYPE);
-                    fieldType.setTokenized(false);
-                    idFieldMapper = new IdFieldMapper(fieldType);
-                }
-            }
+
             // UID first so it will be the first stored field to load (so will benefit from "fields: []" early termination
             this.rootMappers.put(UidFieldMapper.class, new UidFieldMapper());
-            this.rootMappers.put(IdFieldMapper.class, idFieldMapper);
-            this.rootMappers.put(RoutingFieldMapper.class, new RoutingFieldMapper());
+            this.rootMappers.put(IdFieldMapper.class, new IdFieldMapper(indexSettings));
+            this.rootMappers.put(RoutingFieldMapper.class, new RoutingFieldMapper(indexSettings));
             // add default mappers, order is important (for example analyzer should come before the rest to set context.analyzer)
             this.rootMappers.put(SizeFieldMapper.class, new SizeFieldMapper(indexSettings));
             this.rootMappers.put(IndexFieldMapper.class, new IndexFieldMapper());

@@ -75,7 +75,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 5, SETTING_NUMBER_OF_REPLICAS, 0).addMapping("fact",
-                "_routing", "required=true,path=routing_id", "routing_id", "type=string,index=not_analyzed", "fact_category",
+                "_routing", "required=true", "routing_id", "type=string,index=not_analyzed", "fact_category",
                 "type=integer,index=not_analyzed", "description", "type=string,index=analyzed"));
         createIndex("idx_unmapped");
 
@@ -105,7 +105,8 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < data.length; i++) {
             String[] parts = data[i].split("\t");
             client().prepareIndex("test", "fact", "" + i)
-                    .setSource("routing_id", parts[0], "fact_category", parts[1], "description", parts[2]).get();
+                    .setRouting(parts[0])
+                    .setSource("fact_category", parts[1], "description", parts[2]).get();
         }
         client().admin().indices().refresh(new RefreshRequest("test")).get();
     }

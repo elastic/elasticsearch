@@ -21,6 +21,7 @@ package org.elasticsearch.document;
 
 import com.google.common.base.Charsets;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -35,6 +36,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -594,7 +596,8 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                         .endObject()
                     .endObject()
                 .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", builder));
+        assertAcked(prepareCreate("test").addMapping("type", builder)
+            .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2_ID));
         ensureYellow("test");
 
         String brokenBuildRequestData = "{\"index\": {} }\n" +
@@ -620,7 +623,8 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                         .endObject()
                     .endObject()
                 .endObject();
-        assertAcked(prepareCreate("test").addMapping("type", builder));
+        assertAcked(prepareCreate("test").addMapping("type", builder)
+            .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2_ID));
         ensureYellow("test");
 
         String brokenBuildRequestData = "{\"index\": {} }\n" +

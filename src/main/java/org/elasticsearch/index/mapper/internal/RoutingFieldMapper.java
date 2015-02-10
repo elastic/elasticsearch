@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -107,7 +108,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
                 if (fieldName.equals("required")) {
                     builder.required(nodeBooleanValue(fieldNode));
                     iterator.remove();
-                } else if (fieldName.equals("path")) {
+                } else if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                     builder.path(fieldNode.toString());
                     iterator.remove();
                 }
@@ -118,11 +119,11 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
 
 
     private boolean required;
-
     private final String path;
+    private final boolean writePre20Settings;
 
-    public RoutingFieldMapper() {
-        this(new FieldType(Defaults.FIELD_TYPE), Defaults.REQUIRED, Defaults.PATH, null, null, null, ImmutableSettings.EMPTY);
+    public RoutingFieldMapper(Settings indexSettings) {
+        this(Defaults.FIELD_TYPE, Defaults.REQUIRED, Defaults.PATH, null, null, null, indexSettings);
     }
 
     protected RoutingFieldMapper(FieldType fieldType, boolean required, String path, PostingsFormatProvider postingsProvider,
@@ -131,6 +132,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
                 Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings);
         this.required = required;
         this.path = path;
+        this.writePre20Settings = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
     }
 
     @Override
@@ -234,7 +236,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         if (includeDefaults || required != Defaults.REQUIRED) {
             builder.field("required", required);
         }
-        if (includeDefaults || path != Defaults.PATH) {
+        if (writePre20Settings && (includeDefaults || path != Defaults.PATH)) {
             builder.field("path", path);
         }
         builder.endObject();

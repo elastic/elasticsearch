@@ -29,6 +29,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -58,7 +59,7 @@ import static org.elasticsearch.index.mapper.MapperBuilders.id;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
- *
+ * 
  */
 public class IdFieldMapper extends AbstractFieldMapper<String> implements InternalMapper, RootMapper {
 
@@ -115,7 +116,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("path")) {
+                if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                     builder.path(fieldNode.toString());
                     iterator.remove();
                 }
@@ -125,17 +126,10 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     private final String path;
+    private final boolean writePre20Settings;
 
-    public IdFieldMapper() {
-        this(new FieldType(Defaults.FIELD_TYPE));
-    }
-
-    public IdFieldMapper(FieldType fieldType) {
-        this(Defaults.NAME, Defaults.INDEX_NAME, fieldType, null);
-    }
-
-    protected IdFieldMapper(String name, String indexName, FieldType fieldType, Boolean docValues) {
-        this(name, indexName, Defaults.BOOST, fieldType, docValues, Defaults.PATH, null, null, null, ImmutableSettings.EMPTY);
+    public IdFieldMapper(Settings indexSettings) {
+        this(Defaults.NAME, Defaults.INDEX_NAME, Defaults.BOOST, idFieldType(indexSettings), null, Defaults.PATH, null, null, null, indexSettings);
     }
 
     protected IdFieldMapper(String name, String indexName, float boost, FieldType fieldType, Boolean docValues, String path,
@@ -144,6 +138,15 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         super(new Names(name, indexName, indexName, name), boost, fieldType, docValues, Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings);
         this.path = path;
+        this.writePre20Settings = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
+    }
+    
+    private static FieldType idFieldType(Settings indexSettings) {
+        FieldType fieldType = new FieldType(Defaults.FIELD_TYPE);
+        if (indexSettings.getAsBoolean("index.mapping._id.indexed", true) == false) {
+            fieldType.setTokenized(false);
+        }
+        return fieldType;
     }
 
     public String path() {
@@ -351,7 +354,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (includeDefaults || fieldType.indexOptions() != Defaults.FIELD_TYPE.indexOptions()) {
             builder.field("index", indexTokenizeOptionToString(fieldType.indexOptions() != IndexOptions.NONE, fieldType.tokenized()));
         }
-        if (includeDefaults || path != Defaults.PATH) {
+        if (writePre20Settings && (includeDefaults || path != Defaults.PATH)) {
             builder.field("path", path);
         }
 

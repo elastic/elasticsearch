@@ -1580,7 +1580,6 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 .startObject("s")
                 .startObject("_routing")
                 .field("required", true)
-                .field("path", "bs")
                 .endObject()
                 .startObject("properties")
                 .startObject("online")
@@ -1601,8 +1600,8 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
             .addMapping("bs", "online", "type=boolean", "ts", "type=date,ignore_malformed=false,format=dateOptionalTime"));
         ensureGreen();
 
-        client().prepareIndex("test", "s", "1").setSource("online", false, "bs", "Y", "ts", System.currentTimeMillis() - 100).get();
-        client().prepareIndex("test", "s", "2").setSource("online", true, "bs", "X", "ts", System.currentTimeMillis() - 10000000).get();
+        client().prepareIndex("test", "s", "1").setRouting("Y").setSource("online", false, "bs", "Y", "ts", System.currentTimeMillis() - 100).get();
+        client().prepareIndex("test", "s", "2").setRouting("X").setSource("online", true, "bs", "X", "ts", System.currentTimeMillis() - 10000000).get();
         client().prepareIndex("test", "bs", "3").setSource("online", false, "ts", System.currentTimeMillis() - 100).get();
         client().prepareIndex("test", "bs", "4").setSource("online", true, "ts", System.currentTimeMillis() - 123123).get();
         refresh();

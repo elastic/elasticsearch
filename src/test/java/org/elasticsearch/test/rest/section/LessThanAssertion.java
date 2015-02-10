@@ -24,6 +24,7 @@ import org.elasticsearch.common.logging.Loggers;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
 /**
  * Represents a lt assert section:
@@ -42,10 +43,14 @@ public class LessThanAssertion extends Assertion {
     @Override
     @SuppressWarnings("unchecked")
     protected void doAssert(Object actualValue, Object expectedValue) {
-        logger.trace("assert that [{}] is less than [{}]", actualValue, expectedValue);
-        assertThat(actualValue, instanceOf(Comparable.class));
-        assertThat(expectedValue, instanceOf(Comparable.class));
-        assertThat(errorMessage(), (Comparable)actualValue, lessThan((Comparable)expectedValue));
+        logger.trace("assert that [{}] is less than [{}] (field: [{}])", actualValue, expectedValue, getField());
+        assertThat("value of [" + getField() + "] is not comparable (got [" + actualValue.getClass() + "])", actualValue, instanceOf(Comparable.class));
+        assertThat("expected value of [" + getField() + "] is not comparable (got [" + expectedValue.getClass() + "])", expectedValue, instanceOf(Comparable.class));
+        try {
+            assertThat(errorMessage(), (Comparable) actualValue, lessThan((Comparable) expectedValue));
+        } catch (ClassCastException e) {
+            fail("cast error while checking (" + errorMessage() + "): " + e);
+        }
     }
 
     private String errorMessage() {

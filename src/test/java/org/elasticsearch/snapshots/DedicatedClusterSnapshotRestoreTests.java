@@ -563,7 +563,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         IntSet reusedShards = IntOpenHashSet.newInstance();
         for (ShardRecoveryResponse response : client().admin().indices().prepareRecoveries("test-idx").get().shardResponses().get("test-idx")) {
-            if (response.recoveryState().getIndex().reusedByteCount() > 0) {
+            if (response.recoveryState().getIndex().reusedBytes() > 0) {
                 reusedShards.add(response.getShardId());
             }
         }

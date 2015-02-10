@@ -18,43 +18,168 @@
  */
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.indices.recovery.RecoveryState.File;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
-import static org.hamcrest.Matchers.closeTo;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.*;
 
 public class RecoveryStateTest extends ElasticsearchTestCase {
 
-    public void testPercentage() {
-        RecoveryState state = new RecoveryState();
-        RecoveryState.Index index = state.getIndex();
-        index.totalByteCount(100);
-        index.reusedByteCount(20);
-        index.recoveredByteCount(80);
-        assertThat((double)index.percentBytesRecovered(), closeTo(80.0d, 0.1d));
+    abstract class Streamer<T extends Streamable> extends Thread {
 
-        index.totalFileCount(100);
-        index.reusedFileCount(80);
-        index.recoveredFileCount(20);
-        assertThat((double)index.percentFilesRecovered(), closeTo(20.0d, 0.1d));
+        private T lastRead;
+        final private AtomicBoolean shouldStop;
+        final private T source;
+        final AtomicReference<Throwable> error = new AtomicReference<>();
 
-        index.totalByteCount(0);
-        index.reusedByteCount(0);
-        index.recoveredByteCount(0);
-        assertThat((double)index.percentBytesRecovered(), closeTo(0d, 0.1d));
+        Streamer(AtomicBoolean shouldStop, T source) {
+            this.shouldStop = shouldStop;
+            this.source = source;
+        }
 
-        index.totalFileCount(0);
-        index.reusedFileCount(0);
-        index.recoveredFileCount(0);
-        assertThat((double)index.percentFilesRecovered(), closeTo(00.0d, 0.1d));
+        void serializeDeserialize() throws IOException {
+            BytesStreamOutput out = new BytesStreamOutput();
+            source.writeTo(out);
+            out.close();
+            StreamInput in = new BytesStreamInput(out.bytes());
+            lastRead = deserialize(in);
+        }
 
-        index.totalByteCount(10);
-        index.reusedByteCount(0);
-        index.recoveredByteCount(10);
-        assertThat((double)index.percentBytesRecovered(), closeTo(100d, 0.1d));
+        abstract T deserialize(StreamInput in) throws IOException;
 
-        index.totalFileCount(20);
-        index.reusedFileCount(0);
-        index.recoveredFileCount(20);
-        assertThat((double)index.percentFilesRecovered(), closeTo(100.0d, 0.1d));
+        @Override
+        public void run() {
+            try {
+                while (shouldStop.get() == false) {
+                    serializeDeserialize();
+                }
+                serializeDeserialize();
+            } catch (Throwable t) {
+                error.set(t);
+            }
+        }
     }
+
+    public void testIndex() throws Exception {
+        File[] files = new File[randomIntBetween(1, 20)];
+        ArrayList<File> filesToRecover = new ArrayList<>();
+        long totalFileBytes = 0;
+        long totalReusedBytes = 0;
+        int totalReused = 0;
+        for (int i = 0; i < files.length; i++) {
+            final int fileLength = randomIntBetween(1, 1000);
+            final boolean reused = randomBoolean();
+            totalFileBytes += fileLength;
+            files[i] = new RecoveryState.File("f_" + i, fileLength, reused);
+            if (reused) {
+                totalReused++;
+                totalReusedBytes += fileLength;
+            } else {
+                filesToRecover.add(files[i]);
+            }
+        }
+
+        Collections.shuffle(Arrays.asList(files));
+
+        final RecoveryState.Index index = new RecoveryState.Index();
+        final long startTime = System.currentTimeMillis();
+        // before we start we must report 0
+        assertThat(index.recoveredFilesPercent(), equalTo((float) 0.0));
+        assertThat(index.recoveredBytesPercent(), equalTo((float) 0.0));
+
+        index.startTime(startTime);
+        for (File file : files) {
+            index.addFileDetail(file.name(), file.length(), file.reused());
+        }
+
+        logger.info("testing initial information");
+        assertThat(index.totalBytes(), equalTo(totalFileBytes));
+        assertThat(index.reusedBytes(), equalTo(totalReusedBytes));
+        assertThat(index.totalRecoverBytes(), equalTo(totalFileBytes - totalReusedBytes));
+        assertThat(index.totalFileCount(), equalTo(files.length));
+        assertThat(index.reusedFileCount(), equalTo(totalReused));
+        assertThat(index.totalRecoverFiles(), equalTo(filesToRecover.size()));
+        assertThat(index.recoveredFileCount(), equalTo(0));
+        assertThat(index.recoveredBytes(), equalTo(0l));
+        assertThat(index.recoveredFilesPercent(), equalTo(filesToRecover.size() == 0 ? 100.0f : 0.0f));
+        assertThat(index.recoveredBytesPercent(), equalTo(filesToRecover.size() == 0 ? 100.0f : 0.0f));
+        assertThat(index.startTime(), equalTo(startTime));
+
+
+        long bytesToRecover = totalFileBytes - totalReusedBytes;
+        boolean completeRecovery = bytesToRecover == 0 || randomBoolean();
+        if (completeRecovery == false) {
+            bytesToRecover = randomIntBetween(1, (int) bytesToRecover);
+            logger.info("performing partial recovery ([{}] bytes of [{}])", bytesToRecover, totalFileBytes - totalReusedBytes);
+        }
+        AtomicBoolean streamShouldStop = new AtomicBoolean();
+
+        Streamer<RecoveryState.Index> backgroundReader = new Streamer<RecoveryState.Index>(streamShouldStop, index) {
+            @Override
+            RecoveryState.Index deserialize(StreamInput in) throws IOException {
+                RecoveryState.Index index = new RecoveryState.Index();
+                index.readFrom(in);
+                return index;
+            }
+        };
+
+        backgroundReader.start();
+
+        long recoveredBytes = 0;
+        while (bytesToRecover > 0) {
+            File file = randomFrom(filesToRecover);
+            long toRecover = Math.min(bytesToRecover, randomIntBetween(1, (int) (file.length() - file.recovered())));
+            index.addRecoveredBytesToFile(file.name(), toRecover);
+            file.addRecoveredBytes(toRecover);
+            bytesToRecover -= toRecover;
+            recoveredBytes += toRecover;
+            if (file.reused() || file.fullyRecovered()) {
+                filesToRecover.remove(file);
+            }
+        }
+
+        if (completeRecovery) {
+            assertThat(filesToRecover.size(), equalTo(0));
+            long time = System.currentTimeMillis();
+            index.stopTime(time);
+            assertThat(index.time(), equalTo(Math.max(0, time - startTime)));
+        }
+
+        logger.info("testing serialized information");
+        streamShouldStop.set(true);
+        backgroundReader.join();
+        assertThat(backgroundReader.lastRead.fileDetails().toArray(), arrayContainingInAnyOrder(index.fileDetails().toArray()));
+        assertThat(backgroundReader.lastRead.startTime(), equalTo(index.startTime()));
+        assertThat(backgroundReader.lastRead.time(), equalTo(index.time()));
+
+        logger.info("testing post recovery");
+        assertThat(index.totalBytes(), equalTo(totalFileBytes));
+        assertThat(index.reusedBytes(), equalTo(totalReusedBytes));
+        assertThat(index.totalRecoverBytes(), equalTo(totalFileBytes - totalReusedBytes));
+        assertThat(index.totalFileCount(), equalTo(files.length));
+        assertThat(index.reusedFileCount(), equalTo(totalReused));
+        assertThat(index.totalRecoverFiles(), equalTo(files.length - totalReused));
+        assertThat(index.recoveredFileCount(), equalTo(index.totalRecoverFiles() - filesToRecover.size()));
+        assertThat(index.recoveredBytes(), equalTo(recoveredBytes));
+        if (index.totalRecoverFiles() == 0) {
+            assertThat((double) index.recoveredFilesPercent(), equalTo(100.0));
+            assertThat((double) index.recoveredBytesPercent(), equalTo(100.0));
+        } else {
+            assertThat((double) index.recoveredFilesPercent(), closeTo(100.0 * index.recoveredFileCount() / index.totalRecoverFiles(), 0.1));
+            assertThat((double) index.recoveredBytesPercent(), closeTo(100.0 * index.recoveredBytes() / index.totalRecoverBytes(), 0.1));
+        }
+        assertThat(index.startTime(), equalTo(startTime));
+    }
+
 }

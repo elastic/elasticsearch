@@ -25,6 +25,7 @@ import org.elasticsearch.common.logging.Loggers;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
 /**
  * Represents a gte assert section:
@@ -41,10 +42,14 @@ public class GreaterThanEqualToAssertion extends Assertion {
 
     @Override
     protected void doAssert(Object actualValue, Object expectedValue) {
-        logger.trace("assert that [{}] is greater than or equal to [{}]", actualValue, expectedValue);
-        assertThat(actualValue, instanceOf(Comparable.class));
-        assertThat(expectedValue, instanceOf(Comparable.class));
-        assertThat(errorMessage(), (Comparable)actualValue, greaterThanOrEqualTo((Comparable) expectedValue));
+        logger.trace("assert that [{}] is greater than or equal to [{}] (field: [{}])", actualValue, expectedValue, getField());
+        assertThat("value of [" + getField() + "] is not comparable (got [" + actualValue.getClass() + "])", actualValue, instanceOf(Comparable.class));
+        assertThat("expected value of [" + getField() + "] is not comparable (got [" + expectedValue.getClass() + "])", expectedValue, instanceOf(Comparable.class));
+        try {
+            assertThat(errorMessage(), (Comparable) actualValue, greaterThanOrEqualTo((Comparable) expectedValue));
+        } catch (ClassCastException e) {
+            fail("cast error while checking (" + errorMessage() + "): " + e);
+        }
     }
 
     private String errorMessage() {

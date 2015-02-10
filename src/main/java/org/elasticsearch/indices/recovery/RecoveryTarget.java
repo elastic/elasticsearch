@@ -121,9 +121,6 @@ public class RecoveryTarget extends AbstractComponent {
                 return null;
             }
             final RecoveryStatus recoveryStatus = statusRef.status();
-            if (recoveryStatus.state().getTimer().startTime() > 0 && recoveryStatus.stage() != RecoveryState.Stage.DONE) {
-                recoveryStatus.state().getTimer().time(System.currentTimeMillis() - recoveryStatus.state().getTimer().startTime());
-            }
             return recoveryStatus.state();
         } catch (Exception e) {
             // shouldn't really happen, but have to be here due to auto close
@@ -133,19 +130,14 @@ public class RecoveryTarget extends AbstractComponent {
 
     public void startRecovery(final IndexShard indexShard, final RecoveryState.Type recoveryType, final DiscoveryNode sourceNode, final RecoveryListener listener) {
         try {
-            indexShard.recovering("from " + sourceNode);
+            indexShard.recovering("from " + sourceNode, recoveryType, sourceNode);
         } catch (IllegalIndexShardStateException e) {
             // that's fine, since we might be called concurrently, just ignore this, we are already recovering
             logger.debug("{} ignore recovery. already in recovering process, {}", indexShard.shardId(), e.getMessage());
             return;
         }
         // create a new recovery status, and process...
-        RecoveryState recoveryState = new RecoveryState(indexShard.shardId());
-        recoveryState.setType(recoveryType);
-        recoveryState.setSourceNode(sourceNode);
-        recoveryState.setTargetNode(clusterService.localNode());
-        recoveryState.setPrimary(indexShard.routingEntry().primary());
-        final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, recoveryState, listener, recoverySettings.activityTimeout());
+        final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, listener, recoverySettings.activityTimeout());
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
 
     }
@@ -313,8 +305,7 @@ public class RecoveryTarget extends AbstractComponent {
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
-                recoveryStatus.indexShard().performRecoveryFinalization(false, recoveryStatus.state());
-                recoveryStatus.state().getTimer().time(System.currentTimeMillis() - recoveryStatus.state().getTimer().startTime());
+                recoveryStatus.indexShard().performRecoveryFinalization(false);
                 recoveryStatus.stage(RecoveryState.Stage.DONE);
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -365,12 +356,12 @@ public class RecoveryTarget extends AbstractComponent {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
                 final RecoveryState.Index index = recoveryStatus.state().getIndex();
-                index.addFileDetails(request.phase1FileNames, request.phase1FileSizes);
-                index.addReusedFileDetails(request.phase1ExistingFileNames, request.phase1ExistingFileSizes);
-                index.totalByteCount(request.phase1TotalSize);
-                index.totalFileCount(request.phase1FileNames.size() + request.phase1ExistingFileNames.size());
-                index.reusedByteCount(request.phase1ExistingTotalSize);
-                index.reusedFileCount(request.phase1ExistingFileNames.size());
+                for (int i = 0; i < request.phase1ExistingFileNames.size(); i++) {
+                    index.addFileDetail(request.phase1ExistingFileNames.get(i), request.phase1ExistingFileSizes.get(i), true);
+                }
+                for (int i = 0; i < request.phase1FileNames.size(); i++) {
+                    index.addFileDetail(request.phase1FileNames.get(i), request.phase1FileSizes.get(i), false);
+                }
                 // recoveryBytesCount / recoveryFileCount will be set as we go...
                 recoveryStatus.stage(RecoveryState.Stage.INDEX);
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -470,11 +461,7 @@ public class RecoveryTarget extends AbstractComponent {
                     content = content.toBytesArray();
                 }
                 indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
-                recoveryStatus.state().getIndex().addRecoveredByteCount(content.length());
-                RecoveryState.File file = recoveryStatus.state().getIndex().file(request.name());
-                if (file != null) {
-                    file.updateRecovered(request.length());
-                }
+                recoveryStatus.state().getIndex().addRecoveredBytesToFile(request.name(), content.length());
                 if (indexOutput.getFilePointer() >= request.length() || request.lastChunk()) {
                     try {
                         Store.verify(indexOutput);
@@ -488,7 +475,6 @@ public class RecoveryTarget extends AbstractComponent {
                     assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName);
                     store.directory().sync(Collections.singleton(temporaryFileName));
                     IndexOutput remove = recoveryStatus.removeOpenIndexOutputs(request.name());
-                    recoveryStatus.state().getIndex().addRecoveredFileCount(1);
                     assert remove == null || remove == indexOutput; // remove maybe null if we got finished
                 }
             }

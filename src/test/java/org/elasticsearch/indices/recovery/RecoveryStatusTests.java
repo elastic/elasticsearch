@@ -38,11 +38,10 @@ public class RecoveryStatusTests extends ElasticsearchSingleNodeTest {
     
     public void testRenameTempFiles() throws IOException {
         IndexService service = createIndex("foo");
-        RecoveryState state = new RecoveryState();
 
         IndexShard indexShard = service.shard(0);
         DiscoveryNode node = new DiscoveryNode("foo", new LocalTransportAddress("bar"), Version.CURRENT);
-        RecoveryStatus status = new RecoveryStatus(indexShard, node, state, new RecoveryTarget.RecoveryListener() {
+        RecoveryStatus status = new RecoveryStatus(indexShard, node, new RecoveryTarget.RecoveryListener() {
             @Override
             public void onRecoveryDone(RecoveryState state) {
             }

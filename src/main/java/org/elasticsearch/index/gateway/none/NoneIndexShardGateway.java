@@ -25,11 +25,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.none.NoneGateway;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
 
@@ -40,8 +40,6 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
 
     private final IndexShard indexShard;
 
-    private final RecoveryState recoveryState = new RecoveryState();
-
     @Inject
     public NoneIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, IndexShard indexShard) {
         super(shardId, indexSettings);
@@ -51,11 +49,6 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
     @Override
     public String toString() {
         return "_none_";
-    }
-
-    @Override
-    public RecoveryState recoveryState() {
-        return recoveryState;
     }
 
     @Override
@@ -73,9 +66,10 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
             indexShard.store().decRef();
         }
         indexShard.postRecovery("post recovery from gateway");
-        recoveryState.getIndex().time(System.currentTimeMillis() - recoveryState.getIndex().startTime());
-        recoveryState.getTranslog().startTime(System.currentTimeMillis());
-        recoveryState.getTranslog().time(System.currentTimeMillis() - recoveryState.getIndex().startTime());
+        long time = System.currentTimeMillis();
+        recoveryState.getIndex().stopTime(time);
+        recoveryState.getTranslog().startTime(time);
+        recoveryState.getTranslog().time(0);
     }
 
     @Override

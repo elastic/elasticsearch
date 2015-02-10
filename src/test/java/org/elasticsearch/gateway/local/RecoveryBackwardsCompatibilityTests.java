@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -99,28 +98,28 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
             if (!recoveryState.getPrimary()) {
                 RecoveryState.Index index = recoveryState.getIndex();
                 if (compatibilityVersion().onOrAfter(Version.V_1_2_0)) {
-                    assertThat(index.toString(), index.recoveredByteCount(), equalTo(0l));
-                    assertThat(index.toString(), index.reusedByteCount(), greaterThan(0l));
-                    assertThat(index.toString(), index.reusedByteCount(), equalTo(index.totalByteCount()));
+                    assertThat(index.toString(), index.recoveredBytes(), equalTo(0l));
+                    assertThat(index.toString(), index.reusedBytes(), greaterThan(0l));
+                    assertThat(index.toString(), index.reusedBytes(), equalTo(index.totalBytes()));
                     assertThat(index.toString(), index.recoveredFileCount(), equalTo(0));
                     assertThat(index.toString(), index.reusedFileCount(), equalTo(index.totalFileCount()));
                     assertThat(index.toString(), index.reusedFileCount(), greaterThan(0));
-                    assertThat(index.toString(), index.percentBytesRecovered(), equalTo(0.f));
-                    assertThat(index.toString(), index.percentFilesRecovered(), equalTo(0.f));
-                    assertThat(index.toString(), index.reusedByteCount(), greaterThan(index.numberOfRecoveredBytes()));
+                    assertThat(index.toString(), index.recoveredBytesPercent(), equalTo(100.f));
+                    assertThat(index.toString(), index.recoveredFilesPercent(), equalTo(100.f));
+                    assertThat(index.toString(), index.reusedBytes(), greaterThan(index.recoveredBytes()));
                 } else {
                     /* We added checksums on 1.3 but they were available on 1.2 already since this uses Lucene 4.8.
                      * yet in this test we upgrade the entire cluster and therefor the 1.3 nodes try to read the checksum
                      * from the files even if they haven't been written with ES 1.3. Due to that we don't have to recover
                      * the segments files if we are on 1.2 or above...*/
-                    assertThat(index.toString(), index.recoveredByteCount(), greaterThan(0l));
+                    assertThat(index.toString(), index.recoveredBytes(), greaterThan(0l));
                     assertThat(index.toString(), index.recoveredFileCount(), greaterThan(0));
-                    assertThat(index.toString(), index.reusedByteCount(), greaterThan(0l));
-                    assertThat(index.toString(), index.percentBytesRecovered(), greaterThan(0.0f));
-                    assertThat(index.toString(), index.percentBytesRecovered(), lessThan(100.0f));
-                    assertThat(index.toString(), index.percentFilesRecovered(), greaterThan(0.0f));
-                    assertThat(index.toString(), index.percentFilesRecovered(), lessThan(100.0f));
-                    assertThat(index.toString(), index.reusedByteCount(), greaterThan(index.numberOfRecoveredBytes()));
+                    assertThat(index.toString(), index.reusedBytes(), greaterThan(0l));
+                    assertThat(index.toString(), index.recoveredBytesPercent(), greaterThan(0.0f));
+                    assertThat(index.toString(), index.recoveredBytesPercent(), lessThan(100.0f));
+                    assertThat(index.toString(), index.recoveredFilesPercent(), greaterThan(0.0f));
+                    assertThat(index.toString(), index.recoveredFilesPercent(), lessThan(100.0f));
+                    assertThat(index.toString(), index.reusedBytes(), greaterThan(index.recoveredBytes()));
                 }
                 // TODO upgrade via optimize?
             }

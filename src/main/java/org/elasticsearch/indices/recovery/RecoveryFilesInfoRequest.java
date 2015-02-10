@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,13 +41,20 @@ class RecoveryFilesInfoRequest extends TransportRequest {
     List<Long> phase1FileSizes;
     List<String> phase1ExistingFileNames;
     List<Long> phase1ExistingFileSizes;
+
+    @Deprecated
     long phase1TotalSize;
+
+    @Deprecated
     long phase1ExistingTotalSize;
 
     RecoveryFilesInfoRequest() {
     }
 
-    RecoveryFilesInfoRequest(long recoveryId, ShardId shardId, List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames, List<Long> phase1ExistingFileSizes, long phase1TotalSize, long phase1ExistingTotalSize) {
+    RecoveryFilesInfoRequest(long recoveryId, ShardId shardId, List<String> phase1FileNames, List<Long> phase1FileSizes,
+                             List<String> phase1ExistingFileNames, List<Long> phase1ExistingFileSizes,
+                             // needed for BWC only
+                             @Deprecated long phase1TotalSize, @Deprecated long phase1ExistingTotalSize) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.phase1FileNames = phase1FileNames;
@@ -94,8 +102,12 @@ class RecoveryFilesInfoRequest extends TransportRequest {
             phase1ExistingFileSizes.add(in.readVLong());
         }
 
-        phase1TotalSize = in.readVLong();
-        phase1ExistingTotalSize = in.readVLong();
+        if (in.getVersion().before(Version.V_1_5_0)) {
+            //phase1TotalSize
+            in.readVLong();
+            //phase1ExistingTotalSize
+            in.readVLong();
+        }
     }
 
     @Override
@@ -124,7 +136,9 @@ class RecoveryFilesInfoRequest extends TransportRequest {
             out.writeVLong(phase1ExistingFileSize);
         }
 
-        out.writeVLong(phase1TotalSize);
-        out.writeVLong(phase1ExistingTotalSize);
+        if (out.getVersion().before(Version.V_1_5_0)) {
+            out.writeVLong(phase1TotalSize);
+            out.writeVLong(phase1ExistingTotalSize);
+        }
     }
 }

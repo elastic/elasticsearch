@@ -38,6 +38,8 @@
                 \d+\.\d+%   \s+                                 # files_percent
                 \d+         \s+                                 # bytes
                 \d+\.\d+%   \s+                                 # bytes_percent
+                \d+         \s+                                 # total_files
+                \d+         \s+                                 # total_bytes
                 \n
               )+
               $/

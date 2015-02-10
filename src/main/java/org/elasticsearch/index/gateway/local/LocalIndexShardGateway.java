@@ -35,15 +35,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.*;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -74,8 +74,6 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
     private final TimeValue waitForMappingUpdatePostRecovery;
 
-    private final RecoveryState recoveryState = new RecoveryState();
-
     private volatile ScheduledFuture flushScheduler;
     private final TimeValue syncInterval;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
@@ -105,11 +103,6 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
     @Override
     public String toString() {
         return "local";
-    }
-
-    @Override
-    public RecoveryState recoveryState() {
-        return recoveryState;
     }
 
     @Override
@@ -163,40 +156,31 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 throw new IndexShardGatewayRecoveryException(shardId(), "failed to fetch index version after copying it over", e);
             }
             recoveryState.getIndex().updateVersion(version);
-            recoveryState.getIndex().time(System.currentTimeMillis() - recoveryState.getIndex().startTime());
+            recoveryState.getIndex().stopTime(System.currentTimeMillis());
 
             // since we recover from local, just fill the files and size
             try {
-                int numberOfFiles = 0;
-                long totalSizeInBytes = 0;
+                final RecoveryState.Index index = recoveryState.getIndex();
                 if (si != null) {
                     final Directory directory = indexShard.store().directory();
                     for (String name : Lucene.files(si)) {
-                        numberOfFiles++;
                         long length = directory.fileLength(name);
-                        totalSizeInBytes += length;
-                        recoveryState.getIndex().addFileDetail(name, length, length);
+                        index.addFileDetail(name, length, true);
                     }
                 }
-                RecoveryState.Index index = recoveryState.getIndex();
-                index.totalFileCount(numberOfFiles);
-                index.totalByteCount(totalSizeInBytes);
-                index.reusedFileCount(numberOfFiles);
-                index.reusedByteCount(totalSizeInBytes);
-                index.recoveredFileCount(numberOfFiles);
-                index.recoveredByteCount(totalSizeInBytes);
-            } catch (Exception e) {
-                // ignore
+            } catch (IOException e) {
+                logger.debug("failed to list file details", e);
             }
 
-            recoveryState.getStart().startTime(System.currentTimeMillis());
+            final RecoveryState.Start stateStart = recoveryState.getStart();
+            stateStart.startTime(System.currentTimeMillis());
             recoveryState.setStage(RecoveryState.Stage.START);
             if (translogId == -1) {
                 // no translog files, bail
                 indexShard.postRecovery("post recovery from gateway, no translog for id [" + translogId + "]");
                 // no index, just start the shard and bail
-                recoveryState.getStart().time(System.currentTimeMillis() - recoveryState.getStart().startTime());
-                recoveryState.getStart().checkIndexTime(indexShard.checkIndexTook());
+                stateStart.stopTime(System.currentTimeMillis());
+                stateStart.checkIndexTime(indexShard.checkIndexTook());
                 return;
             }
 
@@ -235,15 +219,15 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 // no translog files, bail
                 indexShard.postRecovery("post recovery from gateway, no translog");
                 // no index, just start the shard and bail
-                recoveryState.getStart().time(System.currentTimeMillis() - recoveryState.getStart().startTime());
-                recoveryState.getStart().checkIndexTime(indexShard.checkIndexTook());
+                stateStart.stopTime(System.currentTimeMillis());
+                stateStart.checkIndexTime(0);
                 return;
             }
 
             // recover from the translog file
             indexShard.performRecoveryPrepareForTranslog();
-            recoveryState.getStart().time(System.currentTimeMillis() - recoveryState.getStart().startTime());
-            recoveryState.getStart().checkIndexTime(indexShard.checkIndexTook());
+            stateStart.stopTime(System.currentTimeMillis());
+            stateStart.checkIndexTime(indexShard.checkIndexTook());
 
             recoveryState.getTranslog().startTime(System.currentTimeMillis());
             recoveryState.setStage(RecoveryState.Stage.TRANSLOG);

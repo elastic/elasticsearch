@@ -40,14 +40,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -66,13 +64,10 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
 
     private final IndicesService indicesService;
 
-    private final RecoveryTarget peerRecoveryTarget;
-
     @Inject
     public TransportIndicesStatusAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                        IndicesService indicesService, RecoveryTarget peerRecoveryTarget, ActionFilters actionFilters) {
+                                        IndicesService indicesService, ActionFilters actionFilters) {
         super(settings, IndicesStatusAction.NAME, threadPool, clusterService, transportService, actionFilters);
-        this.peerRecoveryTarget = peerRecoveryTarget;
         this.indicesService = indicesService;
     }
 
@@ -179,13 +174,11 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
 
         if (request.recovery) {
             // check on going recovery (from peer or gateway)
-            RecoveryState peerRecoveryState = indexShard.recoveryState();
-            if (peerRecoveryState == null) {
-                peerRecoveryState = peerRecoveryTarget.recoveryState(indexShard);
-            }
-            if (peerRecoveryState != null) {
+            RecoveryState recoveryState = indexShard.recoveryState();
+            if (recoveryState == null) {
+            } else if (recoveryState.getType() == RecoveryState.Type.REPLICA || recoveryState.getType() == RecoveryState.Type.REPLICA) {
                 PeerRecoveryStatus.Stage stage;
-                switch (peerRecoveryState.getStage()) {
+                switch (recoveryState.getStage()) {
                     case INIT:
                         stage = PeerRecoveryStatus.Stage.INIT;
                         break;
@@ -204,18 +197,14 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                     default:
                         stage = PeerRecoveryStatus.Stage.INIT;
                 }
-                shardStatus.peerRecoveryStatus = new PeerRecoveryStatus(stage, peerRecoveryState.getTimer().startTime(),
-                        peerRecoveryState.getTimer().time(),
-                        peerRecoveryState.getIndex().totalByteCount(),
-                        peerRecoveryState.getIndex().reusedByteCount(),
-                        peerRecoveryState.getIndex().recoveredByteCount(), peerRecoveryState.getTranslog().currentTranslogOperations());
-            }
-
-            IndexShardGatewayService gatewayService = indexService.shardInjectorSafe(request.shardId().id()).getInstance(IndexShardGatewayService.class);
-            RecoveryState gatewayRecoveryState = gatewayService.recoveryState();
-            if (gatewayRecoveryState != null) {
+                shardStatus.peerRecoveryStatus = new PeerRecoveryStatus(stage, recoveryState.getTimer().startTime(),
+                        recoveryState.getTimer().time(),
+                        recoveryState.getIndex().totalByteCount(),
+                        recoveryState.getIndex().reusedByteCount(),
+                        recoveryState.getIndex().recoveredByteCount(), recoveryState.getTranslog().currentTranslogOperations());
+            } else if (recoveryState.getType() == RecoveryState.Type.GATEWAY) {
                 GatewayRecoveryStatus.Stage stage;
-                switch (gatewayRecoveryState.getStage()) {
+                switch (recoveryState.getStage()) {
                     case INIT:
                         stage = GatewayRecoveryStatus.Stage.INIT;
                         break;
@@ -231,8 +220,8 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                     default:
                         stage = GatewayRecoveryStatus.Stage.INIT;
                 }
-                shardStatus.gatewayRecoveryStatus = new GatewayRecoveryStatus(stage, gatewayRecoveryState.getTimer().startTime(), gatewayRecoveryState.getTimer().time(),
-                        gatewayRecoveryState.getIndex().totalByteCount(), gatewayRecoveryState.getIndex().reusedByteCount(), gatewayRecoveryState.getIndex().recoveredByteCount(), gatewayRecoveryState.getTranslog().currentTranslogOperations());
+                shardStatus.gatewayRecoveryStatus = new GatewayRecoveryStatus(stage, recoveryState.getTimer().startTime(), recoveryState.getTimer().time(),
+                        recoveryState.getIndex().totalByteCount(), recoveryState.getIndex().reusedByteCount(), recoveryState.getIndex().recoveredByteCount(), recoveryState.getTranslog().currentTranslogOperations());
             }
         }
         return shardStatus;

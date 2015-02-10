@@ -34,15 +34,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.*;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -162,7 +162,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 throw new IndexShardGatewayRecoveryException(shardId(), "failed to fetch index version after copying it over", e);
             }
             recoveryState.getIndex().updateVersion(version);
-            recoveryState.getIndex().time(System.currentTimeMillis() - recoveryState.getIndex().startTime());
+            recoveryState.getIndex().time(Math.max(0, System.currentTimeMillis() - recoveryState.getIndex().startTime()));
 
             // since we recover from local, just fill the files and size
             try {
@@ -232,7 +232,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 indexShard.postRecovery("post recovery from gateway, no translog");
                 // no index, just start the shard and bail
                 recoveryState.getStart().time(System.currentTimeMillis() - recoveryState.getStart().startTime());
-                recoveryState.getStart().checkIndexTime(indexShard.checkIndexTook());
+                recoveryState.getStart().checkIndexTime(0);
                 return;
             }
 

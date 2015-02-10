@@ -124,6 +124,10 @@ public class RecoverySource extends AbstractComponent {
         return handler.getResponse();
     }
 
+    public int recoveriesCount() {
+        return ongoingRecoveries.size();
+    }
+
     class StartRecoveryTransportRequestHandler extends BaseTransportRequestHandler<StartRecoveryRequest> {
 
         @Override
@@ -146,6 +150,10 @@ public class RecoverySource extends AbstractComponent {
 
     private static final class OngoingRecoveres {
         private final Map<IndexShard, Set<ShardRecoveryHandler>> ongoingRecoveries = new HashMap<>();
+
+        synchronized int size() {
+            return ongoingRecoveries.size();
+        }
 
         synchronized void add(IndexShard shard, ShardRecoveryHandler handler) {
             Set<ShardRecoveryHandler> shardRecoveryHandlers = ongoingRecoveries.get(shard);

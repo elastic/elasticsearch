@@ -345,7 +345,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     /**
      * Marks the shard as recovering, fails with exception is recovering is not allowed to be set.
      */
-    public IndexShardState recovering(String reason) throws IndexShardStartedException,
+    public IndexShardState recovering(String reason, RecoveryState.Type type) throws IndexShardStartedException,
             IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
@@ -363,6 +363,9 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (state == IndexShardState.POST_RECOVERY) {
                 throw new IndexShardRecoveringException(shardId);
             }
+            this.recoveryState = new RecoveryState(shardId);
+            this.recoveryState.setType(type);
+
             return changeState(IndexShardState.RECOVERING, reason);
         }
     }
@@ -722,15 +725,11 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     /**
-     * The peer recovery state if this shard recovered from a peer shard, null o.w.
+     * Returns the current {@link RecoveryState} if this shard is recovering or has been recovering.
+     * Returns null if the recovery has not yet started or shard was not recovered (created via an API).
      */
     public RecoveryState recoveryState() {
         return this.recoveryState;
-    }
-
-    public void performRecoveryFinalization(boolean withFlush, RecoveryState recoveryState) throws ElasticsearchException {
-        performRecoveryFinalization(withFlush);
-        this.recoveryState = recoveryState;
     }
 
     public void performRecoveryFinalization(boolean withFlush) throws ElasticsearchException {

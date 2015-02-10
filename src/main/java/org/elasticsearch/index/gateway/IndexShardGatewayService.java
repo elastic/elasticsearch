@@ -27,7 +27,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotAndRestoreService;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -49,8 +48,6 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
 
     private final IndexShardSnapshotAndRestoreService snapshotService;
 
-    private RecoveryState recoveryState;
-
     @Inject
     public IndexShardGatewayService(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
                                     IndexShard indexShard, IndexShardGateway shardGateway, IndexShardSnapshotAndRestoreService snapshotService, ClusterService clusterService) {
@@ -59,8 +56,6 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         this.indexShard = indexShard;
         this.shardGateway = shardGateway;
         this.snapshotService = snapshotService;
-        this.recoveryState = new RecoveryState(shardId);
-        this.recoveryState.setType(RecoveryState.Type.GATEWAY);
         this.clusterService = clusterService;
     }
 
@@ -78,13 +73,6 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         void onRecoveryFailed(IndexShardGatewayRecoveryException e);
     }
 
-    public RecoveryState recoveryState() {
-        if (recoveryState.getTimer().startTime() > 0 && recoveryState.getStage() != RecoveryState.Stage.DONE) {
-            recoveryState.getTimer().time(System.currentTimeMillis() - recoveryState.getTimer().startTime());
-        }
-        return recoveryState;
-    }
-
     /**
      * Recovers the state of the shard from the gateway.
      */
@@ -100,15 +88,17 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         }
         try {
             if (indexShard.routingEntry().restoreSource() != null) {
-                indexShard.recovering("from snapshot");
+                indexShard.recovering("from snapshot", RecoveryState.Type.SNAPSHOT);
             } else {
-                indexShard.recovering("from gateway");
+                indexShard.recovering("from gateway", RecoveryState.Type.GATEWAY);
             }
         } catch (IllegalIndexShardStateException e) {
             // that's fine, since we might be called concurrently, just ignore this, we are already recovering
             listener.onIgnoreRecovery("already in recovering process, " + e.getMessage());
             return;
         }
+
+        final RecoveryState recoveryState = indexShard.recoveryState();
 
         threadPool.generic().execute(new Runnable() {
             @Override
@@ -143,7 +133,6 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                     // refresh the shard
                     indexShard.refresh("post_gateway");
 
-                    recoveryState.getTimer().time(System.currentTimeMillis() - recoveryState.getTimer().startTime());
                     recoveryState.setStage(RecoveryState.Stage.DONE);
 
                     if (logger.isTraceEnabled()) {

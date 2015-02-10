@@ -111,15 +111,16 @@ public class RecoveryTarget extends AbstractComponent {
         });
     }
 
+    public int recoveriesCount() {
+        return onGoingRecoveries.size();
+    }
+
     public RecoveryState recoveryState(IndexShard indexShard) {
         try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.findRecoveryByShard(indexShard)) {
             if (statusRef == null) {
                 return null;
             }
             final RecoveryStatus recoveryStatus = statusRef.status();
-            if (recoveryStatus.state().getTimer().startTime() > 0 && recoveryStatus.stage() != RecoveryState.Stage.DONE) {
-                recoveryStatus.state().getTimer().time(System.currentTimeMillis() - recoveryStatus.state().getTimer().startTime());
-            }
             return recoveryStatus.state();
         } catch (Exception e) {
             // shouldn't really happen, but have to be here due to auto close
@@ -129,14 +130,14 @@ public class RecoveryTarget extends AbstractComponent {
 
     public void startRecovery(final IndexShard indexShard, final RecoveryState.Type recoveryType, final DiscoveryNode sourceNode, final RecoveryListener listener) {
         try {
-            indexShard.recovering("from " + sourceNode);
+            indexShard.recovering("from " + sourceNode, recoveryType);
         } catch (IllegalIndexShardStateException e) {
             // that's fine, since we might be called concurrently, just ignore this, we are already recovering
             logger.debug("{} ignore recovery. already in recovering process, {}", indexShard.shardId(), e.getMessage());
             return;
         }
         // create a new recovery status, and process...
-        RecoveryState recoveryState = new RecoveryState(indexShard.shardId());
+        RecoveryState recoveryState = indexShard.recoveryState();
         recoveryState.setType(recoveryType);
         recoveryState.setSourceNode(sourceNode);
         recoveryState.setTargetNode(clusterService.localNode());
@@ -309,8 +310,7 @@ public class RecoveryTarget extends AbstractComponent {
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
-                recoveryStatus.indexShard().performRecoveryFinalization(false, recoveryStatus.state());
-                recoveryStatus.state().getTimer().time(System.currentTimeMillis() - recoveryStatus.state().getTimer().startTime());
+                recoveryStatus.indexShard().performRecoveryFinalization(false);
                 recoveryStatus.stage(RecoveryState.Stage.DONE);
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);

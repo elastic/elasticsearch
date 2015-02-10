@@ -150,6 +150,10 @@ public class RecoveriesCollection {
         return null;
     }
 
+    /** the number of ongoing recoveries */
+    public int size() {
+        return onGoingRecoveries.size();
+    }
 
     /** cancel all ongoing recoveries for the given shard. typically because the shards is closed */
     public void cancelRecoveriesForShard(ShardId shardId, String reason) {

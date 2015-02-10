@@ -20,6 +20,7 @@
 package org.elasticsearch.action.admin.indices.recovery;
 
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -35,7 +36,6 @@ import java.io.IOException;
 public class ShardRecoveryResponse extends BroadcastShardOperationResponse implements ToXContent {
 
     RecoveryState recoveryState;
-    private boolean detailed = false;
 
     public ShardRecoveryResponse() { }
 
@@ -58,21 +58,13 @@ public class ShardRecoveryResponse extends BroadcastShardOperationResponse imple
     }
 
     /**
-     * Gets the recovery state information for the shard.
+     * Gets the recovery state information for the shard. Null shard wasn't recovered / recovery didn't start yet.
      *
      * @return  Recovery state
      */
+    @Nullable
     public RecoveryState recoveryState() {
         return recoveryState;
-    }
-
-    public boolean detailed() {
-        return detailed;
-    }
-
-    public void detailed(boolean detailed) {
-        this.detailed = detailed;
-        this.recoveryState.setDetailed(detailed);
     }
 
     @Override

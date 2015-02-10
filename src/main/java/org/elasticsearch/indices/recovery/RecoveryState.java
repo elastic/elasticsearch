@@ -19,25 +19,26 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RestoreSource;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.Locale;
 
 /**
  * Keeps track of state related to shard recovery.
@@ -114,19 +115,18 @@ public class RecoveryState implements ToXContent, Streamable {
 
     private volatile Stage stage = Stage.INIT;
 
-    private Index index = new Index();
-    private Translog translog = new Translog();
-    private Start start = new Start();
-    private Timer timer = new Timer();
+    private volatile Index index = new Index();
+    private volatile Translog translog = new Translog();
+    private volatile Start start = new Start();
+    private volatile Timer timer = new Timer();
 
-    private Type type;
-    private ShardId shardId;
-    private RestoreSource restoreSource;
-    private DiscoveryNode sourceNode;
-    private DiscoveryNode targetNode;
+    private volatile Type type;
+    private volatile ShardId shardId;
+    private volatile RestoreSource restoreSource;
+    private volatile DiscoveryNode sourceNode;
+    private volatile DiscoveryNode targetNode;
 
-    private boolean detailed = false;
-    private boolean primary = false;
+    private volatile boolean primary = false;
 
     public RecoveryState() { }
 
@@ -198,11 +198,6 @@ public class RecoveryState implements ToXContent, Streamable {
         return restoreSource;
     }
 
-    public void setDetailed(boolean detailed) {
-        this.detailed = detailed;
-        this.index.detailed(detailed);
-    }
-
     public void setPrimary(boolean primary) {
         this.primary = primary;
     }
@@ -221,7 +216,7 @@ public class RecoveryState implements ToXContent, Streamable {
     public void readFrom(StreamInput in) throws IOException {
         timer.startTime(in.readVLong());
         timer.stopTime(in.readVLong());
-        timer.time(in.readVLong());
+        timer.time = in.readVLong();
         type = Type.fromId(in.readByte());
         stage = Stage.fromId(in.readByte());
         shardId = ShardId.readShardId(in);
@@ -233,7 +228,10 @@ public class RecoveryState implements ToXContent, Streamable {
         index = Index.readIndex(in);
         translog = Translog.readTranslog(in);
         start = Start.readStart(in);
-        detailed = in.readBoolean();
+        if (in.getVersion().before(Version.V_1_5_0)) {
+            // used to the detailed flag
+            in.readBoolean();
+        }
         primary = in.readBoolean();
     }
 
@@ -254,7 +252,10 @@ public class RecoveryState implements ToXContent, Streamable {
         index.writeTo(out);
         translog.writeTo(out);
         start.writeTo(out);
-        out.writeBoolean(detailed);
+        if (out.getVersion().before(Version.V_1_5_0)) {
+            // detailed flag
+            out.writeBoolean(true);
+        }
         out.writeBoolean(primary);
     }
 
@@ -265,9 +266,11 @@ public class RecoveryState implements ToXContent, Streamable {
         builder.field(Fields.TYPE, type.toString());
         builder.field(Fields.STAGE, stage.toString());
         builder.field(Fields.PRIMARY, primary);
-        builder.timeValueField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
-        builder.timeValueField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
-        builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, timer.time);
+        builder.dateValueField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
+        if (timer.stopTime > 0) {
+            builder.dateValueField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
+        }
+        builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, timer.time());
 
         if (restoreSource != null) {
             builder.field(Fields.SOURCE);
@@ -291,7 +294,6 @@ public class RecoveryState implements ToXContent, Streamable {
         builder.endObject();
 
         builder.startObject(Fields.INDEX);
-        index.detailed(this.detailed);
         index.toXContent(builder, params);
         builder.endObject();
 
@@ -352,11 +354,13 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
         public long time() {
-            return time;
-        }
-
-        public void time(long time) {
-            this.time = time;
+            if (startTime == 0) {
+                return 0;
+            }
+            if (time > 0) {
+                return time;
+            }
+            return Math.max(0, System.currentTimeMillis() - startTime);
         }
 
         public long stopTime() {
@@ -364,6 +368,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
         public void stopTime(long stopTime) {
+            this.time = Math.max(0, stopTime - startTime);
             this.stopTime = stopTime;
         }
     }
@@ -535,53 +540,51 @@ public class RecoveryState implements ToXContent, Streamable {
 
     public static class Index implements ToXContent, Streamable {
 
-        private long startTime = 0;
-        private long time = 0;
+        private volatile long startTime = 0;
+        private volatile long time = 0;
 
         private List<File> fileDetails = new ArrayList<>();
         private List<File> reusedFileDetails = new ArrayList<>();
 
-        private long version = -1;
+        private volatile long version = -1;
 
-        private boolean detailed = false;
-
-        private int totalFileCount = 0;
-        private int reusedFileCount = 0;
+        private volatile int totalFileCount = 0;
+        private volatile int reusedFileCount = 0;
         private AtomicInteger recoveredFileCount = new AtomicInteger();
 
-        private long totalByteCount = 0;
-        private long reusedByteCount = 0;
+        private volatile long totalByteCount = 0;
+        private volatile long reusedByteCount = 0;
         private AtomicLong recoveredByteCount = new AtomicLong();
 
-        public List<File> fileDetails() {
-            return fileDetails;
+        public synchronized List<File> fileDetails() {
+            return ImmutableList.copyOf(fileDetails);
         }
 
-        public List<File> reusedFileDetails() {
-            return reusedFileDetails;
+        public synchronized List<File> reusedFileDetails() {
+            return ImmutableList.copyOf(reusedFileDetails);
         }
 
-        public void addFileDetail(String name, long length) {
+        public synchronized void addFileDetail(String name, long length) {
             fileDetails.add(new File(name, length));
         }
 
-        public void addFileDetail(String name, long length, long recovered) {
+        public synchronized void addFileDetail(String name, long length, long recovered) {
             File file = new File(name, length);
             file.recovered = recovered;
             fileDetails.add(file);
         }
 
-        public void addFileDetails(List<String> names, List<Long> lengths) {
+        public synchronized void addFileDetails(List<String> names, List<Long> lengths) {
             for (int i = 0; i < names.size(); i++) {
                 fileDetails.add(new File(names.get(i), lengths.get(i)));
             }
         }
 
-        public void addReusedFileDetail(String name, long length) {
+        public synchronized void addReusedFileDetail(String name, long length) {
             reusedFileDetails.add(new File(name, length));
         }
 
-        public void addReusedFileDetails(List<String> names, List<Long> lengths) {
+        public synchronized void addReusedFileDetails(List<String> names, List<Long> lengths) {
             for (int i = 0; i < names.size(); i++) {
                 reusedFileDetails.add(new File(names.get(i), lengths.get(i)));
             }
@@ -613,6 +616,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
         public void time(long time) {
+            assert time >= 0;
             this.time = time;
         }
 
@@ -718,10 +722,6 @@ public class RecoveryState implements ToXContent, Streamable {
             this.version = version;
         }
 
-        public void detailed(boolean detailed) {
-            this.detailed = detailed;
-        }
-
         public static Index readIndex(StreamInput in) throws IOException {
             Index index = new Index();
             index.readFrom(in);
@@ -729,7 +729,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
+        public synchronized void readFrom(StreamInput in) throws IOException {
             startTime = in.readVLong();
             time = in.readVLong();
             totalFileCount = in.readVInt();
@@ -751,7 +751,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public synchronized void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(startTime);
             out.writeVLong(time);
             out.writeVInt(totalFileCount);
@@ -781,7 +781,7 @@ public class RecoveryState implements ToXContent, Streamable {
             builder.field(Fields.REUSED, reusedFileCount);
             builder.field(Fields.RECOVERED, filesRecovered);
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", percentFilesRecovered()));
-            if (detailed) {
+            if (params.paramAsBoolean("details", false)) {
                 builder.startArray(Fields.DETAILS);
                 for (File file : fileDetails) {
                     file.toXContent(builder, params);

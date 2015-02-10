@@ -24,11 +24,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.none.NoneGateway;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.RecoveryState;
 
 import java.io.IOException;
 
@@ -72,9 +72,9 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
             indexShard.store().decRef();
         }
         indexShard.postRecovery("post recovery from gateway");
-        recoveryState.getIndex().time(System.currentTimeMillis() - recoveryState.getIndex().startTime());
+        recoveryState.getIndex().time(Math.max(0, System.currentTimeMillis() - recoveryState.getIndex().startTime()));
         recoveryState.getTranslog().startTime(System.currentTimeMillis());
-        recoveryState.getTranslog().time(System.currentTimeMillis() - recoveryState.getIndex().startTime());
+        recoveryState.getTranslog().time(0);
     }
 
     @Override

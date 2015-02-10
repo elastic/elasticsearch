@@ -34,13 +34,11 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -58,15 +56,13 @@ public class TransportRecoveryAction extends
         TransportBroadcastOperationAction<RecoveryRequest, RecoveryResponse, TransportRecoveryAction.ShardRecoveryRequest, ShardRecoveryResponse> {
 
     private final IndicesService indicesService;
-    private final RecoveryTarget recoveryTarget;
 
     @Inject
     public TransportRecoveryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                   TransportService transportService, IndicesService indicesService, RecoveryTarget recoveryTarget, ActionFilters actionFilters) {
+                                   TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
 
         super(settings, RecoveryAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
-        this.recoveryTarget = recoveryTarget;
     }
 
     @Override
@@ -100,6 +96,12 @@ public class TransportRecoveryAction extends
             } else {
                 ShardRecoveryResponse recoveryResponse = (ShardRecoveryResponse) shardResponse;
                 successfulShards++;
+
+                if (recoveryResponse.recoveryState() == null) {
+                    // recovery not yet started
+                    continue;
+                }
+
                 String indexName = recoveryResponse.getIndex();
                 List<ShardRecoveryResponse> responses = shardResponses.get(indexName);
 
@@ -146,17 +148,6 @@ public class TransportRecoveryAction extends
         ShardRecoveryResponse shardRecoveryResponse = new ShardRecoveryResponse(request.shardId());
 
         RecoveryState state = indexShard.recoveryState();
-
-        if (state == null) {
-            state = recoveryTarget.recoveryState(indexShard);
-        }
-
-        if (state == null) {
-            IndexShardGatewayService gatewayService =
-                    indexService.shardInjectorSafe(request.shardId().id()).getInstance(IndexShardGatewayService.class);
-            state = gatewayService.recoveryState();
-        }
-
         shardRecoveryResponse.recoveryState(state);
         return shardRecoveryResponse;
     }

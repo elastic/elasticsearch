@@ -45,8 +45,8 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.*;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
@@ -160,7 +160,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
         try {
             recoveryState.getIndex().startTime(System.currentTimeMillis());
             snapshotContext.restore();
-            recoveryState.getIndex().time(System.currentTimeMillis() - recoveryState.getIndex().startTime());
+            recoveryState.getIndex().time(Math.max(0, System.currentTimeMillis() - recoveryState.getIndex().startTime()));
         } catch (Throwable e) {
             throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId.getSnapshot() + "]", e);
         }

@@ -412,7 +412,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
+    public InternalAggregation doReduce(ReduceContext reduceContext) {
         List<B> reducedBuckets = reduceBuckets(reduceContext);
 
         // adding empty buckets if needed

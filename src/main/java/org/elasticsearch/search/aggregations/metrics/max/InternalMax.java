@@ -76,7 +76,7 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalMax reduce(ReduceContext reduceContext) {
+    public InternalMax doReduce(ReduceContext reduceContext) {
         double max = Double.NEGATIVE_INFINITY;
         for (InternalAggregation aggregation : reduceContext.aggregations()) {
             max = Math.max(max, ((InternalMax) aggregation).max);

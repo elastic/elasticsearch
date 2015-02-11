@@ -165,7 +165,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
         for (Map.Entry<String, List<InternalAggregation>> entry : aggByName.entrySet()) {
             List<InternalAggregation> aggregations = entry.getValue();
             InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand
-            reducedAggregations.add(first.reduce(new InternalAggregation.ReduceContext(aggregations, context.bigArrays(), context.scriptService())));
+            reducedAggregations.add(first.doReduce(new InternalAggregation.ReduceContext(aggregations, context.bigArrays(), context.scriptService())));
         }
         return new InternalAggregations(reducedAggregations);
     }

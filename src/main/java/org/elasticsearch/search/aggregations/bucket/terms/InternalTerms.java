@@ -160,7 +160,7 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
+    public InternalAggregation doReduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
 
         Multimap<Object, InternalTerms.Bucket> buckets = ArrayListMultimap.create();

@@ -91,7 +91,7 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
+    public InternalAggregation doReduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         TopDocs[] shardDocs = new TopDocs[aggregations.size()];
         InternalSearchHits[] shardHits = new InternalSearchHits[aggregations.size()];

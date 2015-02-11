@@ -28,6 +28,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
@@ -180,42 +181,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
 
             cleanFailedShards(event);
-            cleanMismatchedIndexUUIDs(event);
+
+            applyDeletedIndices(event);
             applyNewIndices(event);
             applyMappings(event);
             applyAliases(event);
             applyNewOrUpdatedShards(event);
-            applyDeletedIndices(event);
             applyDeletedShards(event);
             applyCleanedIndices(event);
             applySettings(event);
-            sendIndexLifecycleEvents(event);
-        }
-    }
-
-    private void sendIndexLifecycleEvents(final ClusterChangedEvent event) {
-        String localNodeId = event.state().nodes().localNodeId();
-        assert localNodeId != null;
-        for (String index : event.indicesDeleted()) {
-            try {
-                nodeIndexDeletedAction.nodeIndexDeleted(event.state(), index, localNodeId);
-            } catch (Throwable e) {
-                logger.debug("failed to send to master index {} deleted event", e, index);
-            }
-        }
-    }
-
-    private void cleanMismatchedIndexUUIDs(final ClusterChangedEvent event) {
-        for (IndexService indexService : indicesService) {
-            IndexMetaData indexMetaData = event.state().metaData().index(indexService.index().name());
-            if (indexMetaData == null) {
-                // got deleted on us, will be deleted later
-                continue;
-            }
-            if (!indexMetaData.isSameUUID(indexService.indexUUID())) {
-                logger.debug("[{}] mismatch on index UUIDs between cluster state and local state, cleaning the index so it will be recreated", indexMetaData.index());
-                removeIndex(indexMetaData.index(), "mismatch on index UUIDs between cluster state and local state, cleaning the index so it will be recreated");
-            }
         }
     }
 
@@ -249,15 +223,39 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private void applyDeletedIndices(final ClusterChangedEvent event) {
+        final ClusterState previousState = event.previousState();
+        final String localNodeId = event.state().nodes().localNodeId();
+        assert localNodeId != null;
+
         for (IndexService indexService : indicesService) {
-            final String index = indexService.index().name();
-            if (!event.state().metaData().hasIndex(index)) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("[{}] cleaning index, no longer part of the metadata", index);
+            IndexMetaData indexMetaData = event.state().metaData().index(indexService.index().name());
+            if (indexMetaData != null) {
+                if (!indexMetaData.isSameUUID(indexService.indexUUID())) {
+                    logger.debug("[{}] mismatch on index UUIDs between cluster state and local state, cleaning the index so it will be recreated", indexMetaData.index());
+                    deleteIndex(indexMetaData.index(), "mismatch on index UUIDs between cluster state and local state, cleaning the index so it will be recreated");
                 }
-                deleteIndex(index, "index no longer part of the metadata");
             }
         }
+
+        for (String index : event.indicesDeleted()) {
+            if (logger.isDebugEnabled()) {
+                logger.debug("[{}] cleaning index, no longer part of the metadata", index);
+            }
+            if (indicesService.hasIndex(index)) {
+                deleteIndex(index, "index no longer part of the metadata");
+            } else {
+                IndexMetaData metaData = previousState.metaData().index(index);
+                assert metaData != null;
+                indicesService.deleteClosedIndex("closed index no longer part of the metadata", metaData);
+            }
+            try {
+                nodeIndexDeletedAction.nodeIndexDeleted(event.state(), index, localNodeId);
+            } catch (Throwable e) {
+                logger.debug("failed to send to master index {} deleted event", e, index);
+            }
+        }
+
+
     }
 
     private void applyDeletedShards(final ClusterChangedEvent event) {
@@ -876,6 +874,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
         // clear seen mappings as well
         clearSeenMappings(index);
+
     }
 
     private class FailedEngineHandler implements Engine.FailedEngineListener {

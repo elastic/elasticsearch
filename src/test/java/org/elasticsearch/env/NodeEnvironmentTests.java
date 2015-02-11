@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -394,6 +395,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
                 .put(settings)
                 .put("path.home", newTempDirPath().toAbsolutePath().toString())
                 .put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true)
+                .put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, false)
                 .putArray("path.data", tmpPaths()).build();
         return new NodeEnvironment(build, new Environment(build));
     }
@@ -403,6 +405,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
                 .put(settings)
                 .put("path.home", newTempDirPath().toAbsolutePath().toString())
                 .put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true)
+                .put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, false)
                 .putArray("path.data", dataPaths).build();
         return new NodeEnvironment(build, new Environment(build));
     }

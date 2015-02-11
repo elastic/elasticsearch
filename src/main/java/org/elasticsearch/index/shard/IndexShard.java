@@ -1067,10 +1067,14 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
     
     private void checkIndex() throws IndexShardException {
-        try {
-            doCheckIndex();
-        } catch (IOException e) {
-            throw new IndexShardException(shardId, "exception during checkindex", e);
+        if (store.tryIncRef()) {
+            try {
+                doCheckIndex();
+            } catch (IOException e) {
+                throw new IndexShardException(shardId, "exception during checkindex", e);
+            } finally {
+                store.decRef();
+            }
         }
     }
 

@@ -98,6 +98,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
                 .put("node.name", nodeName())
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("script.disable_dynamic", false)
                 .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
                 .put("http.enabled", false)
                 .put("config.ignore_system_properties", true) // make sure we get what we set :)

@@ -132,7 +132,7 @@ public class RandomShapeGenerator extends RandomizedTest {
     /**
      * Creates a random shape useful for randomized testing, NOTE: exercise caution when using this to build random GeometryCollections
      * as creating a large random number of random shapes can result in massive resource consumption
-     * see: {@link org.elasticsearch.search.geo.GeoShapeIntegrationTests#testShapeFilter_randomGeometryCollection}
+     * see: {@link org.elasticsearch.search.geo.GeoShapeIntegrationTests#testShapeFilterWithRandomGeoCollection}
      *
      * The following options are included
      * @param nearPoint Create a shape near a provided point

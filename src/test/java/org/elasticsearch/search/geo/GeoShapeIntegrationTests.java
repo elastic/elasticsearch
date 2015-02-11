@@ -258,7 +258,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testShapeFetching_path() throws Exception {
+    public void testShapeFetchingPath() throws Exception {
         createIndex("shapes");
         assertAcked(prepareCreate("test").addMapping("type", "location", "type=geo_shape"));
 
@@ -381,10 +381,9 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testShapeFilter_randomGeometryCollection() throws Exception {
-        GeometryCollectionBuilder gcb;
+    public void testShapeFilterWithRandomGeoCollection() throws Exception {
         // Create a random geometry collection.
-        gcb = RandomShapeGenerator.createGeometryCollection();
+        GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection();
 
         logger.info("Created Random GeometryCollection containing " + gcb.numShapes() + " shapes");
 
@@ -406,7 +405,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testShapeFilter_geometryCollection() throws Exception {
+    public void testShapeFilterWithDefinedGeoCollection() throws Exception {
         createIndex("shapes");
         assertAcked(prepareCreate("test").addMapping("type", "location", "type=geo_shape"));
 

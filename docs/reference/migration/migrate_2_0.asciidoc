@@ -125,11 +125,10 @@ The `histogram` and the `date_histogram` aggregation now support a simplified `o
 `post_offset` rounding options. Instead of having to specify two separate offset shifts of the underlying buckets, the `offset` option
 moves the bucket boundaries in positive or negative direction depending on its argument.
 
-The `date_histogram` options for `pre_zone` and `post_zone` are replaced by the `time_zone` option. So far the `time_zone` option was
-equivalent to `pre_zone`. The time zone conversion was performed before rounding the date values to be put inside the aggregation buckets.
-This could lead to cases where bucket keys were not in UTC. This behavior is unified. Setting `time_zone` to a value like
-"+01:00" now will lead to the bucket boundary calculations being applied in the specified time zone but the results are returned in UTC.
-In addition to this, also the `pre_zone_adjust_large_interval` is removed because we now always return dates in UTC.
+The `date_histogram` options for `pre_zone` and `post_zone` are replaced by the `time_zone` option. The behavior of `time_zone` is
+equivalent to the former `pre_zone` option. Setting `time_zone` to a value like "+01:00" now will lead to the bucket calculations
+being applied in the specified time zone but In addition to this, also the `pre_zone_adjust_large_interval` is removed because we
+now always return dates and bucket keys in UTC.
 
 === Terms filter lookup caching
 

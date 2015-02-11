@@ -243,6 +243,55 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
         }
     }
 
+    /**
+     * special test for DST switch from #9491
+     */
+    @Test
+    public void testAmbiguousHoursAfterDSTSwitch() {
+        Rounding tzRounding;
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(DateTimeZone.forID("Asia/Jerusalem"))
+                .build();
+        assertThat(tzRounding.round(time("2014-10-25T22:30:00", DateTimeZone.UTC)), equalTo(time("2014-10-25T22:00:00", DateTimeZone.UTC)));
+        assertThat(tzRounding.round(time("2014-10-25T23:30:00", DateTimeZone.UTC)), equalTo(time("2014-10-25T23:00:00", DateTimeZone.UTC)));
+    }
+
+    @Test
+    public void testAdjustPreTimeZone() {
+        Rounding tzRounding;
+        // Day interval
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(DateTimeZone.forID("Asia/Jerusalem"))
+                .build();
+        assertThat(tzRounding.round(time("2014-11-11T17:00:00", DateTimeZone.forID("Asia/Jerusalem"))),
+                equalTo(time("2014-11-11T00:00:00", DateTimeZone.forID("Asia/Jerusalem"))));
+        // DST on
+        assertThat(tzRounding.round(time("2014-08-11T17:00:00", DateTimeZone.forID("Asia/Jerusalem"))),
+                equalTo(time("2014-08-11T00:00:00", DateTimeZone.forID("Asia/Jerusalem"))));
+        // Day of switching DST on -> off
+        assertThat(tzRounding.round(time("2014-10-26T17:00:00", DateTimeZone.forID("Asia/Jerusalem"))),
+                equalTo(time("2014-10-26T00:00:00", DateTimeZone.forID("Asia/Jerusalem"))));
+        // Day of switching DST off -> on
+        assertThat(tzRounding.round(time("2015-03-27T17:00:00", DateTimeZone.forID("Asia/Jerusalem"))),
+                equalTo(time("2015-03-27T00:00:00", DateTimeZone.forID("Asia/Jerusalem"))));
+        // Month interval
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.MONTH_OF_YEAR).timeZone(DateTimeZone.forID("Asia/Jerusalem"))
+                .build();
+        assertThat(tzRounding.round(time("2014-11-11T17:00:00", DateTimeZone.forID("Asia/Jerusalem"))),
+                equalTo(time("2014-11-01T00:00:00", DateTimeZone.forID("Asia/Jerusalem"))));
+        // DST on
+        assertThat(tzRounding.round(time("2014-10-10T17:00:00", DateTimeZone.forID("Asia/Jerusalem"))),
+                equalTo(time("2014-10-01T00:00:00", DateTimeZone.forID("Asia/Jerusalem"))));
+        // Year interval
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.YEAR_OF_CENTURY).timeZone(DateTimeZone.forID("Asia/Jerusalem"))
+                .build();
+        assertThat(tzRounding.round(time("2014-11-11T17:00:00", DateTimeZone.forID("Asia/Jerusalem"))),
+                equalTo(time("2014-01-01T00:00:00", DateTimeZone.forID("Asia/Jerusalem"))));
+        // Two time stamps in same year ("Double buckets" bug in 1.3.7)
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.YEAR_OF_CENTURY).timeZone(DateTimeZone.forID("Asia/Jerusalem"))
+                .build();
+        assertThat(tzRounding.round(time("2014-11-11T17:00:00", DateTimeZone.forID("Asia/Jerusalem"))),
+                equalTo(tzRounding.round(time("2014-08-11T17:00:00", DateTimeZone.forID("Asia/Jerusalem")))));
+    }
+
     private DateTimeUnit randomTimeUnit() {
         byte id = (byte) randomIntBetween(1, 8);
         return DateTimeUnit.resolve(id);

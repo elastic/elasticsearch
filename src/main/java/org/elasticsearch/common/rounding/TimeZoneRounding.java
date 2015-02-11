@@ -134,13 +134,13 @@ public abstract class TimeZoneRounding extends Rounding {
         @Override
         public long roundKey(long utcMillis) {
             long timeLocal = timeZone.convertUTCToLocal(utcMillis);
-            return field.roundFloor(timeLocal);
+            return timeZone.convertLocalToUTC(field.roundFloor(timeLocal), true, utcMillis);
         }
 
         @Override
         public long valueForKey(long time) {
-            assert field.roundFloor(time) == time;
-            return timeZone.convertLocalToUTC(time, true);
+            assert roundKey(time) == time;
+            return time;
         }
 
         @Override

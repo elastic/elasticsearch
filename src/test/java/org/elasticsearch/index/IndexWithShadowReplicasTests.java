@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.Ignore;
@@ -113,6 +113,53 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> deleting index");
         assertAcked(client().admin().indices().prepareDelete(IDX));
+    }
+
+    @Test
+    @Ignore // nocommit - this currently fails because of the way that we promote shadow replicas into primaries
+    public void testReplicaToPrimaryPromotion() throws Exception {
+        Settings nodeSettings = ImmutableSettings.builder()
+                .put("node.add_id_to_custom_path", false)
+                .put("node.enable_custom_paths", true)
+                .build();
+
+        String node1 = internalCluster().startNode(nodeSettings);
+        Path dataPath = newTempDirPath();
+        String IDX = "test";
+
+        Settings idxSettings = ImmutableSettings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
+                .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
+                .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
+                .build();
+
+        prepareCreate(IDX).setSettings(idxSettings).get();
+        ensureYellow(IDX);
+        client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
+        client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
+
+        // Node1 has the primary, now node2 has the replica
+        String node2 = internalCluster().startNode(nodeSettings);
+        ensureYellow(IDX);
+
+        flushAndRefresh(IDX);
+
+        logger.info("--> stopping node1 [{}]", node1);
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1));
+
+        ensureYellow(IDX);
+
+        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
+        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
+        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
+        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+
+        logger.info("--> performing query");
+        SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).get();
+        assertHitCount(resp, 2);
+
     }
 
     @Test

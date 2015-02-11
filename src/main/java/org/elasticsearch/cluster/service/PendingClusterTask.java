@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.service;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,6 +42,8 @@ public class PendingClusterTask implements Streamable {
     }
 
     public PendingClusterTask(long insertOrder, Priority priority, Text source, long timeInQueue, boolean executing) {
+        assert timeInQueue >= 0 : "got a negative timeInQueue [" + timeInQueue + "]";
+        assert insertOrder >= 0 : "got a negative insertOrder [" + insertOrder + "]";
         this.insertOrder = insertOrder;
         this.priority = priority;
         this.source = source;

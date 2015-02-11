@@ -222,9 +222,9 @@ settings will be allowed to be updated.
 [float]
 === Field data circuit breaker
 
-`indices.fielddata.breaker.limit`::
+`indices.breaker.fielddata.limit`::
      See <<index-modules-fielddata>>
 
-`indices.fielddata.breaker.overhead`::
+`indices.breaker.fielddata.overhead`::
      See <<index-modules-fielddata>>
 

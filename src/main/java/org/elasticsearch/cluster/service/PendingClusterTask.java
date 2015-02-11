@@ -90,7 +90,7 @@ public class PendingClusterTask implements Streamable {
         out.writeVLong(insertOrder);
         Priority.writeTo(priority, out);
         out.writeText(source);
-        out.writeVLong(timeInQueue);
+        out.writeVLong(Math.max(0, timeInQueue));
         if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
             out.writeBoolean(executing);
         }

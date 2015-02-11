@@ -453,7 +453,6 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
         realtime = in.readBoolean();
         versionType = VersionType.fromValue(in.readByte());
         version = in.readLong();
-        startTime = in.readVLong();
     }
 
     @Override
@@ -488,7 +487,6 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
         out.writeBoolean(realtime());
         out.writeByte(versionType.getValue());
         out.writeLong(version);
-        out.writeVLong(startTime);
     }
 
     public static enum Flag {

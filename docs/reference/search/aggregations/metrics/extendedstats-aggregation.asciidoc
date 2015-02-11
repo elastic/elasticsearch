@@ -46,7 +46,7 @@ The above aggregation computes the grades statistics over all documents. The agg
 The name of the aggregation (`grades_stats` above) also serves as the key by which the aggregation result can be retrieved from the returned response.
 
 ==== Standard Deviation Bounds
-coming[1.4.3]
+added[1.4.3]
 
 By default, the `extended_stats` metric will return an object called `std_deviation_bounds`, which provides an interval of plus/minus two standard
 deviations from the mean.  This can be a useful way to visualize variance of your data.  If you want a different boundary, for example
@@ -65,7 +65,7 @@ three standard deviations, you can set `sigma` in the request:
     }
 }
 --------------------------------------------------
-<1> `sigma` controls how many standard deviations +/- from the mean should be displayed coming[1.4.3]
+<1> `sigma` controls how many standard deviations +/- from the mean should be displayed added[1.4.3]
 
 `sigma` can be any non-negative double, meaning you can request non-integer values such as `1.5`.  A value of `0` is valid, but will simply
 return the average for both `upper` and `lower` bounds.

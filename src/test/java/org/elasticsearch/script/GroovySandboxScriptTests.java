@@ -34,11 +34,18 @@ import static org.hamcrest.CoreMatchers.equalTo;
 /**
  * Tests for the Groovy scripting sandbox
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST)
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0)
 public class GroovySandboxScriptTests extends ElasticsearchIntegrationTest {
 
     @Test
-    public void testSandboxedGroovyScript() {
+    public void testSandboxedGroovyScript() throws Exception {
+        int nodes = randomIntBetween(1, 3);
+        Settings nodeSettings = ImmutableSettings.builder()
+                .put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, true)
+                .build();
+        internalCluster().startNodesAsync(nodes, nodeSettings).get();
+        client().admin().cluster().prepareHealth().setWaitForNodes(nodes + "").get();
+
         client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefresh(true).get();
 
         // Plain test
@@ -102,6 +109,13 @@ public class GroovySandboxScriptTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDynamicBlacklist() throws Exception {
+        int nodes = randomIntBetween(1, 3);
+        Settings nodeSettings = ImmutableSettings.builder()
+                .put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, true)
+                .build();
+        internalCluster().startNodesAsync(nodes, nodeSettings).get();
+        client().admin().cluster().prepareHealth().setWaitForNodes(nodes + "").get();
+
         client().prepareIndex("test", "doc", "1").setSource("foo", 5).setRefresh(true).get();
 
         testSuccess("[doc['foo'].value, 3, 4].isEmpty()");

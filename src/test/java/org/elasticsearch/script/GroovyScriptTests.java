@@ -81,19 +81,6 @@ public class GroovyScriptTests extends ElasticsearchIntegrationTest {
 
         try {
             client().prepareSearch("test").setQuery(constantScoreQuery(
-                    scriptFilter("pr = Runtime.getRuntime().exec(\"touch /tmp/gotcha\"); pr.waitFor()").lang("groovy"))).get();
-            fail("should have thrown an exception");
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(ExceptionsHelper.detailedMessage(e) + "should not contained NotSerializableTransportException",
-                    ExceptionsHelper.detailedMessage(e).contains("NotSerializableTransportException"), equalTo(false));
-            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained GroovyScriptCompilationException",
-                    ExceptionsHelper.detailedMessage(e).contains("GroovyScriptCompilationException"), equalTo(true));
-            assertThat(ExceptionsHelper.detailedMessage(e) + "should have contained Method calls not allowed on [java.lang.Runtime]",
-                    ExceptionsHelper.detailedMessage(e).contains("Method calls not allowed on [java.lang.Runtime]"), equalTo(true));
-        }
-
-        try {
-            client().prepareSearch("test").setQuery(constantScoreQuery(
                     scriptFilter("assert false").lang("groovy"))).get();
             fail("should have thrown an exception");
         } catch (SearchPhaseExecutionException e) {

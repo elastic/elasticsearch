@@ -794,7 +794,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("min", "retval = Long.MAX_VALUE; for (v in doc['lvalue'].values){ retval = min(v, retval) }; retval")
-                .addSort("ord", SortOrder.ASC).setSize(10)
+                .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long")).setSize(10)
                 .execute().actionGet();
 
         assertNoFailures(searchResponse);
@@ -807,7 +807,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("min", "retval = Double.MAX_VALUE; for (v in doc['dvalue'].values){ retval = min(v, retval) }; retval")
-                .addSort("ord", SortOrder.ASC).setSize(10)
+                .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long")).setSize(10)
                 .execute().actionGet();
 
         assertNoFailures(searchResponse);
@@ -821,7 +821,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("min", "retval = Integer.MAX_VALUE; for (v in doc['svalue'].values){ retval = min(Integer.parseInt(v), retval) }; retval")
-                .addSort("ord", SortOrder.ASC).setSize(10)
+                .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long")).setSize(10)
                 .execute().actionGet();
 
         assertNoFailures(searchResponse);
@@ -835,7 +835,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("min", "retval = Double.MAX_VALUE; for (v in doc['gvalue'].values){ retval = min(v.lon, retval) }; retval")
-                .addSort("ord", SortOrder.ASC).setSize(10)
+                .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long")).setSize(10)
                 .execute().actionGet();
 
         assertNoFailures(searchResponse);

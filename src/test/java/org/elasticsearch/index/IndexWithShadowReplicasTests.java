@@ -37,7 +37,7 @@ import org.junit.Test;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.LongAdder;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -186,7 +186,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
             }
         };
 
-        final LongAdder totalDocs = new LongAdder();
+        final AtomicLong totalDocs = new AtomicLong();
         final Runnable indexRunner = new Runnable() {
             @Override
             public void run() {
@@ -203,7 +203,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
                     try {
                         logger.info("--> indexing batch of {} documents...", batchSize);
                         indexRandom(true, true, true, indexRequests);
-                        totalDocs.add(batchSize);
+                        totalDocs.addAndGet(batchSize);
                         if (randomBoolean()) {
                             // Randomly flush the shadow index
                             flush(IDX);

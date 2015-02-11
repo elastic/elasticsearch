@@ -89,8 +89,9 @@
         <dependency>
             <groupId>org.apache.tika</groupId>
             <artifactId>tika-parsers</artifactId>
-            <version>1.5</version>
+            <version>1.7</version>
             <exclusions>
+                <!-- Not Apache2 License compatible -->
                 <exclusion>
                     <groupId>edu.ucar</groupId>
                     <artifactId>netcdf</artifactId>

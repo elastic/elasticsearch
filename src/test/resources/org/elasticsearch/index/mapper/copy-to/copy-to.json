@@ -1,0 +1,13 @@
+{
+    "person": {
+        "properties": {
+            "file": {
+                "type": "attachment",
+                "copy_to": "copy"
+            },
+            "copy": {
+              "type": "attachment"
+            }
+        }
+    }
+}

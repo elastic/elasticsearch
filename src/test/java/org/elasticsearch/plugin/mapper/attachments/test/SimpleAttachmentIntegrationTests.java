@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.putMappingRequest;
@@ -147,6 +148,44 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
         String name = response.getHits().getAt(0).getFields().get("file.name").getValue();
         assertThat(contentType, is(dummyContentType));
         assertThat(name, is(dummyName));
+    }
+
+    /**
+     * As for now, we don't support a global `copy_to` property for `attachment` type.
+     * So this test is failing.
+     */
+    @Test @Ignore
+    public void testCopyTo() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/copy-to/copy-to.json");
+        byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/text-in-english.txt");
+
+        client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
+
+        index("test", "person", jsonBuilder().startObject().field("file", txt).endObject());
+        refresh();
+
+        CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("Queen").defaultField("file")).execute().get();
+        assertThat(countResponse.getCount(), equalTo(1l));
+
+        countResponse = client().prepareCount("test").setQuery(queryStringQuery("Queen").defaultField("copy")).execute().get();
+        assertThat(countResponse.getCount(), equalTo(1l));
+    }
+
+    @Test
+    public void testCopyToSubField() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/copy-to/copy-to-subfield.json");
+        byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/text-in-english.txt");
+
+        client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
+
+        index("test", "person", jsonBuilder().startObject().field("file", txt).endObject());
+        refresh();
+
+        CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("Queen").defaultField("file")).execute().get();
+        assertThat(countResponse.getCount(), equalTo(1l));
+
+        countResponse = client().prepareCount("test").setQuery(queryStringQuery("Queen").defaultField("copy")).execute().get();
+        assertThat(countResponse.getCount(), equalTo(1l));
     }
 
 }

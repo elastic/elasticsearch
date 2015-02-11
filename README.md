@@ -117,6 +117,37 @@ In the above example, the actual content indexed is mapped under `fields` name `
 it will only be available in the `_all` field. The other fields map to their respective metadata names, but there is no 
 need to specify the `type` (like `string` or `date`) since it is already known.
 
+Copy To feature
+---------------
+
+If you want to use [copy_to](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/mapping-core-types.html#copy-to)
+feature, you need to define it on each sub-field you want to copy to another field:
+
+```javascript
+PUT /test/person/_mapping
+{
+  "person": {
+    "properties": {
+      "file": {
+        "type": "attachment",
+        "path": "full",
+        "fields": {
+          "file": {
+            "type": "string",
+            "copy_to": "copy"
+          }
+        }
+      },
+      "copy": {
+        "type": "string"
+      }
+    }
+  }
+}
+```
+
+In this example, the extracted content will be copy as well to `copy` field.
+
 Querying or accessing metadata
 ------------------------------
 

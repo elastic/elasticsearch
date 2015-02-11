@@ -20,7 +20,6 @@
 package org.elasticsearch;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -218,9 +217,11 @@ public class Version implements Serializable {
     public static final Version V_1_4_2 = new Version(V_1_4_2_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_2);
     public static final int V_1_4_3_ID = 1040399;
     public static final Version V_1_4_3 = new Version(V_1_4_3_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_3);
+    public static final int V_1_4_4_ID = 1040499;
+    public static final Version V_1_4_4 = new Version(V_1_4_4_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_3);
 
 
-    public static final Version CURRENT = V_1_4_3;
+    public static final Version CURRENT = V_1_4_4;
 
     static {
         assert CURRENT.luceneVersion.equals(Lucene.VERSION) : "Version must be upgraded to [" + Lucene.VERSION + "] is still set to [" + CURRENT.luceneVersion + "]";
@@ -232,6 +233,8 @@ public class Version implements Serializable {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_1_4_4_ID:
+                return V_1_4_4;
             case V_1_4_3_ID:
                 return V_1_4_3;
             case V_1_4_2_ID:

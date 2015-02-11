@@ -105,7 +105,7 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * Build an empty aggregation.
      */
     public abstract InternalAggregation buildEmptyAggregation();
-
+    
     /** Aggregation mode for sub aggregations. */
     public enum SubAggCollectionMode {
 

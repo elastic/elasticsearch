@@ -22,6 +22,7 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -30,6 +31,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -38,9 +40,10 @@ import java.util.Map;
 public class PercentilesAggregator extends AbstractPercentilesAggregator {
 
     public PercentilesAggregator(String name, Numeric valuesSource, AggregationContext context,
-            Aggregator parent, double[] percents, double compression, boolean keyed, @Nullable ValueFormatter formatter,
+ Aggregator parent, double[] percents,
+            double compression, boolean keyed, @Nullable ValueFormatter formatter, List<Reducer> reducers,
             Map<String, Object> metaData) throws IOException {
-        super(name, valuesSource, context, parent, percents, compression, keyed, formatter, metaData);
+        super(name, valuesSource, context, parent, percents, compression, keyed, formatter, reducers, metaData);
     }
 
     @Override
@@ -49,7 +52,7 @@ public class PercentilesAggregator extends AbstractPercentilesAggregator {
         if (state == null) {
             return buildEmptyAggregation();
         } else {
-            return new InternalPercentiles(name, keys, state, keyed, formatter, metaData());
+            return new InternalPercentiles(name, keys, state, keyed, formatter, reducers(), metaData());
         }
     }
     
@@ -65,7 +68,7 @@ public class PercentilesAggregator extends AbstractPercentilesAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalPercentiles(name, keys, new TDigestState(compression), keyed, formatter, metaData());
+        return new InternalPercentiles(name, keys, new TDigestState(compression), keyed, formatter, reducers(), metaData());
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
@@ -83,15 +86,19 @@ public class PercentilesAggregator extends AbstractPercentilesAggregator {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers,
+                Map<String, Object> metaData) throws IOException {
             return new PercentilesAggregator(name, null, aggregationContext, parent, percents, compression, keyed, config.formatter(),
+                    reducers,
                     metaData);
         }
 
         @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
+                boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
             return new PercentilesAggregator(name, valuesSource, aggregationContext, parent, percents, compression,
-                    keyed, config.formatter(), metaData);
+ keyed,
+                    config.formatter(), reducers, metaData);
         }
     }
 }

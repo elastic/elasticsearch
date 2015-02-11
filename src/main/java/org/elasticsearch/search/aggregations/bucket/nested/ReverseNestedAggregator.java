@@ -40,9 +40,11 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -52,8 +54,10 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
 
     private final BitDocIdSetFilter parentFilter;
 
-    public ReverseNestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, metaData);
+    public ReverseNestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper,
+            AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData)
+            throws IOException {
+        super(name, factories, aggregationContext, parent, reducers, metaData);
         if (objectMapper == null) {
             parentFilter = context.searchContext().bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);
         } else {
@@ -64,33 +68,33 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
-        // In ES if parent is deleted, then also the children are deleted, so the child docs this agg receives
-        // must belong to parent docs that is alive. For this reason acceptedDocs can be null here.
+            // In ES if parent is deleted, then also the children are deleted, so the child docs this agg receives
+            // must belong to parent docs that is alive. For this reason acceptedDocs can be null here.
         BitDocIdSet docIdSet = parentFilter.getDocIdSet(ctx);
         final BitSet parentDocs;
-        if (DocIdSets.isEmpty(docIdSet)) {
+            if (DocIdSets.isEmpty(docIdSet)) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
-        } else {
-            parentDocs = docIdSet.bits();
-        }
+            } else {
+                parentDocs = docIdSet.bits();
+            }
         final LongIntOpenHashMap bucketOrdToLastCollectedParentDoc = new LongIntOpenHashMap(32);
         return new LeafBucketCollectorBase(sub, null) {
-            @Override
+    @Override
             public void collect(int childDoc, long bucket) throws IOException {
-                // fast forward to retrieve the parentDoc this childDoc belongs to
-                final int parentDoc = parentDocs.nextSetBit(childDoc);
-                assert childDoc <= parentDoc && parentDoc != DocIdSetIterator.NO_MORE_DOCS;
+        // fast forward to retrieve the parentDoc this childDoc belongs to
+        final int parentDoc = parentDocs.nextSetBit(childDoc);
+        assert childDoc <= parentDoc && parentDoc != DocIdSetIterator.NO_MORE_DOCS;
                 if (bucketOrdToLastCollectedParentDoc.containsKey(bucket)) {
-                    int lastCollectedParentDoc = bucketOrdToLastCollectedParentDoc.lget();
-                    if (parentDoc > lastCollectedParentDoc) {
+            int lastCollectedParentDoc = bucketOrdToLastCollectedParentDoc.lget();
+            if (parentDoc > lastCollectedParentDoc) {
                         collectBucket(sub, parentDoc, bucket);
-                        bucketOrdToLastCollectedParentDoc.lset(parentDoc);
-                    }
-                } else {
+                bucketOrdToLastCollectedParentDoc.lset(parentDoc);
+            }
+        } else {
                     collectBucket(sub, parentDoc, bucket);
                     bucketOrdToLastCollectedParentDoc.put(bucket, parentDoc);
-                }
-            }
+        }
+    }
         };
     }
 
@@ -105,12 +109,13 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalReverseNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metaData());
+        return new InternalReverseNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), reducers(),
+                metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalReverseNested(name, 0, buildEmptySubAggregations(), metaData());
+        return new InternalReverseNested(name, 0, buildEmptySubAggregations(), reducers(), metaData());
     }
 
     Filter getParentFilter() {
@@ -127,7 +132,8 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
+                List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
             // Early validation
             NestedAggregator closestNestedAggregator = findClosestNestedAggregator(parent);
             if (closestNestedAggregator == null) {
@@ -138,11 +144,11 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
             if (path != null) {
                 MapperService.SmartNameObjectMapper mapper = context.searchContext().smartNameObjectMapper(path);
                 if (mapper == null) {
-                    return new Unmapped(name, context, parent, metaData);
+                    return new Unmapped(name, context, parent, reducers, metaData);
                 }
                 objectMapper = mapper.mapper();
                 if (objectMapper == null) {
-                    return new Unmapped(name, context, parent, metaData);
+                    return new Unmapped(name, context, parent, reducers, metaData);
                 }
                 if (!objectMapper.nested().isNested()) {
                     throw new AggregationExecutionException("[reverse_nested] nested path [" + path + "] is not nested");
@@ -150,18 +156,19 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
             } else {
                 objectMapper = null;
             }
-            return new ReverseNestedAggregator(name, factories, objectMapper, context, parent, metaData);
+            return new ReverseNestedAggregator(name, factories, objectMapper, context, parent, reducers, metaData);
         }
 
         private final static class Unmapped extends NonCollectingAggregator {
 
-            public Unmapped(String name, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
-                super(name, context, parent, metaData);
+            public Unmapped(String name, AggregationContext context, Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData)
+                    throws IOException {
+                super(name, context, parent, reducers, metaData);
             }
 
             @Override
             public InternalAggregation buildEmptyAggregation() {
-                return new InternalReverseNested(name, 0, buildEmptySubAggregations(), metaData());
+                return new InternalReverseNested(name, 0, buildEmptySubAggregations(), reducers(), metaData());
             }
         }
     }

@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -155,8 +156,11 @@ public class LongTerms extends InternalTerms {
 
     LongTerms() {} // for serialization
 
-    public LongTerms(String name, Terms.Order order, @Nullable ValueFormatter formatter, int requiredSize, int shardSize, long minDocCount, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount, Map<String, Object> metaData) {
-        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, metaData);
+    public LongTerms(String name, Terms.Order order, @Nullable ValueFormatter formatter, int requiredSize, int shardSize, long minDocCount,
+            List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount,
+            List<Reducer> reducers, Map<String, Object> metaData) {
+        super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, reducers,
+                metaData);
         this.formatter = formatter;
     }
 
@@ -166,8 +170,10 @@ public class LongTerms extends InternalTerms {
     }
 
     @Override
-    protected InternalTerms newAggregation(String name, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount, Map<String, Object> metaData) {
-        return new LongTerms(name, order, formatter, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, metaData);
+    protected InternalTerms newAggregation(String name, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError,
+            long docCountError, long otherDocCount, List<Reducer> reducers, Map<String, Object> metaData) {
+        return new LongTerms(name, order, formatter, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError,
+                otherDocCount, reducers, metaData);
     }
 
     @Override

@@ -31,11 +31,13 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 public abstract class AbstractPercentilesAggregator extends NumericMetricsAggregator.MultiValue {
@@ -53,8 +55,9 @@ public abstract class AbstractPercentilesAggregator extends NumericMetricsAggreg
 
     public AbstractPercentilesAggregator(String name, ValuesSource.Numeric valuesSource, AggregationContext context,
                                  Aggregator parent, double[] keys, double compression, boolean keyed,
-                                 @Nullable ValueFormatter formatter, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, metaData);
+ @Nullable ValueFormatter formatter, List<Reducer> reducers,
+            Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, reducers, metaData);
         this.valuesSource = valuesSource;
         this.keyed = keyed;
         this.formatter = formatter;

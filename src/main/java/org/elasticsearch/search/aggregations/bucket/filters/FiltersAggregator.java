@@ -25,6 +25,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -33,6 +34,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -59,8 +61,9 @@ public class FiltersAggregator extends BucketsAggregator {
     private final boolean keyed;
 
     public FiltersAggregator(String name, AggregatorFactories factories, List<KeyedFilter> filters, boolean keyed, AggregationContext aggregationContext,
-            Aggregator parent, Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, metaData);
+ Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData)
+            throws IOException {
+        super(name, factories, aggregationContext, parent, reducers, metaData);
         this.keyed = keyed;
         this.filters = filters.toArray(new KeyedFilter[filters.size()]);
     }
@@ -73,16 +76,16 @@ public class FiltersAggregator extends BucketsAggregator {
         final Bits[] bits = new Bits[filters.length];
         for (int i = 0; i < filters.length; ++i) {
             bits[i] = DocIdSets.asSequentialAccessBits(ctx.reader().maxDoc(), filters[i].filter.getDocIdSet(ctx, null));
-        }
+    }
         return new LeafBucketCollectorBase(sub, null) {
-            @Override
+    @Override
             public void collect(int doc, long bucket) throws IOException {
-                for (int i = 0; i < bits.length; i++) {
-                    if (bits[i].get(doc)) {
+        for (int i = 0; i < bits.length; i++) {
+            if (bits[i].get(doc)) {
                         collectBucket(sub, doc, bucketOrd(bucket, i));
                     }
-                }
             }
+        }
         };
     }
 
@@ -95,7 +98,7 @@ public class FiltersAggregator extends BucketsAggregator {
             InternalFilters.Bucket bucket = new InternalFilters.Bucket(filter.key, bucketDocCount(bucketOrd), bucketAggregations(bucketOrd), keyed);
             buckets.add(bucket);
         }
-        return new InternalFilters(name, buckets, keyed, metaData());
+        return new InternalFilters(name, buckets, keyed, reducers(), metaData());
     }
 
     @Override
@@ -106,7 +109,7 @@ public class FiltersAggregator extends BucketsAggregator {
             InternalFilters.Bucket bucket = new InternalFilters.Bucket(filters[i].key, 0, subAggs, keyed);
             buckets.add(bucket);
         }
-        return new InternalFilters(name, buckets, keyed, metaData());
+        return new InternalFilters(name, buckets, keyed, reducers(), metaData());
     }
 
     final long bucketOrd(long owningBucketOrdinal, int filterOrd) {
@@ -125,8 +128,9 @@ public class FiltersAggregator extends BucketsAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
-            return new FiltersAggregator(name, factories, filters, keyed, context, parent, metaData);
+        public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
+                List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+            return new FiltersAggregator(name, factories, filters, keyed, context, parent, reducers, metaData);
         }
     }
 

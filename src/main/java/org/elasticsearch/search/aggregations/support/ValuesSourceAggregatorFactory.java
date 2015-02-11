@@ -18,10 +18,16 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationInitializationException;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,12 +55,13 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
     }
 
     @Override
-    public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+    public Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
+            List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
         if (config.unmapped()) {
-            return createUnmapped(context, parent, metaData);
+            return createUnmapped(context, parent, reducers, metaData);
         }
         VS vs = context.valuesSource(config);
-        return doCreateInternal(vs, context, parent, collectsFromSingleBucket, metaData);
+        return doCreateInternal(vs, context, parent, collectsFromSingleBucket, reducers, metaData);
     }
 
     @Override
@@ -64,9 +71,11 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
         }
     }
 
-    protected abstract Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException;
+    protected abstract Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers,
+            Map<String, Object> metaData) throws IOException;
 
-    protected abstract Aggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException;
+    protected abstract Aggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent,
+            boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData) throws IOException;
 
     private void resolveValuesSourceConfigFromAncestors(String aggName, AggregatorFactory parent, Class<VS> requiredValuesSourceType) {
         ValuesSourceConfig config;

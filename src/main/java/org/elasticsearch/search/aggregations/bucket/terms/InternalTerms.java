@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.util.ArrayList;
@@ -121,8 +122,9 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
 
     protected InternalTerms() {} // for serialization
 
-    protected InternalTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, List<Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount, Map<String, Object> metaData) {
-        super(name, metaData);
+    protected InternalTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, List<Bucket> buckets,
+            boolean showTermDocCountError, long docCountError, long otherDocCount, List<Reducer> reducers, Map<String, Object> metaData) {
+        super(name, reducers, metaData);
         this.order = order;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
@@ -220,9 +222,10 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
         } else {
             docCountError = aggregations.size() == 1 ? 0 : sumDocCountError;
         }
-        return newAggregation(name, Arrays.asList(list), showTermDocCountError, docCountError, otherDocCount, getMetaData());
+        return newAggregation(name, Arrays.asList(list), showTermDocCountError, docCountError, otherDocCount, reducers(), getMetaData());
     }
 
-    protected abstract InternalTerms newAggregation(String name, List<Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount, Map<String, Object> metaData);
+    protected abstract InternalTerms newAggregation(String name, List<Bucket> buckets, boolean showTermDocCountError, long docCountError,
+            long otherDocCount, List<Reducer> reducers, Map<String, Object> metaData);
 
 }

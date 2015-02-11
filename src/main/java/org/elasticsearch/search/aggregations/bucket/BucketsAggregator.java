@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -31,6 +32,7 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -42,9 +44,9 @@ public abstract class BucketsAggregator extends AggregatorBase {
     private IntArray docCounts;
 
     public BucketsAggregator(String name, AggregatorFactories factories,
-                             AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
-        super(name, factories, context, parent, metaData);
-        bigArrays = context.bigArrays();
+ AggregationContext context, Aggregator parent,
+            List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+        super(name, factories, context, parent, reducers, metaData);
         docCounts = bigArrays.newIntArray(1, true);
     }
 
@@ -110,11 +112,11 @@ public abstract class BucketsAggregator extends AggregatorBase {
      */
     protected final InternalAggregations bucketAggregations(long bucket) throws IOException {
         final InternalAggregation[] aggregations = new InternalAggregation[subAggregators.length];
-        for (int i = 0; i < subAggregators.length; i++) {
+            for (int i = 0; i < subAggregators.length; i++) {
             aggregations[i] = subAggregators[i].buildAggregation(bucket);
-        }
+            }
         return new InternalAggregations(Arrays.asList(aggregations));
-    }
+                }
 
     /**
      * Utility method to build empty aggregations of the sub aggregators.

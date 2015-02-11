@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.util.List;
@@ -35,8 +36,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
         protected SingleValue() {}
 
-        protected SingleValue(String name, Map<String, Object> metaData) {
-            super(name, metaData);
+        protected SingleValue(String name, List<Reducer> reducers, Map<String, Object> metaData) {
+            super(name, reducers, metaData);
         }
 
         public String getValueAsString() {
@@ -64,8 +65,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
         protected MultiValue() {}
 
-        protected MultiValue(String name, Map<String, Object> metaData) {
-            super(name, metaData);
+        protected MultiValue(String name, List<Reducer> reducers, Map<String, Object> metaData) {
+            super(name, reducers, metaData);
         }
 
         public abstract double value(String name);
@@ -92,8 +93,8 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
     private InternalNumericMetricsAggregation() {} // for serialization
 
-    private InternalNumericMetricsAggregation(String name, Map<String, Object> metaData) {
-        super(name, metaData);
+    private InternalNumericMetricsAggregation(String name, List<Reducer> reducers, Map<String, Object> metaData) {
+        super(name, reducers, metaData);
     }
 
 }

@@ -25,10 +25,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -56,8 +58,9 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalAvg() {} // for serialization
 
-    public InternalAvg(String name, double sum, long count, @Nullable ValueFormatter formatter, Map<String, Object> metaData) {
-        super(name, metaData);
+    public InternalAvg(String name, double sum, long count, @Nullable ValueFormatter formatter, List<Reducer> reducers,
+            Map<String, Object> metaData) {
+        super(name, reducers, metaData);
         this.sum = sum;
         this.count = count;
         this.valueFormatter = formatter;
@@ -85,7 +88,7 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
             count += ((InternalAvg) aggregation).count;
             sum += ((InternalAvg) aggregation).sum;
         }
-        return new InternalAvg(getName(), sum, count, valueFormatter, getMetaData());
+        return new InternalAvg(getName(), sum, count, valueFormatter, reducers(), getMetaData());
     }
 
     @Override

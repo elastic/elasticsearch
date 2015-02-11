@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -152,8 +153,10 @@ public class SignificantStringTerms extends InternalSignificantTerms {
     SignificantStringTerms() {} // for serialization
 
     public SignificantStringTerms(long subsetSize, long supersetSize, String name, int requiredSize,
-            long minDocCount, SignificanceHeuristic significanceHeuristic, List<InternalSignificantTerms.Bucket> buckets, Map<String, Object> metaData) {
-        super(subsetSize, supersetSize, name, requiredSize, minDocCount, significanceHeuristic, buckets, metaData);
+ long minDocCount,
+            SignificanceHeuristic significanceHeuristic, List<InternalSignificantTerms.Bucket> buckets, List<Reducer> reducers,
+            Map<String, Object> metaData) {
+        super(subsetSize, supersetSize, name, requiredSize, minDocCount, significanceHeuristic, buckets, reducers, metaData);
     }
 
     @Override
@@ -164,7 +167,8 @@ public class SignificantStringTerms extends InternalSignificantTerms {
     @Override
     InternalSignificantTerms newAggregation(long subsetSize, long supersetSize,
             List<InternalSignificantTerms.Bucket> buckets) {
-        return new SignificantStringTerms(subsetSize, supersetSize, getName(), requiredSize, minDocCount, significanceHeuristic, buckets, getMetaData());
+        return new SignificantStringTerms(subsetSize, supersetSize, getName(), requiredSize, minDocCount, significanceHeuristic, buckets,
+                reducers(), getMetaData());
     }
 
     @Override

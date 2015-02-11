@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -163,8 +164,8 @@ public class InternalFilters extends InternalMultiBucketAggregation implements F
 
     public InternalFilters() {} // for serialization
 
-    public InternalFilters(String name, List<Bucket> buckets, boolean keyed, Map<String, Object> metaData) {
-        super(name, metaData);
+    public InternalFilters(String name, List<Bucket> buckets, boolean keyed, List<Reducer> reducers, Map<String, Object> metaData) {
+        super(name, reducers, metaData);
         this.buckets = buckets;
         this.keyed = keyed;
     }
@@ -211,7 +212,7 @@ public class InternalFilters extends InternalMultiBucketAggregation implements F
             }
         }
 
-        InternalFilters reduced = new InternalFilters(name, new ArrayList<Bucket>(bucketsList.size()), keyed, getMetaData());
+        InternalFilters reduced = new InternalFilters(name, new ArrayList<Bucket>(bucketsList.size()), keyed, reducers(), getMetaData());
         for (List<Bucket> sameRangeList : bucketsList) {
             reduced.buckets.add((sameRangeList.get(0)).reduce(sameRangeList, reduceContext));
         }

@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,8 +48,8 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
      * @param docCount      The document count in the single bucket.
      * @param aggregations  The already built sub-aggregations that are associated with the bucket.
      */
-    protected InternalSingleBucketAggregation(String name, long docCount, InternalAggregations aggregations, Map<String, Object> metaData) {
-        super(name, metaData);
+    protected InternalSingleBucketAggregation(String name, long docCount, InternalAggregations aggregations, List<Reducer> reducers, Map<String, Object> metaData) {
+        super(name, reducers, metaData);
         this.docCount = docCount;
         this.aggregations = aggregations;
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -54,8 +55,9 @@ public class UnmappedTerms extends InternalTerms {
 
     UnmappedTerms() {} // for serialization
 
-    public UnmappedTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, Map<String, Object> metaData) {
-        super(name, order, requiredSize, shardSize, minDocCount, BUCKETS, false, 0, 0, metaData);
+    public UnmappedTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, List<Reducer> reducers,
+            Map<String, Object> metaData) {
+        super(name, order, requiredSize, shardSize, minDocCount, BUCKETS, false, 0, 0, reducers, metaData);
     }
 
     @Override
@@ -91,7 +93,8 @@ public class UnmappedTerms extends InternalTerms {
     }
 
     @Override
-    protected InternalTerms newAggregation(String name, List<Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount, Map<String, Object> metaData) {
+    protected InternalTerms newAggregation(String name, List<Bucket> buckets, boolean showTermDocCountError, long docCountError,
+            long otherDocCount, List<Reducer> reducers, Map<String, Object> metaData) {
         throw new UnsupportedOperationException("How did you get there?");
     }
 

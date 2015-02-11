@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -219,8 +220,9 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalMulti
             return TYPE.name();
         }
 
-        public R create(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
-            return (R) new InternalRange<>(name, ranges, formatter, keyed, metaData);
+        public R create(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, List<Reducer> reducers,
+                Map<String, Object> metaData) {
+            return (R) new InternalRange<>(name, ranges, formatter, keyed, reducers, metaData);
         }
 
 
@@ -236,8 +238,9 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalMulti
 
     public InternalRange() {} // for serialization
 
-    public InternalRange(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
-        super(name, metaData);
+    public InternalRange(String name, List<B> ranges, @Nullable ValueFormatter formatter, boolean keyed, List<Reducer> reducers,
+            Map<String, Object> metaData) {
+        super(name, reducers, metaData);
         this.ranges = ranges;
         this.formatter = formatter;
         this.keyed = keyed;
@@ -277,7 +280,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalMulti
         for (int i = 0; i < this.ranges.size(); ++i) {
             ranges.add((B) rangeList[i].get(0).reduce(rangeList[i], reduceContext));
         }
-        return getFactory().create(name, ranges, formatter, keyed, getMetaData());
+        return getFactory().create(name, ranges, formatter, keyed, reducers(), getMetaData());
     }
 
     @Override

@@ -26,12 +26,14 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -42,8 +44,9 @@ public class MissingAggregator extends SingleBucketAggregator {
     private final ValuesSource valuesSource;
 
     public MissingAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
-                             AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, metaData);
+ AggregationContext aggregationContext,
+            Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+        super(name, factories, aggregationContext, parent, reducers, metaData);
         this.valuesSource = valuesSource;
     }
 
@@ -69,12 +72,13 @@ public class MissingAggregator extends SingleBucketAggregator {
 
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
-        return new InternalMissing(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), metaData());
+        return new InternalMissing(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), reducers(),
+                metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMissing(name, 0, buildEmptySubAggregations(), metaData());
+        return new InternalMissing(name, 0, buildEmptySubAggregations(), reducers(), metaData());
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource>  {
@@ -84,13 +88,15 @@ public class MissingAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected MissingAggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
-            return new MissingAggregator(name, factories, null, aggregationContext, parent, metaData);
+        protected MissingAggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers,
+                Map<String, Object> metaData) throws IOException {
+            return new MissingAggregator(name, factories, null, aggregationContext, parent, reducers, metaData);
         }
 
         @Override
-        protected MissingAggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
-            return new MissingAggregator(name, factories, valuesSource, aggregationContext, parent, metaData);
+        protected MissingAggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent,
+                boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+            return new MissingAggregator(name, factories, valuesSource, aggregationContext, parent, reducers, metaData);
         }
     }
 

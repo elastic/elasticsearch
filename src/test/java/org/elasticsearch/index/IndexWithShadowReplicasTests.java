@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -53,7 +52,6 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     @TestLogging("_root:DEBUG,env:TRACE")
-    @Repeat(iterations = 10) // NOCOMMIT
     public void testIndexWithFewDocuments() throws Exception {
         Settings nodeSettings = ImmutableSettings.builder()
                 .put("node.add_id_to_custom_path", false)
@@ -253,5 +251,9 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         logger.info("--> performing query");
         SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).get();
         assertHitCount(resp, docCount);
+
+        assertAcked(client().admin().indices().prepareDelete(IDX));
+
+        assertPathHasBeenCleared(dataPath);
     }
 }

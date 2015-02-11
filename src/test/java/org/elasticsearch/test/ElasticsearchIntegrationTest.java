@@ -1803,13 +1803,17 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * Asserts that there are no files in the specified path
      */
     public void assertPathHasBeenCleared(Path path) throws Exception {
+        logger.info("--> checking that [{}] has been cleared", path);
         int count = 0;
         StringBuilder sb = new StringBuilder();
         sb.append("[");
         if (Files.exists(path)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
                 for (Path file : stream) {
-                    if (Files.isRegularFile(file)) {
+                    logger.info("--> found file: [{}]", file.toAbsolutePath().toString());
+                    if (Files.isDirectory(file)) {
+                        assertPathHasBeenCleared(file);
+                    } else if (Files.isRegularFile(file)) {
                         count++;
                         sb.append(file.toAbsolutePath().toString());
                         sb.append("\n");

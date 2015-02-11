@@ -107,8 +107,8 @@ public class RecoverySource extends AbstractComponent {
         if (shard.routingEntry().primary() &&
                 targetShardRouting != null &&
                 targetShardRouting.primary() && // must be primary-to-primary relocation
-                shard.indexSettings().getAsBoolean(IndexMetaData.SETTING_SHADOW_REPLICAS, false)) {
-            // TODO better exception here
+                IndexMetaData.usesSharedFilesystem(shard.indexSettings())) {
+            // nocommit - is this really how we want to handle relocation?
             logger.info("aborting recovery of shadow primary to shadow primary");
             shard.engine().failEngine("attempted to relocate primary shard for shadow index",
                     new ElasticsearchException("aborting recovery of shadow primary to shadow primary"));

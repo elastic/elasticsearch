@@ -74,7 +74,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     @Inject
     public GroovyScriptEngineService(Settings settings) {
         super(settings);
-        this.sandboxed = settings.getAsBoolean(GROOVY_SCRIPT_SANDBOX_ENABLED, true);
+        this.sandboxed = settings.getAsBoolean(GROOVY_SCRIPT_SANDBOX_ENABLED, false);
         this.blacklistAdditions = ImmutableSet.copyOf(settings.getAsArray(GROOVY_SCRIPT_BLACKLIST_PATCH, Strings.EMPTY_ARRAY));
         reloadConfig();
     }

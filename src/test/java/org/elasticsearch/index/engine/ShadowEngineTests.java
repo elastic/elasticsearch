@@ -264,8 +264,6 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testSegments() throws Exception {
-        // nocommit - the .isCommitted() check on segments fails here
-
         List<Segment> segments = primaryEngine.segments(false);
         assertThat(segments.isEmpty(), equalTo(true));
         assertThat(primaryEngine.segmentsStats().getCount(), equalTo(0l));
@@ -326,7 +324,7 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
         segments = replicaEngine.segments(false);
         assertThat(segments.size(), equalTo(1));
         assertThat(replicaEngine.segmentsStats().getCount(), equalTo(1l));
-        //assertThat(segments.get(0).isCommitted(), equalTo(true));
+        assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
@@ -372,12 +370,12 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(replicaEngine.segmentsStats().getNormsMemoryInBytes(), greaterThan(stats.getNormsMemoryInBytes()));
         assertThat(replicaEngine.segmentsStats().getDocValuesMemoryInBytes(), greaterThan(stats.getDocValuesMemoryInBytes()));
         assertThat(segments.get(0).getGeneration() < segments.get(1).getGeneration(), equalTo(true));
-        //assertThat(segments.get(0).isCommitted(), equalTo(true));
+        assertThat(segments.get(0).isCommitted(), equalTo(true));
         assertThat(segments.get(0).isSearch(), equalTo(true));
         assertThat(segments.get(0).getNumDocs(), equalTo(2));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
         assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
-        assertThat(segments.get(1).isCommitted(), equalTo(false));
+        assertThat(segments.get(1).isCommitted(), equalTo(true));
         assertThat(segments.get(1).isSearch(), equalTo(true));
         assertThat(segments.get(1).getNumDocs(), equalTo(1));
         assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
@@ -395,7 +393,7 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(segments.get(0).getNumDocs(), equalTo(1));
         assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
         assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
-        //assertThat(segments.get(1).isCommitted(), equalTo(false));
+        assertThat(segments.get(1).isCommitted(), equalTo(true));
         assertThat(segments.get(1).isSearch(), equalTo(true));
         assertThat(segments.get(1).getNumDocs(), equalTo(1));
         assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
@@ -420,13 +418,13 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(segments.get(0).getDeletedDocs(), equalTo(1));
         assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
-        //assertThat(segments.get(1).isCommitted(), equalTo(false));
+        assertThat(segments.get(1).isCommitted(), equalTo(true));
         assertThat(segments.get(1).isSearch(), equalTo(true));
         assertThat(segments.get(1).getNumDocs(), equalTo(1));
         assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
         assertThat(segments.get(1).isCompound(), equalTo(false));
 
-        //assertThat(segments.get(2).isCommitted(), equalTo(false));
+        assertThat(segments.get(2).isCommitted(), equalTo(false));
         assertThat(segments.get(2).isSearch(), equalTo(true));
         assertThat(segments.get(2).getNumDocs(), equalTo(1));
         assertThat(segments.get(2).getDeletedDocs(), equalTo(0));

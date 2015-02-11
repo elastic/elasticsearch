@@ -26,6 +26,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
@@ -50,9 +51,7 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
@@ -279,6 +278,75 @@ public abstract class Engine implements Closeable {
      * Global stats on segments.
      */
     public abstract SegmentsStats segmentsStats();
+
+    protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
+        ensureOpen();
+        Map<String, Segment> segments = new HashMap<>();
+
+        // first, go over and compute the search ones...
+        Searcher searcher = acquireSearcher("segments");
+        try {
+            for (LeafReaderContext reader : searcher.reader().leaves()) {
+                SegmentCommitInfo info = segmentReader(reader.reader()).getSegmentInfo();
+                assert !segments.containsKey(info.info.name);
+                Segment segment = new Segment(info.info.name);
+                segment.search = true;
+                segment.docCount = reader.reader().numDocs();
+                segment.delDocCount = reader.reader().numDeletedDocs();
+                segment.version = info.info.getVersion();
+                segment.compound = info.info.getUseCompoundFile();
+                try {
+                    segment.sizeInBytes = info.sizeInBytes();
+                } catch (IOException e) {
+                    logger.trace("failed to get size for [{}]", e, info.info.name);
+                }
+                final SegmentReader segmentReader = segmentReader(reader.reader());
+                segment.memoryInBytes = segmentReader.ramBytesUsed();
+                if (verbose) {
+                    segment.ramTree = Accountables.namedAccountable("root", segmentReader);
+                }
+                // TODO: add more fine grained mem stats values to per segment info here
+                segments.put(info.info.name, segment);
+            }
+        } finally {
+            searcher.close();
+        }
+
+        // now, correlate or add the committed ones...
+        if (lastCommittedSegmentInfos != null) {
+            SegmentInfos infos = lastCommittedSegmentInfos;
+            for (SegmentCommitInfo info : infos) {
+                Segment segment = segments.get(info.info.name);
+                if (segment == null) {
+                    segment = new Segment(info.info.name);
+                    segment.search = false;
+                    segment.committed = true;
+                    segment.docCount = info.info.getDocCount();
+                    segment.delDocCount = info.getDelCount();
+                    segment.version = info.info.getVersion();
+                    segment.compound = info.info.getUseCompoundFile();
+                    try {
+                        segment.sizeInBytes = info.sizeInBytes();
+                    } catch (IOException e) {
+                        logger.trace("failed to get size for [{}]", e, info.info.name);
+                    }
+                    segments.put(info.info.name, segment);
+                } else {
+                    segment.committed = true;
+                }
+            }
+        }
+
+        Segment[] segmentsArr = segments.values().toArray(new Segment[segments.values().size()]);
+        Arrays.sort(segmentsArr, new Comparator<Segment>() {
+            @Override
+            public int compare(Segment o1, Segment o2) {
+                return (int) (o1.getGeneration() - o2.getGeneration());
+            }
+        });
+
+        return segmentsArr;
+    }
 
     /**
      * The list of segments in the engine.

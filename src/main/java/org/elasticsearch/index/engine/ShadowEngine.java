@@ -21,12 +21,11 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SegmentCommitInfo;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasables;
@@ -36,7 +35,8 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -50,10 +50,12 @@ public class ShadowEngine extends Engine {
     private final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
     private final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
     private final Lock failReleasableLock = new ReentrantLock();
-
     private final RecoveryCounter onGoingRecoveries;
+
     private volatile boolean closedOrFailed = false;
     private volatile SearcherManager searcherManager;
+
+    private SegmentInfos lastCommittedSegmentInfos;
 
     public ShadowEngine(EngineConfig engineConfig)  {
         super(engineConfig);
@@ -66,6 +68,7 @@ public class ShadowEngine extends Engine {
             try {
                 reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(store.directory()), shardId);
                 this.searcherManager = new SearcherManager(reader, searcherFactory);
+                this.lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 success = true;
             } catch (Throwable e) {
                 logger.warn("failed to create new reader", e);
@@ -114,6 +117,17 @@ public class ShadowEngine extends Engine {
     @Override
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
         logger.debug("cowardly refusing to FLUSH");
+        // reread the last committed segment infos
+        try {
+            lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+        } catch (Throwable e) {
+            if (isClosed.get() == false) {
+                logger.warn("failed to read latest segment infos on flush", e);
+                if (Lucene.isCorruptionException(e)) {
+                    throw new FlushFailedEngineException(shardId, e);
+                }
+            }
+        }
     }
 
     @Override
@@ -158,59 +172,12 @@ public class ShadowEngine extends Engine {
     @Override
     public List<Segment> segments(boolean verbose) {
         try (ReleasableLock _ = readLock.acquire()) {
-            ensureOpen();
-            Map<String, Segment> segments = new HashMap<>();
-
-            // first, go over and compute the search ones...
-            Searcher searcher = acquireSearcher("segments");
-            try {
-                for (LeafReaderContext reader : searcher.reader().leaves()) {
-                    SegmentCommitInfo info = segmentReader(reader.reader()).getSegmentInfo();
-                    assert !segments.containsKey(info.info.name);
-                    Segment segment = new Segment(info.info.name);
-                    segment.search = true;
-                    segment.docCount = reader.reader().numDocs();
-                    segment.delDocCount = reader.reader().numDeletedDocs();
-                    segment.version = info.info.getVersion();
-                    segment.compound = info.info.getUseCompoundFile();
-                    try {
-                        segment.sizeInBytes = info.sizeInBytes();
-                    } catch (IOException e) {
-                        logger.trace("failed to get size for [{}]", e, info.info.name);
-                    }
-                    final SegmentReader segmentReader = InternalEngine.segmentReader(reader.reader());
-                    segment.memoryInBytes = segmentReader.ramBytesUsed();
-                    if (verbose) {
-                        segment.ramTree = Accountables.namedAccountable("root", segmentReader);
-                    }
-                    // TODO: add more fine grained mem stats values to per segment info here
-                    segments.put(info.info.name, segment);
-                }
-            } finally {
-                searcher.close();
+            Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos, verbose);
+            for (int i = 0; i < segmentsArr.length; i++) {
+                // hard code all segments as committed, because they are in
+                // order for the shadow replica to see them
+                segmentsArr[i].committed = true;
             }
-
-            Segment[] segmentsArr = segments.values().toArray(new Segment[segments.values().size()]);
-            Arrays.sort(segmentsArr, new Comparator<Segment>() {
-                @Override
-                public int compare(Segment o1, Segment o2) {
-                    return (int) (o1.getGeneration() - o2.getGeneration());
-                }
-            });
-            // fill in the merges flag
-            // TODO uncomment me
-//            Set<OnGoingMerge> onGoingMerges = mergeScheduler.onGoingMerges();
-//            for (OnGoingMerge onGoingMerge : onGoingMerges) {
-//                for (SegmentCommitInfo segmentInfoPerCommit : onGoingMerge.getMergedSegments()) {
-//                    for (Segment segment : segmentsArr) {
-//                        if (segment.getName().equals(segmentInfoPerCommit.info.name)) {
-//                            segment.mergeId = onGoingMerge.getId();
-//                            break;
-//                        }
-//                    }
-//                }
-//            }
-
             return Arrays.asList(segmentsArr);
         }
     }

@@ -25,7 +25,6 @@ import org.apache.lucene.index.IndexWriter.IndexReaderWarmer;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
-import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -905,70 +904,7 @@ public class InternalEngine extends Engine {
     @Override
     public List<Segment> segments(boolean verbose) {
         try (ReleasableLock _ = readLock.acquire()) {
-            ensureOpen();
-            Map<String, Segment> segments = new HashMap<>();
-
-            // first, go over and compute the search ones...
-            Searcher searcher = acquireSearcher("segments");
-            try {
-                for (LeafReaderContext reader : searcher.reader().leaves()) {
-                    SegmentCommitInfo info = segmentReader(reader.reader()).getSegmentInfo();
-                    assert !segments.containsKey(info.info.name);
-                    Segment segment = new Segment(info.info.name);
-                    segment.search = true;
-                    segment.docCount = reader.reader().numDocs();
-                    segment.delDocCount = reader.reader().numDeletedDocs();
-                    segment.version = info.info.getVersion();
-                    segment.compound = info.info.getUseCompoundFile();
-                    try {
-                        segment.sizeInBytes = info.sizeInBytes();
-                    } catch (IOException e) {
-                        logger.trace("failed to get size for [{}]", e, info.info.name);
-                    }
-                    final SegmentReader segmentReader = segmentReader(reader.reader());
-                    segment.memoryInBytes = segmentReader.ramBytesUsed();
-                    if (verbose) {
-                        segment.ramTree = Accountables.namedAccountable("root", segmentReader);
-                    }
-                    // TODO: add more fine grained mem stats values to per segment info here
-                    segments.put(info.info.name, segment);
-                }
-            } finally {
-                searcher.close();
-            }
-
-            // now, correlate or add the committed ones...
-            if (lastCommittedSegmentInfos != null) {
-                SegmentInfos infos = lastCommittedSegmentInfos;
-                for (SegmentCommitInfo info : infos) {
-                    Segment segment = segments.get(info.info.name);
-                    if (segment == null) {
-                        segment = new Segment(info.info.name);
-                        segment.search = false;
-                        segment.committed = true;
-                        segment.docCount = info.info.getDocCount();
-                        segment.delDocCount = info.getDelCount();
-                        segment.version = info.info.getVersion();
-                        segment.compound = info.info.getUseCompoundFile();
-                        try {
-                            segment.sizeInBytes = info.sizeInBytes();
-                        } catch (IOException e) {
-                            logger.trace("failed to get size for [{}]", e, info.info.name);
-                        }
-                        segments.put(info.info.name, segment);
-                    } else {
-                        segment.committed = true;
-                    }
-                }
-            }
-
-            Segment[] segmentsArr = segments.values().toArray(new Segment[segments.values().size()]);
-            Arrays.sort(segmentsArr, new Comparator<Segment>() {
-                @Override
-                public int compare(Segment o1, Segment o2) {
-                    return (int) (o1.getGeneration() - o2.getGeneration());
-                }
-            });
+            Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos, verbose);
 
             // fill in the merges flag
             Set<OnGoingMerge> onGoingMerges = mergeScheduler.onGoingMerges();
@@ -982,7 +918,6 @@ public class InternalEngine extends Engine {
                     }
                 }
             }
-
             return Arrays.asList(segmentsArr);
         }
     }

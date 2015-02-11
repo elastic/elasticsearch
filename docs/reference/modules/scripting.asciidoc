@@ -11,7 +11,7 @@ the scripting language with some extensions. mvel is used since it is
 extremely fast and very simple to use, and in most cases, simple
 expressions are needed (for example, mathematical equations).
 
-.Groovy dynamic scripting disabled by default from v1.4.3
+.Groovy dynamic scripting disabled by default from v1.3.8
 [IMPORTANT]
 ===================================================
 

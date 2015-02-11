@@ -181,7 +181,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         }
 
         try {
-            env.deleteIndexDirectorySafe(new Index("foo"), randomIntBetween(0, 10), idxSettings, false);
+            env.deleteIndexDirectorySafe(new Index("foo"), randomIntBetween(0, 10), idxSettings);
             fail("shard is locked");
         } catch (LockObtainFailedException ex) {
             // expected
@@ -224,7 +224,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         start.countDown();
         blockLatch.await();
 
-        env.deleteIndexDirectorySafe(new Index("foo"), 5000, idxSettings, false);
+        env.deleteIndexDirectorySafe(new Index("foo"), 5000, idxSettings);
 
         assertNull(threadException.get());
 

@@ -403,6 +403,12 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
             // call this before we close the store, so we can release resources for it
             indicesLifecycle.afterIndexShardClosed(sId, indexShard, indexSettings);
+            if (indexShard.routingEntry().primary()) {
+                StoreCloseListener instance = (StoreCloseListener) shardInjector.getInstance(Store.OnClose.class);
+                // we are the primary - we own the shard from a writing perspective
+                // NOCOMMIT can we make this even nicer?
+                instance.setOwnsShard(true);
+            }
         } finally {
             try {
                 shardInjector.getInstance(Store.class).close();
@@ -430,10 +436,10 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         }
     }
 
-    private void onShardClose(ShardLock lock) {
+    private void onShardClose(ShardLock lock, boolean ownsShard) {
         if (deleted.get()) { // we remove that shards content if this index has been deleted
             try {
-                indicesServices.deleteShardStore("delete index", lock, indexSettings);
+                indicesServices.deleteShardStore("delete index", lock, indexSettings, ownsShard);
             } catch (IOException e) {
                 logger.warn("{} failed to delete shard content", e, lock.getShardId());
             }
@@ -442,15 +448,20 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     private class StoreCloseListener implements Store.OnClose {
         private final ShardId shardId;
+        private volatile boolean ownsShard = false;
 
         public StoreCloseListener(ShardId shardId) {
             this.shardId = shardId;
         }
 
+        public void setOwnsShard(boolean ownsShard) {
+            this.ownsShard = ownsShard;
+        }
+
         @Override
         public void handle(ShardLock lock) {
             assert lock.getShardId().equals(shardId) : "shard Id mismatch, expected: "  + shardId + " but got: " + lock.getShardId();
-            onShardClose(lock);
+            onShardClose(lock, ownsShard);
         }
     }
 

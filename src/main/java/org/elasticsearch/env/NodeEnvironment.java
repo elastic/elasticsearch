@@ -196,12 +196,6 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
     public void deleteShardDirectoryUnderLock(ShardLock lock, @IndexSettings Settings indexSettings) throws IOException {
         assert indexSettings != ImmutableSettings.EMPTY;
         final ShardId shardId = lock.getShardId();
-
-        if (indexSettings.getAsBoolean(IndexMetaData.SETTING_SHADOW_REPLICAS, false)) {
-            logger.trace("skipping shard deletion because {} uses shadow replicas", shardId);
-            return;
-        }
-
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
         final Path[] paths = shardPaths(shardId);
         IOUtils.rm(paths);
@@ -231,18 +225,11 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
      * @param index the index to delete
      * @param lockTimeoutMS how long to wait for acquiring the indices shard locks
      * @param indexSettings settings for the index being deleted
-     * @param force boolean flag to delete directory even if shadow replicas are used for the index
      * @throws Exception if any of the shards data directories can't be locked or deleted
      */
-    public void deleteIndexDirectorySafe(Index index, long lockTimeoutMS, @IndexSettings Settings indexSettings, boolean force) throws IOException {
+    public void deleteIndexDirectorySafe(Index index, long lockTimeoutMS, @IndexSettings Settings indexSettings) throws IOException {
         // This is to ensure someone doesn't use ImmutableSettings.EMPTY
         assert indexSettings != ImmutableSettings.EMPTY;
-        // TODO still need to delete the directory on the primary
-        if (force == false && indexSettings.getAsBoolean(IndexMetaData.SETTING_SHADOW_REPLICAS, false)) {
-            logger.trace("skipping index directory deletion because {} uses shadow replicas", index);
-            return;
-        }
-
         final List<ShardLock> locks = lockAllForIndex(index, lockTimeoutMS);
         try {
             final Path[] indexPaths = indexPaths(index);

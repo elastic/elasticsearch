@@ -23,10 +23,13 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -38,6 +41,7 @@ public abstract class AggregatorFactory {
     protected String type;
     protected AggregatorFactory parent;
     protected AggregatorFactories factories = AggregatorFactories.EMPTY;
+    protected List<Reducer> reducers = Collections.emptyList();
     protected Map<String, Object> metaData;
 
     /**
@@ -79,7 +83,8 @@ public abstract class AggregatorFactory {
         return parent;
     }
 
-    protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException;
+    protected abstract Aggregator createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
+            List<Reducer> reducers, Map<String, Object> metaData) throws IOException;
 
     /**
      * Creates the aggregator
@@ -92,7 +97,7 @@ public abstract class AggregatorFactory {
      * @return                      The created aggregator
      */
     public final Aggregator create(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
-        return createInternal(context, parent, collectsFromSingleBucket, this.metaData);
+        return createInternal(context, parent, collectsFromSingleBucket, this.reducers, this.metaData);
     }
 
     public void doValidate() {
@@ -102,16 +107,18 @@ public abstract class AggregatorFactory {
         this.metaData = metaData;
     }
 
+
+    public void setReducers(List<Reducer> reducers) {
+        this.reducers = reducers;
+    }
+
+
     /**
      * Utility method. Given an {@link AggregatorFactory} that creates {@link Aggregator}s that only know how
      * to collect bucket <tt>0</tt>, this returns an aggregator that can collect any bucket.
      */
     protected static Aggregator asMultiBucketAggregator(final AggregatorFactory factory, final AggregationContext context, final Aggregator parent) throws IOException {
-        final Aggregator first = factory.create(context, parent, true);
-        final BigArrays bigArrays = context.bigArrays();
-        return new Aggregator() {
-
-            ObjectArray<Aggregator> aggregators;
+        final Aggregator first = factory.create(context, parent, truegator> aggregators;
             ObjectArray<LeafBucketCollector> collectors;
 
             {
@@ -187,9 +194,9 @@ public abstract class AggregatorFactory {
                         LeafBucketCollector collector = collectors.get(bucket);
                         if (collector == null) {
                             Aggregator aggregator = aggregators.get(bucket);
-                            if (aggregator == null) {
-                                aggregator = factory.create(context, parent, true);
-                                aggregator.preCollection();
+                if (aggregator == null) {
+                    aggregator = factory.create(context, parent, true);
+                    aggregator.preCollection();
                                 aggregators.set(bucket, aggregator);
                             }
                             collector = aggregator.getLeafCollector(ctx);
@@ -197,7 +204,7 @@ public abstract class AggregatorFactory {
                             collectors.set(bucket, collector);
                         }
                         collector.collect(doc, 0);
-                    }
+                }
 
                 };
             }

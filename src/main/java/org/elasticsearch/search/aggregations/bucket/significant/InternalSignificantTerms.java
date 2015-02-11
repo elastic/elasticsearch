@@ -27,6 +27,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -122,8 +123,9 @@ public abstract class InternalSignificantTerms extends InternalMultiBucketAggreg
         }
     }
 
-    protected InternalSignificantTerms(long subsetSize, long supersetSize, String name, int requiredSize, long minDocCount, SignificanceHeuristic significanceHeuristic, List<Bucket> buckets, Map<String, Object> metaData) {
-        super(name, metaData);
+    protected InternalSignificantTerms(long subsetSize, long supersetSize, String name, int requiredSize, long minDocCount,
+            SignificanceHeuristic significanceHeuristic, List<Bucket> buckets, List<Reducer> reducers, Map<String, Object> metaData) {
+        super(name, reducers, metaData);
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
         this.buckets = buckets;

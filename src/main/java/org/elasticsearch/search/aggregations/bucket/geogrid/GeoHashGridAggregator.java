@@ -28,12 +28,14 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,8 +51,10 @@ public class GeoHashGridAggregator extends BucketsAggregator {
     private final LongHash bucketOrds;
 
     public GeoHashGridAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource,
-                              int requiredSize, int shardSize, AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
-        super(name, factories, aggregationContext, parent, metaData);
+ int requiredSize,
+            int shardSize, AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData)
+            throws IOException {
+        super(name, factories, aggregationContext, parent, reducers, metaData);
         this.valuesSource = valuesSource;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
@@ -126,12 +130,12 @@ public class GeoHashGridAggregator extends BucketsAggregator {
             bucket.aggregations = bucketAggregations(bucket.bucketOrd);
             list[i] = bucket;
         }
-        return new InternalGeoHashGrid(name, requiredSize, Arrays.asList(list), metaData());
+        return new InternalGeoHashGrid(name, requiredSize, Arrays.asList(list), reducers(), metaData());
     }
 
     @Override
     public InternalGeoHashGrid buildEmptyAggregation() {
-        return new InternalGeoHashGrid(name, requiredSize, Collections.<InternalGeoHashGrid.Bucket>emptyList(), metaData());
+        return new InternalGeoHashGrid(name, requiredSize, Collections.<InternalGeoHashGrid.Bucket> emptyList(), reducers(), metaData());
     }
 
 

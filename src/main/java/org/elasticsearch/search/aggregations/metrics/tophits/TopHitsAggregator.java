@@ -36,10 +36,12 @@ import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -48,6 +50,7 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -68,8 +71,9 @@ public class TopHitsAggregator extends MetricsAggregator {
     final SubSearchContext subSearchContext;
     final LongObjectPagedHashMap<TopDocsAndLeafCollector> topDocsCollectors;
 
-    public TopHitsAggregator(FetchPhase fetchPhase, SubSearchContext subSearchContext, String name, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, metaData);
+    public TopHitsAggregator(FetchPhase fetchPhase, SubSearchContext subSearchContext, String name, AggregationContext context,
+            Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, reducers, metaData);
         this.fetchPhase = fetchPhase;
         topDocsCollectors = new LongObjectPagedHashMap<>(1, context.bigArrays());
         this.subSearchContext = subSearchContext;
@@ -82,8 +86,8 @@ public class TopHitsAggregator extends MetricsAggregator {
             return sort.needsScores() || subSearchContext.trackScores();
         } else {
             // sort by score
-            return true;
-        }
+        return true;
+    }
     }
 
     @Override
@@ -180,8 +184,9 @@ public class TopHitsAggregator extends MetricsAggregator {
         }
 
         @Override
-        public Aggregator createInternal(AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
-            return new TopHitsAggregator(fetchPhase, subSearchContext, name, aggregationContext, parent, metaData);
+        public Aggregator createInternal(AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket,
+                List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+            return new TopHitsAggregator(fetchPhase, subSearchContext, name, aggregationContext, parent, reducers, metaData);
         }
 
         @Override

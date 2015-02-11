@@ -37,6 +37,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -233,8 +234,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
 
         public InternalHistogram<B> create(String name, List<B> buckets, InternalOrder order, long minDocCount,
-                                           EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
-            return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, this, metaData);
+                EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, List<Reducer> reducers,
+                Map<String, Object> metaData) {
+            return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, this, reducers, metaData);
         }
 
         public B createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
@@ -259,8 +261,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     InternalHistogram(String name, List<B> buckets, InternalOrder order, long minDocCount,
  EmptyBucketInfo emptyBucketInfo,
-            @Nullable ValueFormatter formatter, boolean keyed, Factory<B> factory, Map<String, Object> metaData) {
-        super(name, metaData);
+            @Nullable ValueFormatter formatter, boolean keyed, Factory<B> factory, List<Reducer> reducers, Map<String, Object> metaData) {
+        super(name, reducers, metaData);
         this.buckets = buckets;
         this.order = order;
         assert (minDocCount == 0) == (emptyBucketInfo != null);
@@ -432,7 +434,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             CollectionUtil.introSort(reducedBuckets, order.comparator());
         }
 
-        return getFactory().create(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, formatter, keyed, getMetaData());
+        return getFactory().create(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, formatter, keyed, reducers(),
+                getMetaData());
     }
 
     @Override

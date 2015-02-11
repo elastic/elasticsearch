@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -38,6 +39,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -55,8 +57,9 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
 
 
     public StatsAggegator(String name, ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
-            AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
-        super(name, context, parent, metaData);
+ AggregationContext context,
+            Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, reducers, metaData);
         this.valuesSource = valuesSource;
         if (valuesSource != null) {
             final BigArrays bigArrays = context.bigArrays();
@@ -80,35 +83,35 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
             final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
-        }
+    }
         final BigArrays bigArrays = context.bigArrays();
         final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
         return new LeafBucketCollectorBase(sub, values) {
-            @Override
+    @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (bucket >= counts.size()) {
-                    final long from = counts.size();
+            final long from = counts.size();
                     final long overSize = BigArrays.overSize(bucket + 1);
-                    counts = bigArrays.resize(counts, overSize);
-                    sums = bigArrays.resize(sums, overSize);
-                    mins = bigArrays.resize(mins, overSize);
-                    maxes = bigArrays.resize(maxes, overSize);
-                    mins.fill(from, overSize, Double.POSITIVE_INFINITY);
-                    maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
-                }
+            counts = bigArrays.resize(counts, overSize);
+            sums = bigArrays.resize(sums, overSize);
+            mins = bigArrays.resize(mins, overSize);
+            maxes = bigArrays.resize(maxes, overSize);
+            mins.fill(from, overSize, Double.POSITIVE_INFINITY);
+            maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
+        }
 
-                values.setDocument(doc);
-                final int valuesCount = values.count();
+        values.setDocument(doc);
+        final int valuesCount = values.count();
                 counts.increment(bucket, valuesCount);
-                double sum = 0;
+        double sum = 0;
                 double min = mins.get(bucket);
                 double max = maxes.get(bucket);
-                for (int i = 0; i < valuesCount; i++) {
-                    double value = values.valueAt(i);
-                    sum += value;
-                    min = Math.min(min, value);
-                    max = Math.max(max, value);
-                }
+        for (int i = 0; i < valuesCount; i++) {
+            double value = values.valueAt(i);
+            sum += value;
+            min = Math.min(min, value);
+            max = Math.max(max, value);
+        }
                 sums.increment(bucket, sum);
                 mins.set(bucket, min);
                 maxes.set(bucket, max);
@@ -145,12 +148,12 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
             return buildEmptyAggregation();
         }
         return new InternalStats(name, counts.get(bucket), sums.get(bucket), mins.get(bucket),
-                maxes.get(bucket), formatter, metaData());
+                maxes.get(bucket), formatter, reducers(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, formatter, metaData());
+        return new InternalStats(name, 0, 0, Double.POSITIVE_INFINITY, Double.NEGATIVE_INFINITY, formatter, reducers(), metaData());
     }
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
@@ -160,13 +163,15 @@ public class StatsAggegator extends NumericMetricsAggregator.MultiValue {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
-            return new StatsAggegator(name, null, config.formatter(), aggregationContext, parent, metaData);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers,
+                Map<String, Object> metaData) throws IOException {
+            return new StatsAggegator(name, null, config.formatter(), aggregationContext, parent, reducers, metaData);
         }
 
         @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
-            return new StatsAggegator(name, valuesSource, config.formatter(), aggregationContext, parent, metaData);
+        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
+                boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+            return new StatsAggegator(name, valuesSource, config.formatter(), aggregationContext, parent, reducers, metaData);
         }
     }
 

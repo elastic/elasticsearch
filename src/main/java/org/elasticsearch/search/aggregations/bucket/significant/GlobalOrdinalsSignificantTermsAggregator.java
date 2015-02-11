@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -36,6 +37,7 @@ import org.elasticsearch.search.internal.ContextIndexSearcher;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,9 +51,10 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
     public GlobalOrdinalsSignificantTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
                                                     BucketCountThresholds bucketCountThresholds,
                                                     IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent,
-                                                    SignificantTermsAggregatorFactory termsAggFactory, Map<String, Object> metaData) throws IOException {
+            SignificantTermsAggregatorFactory termsAggFactory, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
 
-        super(name, factories, valuesSource, null, bucketCountThresholds, includeExclude, aggregationContext, parent, SubAggCollectionMode.DEPTH_FIRST, false, metaData);
+        super(name, factories, valuesSource, maxOrd, null, bucketCountThresholds, includeExclude, aggregationContext, parent,
+                SubAggCollectionMode.DEPTH_FIRST, false, reducers, metaData);
         this.termsAggFactory = termsAggFactory;
     }
 
@@ -62,8 +65,8 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 super.collect(doc, bucket);
-                numCollectedDocs++;
-            }
+        numCollectedDocs++;
+    }
         };
     }
 
@@ -124,7 +127,9 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             list[i] = bucket;
         }
 
-        return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Arrays.asList(list), metaData());
+        return new SignificantStringTerms(subsetSize, supersetSize, name, bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Arrays.asList(list), reducers(),
+                metaData());
     }
 
     @Override
@@ -133,7 +138,9 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
         ContextIndexSearcher searcher = context.searchContext().searcher();
         IndexReader topReader = searcher.getIndexReader();
         int supersetSize = topReader.numDocs();
-        return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize(), bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(), Collections.<InternalSignificantTerms.Bucket>emptyList(), metaData());
+        return new SignificantStringTerms(0, supersetSize, name, bucketCountThresholds.getRequiredSize(),
+                bucketCountThresholds.getMinDocCount(), termsAggFactory.getSignificanceHeuristic(),
+                Collections.<InternalSignificantTerms.Bucket> emptyList(), reducers(), metaData());
     }
 
     @Override
@@ -145,8 +152,8 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
         private final LongHash bucketOrds;
 
-        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory, Map<String, Object> metaData) throws IOException {
-            super(name, factories, valuesSource, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggFactory, metaData);
+        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+            super(name, factories, valuesSource, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggFactory, reducers, metaData);
             bucketOrds = new LongHash(1, aggregationContext.bigArrays());
         }
 
@@ -157,20 +164,20 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
                     assert bucket == 0;
-                    numCollectedDocs++;
-                    globalOrds.setDocument(doc);
-                    final int numOrds = globalOrds.cardinality();
-                    for (int i = 0; i < numOrds; i++) {
-                        final long globalOrd = globalOrds.ordAt(i);
-                        long bucketOrd = bucketOrds.add(globalOrd);
-                        if (bucketOrd < 0) {
-                            bucketOrd = -1 - bucketOrd;
+            numCollectedDocs++;
+            globalOrds.setDocument(doc);
+            final int numOrds = globalOrds.cardinality();
+            for (int i = 0; i < numOrds; i++) {
+                final long globalOrd = globalOrds.ordAt(i);
+                long bucketOrd = bucketOrds.add(globalOrd);
+                if (bucketOrd < 0) {
+                    bucketOrd = -1 - bucketOrd;
                             collectExistingBucket(sub, doc, bucketOrd);
-                        } else {
+                } else {
                             collectBucket(sub, doc, bucketOrd);
                         }
-                    }
                 }
+            }
             };
         }
 

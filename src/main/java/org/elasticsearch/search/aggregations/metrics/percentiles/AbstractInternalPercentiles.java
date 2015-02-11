@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -44,8 +45,9 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
     AbstractInternalPercentiles() {} // for serialization
 
     public AbstractInternalPercentiles(String name, double[] keys, TDigestState state, boolean keyed, @Nullable ValueFormatter formatter,
+            List<Reducer> reducers,
             Map<String, Object> metaData) {
-        super(name, metaData);
+        super(name, reducers, metaData);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
@@ -70,10 +72,11 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
             }
             merged.add(percentiles.state);
         }
-        return createReduced(getName(), keys, merged, keyed, getMetaData());
+        return createReduced(getName(), keys, merged, keyed, reducers(), getMetaData());
     }
 
-    protected abstract AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed, Map<String, Object> metaData);
+    protected abstract AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
+            List<Reducer> reducers, Map<String, Object> metaData);
 
     @Override
     protected void doReadFrom(StreamInput in) throws IOException {

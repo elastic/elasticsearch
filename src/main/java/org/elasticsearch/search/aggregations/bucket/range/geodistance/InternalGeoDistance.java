@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -108,8 +109,9 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
 
         @Override
-        public InternalGeoDistance create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
-            return new InternalGeoDistance(name, ranges, formatter, keyed, metaData);
+        public InternalGeoDistance create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed,
+                List<Reducer> reducers, Map<String, Object> metaData) {
+            return new InternalGeoDistance(name, ranges, formatter, keyed, reducers, metaData);
         }
 
         @Override
@@ -120,8 +122,9 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
 
     InternalGeoDistance() {} // for serialization
 
-    public InternalGeoDistance(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
-        super(name, ranges, formatter, keyed, metaData);
+    public InternalGeoDistance(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, List<Reducer> reducers,
+            Map<String, Object> metaData) {
+        super(name, ranges, formatter, keyed, reducers, metaData);
     }
 
     @Override

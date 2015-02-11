@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
@@ -116,6 +117,8 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
     protected Map<String, Object> metaData;
 
+    private List<Reducer> reducers;
+
     /** Constructs an un initialized addAggregation (used for serialization) **/
     protected InternalAggregation() {}
 
@@ -124,8 +127,9 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      *
      * @param name The name of the get.
      */
-    protected InternalAggregation(String name, Map<String, Object> metaData) {
+    protected InternalAggregation(String name, List<Reducer> reducers, Map<String, Object> metaData) {
         this.name = name;
+        this.reducers = reducers;
         this.metaData = metaData;
     }
 
@@ -146,7 +150,11 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      * construction.
      */
     public final InternalAggregation reduce(ReduceContext reduceContext) {
-        return doReduce(reduceContext);
+        InternalAggregation aggResult = doReduce(reduceContext);
+        for (Reducer reducer : reducers) {
+            aggResult = reducer.reduce(aggResult, reduceContext);
+        }
+        return aggResult;
     }
 
     public abstract InternalAggregation doReduce(ReduceContext reduceContext);
@@ -178,6 +186,10 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
     public Map<String, Object> getMetaData() {
         return metaData;
+    }
+
+    public List<Reducer> reducers() {
+        return reducers;
     }
 
     @Override

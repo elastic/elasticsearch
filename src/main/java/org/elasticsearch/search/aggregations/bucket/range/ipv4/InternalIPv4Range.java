@@ -26,6 +26,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
@@ -117,8 +118,9 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> {
         }
 
         @Override
-        public InternalIPv4Range create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
-            return new InternalIPv4Range(name, ranges, keyed, metaData);
+        public InternalIPv4Range create(String name, List<Bucket> ranges, @Nullable ValueFormatter formatter, boolean keyed,
+                List<Reducer> reducers, Map<String, Object> metaData) {
+            return new InternalIPv4Range(name, ranges, keyed, reducers, metaData);
         }
 
         @Override
@@ -129,8 +131,9 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket> {
 
     public InternalIPv4Range() {} // for serialization
 
-    public InternalIPv4Range(String name, List<InternalIPv4Range.Bucket> ranges, boolean keyed, Map<String, Object> metaData) {
-        super(name, ranges, ValueFormatter.IPv4, keyed, metaData);
+    public InternalIPv4Range(String name, List<InternalIPv4Range.Bucket> ranges, boolean keyed, List<Reducer> reducers,
+            Map<String, Object> metaData) {
+        super(name, ranges, ValueFormatter.IPv4, keyed, reducers, metaData);
     }
 
     @Override

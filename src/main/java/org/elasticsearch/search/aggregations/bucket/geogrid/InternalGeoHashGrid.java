@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -170,8 +171,9 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation implemen
     InternalGeoHashGrid() {
     } // for serialization
 
-    public InternalGeoHashGrid(String name, int requiredSize, Collection<Bucket> buckets, Map<String, Object> metaData) {
-        super(name, metaData);
+    public InternalGeoHashGrid(String name, int requiredSize, Collection<Bucket> buckets, List<Reducer> reducers,
+            Map<String, Object> metaData) {
+        super(name, reducers, metaData);
         this.requiredSize = requiredSize;
         this.buckets = buckets;
     }
@@ -218,7 +220,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation implemen
         for (int i = ordered.size() - 1; i >= 0; i--) {
             list[i] = ordered.pop();
         }
-        return new InternalGeoHashGrid(getName(), requiredSize, Arrays.asList(list), getMetaData());
+        return new InternalGeoHashGrid(getName(), requiredSize, Arrays.asList(list), reducers(), getMetaData());
     }
 
     @Override

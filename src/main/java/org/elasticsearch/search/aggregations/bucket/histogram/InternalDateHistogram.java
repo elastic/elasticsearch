@@ -22,6 +22,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.EmptyBucketInfo;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -75,8 +76,10 @@ public class InternalDateHistogram {
 
         @Override
         public InternalHistogram create(String name, List<InternalDateHistogram.Bucket> buckets, InternalOrder order,
-                                            long minDocCount, EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
-            return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, this, metaData);
+ long minDocCount,
+                EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, List<Reducer> reducers,
+                Map<String, Object> metaData) {
+            return new InternalHistogram(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, this, reducers, metaData);
         }
 
         @Override

@@ -26,6 +26,7 @@ import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
@@ -33,6 +34,7 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -41,8 +43,11 @@ import java.util.Map;
 public class DoubleTermsAggregator extends LongTermsAggregator {
 
     public DoubleTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, @Nullable ValueFormat format,
-            Terms.Order order, BucketCountThresholds bucketCountThresholds, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError, IncludeExclude.LongFilter longFilter, Map<String, Object> metaData) throws IOException {
-        super(name, factories, valuesSource, format, order, bucketCountThresholds, aggregationContext, parent, collectionMode, showTermDocCountError, longFilter, metaData);
+ Terms.Order order, BucketCountThresholds bucketCountThresholds,
+            AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError,
+            IncludeExclude.LongFilter longFilter, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+        super(name, factories, valuesSource, format, order, bucketCountThresholds, aggregationContext, parent, collectionMode,
+                showTermDocCountError, longFilter, reducers, metaData);
     }
 
     @Override
@@ -73,7 +78,9 @@ public class DoubleTermsAggregator extends LongTermsAggregator {
         for (int i = 0; i < buckets.length; ++i) {
             buckets[i] = convertToDouble(buckets[i]);
         }
-        return new DoubleTerms(terms.getName(), terms.order, terms.formatter, terms.requiredSize, terms.shardSize, terms.minDocCount, Arrays.asList(buckets), terms.showTermDocCountError, terms.docCountError, terms.otherDocCount, terms.getMetaData());
+        return new DoubleTerms(terms.getName(), terms.order, terms.formatter, terms.requiredSize, terms.shardSize, terms.minDocCount,
+                Arrays.asList(buckets), terms.showTermDocCountError, terms.docCountError, terms.otherDocCount, terms.reducers(),
+                terms.getMetaData());
     }
 
 }

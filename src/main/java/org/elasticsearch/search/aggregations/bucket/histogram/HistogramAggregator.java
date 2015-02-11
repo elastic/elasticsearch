@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -62,9 +63,10 @@ public class HistogramAggregator extends BucketsAggregator {
                                boolean keyed, long minDocCount, @Nullable ExtendedBounds extendedBounds,
                                @Nullable ValuesSource.Numeric valuesSource, @Nullable ValueFormatter formatter,
                                InternalHistogram.Factory<?> histogramFactory,
-                               AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
+ AggregationContext aggregationContext,
+            Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
 
-        super(name, factories, aggregationContext, parent, metaData);
+        super(name, factories, aggregationContext, parent, reducers, metaData);
         this.rounding = rounding;
         this.order = order;
         this.keyed = keyed;
@@ -130,13 +132,14 @@ public class HistogramAggregator extends BucketsAggregator {
 
         // value source will be null for unmapped fields
         InternalHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0 ? new InternalHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds) : null;
-        return histogramFactory.create(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, metaData());
+        return histogramFactory.create(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, reducers(), metaData());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         InternalHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0 ? new InternalHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds) : null;
-        return histogramFactory.create(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed, metaData());
+        return histogramFactory.create(name, Collections.emptyList(), order, minDocCount, emptyBucketInfo, formatter, keyed, reducers(),
+                metaData());
     }
 
     @Override
@@ -167,12 +170,15 @@ public class HistogramAggregator extends BucketsAggregator {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
-            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, null, null, config.formatter(), histogramFactory, aggregationContext, parent, metaData);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers,
+                Map<String, Object> metaData) throws IOException {
+            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, null, null, config.formatter(),
+                    histogramFactory, aggregationContext, parent, reducers, metaData);
         }
 
         @Override
-        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+        protected Aggregator doCreateInternal(ValuesSource.Numeric valuesSource, AggregationContext aggregationContext, Aggregator parent,
+                boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
             if (collectsFromSingleBucket == false) {
                 return asMultiBucketAggregator(this, aggregationContext, parent);
             }
@@ -185,7 +191,8 @@ public class HistogramAggregator extends BucketsAggregator {
                 extendedBounds.processAndValidate(name, aggregationContext.searchContext(), config.parser());
                 roundedBounds = extendedBounds.round(rounding);
             }
-            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, roundedBounds, valuesSource, config.formatter(), histogramFactory, aggregationContext, parent, metaData);
+            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, roundedBounds, valuesSource,
+                    config.formatter(), histogramFactory, aggregationContext, parent, reducers, metaData);
         }
 
     }

@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -159,9 +160,11 @@ public class SignificantLongTerms extends InternalSignificantTerms {
     } // for serialization
 
     public SignificantLongTerms(long subsetSize, long supersetSize, String name, @Nullable ValueFormatter formatter,
-                                int requiredSize, long minDocCount, SignificanceHeuristic significanceHeuristic, List<InternalSignificantTerms.Bucket> buckets, Map<String, Object> metaData) {
+ int requiredSize,
+            long minDocCount, SignificanceHeuristic significanceHeuristic, List<InternalSignificantTerms.Bucket> buckets,
+            List<Reducer> reducers, Map<String, Object> metaData) {
 
-        super(subsetSize, supersetSize, name, requiredSize, minDocCount, significanceHeuristic, buckets, metaData);
+        super(subsetSize, supersetSize, name, requiredSize, minDocCount, significanceHeuristic, buckets, reducers, metaData);
         this.formatter = formatter;
     }
 
@@ -173,7 +176,8 @@ public class SignificantLongTerms extends InternalSignificantTerms {
     @Override
     InternalSignificantTerms newAggregation(long subsetSize, long supersetSize,
             List<InternalSignificantTerms.Bucket> buckets) {
-        return new SignificantLongTerms(subsetSize, supersetSize, getName(), formatter, requiredSize, minDocCount, significanceHeuristic, buckets, getMetaData());
+        return new SignificantLongTerms(subsetSize, supersetSize, getName(), formatter, requiredSize, minDocCount, significanceHeuristic,
+                buckets, reducers(), getMetaData());
     }
 
     @Override

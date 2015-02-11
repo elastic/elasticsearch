@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.GeoPointParser;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -179,14 +180,18 @@ public class GeoDistanceParser implements Aggregator.Parser {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
-            return new Unmapped(name, ranges, keyed, null, aggregationContext, parent, rangeFactory, metaData);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers,
+                Map<String, Object> metaData) throws IOException {
+            return new Unmapped(name, ranges, keyed, null, aggregationContext, parent, rangeFactory, reducers, metaData);
         }
 
         @Override
-        protected Aggregator doCreateInternal(final ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
+        protected Aggregator doCreateInternal(final ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext,
+                Aggregator parent, boolean collectsFromSingleBucket, List<Reducer> reducers, Map<String, Object> metaData)
+                throws IOException {
             DistanceSource distanceSource = new DistanceSource(valuesSource, distanceType, origin, unit);
-            return new RangeAggregator(name, factories, distanceSource, null, rangeFactory, ranges, keyed, aggregationContext, parent, metaData);
+            return new RangeAggregator(name, factories, distanceSource, null, rangeFactory, ranges, keyed, aggregationContext, parent,
+                    reducers, metaData);
         }
 
         private static class DistanceSource extends ValuesSource.Numeric {

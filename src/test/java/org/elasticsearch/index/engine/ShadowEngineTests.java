@@ -30,6 +30,7 @@ import org.apache.lucene.index.LiveIndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.MockDirectoryWrapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
@@ -53,6 +54,7 @@ import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
@@ -64,6 +66,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -72,8 +75,7 @@ import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomIntBetween;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.test.ElasticsearchTestCase.newTempDirPath;
 import static org.elasticsearch.test.ElasticsearchTestCase.terminate;
@@ -139,7 +141,7 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
         }
 
         replicaTranslog = createTranslogReplica();
-        replicaEngine = createEngine(storeReplica, replicaTranslog);
+        replicaEngine = createShadowEngine(storeReplica, replicaTranslog);
 
         assertEquals(replicaEngine.config().getCodec().getName(), codecService.codec(codecName).getName());
         if (randomBoolean()) {
@@ -220,7 +222,7 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
         return new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, indexSettingsService);
     }
 
-    protected ShadowEngine createEngine(Store store, Translog translog) {
+    protected ShadowEngine createShadowEngine(Store store, Translog translog) {
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         return createShadowEngine(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService));
     }
@@ -551,107 +553,6 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
         getResult.release();
     }
 
-/*    @Test
-    public void testSegmentsWithMergeFlag() throws Exception {
-        final Store store = createStore();
-        ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
-        final AtomicReference<CountDownLatch> waitTillMerge = new AtomicReference<>();
-        final AtomicReference<CountDownLatch> waitForMerge = new AtomicReference<>();
-        mergeSchedulerProvider.addListener(new MergeSchedulerProvider.Listener() {
-            @Override
-            public void beforeMerge(OnGoingMerge merge) {
-                try {
-                    if (waitTillMerge.get() != null) {
-                        waitTillMerge.get().countDown();
-                    }
-                    if (waitForMerge.get() != null) {
-                        waitForMerge.get().await();
-                    }
-                } catch (InterruptedException e) {
-                    throw ExceptionsHelper.convertToRuntime(e);
-                }
-            }
-
-            @Override
-            public void afterMerge(OnGoingMerge merge) {
-            }
-        });
-
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        final Engine engine = createShadowEngine(indexSettingsService, store, createTranslog(), mergeSchedulerProvider);
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        engine.flush();
-        assertThat(engine.segments(false).size(), equalTo(1));
-        index = new Engine.Index(null, newUid("2"), doc);
-        engine.index(index);
-        engine.flush();
-        List<Segment> segments = engine.segments(false);
-        assertThat(segments.size(), equalTo(2));
-        for (Segment segment : segments) {
-            assertThat(segment.getMergeId(), nullValue());
-        }
-        index = new Engine.Index(null, newUid("3"), doc);
-        engine.index(index);
-        engine.flush();
-        segments = engine.segments(false);
-        assertThat(segments.size(), equalTo(3));
-        for (Segment segment : segments) {
-            assertThat(segment.getMergeId(), nullValue());
-        }
-
-        waitTillMerge.set(new CountDownLatch(1));
-        waitForMerge.set(new CountDownLatch(1));
-        engine.forceMerge(false, false);
-        waitTillMerge.get().await();
-
-        for (Segment segment : engine.segments(false)) {
-            assertThat(segment.getMergeId(), notNullValue());
-        }
-
-        waitForMerge.get().countDown();
-
-        index = new Engine.Index(null, newUid("4"), doc);
-        engine.index(index);
-        engine.flush();
-        final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
-        // now, optimize and wait for merges, see that we have no merge flag
-        engine.forceMerge(true, true);
-
-        for (Segment segment : engine.segments(false)) {
-            assertThat(segment.getMergeId(), nullValue());
-        }
-        // we could have multiple underlying merges, so the generation may increase more than once
-        assertTrue(store.readLastCommittedSegmentsInfo().getGeneration() > gen1);
-
-        final boolean flush = randomBoolean();
-        final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
-        engine.forceMerge(flush, false);
-        waitTillMerge.get().await();
-        for (Segment segment : engine.segments(false)) {
-            assertThat(segment.getMergeId(), nullValue());
-        }
-        waitForMerge.get().countDown();
-
-        if (flush) {
-            awaitBusy(new Predicate<Object>() {
-                @Override
-                public boolean apply(Object o) {
-                    try {
-                        // we should have had just 1 merge, so last generation should be exact
-                        return store.readLastCommittedSegmentsInfo().getLastGeneration() == gen2;
-                    } catch (IOException e) {
-                        throw ExceptionsHelper.convertToRuntime(e);
-                    }
-                }
-            });
-        }
-
-        engine.close();
-        store.close();
-    } */
-
     @Test
     public void testSimpleOperations() throws Exception {
         Engine.Searcher searchResult = primaryEngine.acquireSearcher("test");
@@ -916,773 +817,26 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
         searchResult.close();
     }
 
-/*    @Test
+    @Test
     public void testFailEngineOnCorruption() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
-        engine.flush();
-        final boolean failEngine = defaultSettings.getAsBoolean(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, false);
-        final int failInPhase = randomIntBetween(1, 3);
-        try {
-            engine.recover(new Engine.RecoveryHandler() {
-                @Override
-                public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
-                    if (failInPhase == 1) {
-                        throw new RuntimeException("bar", new CorruptIndexException("Foo", "fake file description"));
-                    }
-                }
-
-                @Override
-                public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                    if (failInPhase == 2) {
-                        throw new RuntimeException("bar", new CorruptIndexException("Foo", "fake file description"));
-                    }
-                }
-
-                @Override
-                public void phase3(Translog.Snapshot snapshot) throws EngineException {
-                    if (failInPhase == 3) {
-                        throw new RuntimeException("bar", new CorruptIndexException("Foo", "fake file description"));
-                    }
-                }
-            });
-            fail("exception expected");
-        } catch (RuntimeException ex) {
-
-        }
-        try {
-            Engine.Searcher searchResult = engine.acquireSearcher("test");
-            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
-            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
-            searchResult.close();
-
-            ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, false);
-            engine.create(new Engine.Create(null, newUid("2"), doc2));
-            engine.refresh("foo");
-
-            searchResult = engine.acquireSearcher("test");
-            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 2));
-            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(2));
-            searchResult.close();
-            assertThat(failEngine, is(false));
-        } catch (EngineClosedException ex) {
-            assertThat(failEngine, is(true));
-        }
-    }
-
-
-    @Test
-    public void testSimpleRecover() throws Exception {
-        final ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
-        engine.flush();
-
-        engine.recover(new Engine.RecoveryHandler() {
-            @Override
-            public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
-                try {
-                    engine.flush();
-                    assertThat("flush is not allowed in phase 1", false, equalTo(true));
-                } catch (FlushNotAllowedEngineException e) {
-                    // all is well
-                }
-            }
-
-            @Override
-            public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
-                try {
-                    engine.flush();
-                    assertThat("flush is not allowed in phase 2", false, equalTo(true));
-                } catch (FlushNotAllowedEngineException e) {
-                    // all is well
-                }
-
-                // but we can index
-                engine.index(new Engine.Index(null, newUid("1"), doc));
-            }
-
-            @Override
-            public void phase3(Translog.Snapshot snapshot) throws EngineException {
-                MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
-                try {
-                    // we can do this here since we are on the same thread
-                    engine.flush();
-                    assertThat("flush is not allowed in phase 3", false, equalTo(true));
-                } catch (FlushNotAllowedEngineException e) {
-                    // all is well
-                }
-            }
-        });
-        // post recovery should flush the translog
-        MatcherAssert.assertThat(translog.snapshot(), TranslogSizeMatcher.translogSize(0));
-
-        engine.flush();
-        engine.close();
-    }
-
-    @Test
-    public void testRecoverWithOperationsBetweenPhase1AndPhase2() throws Exception {
-        ParsedDocument doc1 = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
-        engine.create(new Engine.Create(null, newUid("1"), doc1));
-        engine.flush();
-        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, false);
-        engine.create(new Engine.Create(null, newUid("2"), doc2));
-
-        engine.recover(new Engine.RecoveryHandler() {
-            @Override
-            public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
-            }
-
-            @Override
-            public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                Translog.Create create = (Translog.Create) snapshot.next();
-                assertThat("translog snapshot should not read null", create != null, equalTo(true));
-                assertThat(create.source().toBytesArray(), equalTo(B_2));
-                assertThat(snapshot.next(), equalTo(null));
-            }
-
-            @Override
-            public void phase3(Translog.Snapshot snapshot) throws EngineException {
-                MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
-            }
-        });
-
-        engine.flush();
-        engine.close();
-    }
-
-    @Test
-    public void testRecoverWithOperationsBetweenPhase1AndPhase2AndPhase3() throws Exception {
-        ParsedDocument doc1 = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
-        engine.create(new Engine.Create(null, newUid("1"), doc1));
-        engine.flush();
-        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, false);
-        engine.create(new Engine.Create(null, newUid("2"), doc2));
-
-        engine.recover(new Engine.RecoveryHandler() {
-            @Override
-            public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
-            }
-
-            @Override
-            public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                Translog.Create create = (Translog.Create) snapshot.next();
-                assertThat(create != null, equalTo(true));
-                assertThat(snapshot.next(), equalTo(null));
-                assertThat(create.source().toBytesArray(), equalTo(B_2));
-
-                // add for phase3
-                ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, false);
-                engine.create(new Engine.Create(null, newUid("3"), doc3));
-            }
-
-            @Override
-            public void phase3(Translog.Snapshot snapshot) throws EngineException {
-                Translog.Create create = (Translog.Create) snapshot.next();
-                assertThat(create != null, equalTo(true));
-                assertThat(snapshot.next(), equalTo(null));
-                assertThat(create.source().toBytesArray(), equalTo(B_3));
-            }
-        });
-
-        engine.flush();
-        engine.close();
-    }
-
-    @Test
-    public void testVersioningNewCreate() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Create create = new Engine.Create(null, newUid("1"), doc);
-        engine.create(create);
-        assertThat(create.version(), equalTo(1l));
-
-        create = new Engine.Create(null, newUid("1"), doc, create.version(), create.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0);
-        replicaEngine.create(create);
-        assertThat(create.version(), equalTo(1l));
-    }
-
-    @Test
-    public void testExternalVersioningNewCreate() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Create create = new Engine.Create(null, newUid("1"), doc, 12, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, 0);
-        engine.create(create);
-        assertThat(create.version(), equalTo(12l));
-
-        create = new Engine.Create(null, newUid("1"), doc, create.version(), create.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0);
-        replicaEngine.create(create);
-        assertThat(create.version(), equalTo(12l));
-    }
-
-    @Test
-    public void testVersioningNewIndex() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertThat(index.version(), equalTo(1l));
-
-        index = new Engine.Index(null, newUid("1"), doc, index.version(), index.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0);
-        replicaEngine.index(index);
-        assertThat(index.version(), equalTo(1l));
-    }
-
-    @Test
-    public void testExternalVersioningNewIndex() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc, 12, VersionType.EXTERNAL, PRIMARY, 0);
-        engine.index(index);
-        assertThat(index.version(), equalTo(12l));
-
-        index = new Engine.Index(null, newUid("1"), doc, index.version(), index.versionType().versionTypeForReplicationAndRecovery(), REPLICA, 0);
-        replicaEngine.index(index);
-        assertThat(index.version(), equalTo(12l));
-    }
-
-    @Test
-    public void testVersioningIndexConflict() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertThat(index.version(), equalTo(1l));
-
-        index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertThat(index.version(), equalTo(2l));
-
-        index = new Engine.Index(null, newUid("1"), doc, 1l, VersionType.INTERNAL, Engine.Operation.Origin.PRIMARY, 0);
-        try {
-            engine.index(index);
-            fail();
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-
-        // future versions should not work as well
-        index = new Engine.Index(null, newUid("1"), doc, 3l, VersionType.INTERNAL, PRIMARY, 0);
-        try {
-            engine.index(index);
-            fail();
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-    }
-
-    @Test
-    public void testExternalVersioningIndexConflict() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc, 12, VersionType.EXTERNAL, PRIMARY, 0);
-        engine.index(index);
-        assertThat(index.version(), equalTo(12l));
-
-        index = new Engine.Index(null, newUid("1"), doc, 14, VersionType.EXTERNAL, PRIMARY, 0);
-        engine.index(index);
-        assertThat(index.version(), equalTo(14l));
-
-        index = new Engine.Index(null, newUid("1"), doc, 13, VersionType.EXTERNAL, PRIMARY, 0);
-        try {
-            engine.index(index);
-            fail();
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-    }
-
-    @Test
-    public void testVersioningIndexConflictWithFlush() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertThat(index.version(), equalTo(1l));
-
-        index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertThat(index.version(), equalTo(2l));
-
-        engine.flush();
-
-        index = new Engine.Index(null, newUid("1"), doc, 1l, VersionType.INTERNAL, PRIMARY, 0);
-        try {
-            engine.index(index);
-            fail();
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-
-        // future versions should not work as well
-        index = new Engine.Index(null, newUid("1"), doc, 3l, VersionType.INTERNAL, PRIMARY, 0);
-        try {
-            engine.index(index);
-            fail();
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-    }
-
-    @Test
-    public void testExternalVersioningIndexConflictWithFlush() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc, 12, VersionType.EXTERNAL, PRIMARY, 0);
-        engine.index(index);
-        assertThat(index.version(), equalTo(12l));
-
-        index = new Engine.Index(null, newUid("1"), doc, 14, VersionType.EXTERNAL, PRIMARY, 0);
-        engine.index(index);
-        assertThat(index.version(), equalTo(14l));
-
-        engine.flush();
-
-        index = new Engine.Index(null, newUid("1"), doc, 13, VersionType.EXTERNAL, PRIMARY, 0);
-        try {
-            engine.index(index);
-            fail();
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-    }
-
-    @Test
-    public void testVersioningDeleteConflict() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertThat(index.version(), equalTo(1l));
-
-        index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertThat(index.version(), equalTo(2l));
-
-        Engine.Delete delete = new Engine.Delete("test", "1", newUid("1"), 1l, VersionType.INTERNAL, PRIMARY, 0, false);
-        try {
-            engine.delete(delete);
-            fail();
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-
-        // future versions should not work as well
-        delete = new Engine.Delete("test", "1", newUid("1"), 3l, VersionType.INTERNAL, PRIMARY, 0, false);
-        try {
-            engine.delete(delete);
-            fail();
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-
-        // now actually delete
-        delete = new Engine.Delete("test", "1", newUid("1"), 2l, VersionType.INTERNAL, PRIMARY, 0, false);
-        engine.delete(delete);
-        assertThat(delete.version(), equalTo(3l));
-
-        // now check if we can index to a delete doc with version
-        index = new Engine.Index(null, newUid("1"), doc, 2l, VersionType.INTERNAL, PRIMARY, 0);
-        try {
-            engine.index(index);
-            fail();
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-
-        // we shouldn't be able to create as well
-        Engine.Create create = new Engine.Create(null, newUid("1"), doc, 2l, VersionType.INTERNAL, PRIMARY, 0);
-        try {
-            engine.create(create);
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-    }
-
-    @Test
-    public void testVersioningDeleteConflictWithFlush() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertThat(index.version(), equalTo(1l));
-
-        index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertThat(index.version(), equalTo(2l));
-
-        engine.flush();
-
-        Engine.Delete delete = new Engine.Delete("test", "1", newUid("1"), 1l, VersionType.INTERNAL, PRIMARY, 0, false);
-        try {
-            engine.delete(delete);
-            fail();
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-
-        // future versions should not work as well
-        delete = new Engine.Delete("test", "1", newUid("1"), 3l, VersionType.INTERNAL, PRIMARY, 0, false);
-        try {
-            engine.delete(delete);
-            fail();
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-
-        engine.flush();
-
-        // now actually delete
-        delete = new Engine.Delete("test", "1", newUid("1"), 2l, VersionType.INTERNAL, PRIMARY, 0, false);
-        engine.delete(delete);
-        assertThat(delete.version(), equalTo(3l));
-
-        engine.flush();
-
-        // now check if we can index to a delete doc with version
-        index = new Engine.Index(null, newUid("1"), doc, 2l, VersionType.INTERNAL, PRIMARY, 0);
-        try {
-            engine.index(index);
-            fail();
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-
-        // we shouldn't be able to create as well
-        Engine.Create create = new Engine.Create(null, newUid("1"), doc, 2l, VersionType.INTERNAL, PRIMARY, 0);
-        try {
-            engine.create(create);
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-    }
-
-    @Test
-    public void testVersioningCreateExistsException() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Create create = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
-        engine.create(create);
-        assertThat(create.version(), equalTo(1l));
-
-        create = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
-        try {
-            engine.create(create);
-            fail();
-        } catch (DocumentAlreadyExistsException e) {
-            // all is well
-        }
-    }
-
-    @Test
-    public void testVersioningCreateExistsExceptionWithFlush() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Create create = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
-        engine.create(create);
-        assertThat(create.version(), equalTo(1l));
-
-        engine.flush();
-
-        create = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, 0);
-        try {
-            engine.create(create);
-            fail();
-        } catch (DocumentAlreadyExistsException e) {
-            // all is well
-        }
-    }
-
-    @Test
-    public void testVersioningReplicaConflict1() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertThat(index.version(), equalTo(1l));
-
-        index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertThat(index.version(), equalTo(2l));
-
-        // apply the second index to the replica, should work fine
-        index = new Engine.Index(null, newUid("1"), doc, index.version(), VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0);
-        replicaEngine.index(index);
-        assertThat(index.version(), equalTo(2l));
-
-        // now, the old one should not work
-        index = new Engine.Index(null, newUid("1"), doc, 1l, VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0);
-        try {
-            replicaEngine.index(index);
-            fail();
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-
-        // second version on replica should fail as well
-        try {
-            index = new Engine.Index(null, newUid("1"), doc, 2l
-                    , VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0);
-            replicaEngine.index(index);
-            assertThat(index.version(), equalTo(2l));
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-    }
-
-    @Test
-    public void testVersioningReplicaConflict2() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertThat(index.version(), equalTo(1l));
-
-        // apply the first index to the replica, should work fine
-        index = new Engine.Index(null, newUid("1"), doc, 1l
-                , VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0);
-        replicaEngine.index(index);
-        assertThat(index.version(), equalTo(1l));
-
-        // index it again
-        index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertThat(index.version(), equalTo(2l));
-
-        // now delete it
-        Engine.Delete delete = new Engine.Delete("test", "1", newUid("1"));
-        engine.delete(delete);
-        assertThat(delete.version(), equalTo(3l));
-
-        // apply the delete on the replica (skipping the second index)
-        delete = new Engine.Delete("test", "1", newUid("1"), 3l
-                , VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0, false);
-        replicaEngine.delete(delete);
-        assertThat(delete.version(), equalTo(3l));
-
-        // second time delete with same version should fail
-        try {
-            delete = new Engine.Delete("test", "1", newUid("1"), 3l
-                    , VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0, false);
-            replicaEngine.delete(delete);
-            fail("excepted VersionConflictEngineException to be thrown");
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-
-        // now do the second index on the replica, it should fail
-        try {
-            index = new Engine.Index(null, newUid("1"), doc, 2l, VersionType.INTERNAL.versionTypeForReplicationAndRecovery(), REPLICA, 0);
-            replicaEngine.index(index);
-            fail("excepted VersionConflictEngineException to be thrown");
-        } catch (VersionConflictEngineException e) {
-            // all is well
-        }
-    }
-
-
-    @Test
-    public void testBasicCreatedFlag() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertTrue(index.created());
-
-        index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertFalse(index.created());
-
-        engine.delete(new Engine.Delete(null, "1", newUid("1")));
-
-        index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertTrue(index.created());
-    }
-
-    @Test
-    public void testCreatedFlagAfterFlush() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertTrue(index.created());
-
-        engine.delete(new Engine.Delete(null, "1", newUid("1")));
-
-        engine.flush();
-
-        index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        assertTrue(index.created());
-    }
-
-    private static class MockAppender extends AppenderSkeleton {
-        public boolean sawIndexWriterMessage;
-
-        public boolean sawIndexWriterIFDMessage;
-
-        @Override
-        protected void append(LoggingEvent event) {
-            if (event.getLevel() == Level.TRACE && event.getMessage().toString().contains("[index][1] ")) {
-                if (event.getLoggerName().endsWith("lucene.iw") &&
-                        event.getMessage().toString().contains("IW: apply all deletes during flush")) {
-                    sawIndexWriterMessage = true;
-                }
-                if (event.getLoggerName().endsWith("lucene.iw.ifd")) {
-                    sawIndexWriterIFDMessage = true;
-                }
-            }
-        }
-
-        @Override
-        public boolean requiresLayout() {
-            return false;
-        }
-
-        @Override
-        public void close() {
-        }
-    }
-
-    // #5891: make sure IndexWriter's infoStream output is
-    // sent to lucene.iw with log level TRACE:
-
-    @Test
-    public void testIndexWriterInfoStream() {
-        MockAppender mockAppender = new MockAppender();
-
-        Logger rootLogger = Logger.getRootLogger();
-        Level savedLevel = rootLogger.getLevel();
-        rootLogger.addAppender(mockAppender);
-        rootLogger.setLevel(Level.DEBUG);
-
-        try {
-            // First, with DEBUG, which should NOT log IndexWriter output:
-            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
-            engine.create(new Engine.Create(null, newUid("1"), doc));
-            engine.flush();
-            assertFalse(mockAppender.sawIndexWriterMessage);
-
-            // Again, with TRACE, which should log IndexWriter output:
-            rootLogger.setLevel(Level.TRACE);
-            engine.create(new Engine.Create(null, newUid("2"), doc));
-            engine.flush();
-            assertTrue(mockAppender.sawIndexWriterMessage);
-
-        } finally {
-            rootLogger.removeAppender(mockAppender);
-            rootLogger.setLevel(savedLevel);
-        }
-    }
-
-    // #8603: make sure we can separately log IFD's messages
-    public void testIndexWriterIFDInfoStream() {
-        MockAppender mockAppender = new MockAppender();
-
-        // Works when running this test inside Intellij:
-        Logger iwIFDLogger = LogManager.exists("org.elasticsearch.index.engine.lucene.iw.ifd");
-        if (iwIFDLogger == null) {
-            // Works when running this test from command line:
-            iwIFDLogger = LogManager.exists("index.engine.lucene.iw.ifd");
-            assertNotNull(iwIFDLogger);
-        }
-
-        Level savedLevel = iwIFDLogger.getLevel();
-        iwIFDLogger.addAppender(mockAppender);
-        iwIFDLogger.setLevel(Level.DEBUG);
-
-        try {
-            // First, with DEBUG, which should NOT log IndexWriter output:
-            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
-            engine.create(new Engine.Create(null, newUid("1"), doc));
-            engine.flush();
-            assertFalse(mockAppender.sawIndexWriterMessage);
-            assertFalse(mockAppender.sawIndexWriterIFDMessage);
-
-            // Again, with TRACE, which should only log IndexWriter IFD output:
-            iwIFDLogger.setLevel(Level.TRACE);
-            engine.create(new Engine.Create(null, newUid("2"), doc));
-            engine.flush();
-            assertFalse(mockAppender.sawIndexWriterMessage);
-            assertTrue(mockAppender.sawIndexWriterIFDMessage);
-
-        } finally {
-            iwIFDLogger.removeAppender(mockAppender);
-            iwIFDLogger.setLevel(null);
-        }
-    }
-
-    @Slow
-    @Test
-    public void testEnableGcDeletes() throws Exception {
-
-        Store store = createStore();
-
-
-
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        Engine engine = new ShadowEngine(config(indexSettingsService, store, createTranslog(), createMergeScheduler(indexSettingsService)));
-        ((ShadowEngine)engine).config().setEnableGcDeletes(false);
-
-        // Add document
-        ParseContext.Document document = testDocument();
-        document.add(new TextField("value", "test1", Field.Store.YES));
-
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_2, false);
-        engine.index(new Engine.Index(null, newUid("1"), doc, 1, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
-
-        // Delete document we just added:
-        engine.delete(new Engine.Delete("test", "1", newUid("1"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
-
-        // Get should not find the document
-        Engine.GetResult getResult = engine.get(new Engine.Get(true, newUid("1")));
-        assertThat(getResult.exists(), equalTo(false));
-
-        // Give the gc pruning logic a chance to kick in
-        Thread.sleep(1000);
-
-        if (randomBoolean()) {
-            engine.refresh("test");
-        }
-
-        // Delete non-existent document
-        engine.delete(new Engine.Delete("test", "2", newUid("2"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
-
-        // Get should not find the document (we never indexed uid=2):
-        getResult = engine.get(new Engine.Get(true, newUid("2")));
-        assertThat(getResult.exists(), equalTo(false));
-
-        // Try to index uid=1 with a too-old version, should fail:
-        try {
-            engine.index(new Engine.Index(null, newUid("1"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
-            fail("did not hit expected exception");
-        } catch (VersionConflictEngineException vcee) {
-            // expected
-        }
-
-        // Get should still not find the document
-        getResult = engine.get(new Engine.Get(true, newUid("1")));
-        assertThat(getResult.exists(), equalTo(false));
-
-        // Try to index uid=2 with a too-old version, should fail:
-        try {
-            engine.index(new Engine.Index(null, newUid("2"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
-            fail("did not hit expected exception");
-        } catch (VersionConflictEngineException vcee) {
-            // expected
-        }
-
-        // Get should not find the document
-        getResult = engine.get(new Engine.Get(true, newUid("2")));
-        assertThat(getResult.exists(), equalTo(false));
-        engine.close();
-        store.close();
-    }
-
-    protected Term newUid(String id) {
-        return new Term("_uid", id);
+        // nocommit - figure out how to implement me for shadow replica
     }
 
     @Test
     public void testExtractShardId() {
-        try (Engine.Searcher test = this.engine.acquireSearcher("test")) {
+        try (Engine.Searcher test = replicaEngine.acquireSearcher("test")) {
             ShardId shardId = ShardUtils.extractShardId(test.reader());
             assertNotNull(shardId);
-            assertEquals(shardId, ((ShadowEngine) engine).config().getShardId());
+            assertEquals(shardId, replicaEngine.config().getShardId());
         }
     }
 
-    *//**
+    /**
      * Random test that throws random exception and ensures all references are
      * counted down / released and resources are closed.
-     *//*
+     */
     @Test
+    @Ignore // nocommit - fails with IndexNotFoundException: no segments* file found in store
     public void testFailStart() throws IOException {
         // this test fails if any reader, searcher or directory is not closed - MDW FTW
         final int iters = scaledRandomIntBetween(10, 100);
@@ -1698,7 +852,7 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
                 Translog translog = createTranslog();
                 ShadowEngine holder;
                 try {
-                    holder = createEngine(store, translog);
+                    holder = createShadowEngine(store, translog);
                 } catch (EngineCreationFailureException ex) {
                     assertEquals(store.refCount(), refCount);
                     continue;
@@ -1710,7 +864,7 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
                     try {
                         assertEquals(store.refCount(), refCount + 1);
                         holder.close();
-                        holder = createEngine(store, translog);
+                        holder = createShadowEngine(store, translog);
                         holder.config().setFailEngineOnCorruption(true);
                         assertEquals(store.refCount(), refCount + 1);
                     } catch (EngineCreationFailureException ex) {
@@ -1728,104 +882,8 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testSettings() {
-        ShadowEngine engine = (ShadowEngine) this.engine;
         CodecService codecService = new CodecService(shardId.index());
-        LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
-
-        assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
-        assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
-        assertEquals(engine.config().getIndexConcurrency(), indexConcurrency);
-        assertEquals(currentIndexWriterConfig.getMaxThreadStates(), indexConcurrency);
-
-
-        IndexDynamicSettingsModule settings = new IndexDynamicSettingsModule();
-        assertTrue(settings.containsSetting(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING));
-        assertTrue(settings.containsSetting(EngineConfig.INDEX_COMPOUND_ON_FLUSH));
-        assertTrue(settings.containsSetting(EngineConfig.INDEX_GC_DELETES_SETTING));
-        assertTrue(settings.containsSetting(EngineConfig.INDEX_FAIL_ON_MERGE_FAILURE_SETTING));
+        assertEquals(replicaEngine.config().getCodec().getName(), codecService.codec(codecName).getName());
+        assertEquals(replicaEngine.config().getIndexConcurrency(), indexConcurrency);
     }
-
-    @Test
-    public void testRetryWithAutogeneratedIdWorksAndNoDuplicateDocs() throws IOException {
-
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        boolean canHaveDuplicates = false;
-        boolean autoGeneratedId = true;
-
-        Engine.Create index = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
-        engine.create(index);
-        assertThat(index.version(), equalTo(1l));
-
-        index = new Engine.Create(null, newUid("1"), doc, index.version(), index.versionType().versionTypeForReplicationAndRecovery(), REPLICA, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
-        replicaEngine.create(index);
-        assertThat(index.version(), equalTo(1l));
-
-        canHaveDuplicates = true;
-        index = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
-        engine.create(index);
-        assertThat(index.version(), equalTo(1l));
-        engine.refresh("test");
-        Engine.Searcher searcher = engine.acquireSearcher("test");
-        TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
-        assertThat(topDocs.totalHits, equalTo(1));
-
-        index = new Engine.Create(null, newUid("1"), doc, index.version(), index.versionType().versionTypeForReplicationAndRecovery(), REPLICA, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
-        try {
-            replicaEngine.create(index);
-            fail();
-        } catch (VersionConflictEngineException e) {
-            // we ignore version conflicts on replicas, see TransportShardReplicationOperationAction.ignoreReplicaException
-        }
-        replicaEngine.refresh("test");
-        Engine.Searcher replicaSearcher = replicaEngine.acquireSearcher("test");
-        topDocs = replicaSearcher.searcher().search(new MatchAllDocsQuery(), 10);
-        assertThat(topDocs.totalHits, equalTo(1));
-        searcher.close();
-        replicaSearcher.close();
-    }
-
-    @Test
-    public void testRetryWithAutogeneratedIdsAndWrongOrderWorksAndNoDuplicateDocs() throws IOException {
-
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        boolean canHaveDuplicates = true;
-        boolean autoGeneratedId = true;
-
-        Engine.Create firstIndexRequest = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
-        engine.create(firstIndexRequest);
-        assertThat(firstIndexRequest.version(), equalTo(1l));
-
-        Engine.Create firstIndexRequestReplica = new Engine.Create(null, newUid("1"), doc, firstIndexRequest.version(), firstIndexRequest.versionType().versionTypeForReplicationAndRecovery(), REPLICA, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
-        replicaEngine.create(firstIndexRequestReplica);
-        assertThat(firstIndexRequestReplica.version(), equalTo(1l));
-
-        canHaveDuplicates = false;
-        Engine.Create secondIndexRequest = new Engine.Create(null, newUid("1"), doc, Versions.MATCH_ANY, VersionType.INTERNAL, PRIMARY, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
-        try {
-            engine.create(secondIndexRequest);
-            fail();
-        } catch (DocumentAlreadyExistsException e) {
-            // we can ignore the exception. In case this happens because the retry request arrived first then this error will not be sent back anyway.
-            // in any other case this is an actual error
-        }
-        engine.refresh("test");
-        Engine.Searcher searcher = engine.acquireSearcher("test");
-        TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), 10);
-        assertThat(topDocs.totalHits, equalTo(1));
-
-        Engine.Create secondIndexRequestReplica = new Engine.Create(null, newUid("1"), doc, firstIndexRequest.version(), firstIndexRequest.versionType().versionTypeForReplicationAndRecovery(), REPLICA, System.nanoTime(), canHaveDuplicates, autoGeneratedId);
-        try {
-            replicaEngine.create(secondIndexRequestReplica);
-            fail();
-        } catch (VersionConflictEngineException e) {
-            // we ignore version conflicts on replicas, see TransportShardReplicationOperationAction.ignoreReplicaException.
-        }
-        replicaEngine.refresh("test");
-        Engine.Searcher replicaSearcher = replicaEngine.acquireSearcher("test");
-        topDocs = replicaSearcher.searcher().search(new MatchAllDocsQuery(), 10);
-        assertThat(topDocs.totalHits, equalTo(1));
-        searcher.close();
-        replicaSearcher.close();
-    }*/
-
 }

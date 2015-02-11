@@ -6,7 +6,7 @@ The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis modu
 In order to install the plugin, run: 
 
 ```sh
-bin/plugin -install elasticsearch/elasticsearch-analysis-kuromoji/2.4.1
+bin/plugin install elasticsearch/elasticsearch-analysis-kuromoji/2.4.2
 ```
 
 You need to install a version matching your Elasticsearch version:
@@ -15,7 +15,7 @@ You need to install a version matching your Elasticsearch version:
 |---------------|-----------------------------|------------|
 | master        |  Build from source          | See below  |
 | es-1.x        |  Build from source          | [2.5.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/es-1.x/#version-250-snapshot-for-elasticsearch-1x)  |
-|    es-1.4              |     2.4.1         | [2.4.1](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/v2.4.1/#version-241-for-elasticsearch-14)                  |
+|    es-1.4              |     2.4.2         | [2.4.2](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/v2.4.2/#version-242-for-elasticsearch-14)                  |
 | es-1.3        |  2.3.0                      | [2.3.0](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/v2.3.0/#japanese-kuromoji-analysis-for-elasticsearch)  |
 | es-1.2        |  2.2.0                      | [2.2.0](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/v2.2.0/#japanese-kuromoji-analysis-for-elasticsearch)  |
 | es-1.1        |  2.1.0                      | [2.1.0](https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/tree/v2.1.0/#japanese-kuromoji-analysis-for-elasticsearch)  |

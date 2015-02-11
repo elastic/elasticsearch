@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -146,7 +145,11 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      * try reusing an existing get instance (typically the first in the given list) to save on redundant object
      * construction.
      */
-    public abstract InternalAggregation reduce(ReduceContext reduceContext);
+    public final InternalAggregation reduce(ReduceContext reduceContext) {
+        return doReduce(reduceContext);
+    }
+
+    public abstract InternalAggregation doReduce(ReduceContext reduceContext);
 
     public Object getProperty(String path) {
         AggregationPath aggPath = AggregationPath.parse(path);

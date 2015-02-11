@@ -68,10 +68,10 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms {
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
+    public InternalAggregation doReduce(ReduceContext reduceContext) {
         for (InternalAggregation aggregation : reduceContext.aggregations()) {
             if (!(aggregation instanceof UnmappedSignificantTerms)) {
-                return aggregation.reduce(reduceContext);
+                return aggregation.doReduce(reduceContext);
             }
         }
         return this;

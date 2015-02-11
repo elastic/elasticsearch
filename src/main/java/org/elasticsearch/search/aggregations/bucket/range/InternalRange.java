@@ -258,7 +258,7 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalMulti
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
+    public InternalAggregation doReduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         @SuppressWarnings("unchecked")
         List<Bucket>[] rangeList = new List[ranges.size()];

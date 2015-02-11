@@ -188,7 +188,7 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation implemen
     }
 
     @Override
-    public InternalGeoHashGrid reduce(ReduceContext reduceContext) {
+    public InternalGeoHashGrid doReduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
 
         LongObjectPagedHashMap<List<Bucket>> buckets = null;

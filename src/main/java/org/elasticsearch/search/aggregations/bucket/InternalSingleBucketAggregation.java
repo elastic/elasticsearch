@@ -69,7 +69,7 @@ public abstract class InternalSingleBucketAggregation extends InternalAggregatio
     protected abstract InternalSingleBucketAggregation newAggregation(String name, long docCount, InternalAggregations subAggregations);
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
+    public InternalAggregation doReduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         long docCount = 0L;
         List<InternalAggregations> subAggregationsList = new ArrayList<>(aggregations.size());

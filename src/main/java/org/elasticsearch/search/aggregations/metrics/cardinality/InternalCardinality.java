@@ -99,7 +99,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
+    public InternalAggregation doReduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
         InternalCardinality reduced = null;
         for (InternalAggregation aggregation : aggregations) {

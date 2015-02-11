@@ -156,7 +156,7 @@ public abstract class InternalSignificantTerms extends InternalMultiBucketAggreg
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
+    public InternalAggregation doReduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
 
         long globalSubsetSize = 0;

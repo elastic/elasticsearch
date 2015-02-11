@@ -98,8 +98,8 @@ public class PendingClusterTask implements Streamable {
             // timeInQueue is set to -1 when unknown and can be negative if time goes backwards
             out.writeLong(timeInQueue);
         } else {
-            out.writeVLong(timeInQueue);
-        }
+            out.writeVLong(Math.max(0, timeInQueue));
+            }
         if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
             out.writeBoolean(executing);
         }

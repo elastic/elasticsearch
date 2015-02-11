@@ -470,6 +470,86 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
 
     }
 
+    @Test
+    public void testShadowEngineIgnoresWriteOperations() throws Exception {
+        // create a document
+        ParseContext.Document document = testDocumentWithTextField();
+        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, false);
+        replicaEngine.create(new Engine.Create(null, newUid("1"), doc));
+        replicaEngine.refresh("test");
+
+        // its not there...
+        Engine.Searcher searchResult = replicaEngine.acquireSearcher("test");
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
+        searchResult.close();
+        Engine.GetResult getResult = replicaEngine.get(new Engine.Get(true, newUid("1")));
+        assertThat(getResult.exists(), equalTo(false));
+        getResult.release();
+
+        // index a document
+        document = testDocument();
+        document.add(new TextField("value", "test1", Field.Store.YES));
+        doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, false);
+        replicaEngine.index(new Engine.Index(null, newUid("1"), doc));
+        replicaEngine.refresh("test");
+
+        // its still not there...
+        searchResult = replicaEngine.acquireSearcher("test");
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
+        searchResult.close();
+        getResult = replicaEngine.get(new Engine.Get(true, newUid("1")));
+        assertThat(getResult.exists(), equalTo(false));
+        getResult.release();
+
+        // Now, add a document to the primary so we can test shadow engine deletes
+        document = testDocumentWithTextField();
+        document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
+        doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, false);
+        primaryEngine.create(new Engine.Create(null, newUid("1"), doc));
+        primaryEngine.flush();
+        replicaEngine.refresh("test");
+
+        // Now the replica can see it
+        searchResult = replicaEngine.acquireSearcher("test");
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
+        searchResult.close();
+
+        // And the replica can retrieve it
+        getResult = replicaEngine.get(new Engine.Get(false, newUid("1")));
+        assertThat(getResult.exists(), equalTo(true));
+        assertThat(getResult.docIdAndVersion(), notNullValue());
+        getResult.release();
+
+        // try to delete it on the replica
+        replicaEngine.delete(new Engine.Delete("test", "1", newUid("1")));
+        replicaEngine.flush();
+        replicaEngine.refresh("test");
+        primaryEngine.refresh("test");
+
+        // it's still there!
+        searchResult = replicaEngine.acquireSearcher("test");
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
+        searchResult.close();
+        getResult = replicaEngine.get(new Engine.Get(false, newUid("1")));
+        assertThat(getResult.exists(), equalTo(true));
+        assertThat(getResult.docIdAndVersion(), notNullValue());
+        getResult.release();
+
+        // it's still there on the primary also!
+        searchResult = primaryEngine.acquireSearcher("test");
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
+        searchResult.close();
+        getResult = primaryEngine.get(new Engine.Get(false, newUid("1")));
+        assertThat(getResult.exists(), equalTo(true));
+        assertThat(getResult.docIdAndVersion(), notNullValue());
+        getResult.release();
+    }
 
 /*    @Test
     public void testSegmentsWithMergeFlag() throws Exception {
@@ -785,45 +865,58 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
         searchResult.close();
     }
 
-/*    @Test
+    @Test
     public void testSearchResultRelease() throws Exception {
-        Engine.Searcher searchResult = engine.acquireSearcher("test");
+        Engine.Searcher searchResult = replicaEngine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         searchResult.close();
 
         // create a document
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
+        primaryEngine.create(new Engine.Create(null, newUid("1"), doc));
 
         // its not there...
-        searchResult = engine.acquireSearcher("test");
+        searchResult = primaryEngine.acquireSearcher("test");
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
+        searchResult.close();
+        searchResult = replicaEngine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         searchResult.close();
 
-        // refresh and it should be there
-        engine.refresh("test");
+        // flush & refresh and it should everywhere
+        primaryEngine.flush();
+        primaryEngine.refresh("test");
+        replicaEngine.refresh("test");
 
         // now its there...
-        searchResult = engine.acquireSearcher("test");
+        searchResult = primaryEngine.acquireSearcher("test");
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
-        // don't release the search result yet...
+        searchResult.close();
+
+        searchResult = replicaEngine.acquireSearcher("test");
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
+        MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
+        // don't release the replica search result yet...
 
         // delete, refresh and do a new search, it should not be there
-        engine.delete(new Engine.Delete("test", "1", newUid("1")));
-        engine.refresh("test");
-        Engine.Searcher updateSearchResult = engine.acquireSearcher("test");
+        primaryEngine.delete(new Engine.Delete("test", "1", newUid("1")));
+        primaryEngine.flush();
+        primaryEngine.refresh("test");
+        replicaEngine.refresh("test");
+        Engine.Searcher updateSearchResult = primaryEngine.acquireSearcher("test");
         MatcherAssert.assertThat(updateSearchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(0));
         updateSearchResult.close();
 
-        // the non release search result should not see the deleted yet...
+        // the non released replica search result should not see the deleted yet...
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         searchResult.close();
     }
 
-    @Test
+/*    @Test
     public void testFailEngineOnCorruption() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));

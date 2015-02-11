@@ -150,6 +150,45 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         logger.info("--> performing query");
         SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).get();
         assertHitCount(resp, 2);
+    }
 
+    @Test
+    public void testIndexWithShadowReplicasCleansUp() throws Exception {
+        Settings nodeSettings = ImmutableSettings.builder()
+                .put("node.add_id_to_custom_path", false)
+                .put("node.enable_custom_paths", true)
+                .build();
+
+        int nodeCount = randomIntBetween(2, 5);
+        internalCluster().startNodesAsync(nodeCount, nodeSettings);
+        Path dataPath = newTempDirPath();
+        String IDX = "test";
+
+        Settings idxSettings = ImmutableSettings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, randomIntBetween(1, nodeCount - 1))
+                .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
+                .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
+                .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
+                .build();
+
+        prepareCreate(IDX).setSettings(idxSettings).get();
+        ensureYellow(IDX);
+        client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
+        client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
+        flushAndRefresh(IDX);
+
+        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
+        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
+        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
+        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+
+        logger.info("--> performing query");
+        SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).get();
+        assertHitCount(resp, 2);
+
+        assertAcked(client().admin().indices().prepareDelete(IDX));
+
+        assertPathHasBeenCleared(dataPath);
     }
 }

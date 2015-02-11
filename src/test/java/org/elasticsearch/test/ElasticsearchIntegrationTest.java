@@ -125,8 +125,10 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -1788,6 +1790,35 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             }
         }
         return nodes;
+    }
+
+    /**
+     * Asserts that there are no files in the specified path
+     */
+    public void assertPathHasBeenCleared(String path) throws Exception {
+        assertPathHasBeenCleared(Paths.get(path));
+    }
+
+    /**
+     * Asserts that there are no files in the specified path
+     */
+    public void assertPathHasBeenCleared(Path path) throws Exception {
+        int count = 0;
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        if (Files.exists(path)) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(path)) {
+                for (Path file : stream) {
+                    if (Files.isRegularFile(file)) {
+                        count++;
+                        sb.append(file.toAbsolutePath().toString());
+                        sb.append("\n");
+                    }
+                }
+            }
+        }
+        sb.append("]");
+        assertThat(count + " files exist that should have been cleaned:\n" + sb.toString(), count, equalTo(0));
     }
 
     protected static class NumShards {

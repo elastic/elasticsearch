@@ -28,7 +28,6 @@ import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
@@ -78,7 +77,7 @@ public class ShadowEngine extends Engine {
                 }
             }
         } catch (IOException ex) {
-            throw new ElasticsearchException("failed to open index reader", ex);
+            throw new EngineCreationFailureException(shardId, "failed to open index reader", ex);
         }
     }
 

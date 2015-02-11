@@ -66,7 +66,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -836,12 +835,16 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
      * counted down / released and resources are closed.
      */
     @Test
-    @Ignore // nocommit - fails with IndexNotFoundException: no segments* file found in store
     public void testFailStart() throws IOException {
+        // Need a commit point for this
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
+        primaryEngine.create(new Engine.Create(null, newUid("1"), doc));
+        primaryEngine.flush();
+
         // this test fails if any reader, searcher or directory is not closed - MDW FTW
         final int iters = scaledRandomIntBetween(10, 100);
         for (int i = 0; i < iters; i++) {
-            MockDirectoryWrapper wrapper = newMockDirectory();
+            MockDirectoryWrapper wrapper = newMockFSDirectory(dirPath);
             wrapper.setFailOnOpenInput(randomBoolean());
             wrapper.setAllowRandomFileNotFoundException(randomBoolean());
             wrapper.setRandomIOExceptionRate(randomDouble());

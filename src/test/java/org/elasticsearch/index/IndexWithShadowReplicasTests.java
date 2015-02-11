@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.nio.file.Path;
@@ -53,6 +55,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     @TestLogging("_root:DEBUG,env:TRACE")
+    @Repeat(iterations = 10) // NOCOMMIT
     public void testIndexWithFewDocuments() throws Exception {
         Settings nodeSettings = ImmutableSettings.builder()
                 .put("node.add_id_to_custom_path", false)
@@ -71,6 +74,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
                 .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
                 .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
+                .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
         prepareCreate(IDX).setSettings(idxSettings).get();
@@ -113,6 +117,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
     @LuceneTestCase.Slow
+    @Ignore // NOCOMMIT for now
     public void testChaosMonkeyWithShadowReplicas() throws Exception {
         final int initialNodeCount = scaledRandomIntBetween(3, 8);
 

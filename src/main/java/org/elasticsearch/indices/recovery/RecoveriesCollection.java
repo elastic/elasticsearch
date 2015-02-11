@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;

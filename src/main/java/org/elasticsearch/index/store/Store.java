@@ -556,23 +556,18 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         metadataLock.writeLock().lock();
         try {
             final StoreDirectory dir = directory;
-            final boolean shadowReplicasInUse = indexSettings.getAsBoolean(IndexMetaData.SETTING_SHADOW_REPLICAS, false);
-            for (String existingFile : dir.listAll()) {
-                if (shadowReplicasInUse) {
-                    logger.debug("skipping store cleanup of [{}] because shadow replicas are in use", existingFile);
-                    continue;
-                }
-                // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
-                // we also don't want to deleted IndexWriter's write.lock
-                // files, since it could be a shared filesystem
-                if (!sourceMetaData.contains(existingFile) && !Store.isChecksum(existingFile) && !Store.isEngineLock(existingFile)) {
-                    try {
-                        dir.deleteFile(reason, existingFile);
-                    } catch (Exception e) {
-                        // ignore, we don't really care, will get deleted later on
+                for (String existingFile : dir.listAll()) {
+                    // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
+                    // we also don't want to deleted IndexWriter's write.lock
+                    // files, since it could be a shared filesystem
+                    if (!sourceMetaData.contains(existingFile) && !Store.isChecksum(existingFile) && !Store.isEngineLock(existingFile)) {
+                        try {
+                            dir.deleteFile(reason, existingFile);
+                        } catch (Exception e) {
+                            // ignore, we don't really care, will get deleted later on
+                        }
                     }
                 }
-            }
             final Store.MetadataSnapshot metadataOrEmpty = getMetadata();
             verifyAfterCleanup(sourceMetaData, metadataOrEmpty);
         } finally {

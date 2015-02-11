@@ -536,7 +536,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     //NOCOMMIT document this
     public boolean canDeleteIndexContents(Index index, Settings indexSettings) {
         final Tuple<IndexService, Injector> indexServiceInjectorTuple = this.indices.get(index);
-        if (indexSettings.getAsBoolean(IndexMetaData.SETTING_SHADOW_REPLICAS, false) == false) {
+        if (IndexMetaData.usesSharedFilesystem(indexSettings) == false) {
             if (indexServiceInjectorTuple == null && nodeEnv.hasNodeFile()) {
                 return true;
             }
@@ -569,8 +569,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     private boolean canDeleteShardContent(ShardId shardId, @IndexSettings Settings indexSettings, boolean ownsShard) {
         final Tuple<IndexService, Injector> indexServiceInjectorTuple = this.indices.get(shardId.getIndex());
-        // TODO add some protection here to prevent shard deletion if we are on a shard FS or have ShadowReplicas enabled.
-        if (indexSettings.getAsBoolean(IndexMetaData.SETTING_SHADOW_REPLICAS, ownsShard) == false) {
+        if (IndexMetaData.usesSharedFilesystem(indexSettings) == false || ownsShard) {
             if (indexServiceInjectorTuple != null && nodeEnv.hasNodeFile()) {
                 final IndexService indexService = indexServiceInjectorTuple.v1();
                 return indexService.hasShard(shardId.id()) == false;

@@ -105,6 +105,7 @@ public class RecoverySource extends AbstractComponent {
             }
         }
         if (shard.routingEntry().primary() &&
+                targetShardRouting != null &&
                 targetShardRouting.primary() && // must be primary-to-primary relocation
                 shard.indexSettings().getAsBoolean(IndexMetaData.SETTING_SHADOW_REPLICAS, false)) {
             // TODO better exception here

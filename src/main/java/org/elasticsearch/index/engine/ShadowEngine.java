@@ -23,11 +23,9 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -88,25 +86,25 @@ public class ShadowEngine extends Engine {
     @Override
     public void create(Create create) throws EngineException {
         // no-op
-        logger.info("cowardly refusing to CREATE");
+        logger.debug("cowardly refusing to CREATE");
     }
 
     @Override
     public void index(Index index) throws EngineException {
         // no-op
-        logger.info("cowardly refusing to INDEX");
+        logger.debug("cowardly refusing to INDEX");
     }
 
     @Override
     public void delete(Delete delete) throws EngineException {
         // no-op
-        logger.info("cowardly refusing to DELETE");
+        logger.debug("cowardly refusing to DELETE");
     }
 
     @Override
     public void delete(DeleteByQuery delete) throws EngineException {
         // no-op
-        logger.info("cowardly refusing to DELETE-BY-QUERY");
+        logger.debug("cowardly refusing to DELETE-BY-QUERY");
     }
 
     @Override
@@ -116,7 +114,7 @@ public class ShadowEngine extends Engine {
 
     @Override
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        logger.info("cowardly refusing to FLUSH");
+        logger.debug("cowardly refusing to FLUSH");
     }
 
     @Override
@@ -126,7 +124,7 @@ public class ShadowEngine extends Engine {
 
     @Override
     public void forceMerge(boolean flush, boolean waitForMerge, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException {
-        logger.info("cowardly refusing to FORCE_MERGE, since the since the primary will do it");
+        logger.debug("cowardly refusing to FORCE_MERGE, since the since the primary will do it");
     }
 
     @Override

@@ -71,7 +71,6 @@ import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.flush.FlushStats;
-import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.indexing.IndexingStats;
@@ -330,7 +329,8 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (currentRouting.primary() == false && // currently a replica
                     newRouting.primary() == true && // becoming a primary
                     indexSettings.getAsBoolean(IndexMetaData.SETTING_SHADOW_REPLICAS, false)) {
-                failShard("foobar", new RuntimeException("Can't promote shadow replica"));
+                failShard("can't promote shadow replica to primary",
+                        new RuntimeException("can't promote shadow replica to primary"));
                 return this;
             }
         }

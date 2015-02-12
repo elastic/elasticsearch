@@ -120,6 +120,10 @@ public abstract class Terminal {
         }
     }
 
+    public void printWarn(String msg, Object... args) {
+        println(Verbosity.SILENT, "WARN: " + msg, args);
+    }
+
     protected abstract void doPrint(String msg, Object... args);
 
     public abstract PrintWriter writer();

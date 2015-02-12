@@ -148,6 +148,9 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
 
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        if (in.getVersion().before(Version.V_1_5_0)) {
+            in.readBoolean(); // backcompat for waitForMerges, no longer exists
+        }
         maxNumSegments = in.readInt();
         onlyExpungeDeletes = in.readBoolean();
         flush = in.readBoolean();
@@ -158,6 +161,9 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
 
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        if (out.getVersion().before(Version.V_1_5_0)) {
+            out.writeBoolean(true); // previously waitForMerges
+        }
         out.writeInt(maxNumSegments);
         out.writeBoolean(onlyExpungeDeletes);
         out.writeBoolean(flush);

@@ -533,7 +533,14 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         logger.trace("{} deleting shard reason [{}]", shardId, reason);
     }
 
-    //NOCOMMIT document this
+    /**
+     * This method returns true if the current node is allowed to delete the
+     * given index. If the index uses a shared filesystem this method always
+     * returns false.
+     * @param index {@code Index} to check whether deletion is allowed
+     * @param indexSettings {@code Settings} for the given index
+     * @return true if the index can be deleted on this node
+     */
     public boolean canDeleteIndexContents(Index index, Settings indexSettings) {
         final Tuple<IndexService, Injector> indexServiceInjectorTuple = this.indices.get(index);
         if (IndexMetaData.usesSharedFilesystem(indexSettings) == false) {

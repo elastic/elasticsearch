@@ -1,6 +1,9 @@
 ---
 "Indexed script":
 
+  - skip:
+      features: groovy_scripting
+
   - do:
       put_script:
         id: "1"

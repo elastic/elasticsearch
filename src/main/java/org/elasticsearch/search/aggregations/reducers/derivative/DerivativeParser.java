@@ -24,6 +24,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
+import org.elasticsearch.search.aggregations.support.format.ValueFormat;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -31,6 +33,7 @@ import java.io.IOException;
 public class DerivativeParser implements Reducer.Parser {
 
     public static final ParseField BUCKETS_PATH = new ParseField("bucketsPath");
+    public static final ParseField FORMAT = new ParseField("format");
 
     @Override
     public String type() {
@@ -42,6 +45,7 @@ public class DerivativeParser implements Reducer.Parser {
         XContentParser.Token token;
         String currentFieldName = null;
         String bucketsPath = null;
+        String format = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -49,6 +53,8 @@ public class DerivativeParser implements Reducer.Parser {
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (BUCKETS_PATH.match(currentFieldName)) {
                     bucketsPath = parser.text();
+                } else if (FORMAT.match(currentFieldName)) {
+                    format = parser.text();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
                             + currentFieldName + "].");
@@ -63,7 +69,12 @@ public class DerivativeParser implements Reducer.Parser {
                     + "] for derivative aggregation [" + reducerName + "]");
         }
 
-        return new DerivativeReducer.Factory(reducerName, bucketsPath);
+        ValueFormatter formatter = null;
+        if (format != null) {
+            formatter = ValueFormat.Patternable.Number.format(format).formatter();
+        }
+
+        return new DerivativeReducer.Factory(reducerName, bucketsPath, formatter);
     }
 
 }

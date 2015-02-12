@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.reducers.derivative;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -39,6 +40,7 @@ import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
 import org.elasticsearch.search.aggregations.reducers.ReducerStreams;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,7 +64,6 @@ public class DerivativeReducer extends Reducer {
         ReducerStreams.registerStream(STREAM, TYPE.stream());
     }
 
-    private String bucketsPath;
     private static final Function<Aggregation, InternalAggregation> FUNCTION = new Function<Aggregation, InternalAggregation>() {
         @Override
         public InternalAggregation apply(Aggregation input) {
@@ -70,12 +71,16 @@ public class DerivativeReducer extends Reducer {
         }
     };
 
+    private ValueFormatter formatter;
+    private String bucketsPath;
+
     public DerivativeReducer() {
     }
 
-    public DerivativeReducer(String name, String bucketsPath, Map<String, Object> metadata) {
+    public DerivativeReducer(String name, String bucketsPath, @Nullable ValueFormatter formatter, Map<String, Object> metadata) {
         super(name, metadata);
         this.bucketsPath = bucketsPath;
+        this.formatter = formatter;
     }
 
     @Override
@@ -97,9 +102,8 @@ public class DerivativeReducer extends Reducer {
                 double diff = thisBucketValue - lastBucketValue;
 
                 List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), FUNCTION));
-                aggs.add(new InternalSimpleValue(name(), diff, null, new ArrayList<Reducer>(), metaData())); // NOCOMMIT implement formatter for derivative reducer
-                InternalHistogram.Bucket newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(),
- new InternalAggregations(
+                aggs.add(new InternalSimpleValue(name(), diff, formatter, new ArrayList<Reducer>(), metaData()));
+                InternalHistogram.Bucket newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(), new InternalAggregations(
                         aggs), bucket.getKeyed(), bucket.getFormatter());
                 newBuckets.add(newBucket);
             } else {
@@ -136,17 +140,19 @@ public class DerivativeReducer extends Reducer {
 
     public static class Factory extends ReducerFactory {
 
-        private String bucketsPath;
+        private final String bucketsPath;
+        private final ValueFormatter formatter;
 
-        public Factory(String name, String field) {
+        public Factory(String name, String bucketsPath, @Nullable ValueFormatter formatter) {
             super(name, TYPE.name());
-            this.bucketsPath = field;
+            this.bucketsPath = bucketsPath;
+            this.formatter = formatter;
         }
 
         @Override
         protected Reducer createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
                 Map<String, Object> metaData) throws IOException {
-            return new DerivativeReducer(name, bucketsPath, metaData);
+            return new DerivativeReducer(name, bucketsPath, formatter, metaData);
         }
 
     }

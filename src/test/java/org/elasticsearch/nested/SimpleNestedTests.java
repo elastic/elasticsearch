@@ -19,6 +19,7 @@
 
 package org.elasticsearch.nested;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
@@ -1211,7 +1212,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
 
             // only when querying with nested the fixed bitsets are loaded
             SearchResponse searchResponse = client().prepareSearch("test")
-                    .setQuery(nestedQuery("array1", termQuery("field1", "value1")))
+                    .setQuery(nestedQuery("array1", termQuery("array1.field1", "value1")))
                     .get();
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().totalHits(), equalTo(5l));

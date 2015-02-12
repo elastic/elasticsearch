@@ -16,10 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.transport.netty;
+package org.elasticsearch.test.junit.rule;
 
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.transport.BindTransportException;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
@@ -27,20 +26,28 @@ import org.junit.runners.model.Statement;
 /**
  * A helper rule to catch all BindTransportExceptions
  * and rerun the test for a configured number of times
+ *
+ * Note: Be aware, that when a test is repeated, the @After and @Before
+ * annotated methods are not run a second time
+ *
  */
-public class RepeatOnBindExceptionRule implements TestRule {
+public class RepeatOnExceptionRule implements TestRule {
 
     private ESLogger logger;
     private int retryCount;
+    private Class expectedException;
 
     /**
      *
      * @param logger the es logger from the test class
      * @param retryCount number of amounts to try a single test before failing
+     * @param expectedException The exception class you want to catch
+     *
      */
-    public RepeatOnBindExceptionRule(ESLogger logger, int retryCount) {
+    public RepeatOnExceptionRule(ESLogger logger, int retryCount, Class expectedException) {
         this.logger = logger;
         this.retryCount = retryCount;
+        this.expectedException = expectedException;
     }
 
     @Override
@@ -55,9 +62,11 @@ public class RepeatOnBindExceptionRule implements TestRule {
                     try {
                         base.evaluate();
                         return;
-                    } catch (BindTransportException t) {
-                        caughtThrowable = t;
-                        logger.info("Bind exception occurred, rerunning the test after [{}] failures", t, i+1);
+                    } catch (Throwable t) {
+                        if (t.getClass().equals(expectedException)) {
+                            caughtThrowable = t;
+                            logger.info("Exception [{}] occurred, rerunning the test after [{}] failures", t, t.getClass().getSimpleName(), i+1);
+                        }
                     }
                 }
                 logger.error("Giving up after [{}] failures... marking test as failed", retryCount);

@@ -35,6 +35,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -317,7 +318,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < builders.length; i++) {
             builders[i] = client().prepareIndex(IDX, "doc", Integer.toString(i)).setSource("foo", "foobar");
         }
-        indexRandom(false, builders);
+        indexRandom(false, true, false, Arrays.asList(builders)); // don't flush here
         // only refresh no flush
         refresh();
         ClusterState state = client().admin().cluster().prepareState().get().getState();

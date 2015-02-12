@@ -172,13 +172,6 @@ public class RecoveryTarget extends AbstractComponent {
 
     private void doRecovery(final RecoveryStatus recoveryStatus) {
         assert recoveryStatus.sourceNode() != null : "can't do a recovery without a source node";
-        if (IndexMetaData.usesSharedFilesystem(recoveryStatus.indexShard().indexSettings())) {
-            // NOCOMMIT - this is a super shortcut we need to check if statistics are all on etc.
-            recoveryStatus.indexShard().performRecoveryPrepareForTranslog();
-            recoveryStatus.indexShard().performRecoveryFinalization(false, recoveryStatus.state());
-            onGoingRecoveries.markRecoveryAsDone(recoveryStatus.recoveryId());
-            return;
-        }
         logger.trace("collecting local files for {}", recoveryStatus);
         final Map<String, StoreFileMetaData> existingFiles;
         try {
@@ -419,9 +412,7 @@ public class RecoveryTarget extends AbstractComponent {
                 recoveryStatus.legacyChecksums().write(store);
                 Store.MetadataSnapshot sourceMetaData = request.sourceMetaSnapshot();
                 try {
-                    IndexMetaData indexMeta = clusterService.state().getMetaData().index(request.shardId().getIndex());
-                    assert IndexMetaData.usesSharedFilesystem(indexMeta.settings()) == false : "[" + indexMeta.getIndex() +"] index uses shared FS - can't recover / clean files";
-                    store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData, indexMeta.settings());
+                    store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
                 } catch (Exception ex) {
                     throw new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
                 }

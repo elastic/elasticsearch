@@ -547,11 +547,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @param reason         the reason for this cleanup operation logged for each deleted file
      * @param sourceMetaData the metadata used for cleanup. all files in this metadata should be kept around.
-     * @param indexSettings  the settings for the index that is being cleaned up
      * @throws IOException                        if an IOException occurs
      * @throws ElasticsearchIllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
      */
-    public void cleanupAndVerify(String reason, MetadataSnapshot sourceMetaData, @IndexSettings Settings indexSettings) throws IOException {
+    public void cleanupAndVerify(String reason, MetadataSnapshot sourceMetaData) throws IOException {
         failIfCorrupted();
         metadataLock.writeLock().lock();
         try {

@@ -967,7 +967,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         checksums.write(store); // write one checksum file here - we expect it to survive all the cleanups
 
         if (randomBoolean()) {
-            store.cleanupAndVerify("test", firstMeta, ImmutableSettings.EMPTY);
+            store.cleanupAndVerify("test", firstMeta);
             String[] strings = store.directory().listAll();
             int numChecksums = 0;
             int numNotFound = 0;
@@ -983,7 +983,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             assertTrue("at least one file must not be in here since we have two commits?", numNotFound > 0);
             assertEquals("we wrote one checksum but it's gone now? - checksums are supposed to be kept", numChecksums, 1);
         } else {
-            store.cleanupAndVerify("test", secondMeta, ImmutableSettings.EMPTY);
+            store.cleanupAndVerify("test", secondMeta);
             String[] strings = store.directory().listAll();
             int numChecksums = 0;
             int numNotFound = 0;

@@ -107,15 +107,6 @@ public class RecoverySource extends AbstractComponent {
                 break;
             }
         }
-        if (shard.routingEntry().primary() &&
-                targetShardRouting != null &&
-                targetShardRouting.primary() && // must be primary-to-primary relocation
-                IndexMetaData.usesSharedFilesystem(shard.indexSettings())) {
-            // nocommit - is this really how we want to handle relocation?
-            logger.info("aborting recovery of shadow primary to shadow primary");
-            shard.engine().failEngine("attempted to relocate primary shard for shadow index",
-                    new ElasticsearchException("aborting recovery of shadow primary to shadow primary"));
-        }
         if (targetShardRouting == null) {
             logger.debug("delaying recovery of {} as it is not listed as assigned to target node {}", request.shardId(), request.targetNode());
             throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
@@ -128,7 +119,9 @@ public class RecoverySource extends AbstractComponent {
 
         logger.trace("[{}][{}] starting recovery to {}, mark_as_relocated {}", request.shardId().index().name(), request.shardId().id(), request.targetNode(), request.markAsRelocated());
         final ShardRecoveryHandler handler;
-        if (request.recoveryType() == RecoveryState.Type.FILE_SYNC) {
+        if (IndexMetaData.usesSharedFilesystem(shard.indexSettings())) {
+            handler = new SharedFSRecoveryHandler(shard, request, recoverySettings, transportService, clusterService, indicesService, mappingUpdatedAction, logger);
+        } else if (request.recoveryType() == RecoveryState.Type.FILE_SYNC) {
             logger.trace("{} taking snapshot before file sync recovery", shard.shardId());
             Releasables.close(shard.snapshotIndex()); // we have to take a snapshot here and close it right away so we can catchup from the latest docs committed
             handler = new FileSyncRecoveryHandler(shard, request, recoverySettings, transportService, clusterService, indicesService, mappingUpdatedAction, logger);

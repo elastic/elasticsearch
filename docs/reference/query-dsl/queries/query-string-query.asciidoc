@@ -125,7 +125,7 @@ matches the same words as
 --------------------------------------------------
 {
     "query_string": {
-      "query": "(content:this OR content:that) AND (name:this OR name:that)"
+      "query": "(content:this OR name:this) AND (content:that OR name:that)"
     }
 }
 --------------------------------------------------

@@ -56,6 +56,7 @@ import org.elasticsearch.search.aggregations.metrics.sum.SumParser;
 import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsParser;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountParser;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeParser;
 
 import java.util.List;
 
@@ -99,7 +100,7 @@ public class AggregationModule extends AbstractModule implements SpawnModules{
         aggParsers.add(ScriptedMetricParser.class);
         aggParsers.add(ChildrenParser.class);
 
-        // NOCOMMIT reducerParsers.add(FooParser.class);
+        reducerParsers.add(DerivativeParser.class);
     }
 
     /**

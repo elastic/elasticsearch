@@ -284,12 +284,16 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         for (PrioritizedEsThreadPoolExecutor.Pending pending : pendings) {
             final String source;
             final long timeInQueue;
-            if (pending.task instanceof TimedPrioritizedRunnable) {
-                TimedPrioritizedRunnable runnable = (TimedPrioritizedRunnable) pending.task;
+            // we have to capture the task as it will be nulled after execution and we don't want to change while we check things here.
+            final Object task = pending.task;
+            if (task == null) {
+                continue;
+            } else if (task instanceof TimedPrioritizedRunnable) {
+                TimedPrioritizedRunnable runnable = (TimedPrioritizedRunnable) task;
                 source = runnable.source();
                 timeInQueue = runnable.timeSinceCreatedInMillis();
             } else {
-                assert false : "expected TimedPrioritizedRunnable got " + pending.task.getClass();
+                assert false : "expected TimedPrioritizedRunnable got " + task.getClass();
                 source = "unknown";
                 timeInQueue = 0;
             }

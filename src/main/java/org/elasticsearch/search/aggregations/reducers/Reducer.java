@@ -19,14 +19,19 @@
 
 package org.elasticsearch.search.aggregations.reducers;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.Map;
 
-public abstract class Reducer {
+public abstract class Reducer implements Streamable {
 
     /**
      * Parses the reducer request and creates the appropriate reducer factory
@@ -58,6 +63,44 @@ public abstract class Reducer {
 
     }
 
+    protected String name;
+    protected Map<String, Object> metaData;
+
+    protected Reducer() { // for Serialisation
+    }
+
+    protected Reducer(String name, Map<String, Object> metaData) {
+        this.name = name;
+        this.metaData = metaData;
+    }
+
+    public String name() {
+        return name;
+    }
+
+    public Map<String, Object> metaData() {
+        return metaData;
+    }
+
+    public abstract Type type();
+
     public abstract InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext);
 
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeMap(metaData);
+        doWriteTo(out);
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+
+    @Override
+    public final void readFrom(StreamInput in) throws IOException {
+        name = in.readString();
+        metaData = in.readMap();
+        doReadFrom(in);
+    }
+
+    protected abstract void doReadFrom(StreamInput in) throws IOException;
 }

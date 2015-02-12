@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Lists;
+
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.reducers.ReducerStreams;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
@@ -209,6 +213,11 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeGenericValue(metaData);
+        out.writeVInt(reducers.size());
+        for (Reducer reducer : reducers) {
+            out.writeBytesReference(reducer.type().stream());
+            reducer.writeTo(out);
+        }
         doWriteTo(out);
     }
 
@@ -217,6 +226,17 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
     public final void readFrom(StreamInput in) throws IOException {
         name = in.readString();
         metaData = in.readMap();
+        int size = in.readVInt();
+        if (size == 0) {
+            reducers = ImmutableList.of();
+        } else {
+            reducers = Lists.newArrayListWithCapacity(size);
+            for (int i = 0; i < size; i++) {
+                BytesReference type = in.readBytesReference();
+                Reducer reducer = ReducerStreams.stream(type).readResult(in);
+                reducers.add(reducer);
+            }
+        }
         doReadFrom(in);
     }
 

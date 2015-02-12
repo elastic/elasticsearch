@@ -98,6 +98,8 @@ public class AggregationModule extends AbstractModule implements SpawnModules{
         aggParsers.add(GeoBoundsParser.class);
         aggParsers.add(ScriptedMetricParser.class);
         aggParsers.add(ChildrenParser.class);
+
+        // NOCOMMIT reducerParsers.add(FooParser.class);
     }
 
     /**

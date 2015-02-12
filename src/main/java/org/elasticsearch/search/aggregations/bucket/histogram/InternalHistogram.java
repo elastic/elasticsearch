@@ -186,6 +186,14 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             out.writeVLong(docCount);
             aggregations.writeTo(out);
         }
+
+        public ValueFormatter getFormatter() {
+            return formatter;
+        }
+
+        public boolean getKeyed() {
+            return keyed;
+        }
     }
 
     static class EmptyBucketInfo {
@@ -224,7 +232,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     }
 
-    static class Factory<B extends InternalHistogram.Bucket> {
+    public static class Factory<B extends InternalHistogram.Bucket> {
 
         protected Factory() {
         }
@@ -283,7 +291,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         return buckets;
     }
 
-    protected Factory<B> getFactory() {
+    public Factory<B> getFactory() {
         return factory;
     }
 

@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -28,11 +29,16 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortingNumericDocValues;
 import org.elasticsearch.index.query.GeoBoundingBoxFilterBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
-import org.elasticsearch.search.aggregations.support.*;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -131,26 +137,23 @@ public class GeoHashGridParser implements Aggregator.Parser {
             if (collectsFromSingleBucket == false) {
                 return asMultiBucketAggregator(this, aggregationContext, parent);
             }
-            final CellValues cellIdValues = new CellValues(valuesSource, precision);
-            ValuesSource.Numeric cellIdSource = new CellIdSource(cellIdValues, valuesSource.metaData());
+            ValuesSource.Numeric cellIdSource = new CellIdSource(valuesSource, precision);
             return new GeoHashGridAggregator(name, factories, cellIdSource, requiredSize, shardSize, aggregationContext, parent, metaData);
 
         }
 
         private static class CellValues extends SortingNumericDocValues {
 
-            private ValuesSource.GeoPoint geoPointValues;
             private MultiGeoPointValues geoValues;
             private int precision;
 
-            protected CellValues(ValuesSource.GeoPoint geoPointValues, int precision) {
-                this.geoPointValues = geoPointValues;
+            protected CellValues(MultiGeoPointValues geoValues, int precision) {
+                this.geoValues = geoValues;
                 this.precision = precision;
             }
 
             @Override
             public void setDocument(int docId) {
-                geoValues = geoPointValues.geoPointValues();
                 geoValues.setDocument(docId);
                 resize(geoValues.count());
                 for (int i = 0; i < count(); ++i) {
@@ -163,13 +166,13 @@ public class GeoHashGridParser implements Aggregator.Parser {
         }
 
         private static class CellIdSource extends ValuesSource.Numeric {
-            private final SortedNumericDocValues values;
-            private MetaData metaData;
+            private final ValuesSource.GeoPoint valuesSource;
+            private final int precision;
 
-            public CellIdSource(SortedNumericDocValues values, MetaData delegate) {
-                this.values = values;
+            public CellIdSource(ValuesSource.GeoPoint valuesSource, int precision) {
+                this.valuesSource = valuesSource;
                 //different GeoPoints could map to the same or different geohash cells.
-                this.metaData = MetaData.builder(delegate).uniqueness(MetaData.Uniqueness.UNKNOWN).build();
+                this.precision = precision;
             }
 
             @Override
@@ -178,23 +181,18 @@ public class GeoHashGridParser implements Aggregator.Parser {
             }
 
             @Override
-            public SortedNumericDocValues longValues() {
-                return values;
+            public SortedNumericDocValues longValues(LeafReaderContext ctx) {
+                return new CellValues(valuesSource.geoPointValues(ctx), precision);
             }
 
             @Override
-            public SortedNumericDoubleValues doubleValues() {
+            public SortedNumericDoubleValues doubleValues(LeafReaderContext ctx) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues() {
+            public SortedBinaryDocValues bytesValues(LeafReaderContext ctx) {
                 throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public MetaData metaData() {
-                return metaData;
             }
 
         }

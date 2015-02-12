@@ -26,12 +26,18 @@ import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
@@ -41,85 +47,75 @@ import java.util.Map;
 /**
  *
  */
-public class NestedAggregator extends SingleBucketAggregator implements ReaderContextAware {
+public class NestedAggregator extends SingleBucketAggregator {
 
-    private final Aggregator parentAggregator;
     private BitDocIdSetFilter parentFilter;
     private final Filter childFilter;
 
     private DocIdSetIterator childDocs;
     private BitSet parentDocs;
-    private LeafReaderContext reader;
 
     public NestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parentAggregator, Map<String, Object> metaData, FilterCachingPolicy filterCachingPolicy) throws IOException {
         super(name, factories, aggregationContext, parentAggregator, metaData);
-        this.parentAggregator = parentAggregator;
         childFilter = aggregationContext.searchContext().filterCache().cache(objectMapper.nestedTypeFilter(), null, filterCachingPolicy);
     }
 
     @Override
-    public void setNextReader(LeafReaderContext reader) {
+    public LeafBucketCollector getLeafCollector(final LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         // Reset parentFilter, so we resolve the parentDocs for each new segment being searched
         this.parentFilter = null;
-        this.reader = reader;
-        try {
-            // In ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
-            DocIdSet childDocIdSet = childFilter.getDocIdSet(reader, null);
-            if (DocIdSets.isEmpty(childDocIdSet)) {
-                childDocs = null;
-            } else {
-                childDocs = childDocIdSet.iterator();
+        // In ES if parent is deleted, then also the children are deleted. Therefore acceptedDocs can also null here.
+        DocIdSet childDocIdSet = childFilter.getDocIdSet(ctx, null);
+        if (DocIdSets.isEmpty(childDocIdSet)) {
+            childDocs = null;
+        } else {
+            childDocs = childDocIdSet.iterator();
+        }
+
+        return new LeafBucketCollectorBase(sub, null) {
+            @Override
+            public void collect(int parentDoc, long bucket) throws IOException {
+                // here we translate the parent doc to a list of its nested docs, and then call super.collect for evey one of them so they'll be collected
+
+                // if parentDoc is 0 then this means that this parent doesn't have child docs (b/c these appear always before the parent doc), so we can skip:
+                if (parentDoc == 0 || childDocs == null) {
+                    return;
+                }
+                if (parentFilter == null) {
+                    // The aggs are instantiated in reverse, first the most inner nested aggs and lastly the top level aggs
+                    // So at the time a nested 'nested' aggs is parsed its closest parent nested aggs hasn't been constructed.
+                    // So the trick is to set at the last moment just before needed and we can use its child filter as the
+                    // parent filter.
+
+                    // Additional NOTE: Before this logic was performed in the setNextReader(...) method, but the the assumption
+                    // that aggs instances are constructed in reverse doesn't hold when buckets are constructed lazily during
+                    // aggs execution
+                    Filter parentFilterNotCached = findClosestNestedPath(parent());
+                    if (parentFilterNotCached == null) {
+                        parentFilterNotCached = NonNestedDocsFilter.INSTANCE;
+                    }
+                    parentFilter = context.searchContext().bitsetFilterCache().getBitDocIdSetFilter(parentFilterNotCached);
+                    BitDocIdSet parentSet = parentFilter.getDocIdSet(ctx);
+                    if (DocIdSets.isEmpty(parentSet)) {
+                        // There are no parentDocs in the segment, so return and set childDocs to null, so we exit early for future invocations.
+                        childDocs = null;
+                        return;
+                    } else {
+                        parentDocs = parentSet.bits();
+                    }
+                }
+
+                final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
+                int childDocId = childDocs.docID();
+                if (childDocId <= prevParentDoc) {
+                    childDocId = childDocs.advance(prevParentDoc + 1);
+                }
+
+                for (; childDocId < parentDoc; childDocId = childDocs.nextDoc()) {
+                    collectBucket(sub, childDocId, bucket);
+                }
             }
-        } catch (IOException ioe) {
-            throw new AggregationExecutionException("Failed to aggregate [" + name + "]", ioe);
-        }
-    }
-
-    @Override
-    public void collect(int parentDoc, long bucketOrd) throws IOException {
-        assert bucketOrd == 0;
-        // here we translate the parent doc to a list of its nested docs, and then call super.collect for evey one of them so they'll be collected
-
-        // if parentDoc is 0 then this means that this parent doesn't have child docs (b/c these appear always before the parent doc), so we can skip:
-        if (parentDoc == 0 || childDocs == null) {
-            return;
-        }
-        if (parentFilter == null) {
-            // The aggs are instantiated in reverse, first the most inner nested aggs and lastly the top level aggs
-            // So at the time a nested 'nested' aggs is parsed its closest parent nested aggs hasn't been constructed.
-            // So the trick is to set at the last moment just before needed and we can use its child filter as the
-            // parent filter.
-
-            // Additional NOTE: Before this logic was performed in the setNextReader(...) method, but the the assumption
-            // that aggs instances are constructed in reverse doesn't hold when buckets are constructed lazily during
-            // aggs execution
-            Filter parentFilterNotCached = findClosestNestedPath(parentAggregator);
-            if (parentFilterNotCached == null) {
-                parentFilterNotCached = NonNestedDocsFilter.INSTANCE;
-            }
-            parentFilter = context.searchContext().bitsetFilterCache().getBitDocIdSetFilter(parentFilterNotCached);
-            BitDocIdSet parentSet = parentFilter.getDocIdSet(reader);
-            if (DocIdSets.isEmpty(parentSet)) {
-                // There are no parentDocs in the segment, so return and set childDocs to null, so we exit early for future invocations.
-                childDocs = null;
-                return;
-            } else {
-                parentDocs = parentSet.bits();
-            }
-        }
-
-        final int prevParentDoc = parentDocs.prevSetBit(parentDoc - 1);
-        int childDocId = childDocs.docID();
-        if (childDocId <= prevParentDoc) {
-            childDocId = childDocs.advance(prevParentDoc + 1);
-        }
-
-        int numChildren = 0;
-        for (; childDocId < parentDoc; childDocId = childDocs.nextDoc()) {
-            collectBucketNoCounts(childDocId, bucketOrd);
-            numChildren += 1;
-        }
-        incrementBucketDocCount(bucketOrd, numChildren);
+        };
     }
         
     @Override

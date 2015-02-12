@@ -63,7 +63,7 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<V
      * because otherwise it might be memory-intensive. On the other hand, for top-level aggregators
      * we try to focus on accuracy.
      */
-    private int defaultPrecision(Aggregator parent) {
+    private static int defaultPrecision(Aggregator parent) {
         int precision = HyperLogLogPlusPlus.DEFAULT_PRECISION;
         while (parent != null) {
             if (parent instanceof SingleBucketAggregator == false) {

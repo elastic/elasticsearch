@@ -21,8 +21,13 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
+import org.elasticsearch.search.aggregations.AggregatorBase;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -43,7 +48,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
-                              long maxOrd, Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
+                              Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, Map<String, Object> metaData) throws IOException {
                 return new StringTermsAggregator(name, factories, valuesSource, order, bucketCountThresholds, includeExclude, aggregationContext, parent, subAggCollectMode, showTermDocCountError, metaData);
             }
@@ -58,9 +63,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
-                              long maxOrd, Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
+                              Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, Map<String, Object> metaData) throws IOException {
-                return new GlobalOrdinalsStringTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, maxOrd, order, bucketCountThresholds, includeExclude, aggregationContext, parent, subAggCollectMode, showTermDocCountError, metaData);
+                return new GlobalOrdinalsStringTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, order, bucketCountThresholds, includeExclude, aggregationContext, parent, subAggCollectMode, showTermDocCountError, metaData);
             }
 
             @Override
@@ -73,9 +78,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
-                              long maxOrd, Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
+                              Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, Map<String, Object> metaData) throws IOException {
-                return new GlobalOrdinalsStringTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, maxOrd, order, bucketCountThresholds, includeExclude, aggregationContext, parent, subAggCollectMode, showTermDocCountError, metaData);
+                return new GlobalOrdinalsStringTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, order, bucketCountThresholds, includeExclude, aggregationContext, parent, subAggCollectMode, showTermDocCountError, metaData);
             }
 
             @Override
@@ -87,12 +92,12 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
 
             @Override
             Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
-                              long maxOrd, Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
+                              Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, Map<String, Object> metaData) throws IOException {
                 if (includeExclude != null || factories.count() > 0) {
-                    return GLOBAL_ORDINALS.create(name, factories, valuesSource, maxOrd, order, bucketCountThresholds, includeExclude, aggregationContext, parent, subAggCollectMode, showTermDocCountError, metaData);
+                    return GLOBAL_ORDINALS.create(name, factories, valuesSource, order, bucketCountThresholds, includeExclude, aggregationContext, parent, subAggCollectMode, showTermDocCountError, metaData);
                 }
-                return new GlobalOrdinalsStringTermsAggregator.LowCardinality(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, maxOrd, order, bucketCountThresholds, aggregationContext, parent, subAggCollectMode, showTermDocCountError, metaData);
+                return new GlobalOrdinalsStringTermsAggregator.LowCardinality(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, order, bucketCountThresholds, aggregationContext, parent, subAggCollectMode, showTermDocCountError, metaData);
             }
 
             @Override
@@ -117,8 +122,9 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
         }
 
         abstract Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
-                                   long maxOrd, Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds,
-                                   IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, Map<String, Object> metaData) throws IOException;
+                                   Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds,
+                                   IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent,
+                                   SubAggCollectionMode subAggCollectMode, boolean showTermDocCountError, Map<String, Object> metaData) throws IOException;
 
         abstract boolean needsGlobalOrdinals();
 
@@ -131,17 +137,17 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     private final Terms.Order order;
     private final IncludeExclude includeExclude;
     private final String executionHint;
-    private SubAggCollectionMode subAggCollectMode;
+    private final SubAggCollectionMode collectMode;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
-    private boolean showTermDocCountError;
+    private final boolean showTermDocCountError;
 
-    public TermsAggregatorFactory(String name, ValuesSourceConfig config, Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, String executionHint,SubAggCollectionMode executionMode, boolean showTermDocCountError) {
+    public TermsAggregatorFactory(String name, ValuesSourceConfig config, Terms.Order order, TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, String executionHint, SubAggCollectionMode executionMode, boolean showTermDocCountError) {
         super(name, StringTerms.TYPE.name(), config);
         this.order = order;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
         this.bucketCountThresholds = bucketCountThresholds;
-        this.subAggCollectMode = executionMode;
+        this.collectMode = executionMode;
         this.showTermDocCountError = showTermDocCountError;
     }
 
@@ -211,8 +217,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
             }
 
             assert execution != null;
-            valuesSource.setNeedsGlobalOrdinals(execution.needsGlobalOrdinals());
-            return execution.create(name, factories, valuesSource, maxOrd, order, bucketCountThresholds, includeExclude, aggregationContext, parent, subAggCollectMode, showTermDocCountError, metaData);
+            return execution.create(name, factories, valuesSource, order, bucketCountThresholds, includeExclude, aggregationContext, parent, collectMode, showTermDocCountError, metaData);
         }
 
         if ((includeExclude != null) && (includeExclude.isRegexBased())) {
@@ -227,14 +232,14 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
                     longFilter = includeExclude.convertToDoubleFilter();
                 }
                 return new DoubleTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(),
-                        order, bucketCountThresholds, aggregationContext, parent, subAggCollectMode,
+                        order, bucketCountThresholds, aggregationContext, parent, collectMode,
                         showTermDocCountError, longFilter, metaData);
             }
             if (includeExclude != null) {
                 longFilter = includeExclude.convertToLongFilter();
             }
             return new LongTermsAggregator(name, factories, (ValuesSource.Numeric) valuesSource, config.format(),
-                    order, bucketCountThresholds, aggregationContext, parent, subAggCollectMode, showTermDocCountError, longFilter, metaData);
+                    order, bucketCountThresholds, aggregationContext, parent, collectMode, showTermDocCountError, longFilter, metaData);
         }
 
         throw new AggregationExecutionException("terms aggregation cannot be applied to field [" + config.fieldContext().field() +

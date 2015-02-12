@@ -713,12 +713,12 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void forceMerge(boolean flush, boolean waitForMerge) {
-        forceMerge(flush, waitForMerge, 1, false, false);
+    public void forceMerge(boolean flush) {
+        forceMerge(flush, 1, false, false);
     }
 
     @Override
-    public void forceMerge(final boolean flush, boolean waitForMerge, int maxNumSegments, boolean onlyExpungeDeletes, final boolean upgrade) throws EngineException {
+    public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, final boolean upgrade) throws EngineException {
         if (optimizeMutex.compareAndSet(false, true)) {
             try (ReleasableLock _ = readLock.acquire()) {
                 ensureOpen();
@@ -751,23 +751,7 @@ public class InternalEngine extends Engine {
             }
         }
 
-        // wait for the merges outside of the read lock
-        if (waitForMerge) {
-            waitForMerges(flush, upgrade);
-        } else if (flush || upgrade) {
-            // we only need to monitor merges for async calls if we are going to flush
-            engineConfig.getThreadPool().executor(ThreadPool.Names.OPTIMIZE).execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Throwable t) {
-                    logger.error("Exception while waiting for merges asynchronously after optimize", t);
-                }
-
-                @Override
-                protected void doRun() throws Exception {
-                    waitForMerges(flush, upgrade);
-                }
-            });
-        }
+        waitForMerges(flush, upgrade);
     }
 
     @Override

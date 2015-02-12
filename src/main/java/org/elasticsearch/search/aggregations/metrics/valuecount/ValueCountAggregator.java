@@ -21,10 +21,13 @@ package org.elasticsearch.search.aggregations.metrics.valuecount;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -43,12 +46,11 @@ import java.util.Map;
  */
 public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
 
-    private final ValuesSource valuesSource;
-    private SortedBinaryDocValues values;
+    final ValuesSource valuesSource;
+    final ValueFormatter formatter;
 
     // a count per bucket
     LongArray counts;
-    private ValueFormatter formatter;
 
     public ValueCountAggregator(String name, ValuesSource valuesSource, @Nullable ValueFormatter formatter,
             AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
@@ -56,25 +58,28 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
         this.valuesSource = valuesSource;
         this.formatter = formatter;
         if (valuesSource != null) {
-            counts = bigArrays.newLongArray(1, true);
+            counts = context.bigArrays().newLongArray(1, true);
         }
     }
 
     @Override
-    public boolean shouldCollect() {
-        return valuesSource != null;
-    }
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        if (valuesSource == null) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
+        }
+        final BigArrays bigArrays = context.bigArrays();
+        final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+        return new LeafBucketCollectorBase(sub, values) {
 
-    @Override
-    public void setNextReader(LeafReaderContext reader) {
-        values = valuesSource.bytesValues();
-    }
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                counts = bigArrays.grow(counts, bucket + 1);
+                values.setDocument(doc);
+                counts.increment(bucket, values.count());
+            }
 
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        counts = bigArrays.grow(counts, owningBucketOrdinal + 1);
-        values.setDocument(doc);
-        counts.increment(owningBucketOrdinal, values.count());
+        };
     }
 
     @Override
@@ -83,12 +88,11 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        if (valuesSource == null) {
-            return new InternalValueCount(name, 0, formatter, metaData());
+    public InternalAggregation buildAggregation(long bucket) {
+        if (valuesSource == null || bucket >= counts.size()) {
+            return buildEmptyAggregation();
         }
-        assert owningBucketOrdinal < counts.size();
-        return new InternalValueCount(name, counts.get(owningBucketOrdinal), formatter, metaData());
+        return new InternalValueCount(name, counts.get(bucket), formatter, metaData());
     }
 
     @Override

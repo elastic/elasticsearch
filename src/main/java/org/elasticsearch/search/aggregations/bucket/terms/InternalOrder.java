@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Comparators;
@@ -220,7 +219,7 @@ class InternalOrder extends Terms.Order {
         }
     }
 
-    static class CompoundOrder extends Terms.Order{
+    static class CompoundOrder extends Terms.Order {
 
         static final byte ID = -1;
 

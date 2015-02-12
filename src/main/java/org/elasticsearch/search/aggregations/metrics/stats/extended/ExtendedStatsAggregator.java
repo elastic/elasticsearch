@@ -28,6 +28,8 @@ import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -43,16 +45,15 @@ import java.util.Map;
  */
 public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
 
-    private final ValuesSource.Numeric valuesSource;
-    private SortedNumericDoubleValues values;
+    final ValuesSource.Numeric valuesSource;
+    final ValueFormatter formatter;
+    final double sigma;
 
-    private LongArray counts;
-    private DoubleArray sums;
-    private DoubleArray mins;
-    private DoubleArray maxes;
-    private DoubleArray sumOfSqrs;
-    private ValueFormatter formatter;
-    private double sigma;
+    LongArray counts;
+    DoubleArray sums;
+    DoubleArray mins;
+    DoubleArray maxes;
+    DoubleArray sumOfSqrs;
 
     public ExtendedStatsAggregator(String name, ValuesSource.Numeric valuesSource,
                                    @Nullable ValueFormatter formatter, AggregationContext context,
@@ -60,7 +61,9 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
         super(name, context, parent, metaData);
         this.valuesSource = valuesSource;
         this.formatter = formatter;
+        this.sigma = sigma;
         if (valuesSource != null) {
+            final BigArrays bigArrays = context.bigArrays();
             counts = bigArrays.newLongArray(1, true);
             sums = bigArrays.newDoubleArray(1, true);
             mins = bigArrays.newDoubleArray(1, false);
@@ -68,52 +71,59 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
             maxes = bigArrays.newDoubleArray(1, false);
             maxes.fill(0, maxes.size(), Double.NEGATIVE_INFINITY);
             sumOfSqrs = bigArrays.newDoubleArray(1, true);
-            this.sigma = sigma;
         }
     }
 
     @Override
-    public boolean shouldCollect() {
-        return valuesSource != null;
+    public boolean needsScores() {
+        return valuesSource != null && valuesSource.needsScores();
     }
 
     @Override
-    public void setNextReader(LeafReaderContext reader) {
-        values = valuesSource.doubleValues();
-    }
-
-    @Override
-    public void collect(int doc, long owningBucketOrdinal) throws IOException {
-        if (owningBucketOrdinal >= counts.size()) {
-            final long from = counts.size();
-            final long overSize = BigArrays.overSize(owningBucketOrdinal + 1);
-            counts = bigArrays.resize(counts, overSize);
-            sums = bigArrays.resize(sums, overSize);
-            mins = bigArrays.resize(mins, overSize);
-            maxes = bigArrays.resize(maxes, overSize);
-            sumOfSqrs = bigArrays.resize(sumOfSqrs, overSize);
-            mins.fill(from, overSize, Double.POSITIVE_INFINITY);
-            maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        if (valuesSource == null) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
         }
+        final BigArrays bigArrays = context.bigArrays();
+        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        return new LeafBucketCollectorBase(sub, values) {
 
-        values.setDocument(doc);
-        final int valuesCount = values.count();
-        counts.increment(owningBucketOrdinal, valuesCount);
-        double sum = 0;
-        double sumOfSqr = 0;
-        double min = mins.get(owningBucketOrdinal);
-        double max = maxes.get(owningBucketOrdinal);
-        for (int i = 0; i < valuesCount; i++) {
-            double value = values.valueAt(i);
-            sum += value;
-            sumOfSqr += value * value;
-            min = Math.min(min, value);
-            max = Math.max(max, value);
-        }
-        sums.increment(owningBucketOrdinal, sum);
-        sumOfSqrs.increment(owningBucketOrdinal, sumOfSqr);
-        mins.set(owningBucketOrdinal, min);
-        maxes.set(owningBucketOrdinal, max);
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                if (bucket >= counts.size()) {
+                    final long from = counts.size();
+                    final long overSize = BigArrays.overSize(bucket + 1);
+                    counts = bigArrays.resize(counts, overSize);
+                    sums = bigArrays.resize(sums, overSize);
+                    mins = bigArrays.resize(mins, overSize);
+                    maxes = bigArrays.resize(maxes, overSize);
+                    sumOfSqrs = bigArrays.resize(sumOfSqrs, overSize);
+                    mins.fill(from, overSize, Double.POSITIVE_INFINITY);
+                    maxes.fill(from, overSize, Double.NEGATIVE_INFINITY);
+                }
+
+                values.setDocument(doc);
+                final int valuesCount = values.count();
+                counts.increment(bucket, valuesCount);
+                double sum = 0;
+                double sumOfSqr = 0;
+                double min = mins.get(bucket);
+                double max = maxes.get(bucket);
+                for (int i = 0; i < valuesCount; i++) {
+                    double value = values.valueAt(i);
+                    sum += value;
+                    sumOfSqr += value * value;
+                    min = Math.min(min, value);
+                    max = Math.max(max, value);
+                }
+                sums.increment(bucket, sum);
+                sumOfSqrs.increment(bucket, sumOfSqr);
+                mins.set(bucket, min);
+                maxes.set(bucket, max);
+            }
+
+        };
     }
 
     @Override

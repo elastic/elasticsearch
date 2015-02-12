@@ -21,6 +21,7 @@ package org.elasticsearch.benchmark.search.aggregations;
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;

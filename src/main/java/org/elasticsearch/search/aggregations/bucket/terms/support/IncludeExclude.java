@@ -175,7 +175,7 @@ public class IncludeExclude {
             if(hasRegexTest) {
                 // We have includeVals that are a regex or only regex excludes - we need to do the potentially 
                 // slow option of hitting termsEnum for every term in the index.
-                TermsEnum globalTermsEnum = valueSource.globalOrdinalsValues().termsEnum();
+                TermsEnum globalTermsEnum = globalOrdinals.termsEnum();
                 try {
                     for (BytesRef term = globalTermsEnum.next(); term != null; term = globalTermsEnum.next()) {
                         if (accept(term)) {

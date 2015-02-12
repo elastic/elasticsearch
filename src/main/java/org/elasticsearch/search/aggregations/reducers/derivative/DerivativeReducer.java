@@ -96,9 +96,9 @@ public class DerivativeReducer extends Reducer {
                 double diff = thisBucketValue - lastBucketValue;
 
                 List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), FUNCTION));
-                aggs.add(new InternalSimpleValue(bucketsPath, diff, null, new ArrayList<Reducer>(), metaData())); // NOCOMMIT implement formatter for derivative reducer
+                aggs.add(new InternalSimpleValue(name(), diff, null, new ArrayList<Reducer>(), metaData())); // NOCOMMIT implement formatter for derivative reducer
                 InternalHistogram.Bucket newBucket = factory.createBucket(((DateTime) bucket.getKey()).getMillis(), bucket.getDocCount(),
-                        new InternalAggregations(aggs), bucket.getKeyed(), bucket.getFormatter()); // NOCOMMIT fix key resolution for dates
+                        new InternalAggregations(aggs), bucket.getKeyed(), bucket.getFormatter()); // NOCOMMIT fix key resolution to deal with numbers and dates
                 newBuckets.add(newBucket);
             } else {
                 newBuckets.add(bucket);

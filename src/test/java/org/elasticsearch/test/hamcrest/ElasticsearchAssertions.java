@@ -797,6 +797,13 @@ public class ElasticsearchAssertions {
     }
 
     /**
+     * Check if a file does not exist
+     */
+    public static void assertFileNotExists(Path file) {
+        assertThat("file/dir [" + file + "] should not exist.", Files.exists(file), is(false));
+    }
+
+    /**
      * Check if a directory exists
      */
     public static void assertDirectoryExists(Path dir) {

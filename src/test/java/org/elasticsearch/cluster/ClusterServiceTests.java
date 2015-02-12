@@ -176,6 +176,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             }
         });
 
+        ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(true));
@@ -247,6 +248,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             }
         });
 
+        ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(true));
@@ -373,6 +375,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             }
         });
 
+        ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(true));
@@ -447,6 +450,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             }
         });
 
+        ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(false));

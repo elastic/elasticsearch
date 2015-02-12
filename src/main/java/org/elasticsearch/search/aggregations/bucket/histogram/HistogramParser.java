@@ -115,7 +115,7 @@ public class HistogramParser implements Aggregator.Parser {
             }
         }
 
-        if (interval < 0) {
+        if (interval < 1) {
             throw new SearchParseException(context, "Missing required field [interval] for histogram aggregation [" + aggregationName + "]");
         }
 

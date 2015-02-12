@@ -7,11 +7,16 @@ package org.elasticsearch.shield.authz;
 
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.common.base.Predicate;
+import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.util.Iterator;
+
 import static org.elasticsearch.shield.authz.Privilege.Index.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -40,6 +45,23 @@ public class PermissionTests extends ElasticsearchTestCase {
         Predicate<String> matcher1 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
         Predicate<String> matcher2 = permission.indices().allowedIndicesMatcher(GetAction.NAME);
         assertThat(matcher1, is(matcher2));
+    }
+
+    @Test
+    public void testIndicesGlobalsIterator() {
+        Permission.Global.Role.Builder builder = Permission.Global.Role.builder("tc_role");
+        builder.set(Cluster.action("cluster:monitor/nodes/info"));
+        Permission.Global.Role noIndicesPermission = builder.build();
+
+        Permission.Indices.Globals indicesGlobals = new Permission.Indices.Globals(ImmutableList.<Permission.Global>of(noIndicesPermission, permission));
+        Iterator<Permission.Indices.Group> iterator = indicesGlobals.iterator();
+        assertThat(iterator.hasNext(), is(equalTo(true)));
+        int count = 0;
+        while (iterator.hasNext()) {
+            iterator.next();
+            count++;
+        }
+        assertThat(count, is(equalTo(permission.indices().groups().length)));
     }
 
     // "baz_*foo", "/fool.*bar/"

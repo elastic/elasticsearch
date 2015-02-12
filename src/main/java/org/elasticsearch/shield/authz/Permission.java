@@ -342,7 +342,16 @@ public interface Permission {
                         current = null;
                         return;
                     }
-                    current = globals.next().indices().iterator();
+
+                    while (globals.hasNext()) {
+                        Indices indices = globals.next().indices();
+                        if (!indices.isEmpty()) {
+                            current = indices.iterator();
+                            return;
+                        }
+                    }
+
+                    current = null;
                 }
             }
         }

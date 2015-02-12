@@ -184,9 +184,26 @@ norms on it. In  particular, this is the case for fields that are used solely
 for filtering or aggregations.
 
 In case you would like to disable norms after the fact, it is possible to do so
-by using the <<indices-put-mapping,PUT mapping API>>. Please however note that
-norms won't be removed instantly, but as your index will receive new insertions
-or updates, and segments get merged. Any score computation on a field that got
+by using the <<indices-put-mapping,PUT mapping API>>, like this:
+
+[source,json]
+------------
+PUT my_index/_mapping/my_type
+{
+  "properties": {
+    "title": {
+      "type": "string",
+      "norms": {
+        "enabled": false
+      }
+    }
+  }
+}
+------------
+
+Please however note that norms won't be removed instantly, but will be removed
+as old segments are merged into new segments as you continue indexing new documents.
+Any score computation on a field that has had 
 norms removed might return inconsistent results since some documents won't have
 norms anymore while other documents might still have norms.
 

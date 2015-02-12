@@ -36,19 +36,14 @@ import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.SegmentReaderUtils;
 import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.math.MathUtils;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
@@ -57,8 +52,6 @@ import org.elasticsearch.index.merge.policy.ElasticsearchMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -77,7 +70,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public class InternalEngine extends Engine {
 
-    protected final ShardId shardId;
     private final FailEngineOnMergeFailure mergeSchedulerFailureListener;
     private final MergeSchedulerListener mergeSchedulerListener;
 
@@ -87,8 +79,6 @@ public class InternalEngine extends Engine {
     private final ShardIndexingService indexingService;
     @Nullable
     private final IndicesWarmer warmer;
-    private final Store store;
-    private final SnapshotDeletionPolicy deletionPolicy;
     private final Translog translog;
     private final MergePolicyProvider mergePolicyProvider;
     private final MergeSchedulerProvider mergeScheduler;
@@ -102,7 +92,6 @@ public class InternalEngine extends Engine {
     private final SearcherFactory searcherFactory;
     private final SearcherManager searcherManager;
 
-    private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final AtomicBoolean optimizeMutex = new AtomicBoolean();
     // we use flushNeeded here, since if there are no changes, then the commit won't write
     // will not really happen, and then the commitUserData and the new translog will not be reflected
@@ -115,9 +104,7 @@ public class InternalEngine extends Engine {
     private final LiveVersionMap versionMap;
 
     private final Object[] dirtyLocks;
-    private volatile Throwable failedEngine = null;
     private final ReentrantLock failEngineLock = new ReentrantLock();
-    private final FailedEngineListener failedEngineListener;
 
     private final AtomicLong translogIdGenerator = new AtomicLong();
     private final AtomicBoolean versionMapRefreshPending = new AtomicBoolean();
@@ -129,8 +116,6 @@ public class InternalEngine extends Engine {
 
     public InternalEngine(EngineConfig engineConfig) throws EngineException {
         super(engineConfig);
-        this.store = engineConfig.getStore();
-        this.shardId = engineConfig.getShardId();
         this.versionMap = new LiveVersionMap();
         store.incRef();
         IndexWriter writer = null;
@@ -141,7 +126,6 @@ public class InternalEngine extends Engine {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
             this.indexingService = engineConfig.getIndexingService();
             this.warmer = engineConfig.getWarmer();
-            this.deletionPolicy = engineConfig.getDeletionPolicy();
             this.translog = engineConfig.getTranslog();
             this.mergePolicyProvider = engineConfig.getMergePolicyProvider();
             this.mergeScheduler = engineConfig.getMergeScheduler();
@@ -150,7 +134,6 @@ public class InternalEngine extends Engine {
                 dirtyLocks[i] = new Object();
             }
 
-            this.failedEngineListener = engineConfig.getFailedEngineListener();
             throttle = new IndexThrottle();
             this.searcherFactory = new SearchFactory(engineConfig);
             try {
@@ -259,31 +242,7 @@ public class InternalEngine extends Engine {
             }
 
             // no version, get the version from the index, we know that we refresh on flush
-            final Searcher searcher = acquireSearcher("get");
-            final Versions.DocIdAndVersion docIdAndVersion;
-            try {
-                docIdAndVersion = Versions.loadDocIdAndVersion(searcher.reader(), get.uid());
-            } catch (Throwable e) {
-                Releasables.closeWhileHandlingException(searcher);
-                //TODO: A better exception goes here
-                throw new EngineException(shardId, "Couldn't resolve version", e);
-            }
-
-            if (docIdAndVersion != null) {
-                if (get.versionType().isVersionConflictForReads(docIdAndVersion.version, get.version())) {
-                    Releasables.close(searcher);
-                    Uid uid = Uid.createUid(get.uid().text());
-                    throw new VersionConflictEngineException(shardId, uid.type(), uid.id(), docIdAndVersion.version, get.version());
-                }
-            }
-
-            if (docIdAndVersion != null) {
-                // don't release the searcher on this path, it is the responsability of the caller to call GetResult.release
-                return new GetResult(searcher, docIdAndVersion);
-            } else {
-                Releasables.close(searcher);
-                return GetResult.NOT_EXISTS;
-            }
+            return getFromSearcher(get);
         }
     }
 
@@ -588,74 +547,6 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public final Searcher acquireSearcher(String source) throws EngineException {
-        boolean success = false;
-         /* Acquire order here is store -> manager since we need
-          * to make sure that the store is not closed before
-          * the searcher is acquired. */
-        store.incRef();
-        try {
-            final SearcherManager manager = this.searcherManager; // can never be null
-            assert manager != null : "SearcherManager is null";
-            /* This might throw NPE but that's fine we will run ensureOpen()
-            *  in the catch block and throw the right exception */
-            final IndexSearcher searcher = manager.acquire();
-            try {
-                final Searcher retVal = newSearcher(source, searcher, manager);
-                success = true;
-                return retVal;
-            } finally {
-                if (!success) {
-                    manager.release(searcher);
-                }
-            }
-        } catch (EngineClosedException ex) {
-            throw ex;
-        } catch (Throwable ex) {
-            ensureOpen(); // throw EngineCloseException here if we are already closed
-            logger.error("failed to acquire searcher, source {}", ex, source);
-            throw new EngineException(shardId, "failed to acquire searcher, source " + source, ex);
-        } finally {
-            if (!success) {  // release the ref in the case of an error...
-                store.decRef();
-            }
-        }
-    }
-
-    @Override
-    public boolean refreshNeeded() {
-        if (store.tryIncRef()) {
-            /*
-              we need to inc the store here since searcherManager.isSearcherCurrent()
-              acquires a searcher internally and that might keep a file open on the
-              store. this violates the assumption that all files are closed when
-              the store is closed so we need to make sure we increment it here
-             */
-            try {
-                return !searcherManager.isSearcherCurrent();
-            } catch (IOException e) {
-                logger.error("failed to access searcher manager", e);
-                failEngine("failed to access searcher manager", e);
-                throw new EngineException(shardId, "failed to access searcher manager", e);
-            } finally {
-                store.decRef();
-            }
-        }
-        return false;
-    }
-
-    @Override
-    public boolean possibleMergeNeeded() {
-        IndexWriter writer = this.indexWriter;
-        if (writer == null) {
-            return false;
-        }
-        // a merge scheduler might bail without going through all its pending merges
-        // so make sure we also check if there are pending merges
-        return this.possibleMergeNeeded || writer.hasPendingMerges();
-    }
-
-    @Override
     public void refresh(String source) throws EngineException {
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
@@ -785,12 +676,6 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private void ensureOpen() {
-        if (isClosed.get()) {
-            throw new EngineClosedException(shardId, failedEngine);
-        }
-    }
-
     private void pruneDeletedTombstones() {
         long timeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
 
@@ -812,6 +697,17 @@ public class InternalEngine extends Engine {
         }
 
         lastDeleteVersionPruneTimeMSec = timeMSec;
+    }
+
+    @Override
+    public boolean possibleMergeNeeded() {
+        IndexWriter writer = this.indexWriter;
+        if (writer == null) {
+            return false;
+        }
+        // a merge scheduler might bail without going through all its pending merges
+        // so make sure we also check if there are pending merges
+        return this.possibleMergeNeeded || writer.hasPendingMerges();
     }
 
     @Override
@@ -883,7 +779,6 @@ public class InternalEngine extends Engine {
 
         waitForMerges(flush, upgrade);
     }
-
 
     @Override
     public SnapshotIndexCommit snapshotIndex() throws EngineException {
@@ -957,18 +852,15 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private boolean maybeFailEngine(String source, Throwable t) {
-        if (Lucene.isCorruptionException(t)) {
-            if (engineConfig.isFailEngineOnCorruption()) {
-                failEngine("corrupt file detected source: [" + source + "]", t);
-                return true;
-            } else {
-                logger.warn("corrupt file detected source: [{}] but [{}] is set to [{}]", t, source, EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, engineConfig.isFailEngineOnCorruption());
-            }
-        } else if (ExceptionsHelper.isOOM(t)) {
-            failEngine("out of memory", t);
+    @Override
+    protected boolean maybeFailEngine(String source, Throwable t) {
+        boolean shouldFail = super.maybeFailEngine(source, t);
+        if (shouldFail) {
             return true;
-        } else if (t instanceof AlreadyClosedException) {
+        }
+
+        // Check for AlreadyClosedException
+        if (t instanceof AlreadyClosedException) {
             // if we are already closed due to some tragic exception
             // we need to fail the engine. it might have already been failed before
             // but we are double-checking it's failed and closed
@@ -1005,16 +897,6 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private Throwable wrapIfClosed(Throwable t) {
-        if (isClosed.get()) {
-            if (t != failedEngine && failedEngine != null) {
-                t.addSuppressed(failedEngine);
-            }
-            return new EngineClosedException(shardId, t);
-        }
-        return t;
-    }
-
     private static long getReaderRamBytesUsed(AtomicReaderContext reader) {
         final SegmentReader segmentReader = SegmentReaderUtils.segmentReader(reader.reader());
         return segmentReader.ramBytesUsed();
@@ -1038,66 +920,7 @@ public class InternalEngine extends Engine {
     @Override
     public List<Segment> segments() {
         try (ReleasableLock _ = readLock.acquire()) {
-            ensureOpen();
-            Map<String, Segment> segments = new HashMap<>();
-
-            // first, go over and compute the search ones...
-            Searcher searcher = acquireSearcher("segments");
-            try {
-                for (AtomicReaderContext reader : searcher.reader().leaves()) {
-                    assert reader.reader() instanceof SegmentReader;
-                    SegmentCommitInfo info = SegmentReaderUtils.segmentReader(reader.reader()).getSegmentInfo();
-                    assert !segments.containsKey(info.info.name);
-                    Segment segment = new Segment(info.info.name);
-                    segment.search = true;
-                    segment.docCount = reader.reader().numDocs();
-                    segment.delDocCount = reader.reader().numDeletedDocs();
-                    segment.version = info.info.getVersion();
-                    segment.compound = info.info.getUseCompoundFile();
-                    try {
-                        segment.sizeInBytes = info.sizeInBytes();
-                    } catch (IOException e) {
-                        logger.trace("failed to get size for [{}]", e, info.info.name);
-                    }
-                    segment.memoryInBytes = getReaderRamBytesUsed(reader);
-                    segments.put(info.info.name, segment);
-                }
-            } finally {
-                searcher.close();
-            }
-
-            // now, correlate or add the committed ones...
-            if (lastCommittedSegmentInfos != null) {
-                SegmentInfos infos = lastCommittedSegmentInfos;
-                for (SegmentCommitInfo info : infos) {
-                    Segment segment = segments.get(info.info.name);
-                    if (segment == null) {
-                        segment = new Segment(info.info.name);
-                        segment.search = false;
-                        segment.committed = true;
-                        segment.docCount = info.info.getDocCount();
-                        segment.delDocCount = info.getDelCount();
-                        segment.version = info.info.getVersion();
-                        segment.compound = info.info.getUseCompoundFile();
-                        try {
-                            segment.sizeInBytes = info.sizeInBytes();
-                        } catch (IOException e) {
-                            logger.trace("failed to get size for [{}]", e, info.info.name);
-                        }
-                        segments.put(info.info.name, segment);
-                    } else {
-                        segment.committed = true;
-                    }
-                }
-            }
-
-            Segment[] segmentsArr = segments.values().toArray(new Segment[segments.values().size()]);
-            Arrays.sort(segmentsArr, new Comparator<Segment>() {
-                @Override
-                public int compare(Segment o1, Segment o2) {
-                    return (int) (o1.getGeneration() - o2.getGeneration());
-                }
-            });
+            Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos, false);
 
             // fill in the merges flag
             Set<OnGoingMerge> onGoingMerges = mergeScheduler.onGoingMerges();
@@ -1111,7 +934,6 @@ public class InternalEngine extends Engine {
                     }
                 }
             }
-
             return Arrays.asList(segmentsArr);
         }
     }
@@ -1201,6 +1023,11 @@ public class InternalEngine extends Engine {
         } else {
             logger.debug("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason, failure);
         }
+    }
+
+    @Override
+    protected SearcherManager getSearcherManager() {
+        return searcherManager;
     }
 
     private Object dirtyLock(BytesRef uid) {

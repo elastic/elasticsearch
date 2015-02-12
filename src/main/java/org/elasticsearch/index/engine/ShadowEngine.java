@@ -42,7 +42,22 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
- * TODO: document me!
+ * ShadowEngine is a specialized engine that only allows read-only operations
+ * on the underlying Lucene index. An {@code IndexReader} is opened instead of
+ * an {@code IndexWriter}. All methods that would usually perform write
+ * operations are no-ops, this means:
+ *
+ * - No operations are written to or read from the translog
+ * - Create, Index, and Delete do nothing
+ * - Flush does not fsync any files, or make any on-disk changes
+ *
+ * In order for new segments to become visible, the ShadowEngine may perform
+ * stage1 of the traditional recovery process (copying segment files) from a
+ * regular primary (which uses {@link org.elasticsearch.index.engine.InternalEngine})
+ *
+ * Notice that since this Engine does not deal with the translog, any
+ * {@link #get(Get get)} request goes directly to the searcher, meaning it is
+ * non-realtime.
  */
 public class ShadowEngine extends Engine {
 
@@ -88,25 +103,25 @@ public class ShadowEngine extends Engine {
     @Override
     public void create(Create create) throws EngineException {
         // no-op
-        logger.debug("cowardly refusing to CREATE");
+        logger.trace("skipping CREATE on shadow engine");
     }
 
     @Override
     public void index(Index index) throws EngineException {
         // no-op
-        logger.debug("cowardly refusing to INDEX");
+        logger.trace("skipping INDEX on shadow engine");
     }
 
     @Override
     public void delete(Delete delete) throws EngineException {
         // no-op
-        logger.debug("cowardly refusing to DELETE");
+        logger.trace("skipping DELETE on shadow engine");
     }
 
     @Override
     public void delete(DeleteByQuery delete) throws EngineException {
         // no-op
-        logger.debug("cowardly refusing to DELETE-BY-QUERY");
+        logger.trace("skipping DELETE-BY-QUERY on shadow engine");
     }
 
     @Override
@@ -116,7 +131,7 @@ public class ShadowEngine extends Engine {
 
     @Override
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        logger.debug("cowardly refusing to FLUSH");
+        logger.trace("skipping FLUSH on shadow engine");
         // reread the last committed segment infos
         refresh("flush");
         try {
@@ -138,7 +153,8 @@ public class ShadowEngine extends Engine {
 
     @Override
     public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException {
-        logger.debug("cowardly refusing to FORCE_MERGE, since the since the primary will do it");
+        // no-op
+        logger.trace("skipping FORCE-MERGE on shadow engine");
     }
 
     @Override

@@ -47,7 +47,7 @@
         refresh: true
   - do:
        cluster.health:
-         wait_for_status: yellow
+         wait_for_status: green
   - do:
       cat.segments:
         v: false
@@ -65,7 +65,7 @@
             number_of_replicas: "0"
   - do:
        cluster.health:
-         wait_for_status: yellow
+         wait_for_status: green
          wait_for_relocating_shards: 0
 
   - do:
@@ -76,7 +76,7 @@
         refresh: true
   - do:
        cluster.health:
-         wait_for_status: yellow
+         wait_for_status: green
 
 
   - do:
@@ -107,7 +107,7 @@
 
   - do:
        cluster.health:
-         wait_for_status: yellow
+         wait_for_status: green
 
   - do:
     indices.close:

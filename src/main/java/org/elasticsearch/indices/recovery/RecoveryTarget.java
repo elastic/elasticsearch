@@ -22,6 +22,7 @@ package org.elasticsearch.indices.recovery;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -134,6 +135,21 @@ public class RecoveryTarget extends AbstractComponent {
             logger.debug("{} ignore recovery. already in recovering process, {}", indexShard.shardId(), e.getMessage());
             return;
         }
+        startRecoveryInternal(indexShard, recoveryType, sourceNode, listener);
+    }
+
+    /**
+     * Runs a full recovery but skips phase 2 and 3 and only syncs the files that have been committed.
+     */
+    public void startFileSync(final IndexShard indexShard, final DiscoveryNode sourceNode, final RecoveryListener listener) {
+        if (indexShard.state() != IndexShardState.STARTED) {
+            throw new ElasticsearchIllegalStateException("Shard is not started can't sync files -state: " + indexShard.state());
+        }
+        logger.trace("{} starting file sync with {}", indexShard.shardId(), sourceNode);
+        startRecoveryInternal(indexShard, RecoveryState.Type.FILE_SYNC, sourceNode, listener);
+    }
+
+    private void startRecoveryInternal(IndexShard indexShard, RecoveryState.Type recoveryType, DiscoveryNode sourceNode, RecoveryListener listener) {
         // create a new recovery status, and process...
         RecoveryState recoveryState = new RecoveryState(indexShard.shardId());
         recoveryState.setType(recoveryType);
@@ -142,7 +158,6 @@ public class RecoveryTarget extends AbstractComponent {
         recoveryState.setPrimary(indexShard.routingEntry().primary());
         final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, recoveryState, listener, recoverySettings.activityTimeout());
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
-
     }
 
     protected void retryRecovery(final RecoveryStatus recoveryStatus, final String reason, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {

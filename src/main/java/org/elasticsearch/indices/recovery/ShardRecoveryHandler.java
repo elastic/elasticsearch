@@ -71,9 +71,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * everything relating to copying the segment files as well as sending translog
  * operations across the wire once the segments have been copied.
  */
-public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
+public class ShardRecoveryHandler implements Engine.RecoveryHandler {
 
-    private final ESLogger logger;
+    protected final ESLogger logger;
     // Shard that is going to be recovered (the "source")
     private final IndexShard shard;
     private final String indexName;
@@ -375,6 +375,10 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
      */
     @Override
     public void phase2(Translog.Snapshot snapshot) throws ElasticsearchException {
+        if (request.recoveryType() == RecoveryState.Type.FILE_SYNC) {
+            logger.trace("{} recovery [phase2] to {}: skipping translog for file sync", request.shardId(), request.targetNode());
+            return;
+        }
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }
@@ -430,11 +434,12 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
             throw new IndexShardClosedException(request.shardId());
         }
         cancellableThreads.checkForCancel();
-        logger.trace("[{}][{}] recovery [phase3] to {}: sending transaction log operations", indexName, shardId, request.targetNode());
         StopWatch stopWatch = new StopWatch().start();
+        final int totalOperations;
+        logger.trace("[{}][{}] recovery [phase3] to {}: sending transaction log operations", indexName, shardId, request.targetNode());
 
         // Send the translog operations to the target node
-        int totalOperations = sendSnapshot(snapshot);
+        totalOperations = sendSnapshot(snapshot);
 
         cancellableThreads.execute(new Interruptable() {
             @Override
@@ -538,7 +543,7 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
      *
      * @return the total number of translog operations that were sent
      */
-    private int sendSnapshot(Translog.Snapshot snapshot) throws ElasticsearchException {
+    protected int sendSnapshot(Translog.Snapshot snapshot) throws ElasticsearchException {
         int ops = 0;
         long size = 0;
         int totalOperations = 0;

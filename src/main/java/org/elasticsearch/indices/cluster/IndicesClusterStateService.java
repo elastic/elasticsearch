@@ -44,6 +44,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -98,7 +99,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     // a list of shards that failed during recovery
     // we keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update
     private final ConcurrentMap<ShardId, FailedShard> failedShards = ConcurrentCollections.newConcurrentMap();
-    private final NodeEnvironment nodeEnvironment;
 
     static class FailedShard {
         public final long version;
@@ -114,15 +114,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final FailedEngineHandler failedEngineHandler = new FailedEngineHandler();
 
     private final boolean sendRefreshMapping;
-    private final AtomicLong recoveryIdGenerator = new AtomicLong();
 
     @Inject
     public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
                                       ThreadPool threadPool, RecoveryTarget recoveryTarget,
                                       ShardStateAction shardStateAction,
                                       NodeIndexDeletedAction nodeIndexDeletedAction,
-                                      NodeMappingRefreshAction nodeMappingRefreshAction,
-                                      NodeEnvironment nodeEnvironment) {
+                                      NodeMappingRefreshAction nodeMappingRefreshAction) {
         super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -133,7 +131,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
 
         this.sendRefreshMapping = componentSettings.getAsBoolean("send_refresh_mapping", true);
-        this.nodeEnvironment = nodeEnvironment;
     }
 
     @Override
@@ -573,7 +570,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     RecoveryState recoveryState = recoveryTarget.recoveryState(indexShard);
                     if (recoveryState != null && recoveryState.getStage() != RecoveryState.Stage.DONE) {
                         // we have an ongoing recovery, find the source based on current routing and compare them
-                        DiscoveryNode sourceNode = findSourceNodeForPeerRecovery(routingTable, nodes, shardRouting);
+                        DiscoveryNode sourceNode = findSourceNodeForPeerRecovery(routingTable, nodes, shardRouting, logger);
                         if (!recoveryState.getSourceNode().equals(sourceNode)) {
                             logger.debug("[{}][{}] removing shard (recovery source changed), current [{}], global [{}])",
                                     shardRouting.index(), shardRouting.id(), currentRoutingEntry, shardRouting);
@@ -669,7 +666,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         // if we're in peer recovery, try to find out the source node now so in case it fails, we will not create the index shard
         DiscoveryNode sourceNode = null;
         if (isPeerRecovery(shardRouting)) {
-            sourceNode = findSourceNodeForPeerRecovery(routingTable, nodes, shardRouting);
+            sourceNode = findSourceNodeForPeerRecovery(routingTable, nodes, shardRouting, logger);
             if (sourceNode == null) {
                 logger.trace("ignoring initializing shard {} - no source node can be found.", shardRouting.shardId());
                 return;
@@ -767,7 +764,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
      * routing to *require* peer recovery, use {@link #isPeerRecovery(org.elasticsearch.cluster.routing.ShardRouting)} to
      * check if its needed or not.
      */
-    private DiscoveryNode findSourceNodeForPeerRecovery(RoutingTable routingTable, DiscoveryNodes nodes, ShardRouting shardRouting) {
+    public static DiscoveryNode findSourceNodeForPeerRecovery(RoutingTable routingTable, DiscoveryNodes nodes, ShardRouting shardRouting, ESLogger logger) {
+        //nocommit factor this out somewhere useful
         DiscoveryNode sourceNode = null;
         if (!shardRouting.primary()) {
             IndexShardRoutingTable shardRoutingTable = routingTable.index(shardRouting.index()).shard(shardRouting.id());

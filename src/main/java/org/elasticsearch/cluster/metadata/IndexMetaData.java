@@ -789,7 +789,12 @@ public class IndexMetaData {
 
     // NOCOMMIT find a good place for this and document it
     public static boolean usesSharedFilesystem(Settings settings) {
-        return settings.getAsBoolean(SETTING_SHARED_FILESYSTEM, settings.getAsBoolean(SETTING_SHADOW_REPLICAS, false));
+        return settings.getAsBoolean(SETTING_SHARED_FILESYSTEM, isIndexUsingShadowReplicas(settings));
+    }
+
+    // NOCOMMIT find a good place for this and document it
+    public static boolean isIndexUsingShadowReplicas(Settings settings) {
+        return settings.getAsBoolean(SETTING_SHADOW_REPLICAS, false);
     }
 
 }

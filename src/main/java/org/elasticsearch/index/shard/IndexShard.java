@@ -34,8 +34,10 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
-import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
@@ -46,17 +48,16 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.aliases.IndexAliasesService;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
@@ -104,7 +105,10 @@ import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -114,6 +118,7 @@ import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
@@ -151,21 +156,19 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndexService indexService;
     private final ShardSuggestService shardSuggestService;
     private final ShardBitsetFilterCache shardBitsetFilterCache;
-    private final MappingUpdatedAction mappingUpdatedAction;
-    private final CancellableThreads cancellableThreads = new CancellableThreads();
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
     private final EngineConfig config;
+    private final EngineFactory engineFactory;
     private long checkIndexTook = 0;
-    private volatile EngineFactory engineFactory;
     private volatile IndexShardState state;
 
     private TimeValue refreshInterval;
 
     private volatile ScheduledFuture refreshScheduledFuture;
     private volatile ScheduledFuture mergeScheduleFuture;
-    private volatile ShardRouting shardRouting;
+    protected volatile ShardRouting shardRouting;
 
     @Nullable
     private RecoveryState recoveryState;
@@ -190,9 +193,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                       CodecService codecService, ShardTermVectorsService termVectorsService,
                       IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService,
                       ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
-                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, AnalysisService analysisService,
-                      SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory,
-                      MappingUpdatedAction mappingUpdatedAction) {
+                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy,
+                      SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory) {
         super(shardId, indexSettings);
         Preconditions.checkNotNull(store, "Store must be provided to the index shard");
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the index shard");
@@ -223,7 +225,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.codecService = codecService;
         this.shardSuggestService = shardSuggestService;
         this.shardBitsetFilterCache = shardBitsetFilterCache;
-        this.mappingUpdatedAction = mappingUpdatedAction;
         state = IndexShardState.CREATED;
         this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
         indexSettingsService.addListener(applyRefreshSettings);
@@ -321,17 +322,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
             // if its the same routing, return
             if (currentRouting.equals(newRouting)) {
-                return this;
-            }
-
-            // check for a shadow replica that now needs to be transformed into
-            // a normal primary
-            if (currentRouting.primary() == false && // currently a replica
-                    newRouting.primary() == true && // becoming a primary
-                    indexSettings.getAsBoolean(IndexMetaData.SETTING_SHADOW_REPLICAS, false)) {
-                this.shardRouting = newRouting; // this is important otherwise we will not fail the shard right-away
-                failShard("can't promote shadow replica to primary",
-                        new ElasticsearchIllegalStateException("can't promote shadow replica to primary"));
                 return this;
             }
         }
@@ -891,7 +881,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    private void verifyStartedOrRecovering() throws IllegalIndexShardStateException {
+    protected final void verifyStartedOrRecovering() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
         if (state != IndexShardState.STARTED && state != IndexShardState.RECOVERING && state != IndexShardState.POST_RECOVERY) {
             throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering");
@@ -905,7 +895,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    private void verifyStarted() throws IllegalIndexShardStateException {
+    protected final void verifyStarted() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
         if (state != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(shardId, state);

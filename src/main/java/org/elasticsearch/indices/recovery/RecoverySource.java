@@ -29,9 +29,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesLifecycle;
@@ -117,15 +120,21 @@ public class RecoverySource extends AbstractComponent {
             logger.debug("delaying recovery of {} as it is not listed as assigned to target node {}", request.shardId(), request.targetNode());
             throw new DelayRecoveryException("source node does not have the shard listed in its state as allocated on the node");
         }
-        if (!targetShardRouting.initializing()) {
+        if (request.recoveryType() != RecoveryState.Type.FILE_SYNC && !targetShardRouting.initializing()) {
             logger.debug("delaying recovery of {} as it is not listed as initializing on the target node {}. known shards state is [{}]",
                     request.shardId(), request.targetNode(), targetShardRouting.state());
             throw new DelayRecoveryException("source node has the state of the target shard to be [" + targetShardRouting.state() + "], expecting to be [initializing]");
         }
 
         logger.trace("[{}][{}] starting recovery to {}, mark_as_relocated {}", request.shardId().index().name(), request.shardId().id(), request.targetNode(), request.markAsRelocated());
-
-        final ShardRecoveryHandler handler = new ShardRecoveryHandler(shard, request, recoverySettings, transportService, clusterService, indicesService, mappingUpdatedAction, logger);
+        final ShardRecoveryHandler handler;
+        if (request.recoveryType() == RecoveryState.Type.FILE_SYNC) {
+            logger.trace("{} taking snapshot before file sync recovery", shard.shardId());
+            Releasables.close(shard.snapshotIndex()); // we have to take a snapshot here and close it right away so we can catchup from the latest docs committed
+            handler = new FileSyncRecoveryHandler(shard, request, recoverySettings, transportService, clusterService, indicesService, mappingUpdatedAction, logger);
+        } else {
+            handler = new ShardRecoveryHandler(shard, request, recoverySettings, transportService, clusterService, indicesService, mappingUpdatedAction, logger);
+        }
         ongoingRecoveries.add(shard, handler);
         try {
             shard.recover(handler);

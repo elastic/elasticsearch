@@ -118,6 +118,7 @@ public class ShadowEngine extends Engine {
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
         logger.debug("cowardly refusing to FLUSH");
         // reread the last committed segment infos
+        refresh("flush");
         try {
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
         } catch (Throwable e) {

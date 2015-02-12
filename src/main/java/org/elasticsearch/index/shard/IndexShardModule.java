@@ -60,7 +60,12 @@ public class IndexShardModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(ShardId.class).toInstance(shardId);
-        bind(IndexShard.class).asEagerSingleton();
+        if (useShadowEngine()) {
+            bind(IndexShard.class).to(ShadowIndexShard.class).asEagerSingleton();
+        } else {
+            bind(IndexShard.class).asEagerSingleton();
+        }
+
         Class<? extends EngineFactory> engineFactory = DEFAULT_ENGINE_FACTORY_CLASS;
         String factorySetting = ENGINE_FACTORY;
         if (useShadowEngine()) {

@@ -24,6 +24,7 @@
             <includes>
                 <include>org.elasticsearch:elasticsearch-shield</include>
                 <include>commons-codec:commons-codec</include>
+                <include>dk.brics.automaton:automaton</include>
             </includes>
         </dependencySet>
     </dependencySets>

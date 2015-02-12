@@ -132,12 +132,12 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public void forceMerge(boolean flush, boolean waitForMerge) {
-        forceMerge(flush, waitForMerge, 1, false, false);
+    public void forceMerge(boolean flush) {
+        forceMerge(flush, 1, false, false);
     }
 
     @Override
-    public void forceMerge(boolean flush, boolean waitForMerge, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException {
+    public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException {
         logger.debug("cowardly refusing to FORCE_MERGE, since the since the primary will do it");
     }
 

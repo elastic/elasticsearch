@@ -48,10 +48,10 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * Tests for indices that use shadow replicas and a shared filesystem
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0)
+@TestLogging("_root:DEBUG,env:TRACE") //nocommit
 public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
-    @TestLogging("_root:DEBUG,env:TRACE")
     public void testIndexWithFewDocuments() throws Exception {
         Settings nodeSettings = ImmutableSettings.builder()
                 .put("node.add_id_to_custom_path", false)
@@ -59,7 +59,6 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
                 .build();
 
         internalCluster().startNodesAsync(3, nodeSettings).get();
-
         final String IDX = "test";
         final Path dataPath = newTempDirPath();
 
@@ -110,7 +109,6 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Ignore // nocommit - this currently fails because of the way that we promote shadow replicas into primaries
     public void testReplicaToPrimaryPromotion() throws Exception {
         Settings nodeSettings = ImmutableSettings.builder()
                 .put("node.add_id_to_custom_path", false)
@@ -129,30 +127,38 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
         ensureYellow(IDX);
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
 
+        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
+        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
+        assertTrue(gResp1.isExists());
+        assertTrue(gResp2.isExists());
+        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
+        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+
         // Node1 has the primary, now node2 has the replica
         String node2 = internalCluster().startNode(nodeSettings);
         ensureGreen(IDX);
-
+        client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
         flushAndRefresh(IDX);
 
         logger.info("--> stopping node1 [{}]", node1);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1));
-
         ensureYellow(IDX);
-
-        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
-        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
-        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
-        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
 
         logger.info("--> performing query");
         SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).get();
         assertHitCount(resp, 2);
+
+        gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
+        gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
+        assertTrue(gResp1.isExists());
+        assertTrue(gResp2.toString(), gResp2.isExists());
+        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
+        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
     }
 
     @Test

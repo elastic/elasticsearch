@@ -329,8 +329,9 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (currentRouting.primary() == false && // currently a replica
                     newRouting.primary() == true && // becoming a primary
                     indexSettings.getAsBoolean(IndexMetaData.SETTING_SHADOW_REPLICAS, false)) {
+                this.shardRouting = newRouting; // this is important otherwise we will not fail the shard right-away
                 failShard("can't promote shadow replica to primary",
-                        new RuntimeException("can't promote shadow replica to primary"));
+                        new ElasticsearchIllegalStateException("can't promote shadow replica to primary"));
                 return this;
             }
         }

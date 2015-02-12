@@ -150,28 +150,35 @@ public class AggregatorParsers {
                         subFactories = parseAggregators(parser, context, level+1);
                         break;
                     default:
-                    if (aggFactory != null) {
-                        throw new SearchParseException(context, "Found two aggregation type definitions in [" + aggregationName + "]: ["
+                        if (aggFactory != null) {
+                            throw new SearchParseException(context, "Found two aggregation type definitions in [" + aggregationName + "]: ["
                                 + aggFactory.type + "] and [" + fieldName + "]");
                         }
+                        if (reducerFactory != null) {
+                            // TODO we would need a .type property on reducers too for this error message?
+                            throw new SearchParseException(context, "Found two aggregation type definitions in [" + aggregationName + "]: ["
+                                + reducerFactory + "] and [" + fieldName + "]");
+                        }
+
                         Aggregator.Parser aggregatorParser = parser(fieldName);
                         if (aggregatorParser == null) {
-                        Reducer.Parser reducerParser = reducer(fieldName);
-                        if (reducerParser == null) {
-                            throw new SearchParseException(context, "Could not find aggregator type [" + fieldName + "] in ["
+                            Reducer.Parser reducerParser = reducer(fieldName);
+                            if (reducerParser == null) {
+                                throw new SearchParseException(context, "Could not find aggregator type [" + fieldName + "] in ["
                                     + aggregationName + "]");
+                            } else {
+                                reducerFactory = reducerParser.parse(aggregationName, parser, context);
+                            }
                         } else {
-                            reducerFactory = reducerParser.parse(aggregationName, parser, context);
+                            aggFactory = aggregatorParser.parse(aggregationName, parser, context);
                         }
-                    } else {
-                        aggFactory = aggregatorParser.parse(aggregationName, parser, context);
-                    }
                 }
             }
 
             if (aggFactory == null && reducerFactory == null) {
                 throw new SearchParseException(context, "Missing definition for aggregation [" + aggregationName + "]");
             } else if (aggFactory != null) {
+                assert reducerFactory == null;
                 if (metaData != null) {
                     aggFactory.setMetaData(metaData);
                 }
@@ -185,13 +192,13 @@ public class AggregatorParsers {
                 }
 
                 factories.addAggregator(aggFactory);
-            } else if (reducerFactory != null) {
+            } else {
+                assert reducerFactory != null;
                 if (subFactories != null) {
                     throw new SearchParseException(context, "Aggregation [" + aggregationName + "] cannot define sub-aggregations");
                 }
+                // TODO: should we validate here like aggs?
                 factories.addReducer(reducerFactory);
-            } else {
-                throw new SearchParseException(context, "Found two sub aggregation definitions under [" + aggregationName + "]");
             }
         }
 

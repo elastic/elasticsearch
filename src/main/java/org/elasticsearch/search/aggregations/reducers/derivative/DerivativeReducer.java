@@ -25,12 +25,14 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.reducers.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
@@ -90,8 +92,7 @@ public class DerivativeReducer extends Reducer {
         Double lastBucketValue = null;
         // NOCOMMIT this needs to be improved so that the aggs are cloned correctly to ensure aggs are fully immutable.
         for (InternalHistogram.Bucket bucket : buckets) {
-            double thisBucketValue = (double) bucket.getProperty(histo.getName(), AggregationPath.parse(bucketsPath)
-                    .getPathElementsAsStringList());
+            double thisBucketValue = resolveBucketValue(histo, bucket);
             if (lastBucketValue != null) {
                 double diff = thisBucketValue - lastBucketValue;
 
@@ -107,6 +108,19 @@ public class DerivativeReducer extends Reducer {
             lastBucketValue = thisBucketValue;
         }
         return factory.create(histo.getName(), newBuckets, null, 1, null, null, false, new ArrayList<Reducer>(), histo.getMetaData()); // NOCOMMIT get order, minDocCount, emptyBucketInfo etc. from histo
+    }
+
+    private double resolveBucketValue(InternalHistogram<? extends InternalHistogram.Bucket> histo, InternalHistogram.Bucket bucket) {
+        Object propertyValue = bucket.getProperty(histo.getName(), AggregationPath.parse(bucketsPath)
+                .getPathElementsAsStringList());
+        if (propertyValue instanceof Number) {
+            return ((Number) propertyValue).doubleValue();
+        } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
+            return ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
+        } else {
+            throw new AggregationExecutionException(DerivativeParser.BUCKETS_PATH.getPreferredName()
+                    + "must reference either a number value or a single value numeric metric aggregation");
+        }
     }
 
     @Override

@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -35,13 +36,19 @@ public class AggregatorFactories {
     public static final AggregatorFactories EMPTY = new Empty();
 
     private AggregatorFactory[] factories;
+    private List<Reducer> reducers;
 
     public static Builder builder() {
         return new Builder();
     }
 
-    private AggregatorFactories(AggregatorFactory[] factories) {
+    private AggregatorFactories(AggregatorFactory[] factories, List<Reducer> reducers) {
         this.factories = factories;
+        this.reducers = reducers;
+    }
+
+    public List<Reducer> reducers() {
+        return reducers;
     }
 
     private static Aggregator createAndRegisterContextAware(AggregationContext context, AggregatorFactory factory, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
@@ -100,9 +107,10 @@ public class AggregatorFactories {
 
         private static final AggregatorFactory[] EMPTY_FACTORIES = new AggregatorFactory[0];
         private static final Aggregator[] EMPTY_AGGREGATORS = new Aggregator[0];
+        private static final List<Reducer> EMPTY_REDUCERS = new ArrayList<>();
 
         private Empty() {
-            super(EMPTY_FACTORIES);
+            super(EMPTY_FACTORIES, EMPTY_REDUCERS);
         }
 
         @Override
@@ -121,6 +129,7 @@ public class AggregatorFactories {
 
         private final Set<String> names = new HashSet<>();
         private final List<AggregatorFactory> factories = new ArrayList<>();
+        private List<Reducer> reducers = new ArrayList<>();
 
         public Builder add(AggregatorFactory factory) {
             if (!names.add(factory.name)) {
@@ -130,11 +139,16 @@ public class AggregatorFactories {
             return this;
         }
 
+        public Builder setReducers(List<Reducer> reducers) {
+            this.reducers = reducers;
+            return this;
+        }
+
         public AggregatorFactories build() {
             if (factories.isEmpty()) {
                 return EMPTY;
             }
-            return new AggregatorFactories(factories.toArray(new AggregatorFactory[factories.size()]));
+            return new AggregatorFactories(factories.toArray(new AggregatorFactory[factories.size()]), this.reducers);
         }
     }
 }

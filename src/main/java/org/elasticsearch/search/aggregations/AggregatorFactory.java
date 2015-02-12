@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -41,7 +40,6 @@ public abstract class AggregatorFactory {
     protected String type;
     protected AggregatorFactory parent;
     protected AggregatorFactories factories = AggregatorFactories.EMPTY;
-    protected List<Reducer> reducers = Collections.emptyList();
     protected Map<String, Object> metaData;
 
     /**
@@ -97,7 +95,7 @@ public abstract class AggregatorFactory {
      * @return                      The created aggregator
      */
     public final Aggregator create(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
-        return createInternal(context, parent, collectsFromSingleBucket, this.reducers, this.metaData);
+        return createInternal(context, parent, collectsFromSingleBucket, this.factories.reducers(), this.metaData);
     }
 
     public void doValidate() {
@@ -107,10 +105,6 @@ public abstract class AggregatorFactory {
         this.metaData = metaData;
     }
 
-
-    public void setReducers(List<Reducer> reducers) {
-        this.reducers = reducers;
-    }
 
 
     /**

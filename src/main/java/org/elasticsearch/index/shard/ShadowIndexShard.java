@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.aliases.IndexAliasesService;
@@ -38,8 +37,6 @@ import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.query.ShardQueryCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ShadowEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -72,7 +69,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.concurrent.CountDownLatch;
 
 /**
- */ //nocommit document this!
+ * ShadowIndexShard extends {@link IndexShard} to add file synchronization
+ * from the primary when a flush happens. It also ensures that a replica being
+ * promoted to a primary causes the shard to fail, kicking off a re-allocation
+ * of the primary shard.
+ */
 public class ShadowIndexShard extends IndexShard {
     private final RecoveryTarget recoveryTarget;
     private final ClusterService clusterService;
@@ -84,6 +85,12 @@ public class ShadowIndexShard extends IndexShard {
         this.clusterService = clusterService;
     }
 
+    /**
+     * Flush the shard. In a regular {@link org.elasticsearch.index.shard.IndexShard}
+     * this would usually flush the engine, however, with a shadow replica we
+     * also may need to sync newly created segments (that were committed on
+     * the primary) to the shadow replica
+     */
     public void flush(FlushRequest request) throws ElasticsearchException {
         if (state() == IndexShardState.STARTED) {
             syncFilesFromPrimary();
@@ -127,6 +134,12 @@ public class ShadowIndexShard extends IndexShard {
         }
     }
 
+    /**
+     * In addition to the regular accounting done in
+     * {@link IndexShard#routingEntry(org.elasticsearch.cluster.routing.ShardRouting)},
+     * if this shadow replica needs to be promoted to a primary, the shard is
+     * failed in order to allow a new primary to be re-allocated.
+     */
     @Override
     public IndexShard routingEntry(ShardRouting newRouting) {
         ShardRouting shardRouting = this.routingEntry();

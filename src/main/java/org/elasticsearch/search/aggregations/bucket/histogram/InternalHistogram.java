@@ -30,6 +30,7 @@ import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -247,8 +248,13 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, this, reducers, metaData);
         }
 
-        public B createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
-            return (B) new Bucket(key, docCount, keyed, formatter, this, aggregations);
+        public B createBucket(Object key, long docCount, InternalAggregations aggregations, boolean keyed,
+                @Nullable ValueFormatter formatter) {
+            if (key instanceof Number) {
+                return (B) new Bucket(((Number) key).longValue(), docCount, keyed, formatter, this, aggregations);
+            } else {
+                throw new AggregationExecutionException("Expected key of type Number but got [" + key + "]");
+            }
         }
 
         protected B createEmptyBucket(boolean keyed, @Nullable ValueFormatter formatter) {

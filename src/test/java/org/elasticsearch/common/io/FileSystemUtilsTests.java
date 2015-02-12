@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io;
 
+import com.google.common.base.Charsets;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Assert;
 import org.junit.Before;
@@ -32,6 +33,7 @@ import java.nio.file.Paths;
 import java.util.Properties;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileNotExists;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -41,14 +43,13 @@ import static org.hamcrest.CoreMatchers.is;
  */
 public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
-    Path src;
-    Path dst;
+    private Path src;
+    private Path dst;
 
     @Before
     public void copySourceFilesToTarget() throws IOException {
-        Path globalTempDir = globalTempDirPath();
-        src = globalTempDir.resolve("iocopyappend-src");
-        dst = globalTempDir.resolve("iocopyappend-dst");
+        src = newTempDirPath();
+        dst = newTempDirPath();
         Files.createDirectories(src);
         Files.createDirectories(dst);
 
@@ -117,6 +118,33 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
         assertFileContent(dest, "dir/subdir/file5.txt", "version1");
     }
 
+    @Test
+    public void testMoveFilesDoesNotCreateSameFileWithSuffix() throws Exception {
+        Path[] dirs = new Path[] { newTempDirPath(), newTempDirPath(), newTempDirPath()};
+        for (Path dir : dirs) {
+            Files.write(dir.resolve("file1.txt"), "file1".getBytes(Charsets.UTF_8));
+            Files.createDirectory(dir.resolve("dir"));
+            Files.write(dir.resolve("dir").resolve("file2.txt"), "file2".getBytes(Charsets.UTF_8));
+        }
+
+        FileSystemUtils.moveFilesWithoutOverwriting(dirs[0], dst, ".new");
+        assertFileContent(dst, "file1.txt", "file1");
+        assertFileContent(dst, "dir/file2.txt", "file2");
+
+        // do the same operation again, make sure, no .new files have been added
+        FileSystemUtils.moveFilesWithoutOverwriting(dirs[1], dst, ".new");
+        assertFileContent(dst, "file1.txt", "file1");
+        assertFileContent(dst, "dir/file2.txt", "file2");
+        assertFileNotExists(dst.resolve("file1.txt.new"));
+        assertFileNotExists(dst.resolve("dir").resolve("file2.txt.new"));
+
+        // change file content, make sure it gets updated
+        Files.write(dirs[2].resolve("dir").resolve("file2.txt"), "UPDATED".getBytes(Charsets.UTF_8));
+        FileSystemUtils.moveFilesWithoutOverwriting(dirs[2], dst, ".new");
+        assertFileContent(dst, "file1.txt", "file1");
+        assertFileContent(dst, "dir/file2.txt", "file2");
+        assertFileContent(dst, "dir/file2.txt.new", "UPDATED");
+    }
 
     /**
      * Check that a file contains a given String

@@ -38,7 +38,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.math.MathUtils;
-import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
@@ -826,18 +825,15 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private boolean maybeFailEngine(String source, Throwable t) {
-        if (Lucene.isCorruptionException(t)) {
-            if (engineConfig.isFailEngineOnCorruption()) {
-                failEngine("corrupt file detected source: [" + source + "]", t);
-                return true;
-            } else {
-                logger.warn("corrupt file detected source: [{}] but [{}] is set to [{}]", t, source, EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, engineConfig.isFailEngineOnCorruption());
-            }
-        } else if (ExceptionsHelper.isOOM(t)) {
-            failEngine("out of memory", t);
+    @Override
+    protected boolean maybeFailEngine(String source, Throwable t) {
+        boolean shouldFail = super.maybeFailEngine(source, t);
+        if (shouldFail) {
             return true;
-        } else if (t instanceof AlreadyClosedException) {
+        }
+
+        // Check for AlreadyClosedException
+        if (t instanceof AlreadyClosedException) {
             // if we are already closed due to some tragic exception
             // we need to fail the engine. it might have already been failed before
             // but we are double-checking it's failed and closed
@@ -852,16 +848,6 @@ public class InternalEngine extends Engine {
             return true;
         }
         return false;
-    }
-
-    private Throwable wrapIfClosed(Throwable t) {
-        if (isClosed.get()) {
-            if (t != failedEngine && failedEngine != null) {
-                t.addSuppressed(failedEngine);
-            }
-            return new EngineClosedException(shardId, t);
-        }
-        return t;
     }
 
     @Override

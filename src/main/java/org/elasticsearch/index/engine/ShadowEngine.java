@@ -213,34 +213,6 @@ public class ShadowEngine extends Engine {
         }
     }
 
-    // TODO refactor into abstract helper
-    private boolean maybeFailEngine(Throwable t, String source) {
-        if (Lucene.isCorruptionException(t)) {
-            if (engineConfig.isFailEngineOnCorruption()) {
-                failEngine("corrupt file detected source: [" + source + "]", t);
-                return true;
-            } else {
-                logger.warn("corrupt file detected source: [{}] but [{}] is set to [{}]", t, source,
-                        EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, engineConfig.isFailEngineOnCorruption());
-            }
-        } else if (ExceptionsHelper.isOOM(t)) {
-            failEngine("out of memory", t);
-            return true;
-        }
-        return false;
-    }
-
-    // TODO refactor into abstract helper
-    private Throwable wrapIfClosed(Throwable t) {
-        if (closedOrFailed) {
-            if (t != failedEngine && failedEngine != null) {
-                t.addSuppressed(failedEngine);
-            }
-            return new EngineClosedException(shardId, t);
-        }
-        return t;
-    }
-
     @Override
     public void recover(RecoveryHandler recoveryHandler) throws EngineException {
         // take a write lock here so it won't happen while a flush is in progress
@@ -256,7 +228,7 @@ public class ShadowEngine extends Engine {
         try {
             phase1Snapshot = deletionPolicy.snapshot();
         } catch (Throwable e) {
-            maybeFailEngine(e, "recovery");
+            maybeFailEngine("recovery", e);
             Releasables.closeWhileHandlingException(onGoingRecoveries);
             throw new RecoveryEngineException(shardId, 1, "Snapshot failed", e);
         }
@@ -266,7 +238,7 @@ public class ShadowEngine extends Engine {
             recoveryHandler.phase1(phase1Snapshot);
             success = true;
         } catch (Throwable e) {
-            maybeFailEngine(e, "recovery phase 1");
+            maybeFailEngine("recovery phase 1", e);
             Releasables.closeWhileHandlingException(onGoingRecoveries, phase1Snapshot);
             throw new RecoveryEngineException(shardId, 1, "Execution failed", wrapIfClosed(e));
         } finally {

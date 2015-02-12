@@ -29,6 +29,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
@@ -416,6 +418,34 @@ public abstract class Engine implements Closeable {
 
     /** fail engine due to some error. the engine will also be closed. */
     public abstract void failEngine(String reason, Throwable failure);
+
+    /** Check whether the engine should be failed */
+    protected boolean maybeFailEngine(String source, Throwable t) {
+        if (Lucene.isCorruptionException(t)) {
+            if (engineConfig.isFailEngineOnCorruption()) {
+                failEngine("corrupt file detected source: [" + source + "]", t);
+                return true;
+            } else {
+                logger.warn("corrupt file detected source: [{}] but [{}] is set to [{}]", t, source,
+                        EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, engineConfig.isFailEngineOnCorruption());
+            }
+        } else if (ExceptionsHelper.isOOM(t)) {
+            failEngine("out of memory", t);
+            return true;
+        }
+        return false;
+    }
+
+    /** Wrap a Throwable in an {@code EngineClosedException} if the engine is already closed */
+    protected Throwable wrapIfClosed(Throwable t) {
+        if (isClosed.get()) {
+            if (t != failedEngine && failedEngine != null) {
+                t.addSuppressed(failedEngine);
+            }
+            return new EngineClosedException(shardId, t);
+        }
+        return t;
+    }
 
     public static interface FailedEngineListener {
         void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t);

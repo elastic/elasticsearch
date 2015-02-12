@@ -6,7 +6,7 @@ The Python (jython) language plugin allows to have `python` as the language of s
 In order to install the plugin, simply run: 
 
 ```sh
-bin/plugin -install elasticsearch/elasticsearch-lang-python/2.4.1
+bin/plugin install elasticsearch/elasticsearch-lang-python/2.3.1
 ```
 
 You need to install a version matching your Elasticsearch version:
@@ -16,7 +16,7 @@ You need to install a version matching your Elasticsearch version:
 | master        |  Build from source    | See below  |
 | es-1.x        |  Build from source    | [2.5.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-lang-python/tree/es-1.x/#version-250-snapshot-for-elasticsearch-1x)  |
 |    es-1.4              |     2.4.1         | [2.4.1](https://github.com/elasticsearch/elasticsearch-lang-python/tree/v2.4.1/#version-241-for-elasticsearch-14)                  |
-| es-1.3        |  2.3.0                | [2.3.0](https://github.com/elasticsearch/elasticsearch-lang-python/tree/v2.3.0/#python-lang-plugin-for-elasticsearch)  |
+|    es-1.3              |     2.3.1         | [2.3.1](https://github.com/elasticsearch/elasticsearch-lang-python/tree/v2.3.1/#version-231-for-elasticsearch-13)                  |
 | es-1.2        |  2.2.0                | [2.2.0](https://github.com/elasticsearch/elasticsearch-lang-python/tree/v2.2.0/#python-lang-plugin-for-elasticsearch)  |
 | es-1.0        |  2.0.0                | [2.0.0](https://github.com/elasticsearch/elasticsearch-lang-python/tree/v2.0.0/#python-lang-plugin-for-elasticsearch)  |
 | es-0.90       |  1.0.0                | [1.0.0](https://github.com/elasticsearch/elasticsearch-lang-python/tree/v1.0.0/#python-lang-plugin-for-elasticsearch)  |

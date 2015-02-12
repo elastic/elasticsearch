@@ -25,8 +25,8 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
@@ -48,12 +48,12 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
     protected long numCollectedDocs;
     protected final SignificantTermsAggregatorFactory termsAggFactory;
 
-    public GlobalOrdinalsSignificantTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
-                                                    BucketCountThresholds bucketCountThresholds,
-                                                    IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent,
+    public GlobalOrdinalsSignificantTermsAggregator(String name, AggregatorFactories factories,
+            ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, BucketCountThresholds bucketCountThresholds,
+            IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent,
             SignificantTermsAggregatorFactory termsAggFactory, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
 
-        super(name, factories, valuesSource, maxOrd, null, bucketCountThresholds, includeExclude, aggregationContext, parent,
+        super(name, factories, valuesSource, null, bucketCountThresholds, includeExclude, aggregationContext, parent,
                 SubAggCollectionMode.DEPTH_FIRST, false, reducers, metaData);
         this.termsAggFactory = termsAggFactory;
     }

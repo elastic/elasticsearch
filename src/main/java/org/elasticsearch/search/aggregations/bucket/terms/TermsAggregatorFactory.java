@@ -1,4 +1,4 @@
-List</*
+/*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
  * this work for additional information regarding copyright
@@ -24,7 +24,6 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
-import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;

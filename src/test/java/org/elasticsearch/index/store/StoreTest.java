@@ -1050,4 +1050,47 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
 
         assertEquals(count.get(), 1);
     }
+
+    public void testFileLength() throws IOException {
+        final ShardId shardId = new ShardId(new Index("index"), 1);
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
+        Store store = new Store(shardId, ImmutableSettings.EMPTY, directoryService, randomDistributor(directoryService), new DummyShardLock(shardId));
+
+        Directory directory = store.directory();
+        final int numFiles = randomIntBetween(100, 1000);
+        HashMap<String, Long> fileAndLen = new HashMap<>();
+        for (int i = 0; i < numFiles; i++) {
+            String fileName = "foo_" + i;
+            int numBytes = randomIntBetween(1, 100);
+            fileAndLen.put(fileName, (long)numBytes);
+            try (IndexOutput output = directory.createOutput(fileName, IOContext.DEFAULT)) {
+                if (randomBoolean()) {
+                    for (int j = 0; j < numBytes; j++) {
+                        output.writeByte((byte) j);
+                        assertEquals(0, directory.fileLength(fileName));
+                    }
+                } else {
+                    output.writeBytes(new byte[numBytes], 0, numBytes);
+                    assertEquals(0, directory.fileLength(fileName));
+                }
+            }
+            assertEquals(numBytes, directory.fileLength(fileName));
+        }
+        for (int i = 0; i < numFiles; i++) {
+            String fileName = "foo_" + i;
+            assertEquals(fileAndLen.get(fileName).longValue(), directory.fileLength(fileName));
+            if (randomBoolean()) {
+                directory.renameFile(fileName, "bar_"+i);
+                assertEquals(fileAndLen.get(fileName).longValue(), directory.fileLength("bar_"+i));
+                try {
+                    directory.fileLength(fileName);
+                    fail("file doesn't exist: " + fileName);
+                } catch (FileNotFoundException | NoSuchFileException ex) {
+                    // all fine
+                }
+            }
+        }
+        store.deleteContent();
+        IOUtils.close(store);
+    }
 }

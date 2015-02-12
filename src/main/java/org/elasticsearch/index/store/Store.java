@@ -37,7 +37,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
@@ -54,6 +53,7 @@ import java.io.*;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.zip.Adler32;
@@ -283,7 +283,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     public StoreStats stats() throws IOException {
         ensureOpen();
-        return new StoreStats(Directories.estimateSize(directory), directoryService.throttleTimeInNanos());
+        return new StoreStats(directory.estimatedSize(), directoryService.throttleTimeInNanos());
     }
 
     public void renameFile(String from, String to) throws IOException {
@@ -615,11 +615,20 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     private static final class StoreDirectory extends FilterDirectory {
 
+        /**
+         * We cache the file length because we call fileLength(name) extensively
+         * on out stats APIs.
+         */
+        private final ConcurrentHashMap<String, Long> fileLengthCache = new ConcurrentHashMap<>();
+
         private final ESLogger deletesLogger;
 
         StoreDirectory(Directory delegateDirectory, ESLogger deletesLogger) throws IOException {
             super(delegateDirectory);
             this.deletesLogger = deletesLogger;
+            for (String name : delegateDirectory.listAll()) {
+                fileLengthCache.put(name, delegateDirectory.fileLength(name));
+            }
         }
 
         @Override
@@ -630,6 +639,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         public void deleteFile(String msg, String name) throws IOException {
             deletesLogger.trace("{}: delete file {}", msg, name);
             super.deleteFile(name);
+            fileLengthCache.remove(name);
         }
 
         @Override
@@ -638,12 +648,76 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
 
         private void innerClose() throws IOException {
-            super.close();
+            try {
+                super.close();
+            } finally {
+                fileLengthCache.clear();
+            }
+        }
+
+        @Override
+        public IndexOutput createOutput(final String name, IOContext context) throws IOException {
+            final IndexOutput output = super.createOutput(name, context);
+            fileLengthCache.remove(name); // protection against multiple writes
+            return new IndexOutput(output.toString()) {
+                @Override
+                public void close() throws IOException {
+                    output.close();
+                    fileLengthCache.put(name, getFilePointer());
+                }
+
+                @Override
+                public long getFilePointer() {
+                    return output.getFilePointer();
+                }
+
+                @Override
+                public long getChecksum() throws IOException {
+                    return output.getChecksum();
+                }
+
+                @Override
+                public void writeByte(byte b) throws IOException {
+                    output.writeByte(b);
+                }
+
+                @Override
+                public void writeBytes(byte[] b, int offset, int length) throws IOException {
+                    output.writeBytes(b, offset, length);
+                }
+            };
         }
 
         @Override
         public String toString() {
             return "store(" + in.toString() + ")";
+        }
+
+        @Override
+        public void renameFile(String source, String dest) throws IOException {
+            final long len = fileLength(source);
+            super.renameFile(source, dest);
+            fileLengthCache.put(dest, len);
+            fileLengthCache.remove(source);
+        }
+
+        @Override
+        public long fileLength(String name) throws IOException {
+            final Long size = fileLengthCache.get(name);
+            if (size == null) {
+                return super.fileLength(name);
+            } else {
+                assert size == super.fileLength(name) : size + " != " + super.fileLength(name);
+                return size;
+            }
+        }
+
+        long estimatedSize() {
+            long sum = 0;
+            for (Long len : fileLengthCache.values()) {
+                sum += len;
+            }
+            return sum;
         }
     }
 

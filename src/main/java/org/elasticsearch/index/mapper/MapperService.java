@@ -560,17 +560,6 @@ public class MapperService extends AbstractIndexComponent  {
 
     /**
      * Returns {@link FieldMappers} for all the {@link FieldMapper}s that are registered
-     * under the given name across all the different {@link DocumentMapper} types.
-     *
-     * @param name The name to return all the {@link FieldMappers} for across all {@link DocumentMapper}s.
-     * @return All the {@link FieldMappers} for across all {@link DocumentMapper}s
-     */
-    public FieldMappers name(String name) {
-        return fieldMappers.name(name);
-    }
-
-    /**
-     * Returns {@link FieldMappers} for all the {@link FieldMapper}s that are registered
      * under the given indexName across all the different {@link DocumentMapper} types.
      *
      * @param indexName The indexName to return all the {@link FieldMappers} for across all {@link DocumentMapper}s.
@@ -706,11 +695,7 @@ public class MapperService extends AbstractIndexComponent  {
         if (mappers != null) {
             return mappers;
         }
-        mappers = indexName(smartName);
-        if (mappers != null) {
-            return mappers;
-        }
-        return name(smartName);
+        return indexName(smartName);
     }
 
     public SmartNameFieldMappers smartName(String smartName, @Nullable String[] types) {
@@ -752,10 +737,6 @@ public class MapperService extends AbstractIndexComponent  {
             return new SmartNameFieldMappers(this, fieldMappers, null, false);
         }
         fieldMappers = indexName(smartName);
-        if (fieldMappers != null) {
-            return new SmartNameFieldMappers(this, fieldMappers, null, false);
-        }
-        fieldMappers = name(smartName);
         if (fieldMappers != null) {
             return new SmartNameFieldMappers(this, fieldMappers, null, false);
         }
@@ -833,7 +814,7 @@ public class MapperService extends AbstractIndexComponent  {
     public static boolean isMetadataField(String fieldName) {
         return META_FIELDS.contains(fieldName);
     }
-    
+
     public static class SmartNameObjectMapper {
         private final ObjectMapper mapper;
         private final DocumentMapper docMapper;

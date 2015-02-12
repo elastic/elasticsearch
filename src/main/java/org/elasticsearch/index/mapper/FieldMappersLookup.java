@@ -103,7 +103,10 @@ public class FieldMappersLookup extends ForwardingSet<FieldMapper<?>> {
 
     /** Create a new empty instance. */
     public FieldMappersLookup() {
-        this(new CopyOnWriteHashSet<FieldMapper<?>>(), new MappersLookup(new CopyOnWriteHashMap<String, FieldMappers>(), new CopyOnWriteHashMap<String, FieldMappers>(), new CopyOnWriteHashMap<String, FieldMappers>()));
+        this(new CopyOnWriteHashSet<FieldMapper<?>>(),
+             new MappersLookup(new CopyOnWriteHashMap<String, FieldMappers>(),
+                               new CopyOnWriteHashMap<String, FieldMappers>(),
+                               new CopyOnWriteHashMap<String, FieldMappers>()));
     }
 
     private FieldMappersLookup(CopyOnWriteHashSet<FieldMapper<?>> mappers, MappersLookup lookup) {
@@ -131,13 +134,6 @@ public class FieldMappersLookup extends ForwardingSet<FieldMapper<?>> {
     }
 
     /**
-     * Returns the field mappers based on the mapper name.
-     */
-    public FieldMappers name(String name) {
-        return lookup.name.get(name);
-    }
-
-    /**
      * Returns the field mappers based on the mapper index name.
      */
     public FieldMappers indexName(String indexName) {
@@ -152,7 +148,7 @@ public class FieldMappersLookup extends ForwardingSet<FieldMapper<?>> {
     }
 
     /**
-     * Returns a list of the index names of a simple match regex like pattern against full name, name and index name.
+     * Returns a list of the index names of a simple match regex like pattern against full name and index name.
      */
     public List<String> simpleMatchToIndexNames(String pattern) {
         List<String> fields = Lists.newArrayList();
@@ -161,15 +157,13 @@ public class FieldMappersLookup extends ForwardingSet<FieldMapper<?>> {
                 fields.add(fieldMapper.names().indexName());
             } else if (Regex.simpleMatch(pattern, fieldMapper.names().indexName())) {
                 fields.add(fieldMapper.names().indexName());
-            } else if (Regex.simpleMatch(pattern, fieldMapper.names().name())) {
-                fields.add(fieldMapper.names().indexName());
             }
         }
         return fields;
     }
 
     /**
-     * Returns a list of the full names of a simple match regex like pattern against full name, name and index name.
+     * Returns a list of the full names of a simple match regex like pattern against full name and index name.
      */
     public List<String> simpleMatchToFullName(String pattern) {
         List<String> fields = Lists.newArrayList();
@@ -178,16 +172,13 @@ public class FieldMappersLookup extends ForwardingSet<FieldMapper<?>> {
                 fields.add(fieldMapper.names().fullName());
             } else if (Regex.simpleMatch(pattern, fieldMapper.names().indexName())) {
                 fields.add(fieldMapper.names().fullName());
-            } else if (Regex.simpleMatch(pattern, fieldMapper.names().name())) {
-                fields.add(fieldMapper.names().fullName());
             }
         }
         return fields;
     }
 
     /**
-     * Tries to find first based on {@link #fullName(String)}, then by {@link #indexName(String)}, and last
-     * by {@link #name(String)}.
+     * Tries to find first based on {@link #fullName(String)}, then by {@link #indexName(String)}.
      */
     @Nullable
     public FieldMappers smartName(String name) {
@@ -195,16 +186,12 @@ public class FieldMappersLookup extends ForwardingSet<FieldMapper<?>> {
         if (fieldMappers != null) {
             return fieldMappers;
         }
-        fieldMappers = indexName(name);
-        if (fieldMappers != null) {
-            return fieldMappers;
-        }
-        return name(name);
+        return indexName(name);
     }
 
     /**
-     * Tries to find first based on {@link #fullName(String)}, then by {@link #indexName(String)}, and last
-     * by {@link #name(String)} and return the first mapper for it (see {@link org.elasticsearch.index.mapper.FieldMappers#mapper()}).
+     * Tries to find first based on {@link #fullName(String)}, then by {@link #indexName(String)}
+     * and return the first mapper for it (see {@link org.elasticsearch.index.mapper.FieldMappers#mapper()}).
      */
     @Nullable
     public FieldMapper<?> smartNameFieldMapper(String name) {

@@ -110,8 +110,8 @@
          wait_for_status: green
 
   - do:
-    indices.close:
-      index: index1
+      indices.close:
+        index: index1
 
   - do:
       catch: forbidden

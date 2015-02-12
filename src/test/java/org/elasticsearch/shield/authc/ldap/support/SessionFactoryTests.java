@@ -52,7 +52,7 @@ public class SessionFactoryTests extends ElasticsearchTestCase {
         return new SessionFactory(new RealmConfig("_name")) {
 
             @Override
-            public LdapSession open(String user, SecuredString password) {
+            public LdapSession session(String user, SecuredString password) {
                 return null;
             }
         };

@@ -35,7 +35,7 @@ class UserAttributeGroupsResolver implements GroupsResolver {
     }
 
     @Override
-    public List<String> resolve(LDAPConnection connection, String userDn, TimeValue timeout, ESLogger logger) {
+    public List<String> resolve(LDAPInterface connection, String userDn, TimeValue timeout, ESLogger logger) {
         try {
             SearchRequest request = new SearchRequest(userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER, attribute);
             request.setTimeLimitSeconds(Ints.checkedCast(timeout.seconds()));

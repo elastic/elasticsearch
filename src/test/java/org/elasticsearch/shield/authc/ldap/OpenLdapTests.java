@@ -23,8 +23,7 @@ import org.junit.Test;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.*;
 
 @Network
 public class OpenLdapTests extends ElasticsearchTestCase {
@@ -59,7 +58,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
         for (String user : users) {
-            try (LdapSession ldap = sessionFactory.open(user, SecuredStringTests.build(PASSWORD))) {
+            try (LdapSession ldap = sessionFactory.session(user, SecuredStringTests.build(PASSWORD))) {
                 assertThat(ldap.groups(), hasItem(containsString("Avengers")));
             }
         }
@@ -76,7 +75,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
 
         String[] users = new String[] { "blackwidow", "cap", "hawkeye", "hulk", "ironman", "thor" };
         for (String user : users) {
-            LdapSession ldap = sessionFactory.open(user, SecuredStringTests.build(PASSWORD));
+            LdapSession ldap = sessionFactory.session(user, SecuredStringTests.build(PASSWORD));
             assertThat(ldap.groups(), hasItem(containsString("Avengers")));
             ldap.close();
         }
@@ -94,7 +93,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         RealmConfig config = new RealmConfig("oldap-test", settings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
 
-        try (LdapSession ldap = sessionFactory.open("selvig", SecuredStringTests.build(PASSWORD))){
+        try (LdapSession ldap = sessionFactory.session("selvig", SecuredStringTests.build(PASSWORD))){
             assertThat(ldap.groups(), hasItem(containsString("Geniuses")));
         }
     }
@@ -112,7 +111,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         RealmConfig config = new RealmConfig("oldap-test", settings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
 
-        try (LdapSession ldap = sessionFactory.open("thor", SecuredStringTests.build(PASSWORD))) {
+        try (LdapSession ldap = sessionFactory.session("thor", SecuredStringTests.build(PASSWORD))) {
             // In certain cases we may have a successful bind, but a search should take longer and cause a timeout
             ldap.groups();
             fail("The TCP connection should timeout before getting groups back");
@@ -135,7 +134,7 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
 
         String user = "blackwidow";
-        try (LdapSession ldap = sessionFactory.open(user, SecuredStringTests.build(PASSWORD))) {
+        try (LdapSession ldap = sessionFactory.session(user, SecuredStringTests.build(PASSWORD))) {
             fail("OpenLDAP certificate does not contain the correct hostname/ip so hostname verification should fail on open");
         } catch (ShieldLdapException e) {
             assertThat(e.getMessage(), containsString("failed to connect to any LDAP servers"));

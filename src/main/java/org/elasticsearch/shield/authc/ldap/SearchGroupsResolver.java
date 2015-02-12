@@ -45,7 +45,7 @@ class SearchGroupsResolver implements GroupsResolver {
     }
 
     @Override
-    public List<String> resolve(LDAPConnection connection, String userDn, TimeValue timeout, ESLogger logger) {
+    public List<String> resolve(LDAPInterface connection, String userDn, TimeValue timeout, ESLogger logger) {
         List<String> groups = new LinkedList<>();
 
         String userId = userAttribute != null ? readUserAttribute(connection, userDn, timeout, logger) : userDn;
@@ -63,7 +63,7 @@ class SearchGroupsResolver implements GroupsResolver {
         return groups;
     }
 
-    String readUserAttribute(LDAPConnection connection, String userDn, TimeValue timeout, ESLogger logger) {
+    String readUserAttribute(LDAPInterface connection, String userDn, TimeValue timeout, ESLogger logger) {
         try {
             SearchRequest request = new SearchRequest(userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER, userAttribute);
             request.setTimeLimitSeconds(Ints.checkedCast(timeout.seconds()));

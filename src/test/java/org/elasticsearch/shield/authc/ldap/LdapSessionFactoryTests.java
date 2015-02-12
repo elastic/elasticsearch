@@ -42,7 +42,7 @@ public class LdapSessionFactoryTests extends LdapTest {
 
         ldapServer.setProcessingDelayMillis(500L);
         long start = System.currentTimeMillis();
-        try (LdapSession session = sessionFactory.open(user, userPass)) {
+        try (LdapSession session = sessionFactory.session(user, userPass)) {
             fail("expected connection timeout error here");
         } catch (Throwable t) {
             long time = System.currentTimeMillis() - start;
@@ -73,7 +73,7 @@ public class LdapSessionFactoryTests extends LdapTest {
         SecuredString userPass = SecuredStringTests.build("pass");
 
         long start = System.currentTimeMillis();
-        try (LdapSession session = sessionFactory.open(user, userPass)) {
+        try (LdapSession session = sessionFactory.session(user, userPass)) {
             fail("expected connection timeout error here");
         } catch (Throwable t) {
             long time = System.currentTimeMillis() - start;
@@ -98,7 +98,7 @@ public class LdapSessionFactoryTests extends LdapTest {
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
 
-        try (LdapSession ldap = sessionFactory.open(user, userPass)) {
+        try (LdapSession ldap = sessionFactory.session(user, userPass)) {
             String dn = ldap.authenticatedUserDn();
             assertThat(dn, containsString(user));
         }
@@ -119,7 +119,7 @@ public class LdapSessionFactoryTests extends LdapTest {
 
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
-        try (LdapSession ldapConnection = ldapFac.open(user, userPass)) {
+        try (LdapSession ldapConnection = ldapFac.session(user, userPass)) {
         }
     }
 
@@ -134,7 +134,7 @@ public class LdapSessionFactoryTests extends LdapTest {
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
 
-        try (LdapSession ldap = ldapFac.open(user, userPass)) {
+        try (LdapSession ldap = ldapFac.session(user, userPass)) {
             List<String> groups = ldap.groups();
             assertThat(groups, containsInAnyOrder("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }
@@ -149,7 +149,7 @@ public class LdapSessionFactoryTests extends LdapTest {
         LdapSessionFactory ldapFac = new LdapSessionFactory(config, null);
 
         String user = "Horatio Hornblower";
-        try (LdapSession ldap = ldapFac.open(user, SecuredStringTests.build("pass"))) {
+        try (LdapSession ldap = ldapFac.session(user, SecuredStringTests.build("pass"))) {
             List<String> groups = ldap.groups();
             assertThat(groups, containsInAnyOrder("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }
@@ -166,7 +166,7 @@ public class LdapSessionFactoryTests extends LdapTest {
         String user = "Horatio Hornblower";
         SecuredString userPass = SecuredStringTests.build("pass");
 
-        try (LdapSession ldap = ldapFac.open(user, userPass)) {
+        try (LdapSession ldap = ldapFac.session(user, userPass)) {
             List<String> groups = ldap.groups();
             assertThat(groups.size(), is(1));
             assertThat(groups, containsInAnyOrder("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));

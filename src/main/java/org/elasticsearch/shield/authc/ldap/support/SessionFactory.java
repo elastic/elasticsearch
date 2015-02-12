@@ -33,7 +33,7 @@ import static org.elasticsearch.common.collect.Iterables.all;
  * A standard looking usage pattern could look like this:
  <pre>
     ConnectionFactory factory = ...
-    try (LdapConnection session = factory.open(...)) {
+    try (LdapConnection session = factory.session(...)) {
         ...do stuff with the session
     }
  </pre>
@@ -74,7 +74,7 @@ public abstract class SessionFactory {
      * @param user      The name of the user to authenticate the connection with.
      * @param password  The password of the user
      */
-    public abstract LdapSession open(String user, SecuredString password);
+    public abstract LdapSession session(String user, SecuredString password);
 
     protected static LDAPConnectionOptions connectionOptions(Settings settings) {
         LDAPConnectionOptions options = new LDAPConnectionOptions();

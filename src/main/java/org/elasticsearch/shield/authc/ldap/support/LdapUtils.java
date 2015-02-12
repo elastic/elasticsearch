@@ -39,16 +39,16 @@ public final class LdapUtils {
     /**
      * This method performs a LDAPConnection.search(...) operation while handling referral exceptions. This is necessary
      * to maintain backwards compatibility
-     * @param ldapConnection
+     * @param ldap
      * @param searchRequest
      * @param logger
      * @return
      * @throws LDAPException
      */
-    public static SearchResult search(LDAPConnection ldapConnection, SearchRequest searchRequest, ESLogger logger) throws LDAPException {
+    public static SearchResult search(LDAPInterface ldap, SearchRequest searchRequest, ESLogger logger) throws LDAPException {
         SearchResult results;
         try {
-            results = ldapConnection.search(searchRequest);
+            results = ldap.search(searchRequest);
         } catch (LDAPSearchException e) {
             if (e.getResultCode().equals(ResultCode.REFERRAL) && e.getSearchResult() != null) {
                 if (logger.isDebugEnabled()){
@@ -65,16 +65,16 @@ public final class LdapUtils {
     /**
      * This method performs a LDAPConnection.searchForEntry(...) operation while handling referral exceptions. This is necessary
      * to maintain backwards compatibility
-     * @param ldapConnection
+     * @param ldap
      * @param searchRequest
      * @param logger
      * @return
      * @throws LDAPException
      */
-    public static SearchResultEntry searchForEntry(LDAPConnection ldapConnection, SearchRequest searchRequest, ESLogger logger) throws LDAPException {
+    public static SearchResultEntry searchForEntry(LDAPInterface ldap, SearchRequest searchRequest, ESLogger logger) throws LDAPException {
         SearchResultEntry entry;
         try {
-            entry = ldapConnection.searchForEntry(searchRequest);
+            entry = ldap.searchForEntry(searchRequest);
         } catch (LDAPSearchException e) {
             if (e.getResultCode().equals(ResultCode.REFERRAL) && e.getSearchResult() != null && e.getSearchResult().getEntryCount() > 0) {
                 if (logger.isDebugEnabled()){

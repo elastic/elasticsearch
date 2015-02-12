@@ -8,8 +8,10 @@ package org.elasticsearch.shield.authc.ldap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
+import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.RealmConfig;
+import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
@@ -22,8 +24,10 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.elasticsearch.shield.authc.ldap.LdapSessionFactory.USER_DN_TEMPLATES_SETTING;
+import static org.elasticsearch.shield.authc.ldap.support.SessionFactory.HOSTNAME_VERIFICATION_SETTING;
+import static org.elasticsearch.shield.authc.ldap.support.SessionFactory.URLS_SETTING;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.*;
@@ -103,8 +107,8 @@ public class LdapRealmTest extends LdapTest {
         ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
         ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
 
-        //verify one and only one open -> caching is working
-        verify(ldapFactory, times(1)).open(anyString(), any(SecuredString.class));
+        //verify one and only one session -> caching is working
+        verify(ldapFactory, times(1)).session(anyString(), any(SecuredString.class));
     }
 
     @Test
@@ -123,15 +127,15 @@ public class LdapRealmTest extends LdapTest {
         ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
         ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
 
-        //verify one and only one open -> caching is working
-        verify(ldapFactory, times(1)).open(anyString(), any(SecuredString.class));
+        //verify one and only one session -> caching is working
+        verify(ldapFactory, times(1)).session(anyString(), any(SecuredString.class));
 
         roleMapper.notifyRefresh();
 
         ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
 
-        //we need to open again
-        verify(ldapFactory, times(2)).open(anyString(), any(SecuredString.class));
+        //we need to session again
+        verify(ldapFactory, times(2)).session(anyString(), any(SecuredString.class));
     }
 
     @Test
@@ -151,7 +155,62 @@ public class LdapRealmTest extends LdapTest {
         ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
 
         //verify two and only two binds -> caching is disabled
-        verify(ldapFactory, times(2)).open(anyString(), any(SecuredString.class));
+        verify(ldapFactory, times(2)).session(anyString(), any(SecuredString.class));
     }
 
+    @Test
+    public void testLdapRealmSelectsLdapSessionFactory() throws Exception {
+        String groupSearchBase = "o=sevenSeas";
+        String userTemplate = VALID_USER_TEMPLATE;
+        Settings settings = ImmutableSettings.builder()
+                .putArray(URLS_SETTING, ldapUrl())
+                .putArray(USER_DN_TEMPLATES_SETTING, userTemplate)
+                .put("group_search.base_dn", groupSearchBase)
+                .put("group_search.scope", LdapSearchScope.SUB_TREE)
+                .put(HOSTNAME_VERIFICATION_SETTING, false)
+                .build();
+        RealmConfig config = new RealmConfig("test-ldap-realm", settings);
+        SessionFactory sessionFactory = LdapRealm.Factory.sessionFactory(config, null);
+        assertThat(sessionFactory, is(instanceOf(LdapSessionFactory.class)));
+    }
+
+    @Test
+    public void testLdapRealmSelectsLdapUserSearchSessionFactory() throws Exception {
+        String groupSearchBase = "o=sevenSeas";
+        Settings settings = ImmutableSettings.builder()
+                .putArray(URLS_SETTING, ldapUrl())
+                .put("user_search.base_dn", "")
+                .put("user_search.bind_dn", "cn=Thomas Masterman Hardy,ou=people,o=sevenSeas")
+                .put("user_search.bind_password", PASSWORD)
+                .put("group_search.base_dn", groupSearchBase)
+                .put("group_search.scope", LdapSearchScope.SUB_TREE)
+                .put(HOSTNAME_VERIFICATION_SETTING, false)
+                .build();
+        RealmConfig config = new RealmConfig("test-ldap-realm-user-search", settings);
+        SessionFactory sessionFactory = LdapRealm.Factory.sessionFactory(config, null);
+        try {
+            assertThat(sessionFactory, is(instanceOf(LdapUserSearchSessionFactory.class)));
+        } finally {
+            ((LdapUserSearchSessionFactory)sessionFactory).shutdown();
+        }
+    }
+
+    @Test
+    public void testLdapRealmThrowsExceptionForUserTemplateAndSearchSettings() throws Exception {
+        Settings settings = ImmutableSettings.builder()
+                .putArray(URLS_SETTING, ldapUrl())
+                .putArray(USER_DN_TEMPLATES_SETTING, "cn=foo")
+                .put("user_search.base_dn", "cn=bar")
+                .put("group_search.base_dn", "")
+                .put("group_search.scope", LdapSearchScope.SUB_TREE)
+                .put(HOSTNAME_VERIFICATION_SETTING, false)
+                .build();
+        RealmConfig config = new RealmConfig("test-ldap-realm-user-search", settings);
+        try {
+            LdapRealm.Factory.sessionFactory(config, null);
+            fail("an exception should have been thrown because both user template and user search settings were specified");
+        } catch (ShieldSettingsException e) {
+            assertThat(e.getMessage(), containsString("settings were found for both user search and user template"));
+        }
+    }
 }

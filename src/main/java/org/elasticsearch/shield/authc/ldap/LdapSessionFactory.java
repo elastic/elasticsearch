@@ -77,7 +77,7 @@ public class LdapSessionFactory extends SessionFactory {
      * @return authenticated exception
      */
     @Override
-    public LdapSession open(String username, SecuredString password) {
+    public LdapSession session(String username, SecuredString password) {
         LDAPConnection connection;
 
         try {
@@ -115,7 +115,7 @@ public class LdapSessionFactory extends SessionFactory {
         return MessageFormat.format(template, escapedUsername);
     }
 
-    static LdapSession.GroupsResolver groupResolver(Settings settings) {
+    static GroupsResolver groupResolver(Settings settings) {
         Settings searchSettings = settings.getAsSettings("group_search");
         if (!searchSettings.names().isEmpty()) {
             return new SearchGroupsResolver(searchSettings);

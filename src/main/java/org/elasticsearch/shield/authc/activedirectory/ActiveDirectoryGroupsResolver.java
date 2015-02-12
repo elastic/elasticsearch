@@ -35,7 +35,7 @@ public class ActiveDirectoryGroupsResolver implements GroupsResolver {
         this.scope = LdapSearchScope.resolve(settings.get("scope"), LdapSearchScope.SUB_TREE);
     }
 
-    public List<String> resolve(LDAPConnection connection, String userDn, TimeValue timeout, ESLogger logger) {
+    public List<String> resolve(LDAPInterface connection, String userDn, TimeValue timeout, ESLogger logger) {
         Filter groupSearchFilter = buildGroupQuery(connection, userDn, timeout, logger);
         logger.debug("group SID to DN search filter: [{}]", groupSearchFilter);
 
@@ -59,7 +59,7 @@ public class ActiveDirectoryGroupsResolver implements GroupsResolver {
         return groupList;
     }
 
-    static Filter buildGroupQuery(LDAPConnection connection, String userDn, TimeValue timeout, ESLogger logger) {
+    static Filter buildGroupQuery(LDAPInterface connection, String userDn, TimeValue timeout, ESLogger logger) {
         try {
             SearchRequest request = new SearchRequest(userDn, SearchScope.BASE, OBJECT_CLASS_PRESENCE_FILTER, "tokenGroups");
             request.setTimeLimitSeconds(Ints.checkedCast(timeout.seconds()));

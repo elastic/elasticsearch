@@ -39,7 +39,7 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
      */
     @Override
     protected User doAuthenticate(UsernamePasswordToken token) {
-        try (LdapSession session = sessionFactory.open(token.principal(), token.credentials())) {
+        try (LdapSession session = sessionFactory.session(token.principal(), token.credentials())) {
             List<String> groupDNs = session.groups();
             Set<String> roles = roleMapper.mapRoles(groupDNs);
             return new User.Simple(token.principal(), roles.toArray(new String[roles.size()]));

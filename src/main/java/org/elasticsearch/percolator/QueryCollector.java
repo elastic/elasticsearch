@@ -31,7 +31,6 @@ import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -66,7 +65,7 @@ abstract class QueryCollector extends SimpleCollector {
 
     SortedBinaryDocValues values;
 
-    final XCollector aggregatorCollector;
+    final BucketCollector aggregatorCollector;
     LeafCollector aggregatorLeafCollector;
 
     QueryCollector(ESLogger logger, PercolateContext context, boolean isNestedDoc) throws IOException {

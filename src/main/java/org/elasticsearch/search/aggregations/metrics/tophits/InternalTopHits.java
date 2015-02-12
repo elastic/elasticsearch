@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.metrics.tophits;
 
-import java.io.IOException;
-import java.util.List;
-
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
@@ -35,8 +32,13 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMetricsAggregation;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
 
 /**
  */
@@ -65,16 +67,17 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
     InternalTopHits() {
     }
 
-    public InternalTopHits(String name, int from, int size, TopDocs topDocs, InternalSearchHits searchHits) {
-        this.name = name;
+    public InternalTopHits(String name, int from, int size, TopDocs topDocs, InternalSearchHits searchHits, List<Reducer> reducers,
+            Map<String, Object> metaData) {
+        super(name, reducers, metaData);
         this.from = from;
         this.size = size;
         this.topDocs = topDocs;
         this.searchHits = searchHits;
     }
 
-    public InternalTopHits(String name, InternalSearchHits searchHits) {
-        this.name = name;
+    public InternalTopHits(String name, InternalSearchHits searchHits, List<Reducer> reducers, Map<String, Object> metaData) {
+        super(name, reducers, metaData);
         this.searchHits = searchHits;
         this.topDocs = Lucene.EMPTY_TOP_DOCS;
     }
@@ -123,7 +126,8 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
                 } while (shardDocs[scoreDoc.shardIndex].scoreDocs[position] != scoreDoc);
                 hits[i] = (InternalSearchHit) shardHits[scoreDoc.shardIndex].getAt(position);
             }
-            return new InternalTopHits(name, new InternalSearchHits(hits, reducedTopDocs.totalHits, reducedTopDocs.getMaxScore()));
+            return new InternalTopHits(name, new InternalSearchHits(hits, reducedTopDocs.totalHits, reducedTopDocs.getMaxScore()),
+                    reducers(), getMetaData());
         } catch (IOException e) {
             throw ExceptionsHelper.convertToElastic(e);
         }

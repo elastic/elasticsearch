@@ -86,7 +86,7 @@ public class UnmappedTerms extends InternalTerms {
     public InternalAggregation doReduce(ReduceContext reduceContext) {
         for (InternalAggregation agg : reduceContext.aggregations()) {
             if (!(agg instanceof UnmappedTerms)) {
-                return agg.doReduce(reduceContext);
+                return agg.reduce(reduceContext);
             }
         }
         return this;

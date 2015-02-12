@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.reducers;
 
-import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
@@ -28,7 +27,7 @@ import java.util.Map;
 /**
  * A factory that knows how to create an {@link Aggregator} of a specific type.
  */
-public abstract class ReducerFactory implements Streamable {
+public abstract class ReducerFactory {
 
     protected String name;
     protected String type;

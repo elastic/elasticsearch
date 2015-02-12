@@ -71,7 +71,7 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms {
     public InternalAggregation doReduce(ReduceContext reduceContext) {
         for (InternalAggregation aggregation : reduceContext.aggregations()) {
             if (!(aggregation instanceof UnmappedSignificantTerms)) {
-                return aggregation.doReduce(reduceContext);
+                return aggregation.reduce(reduceContext);
             }
         }
         return this;

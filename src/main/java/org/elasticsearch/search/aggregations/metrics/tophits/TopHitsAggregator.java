@@ -158,13 +158,15 @@ public class TopHitsAggregator extends MetricsAggregator {
                     searchHitFields.sortValues(fieldDoc.fields);
                 }
             }
-            return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, fetchResult.hits());
+            return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, fetchResult.hits(), reducers(),
+                    metaData());
         }
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), Lucene.EMPTY_TOP_DOCS, InternalSearchHits.empty());
+        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), Lucene.EMPTY_TOP_DOCS,
+                InternalSearchHits.empty(), reducers(), metaData());
     }
 
     @Override

@@ -95,7 +95,7 @@ public abstract class AggregatorFactory {
      * @return                      The created aggregator
      */
     public final Aggregator create(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
-        return createInternal(context, parent, collectsFromSingleBucket, this.factories.reducers(), this.metaData);
+        return createInternal(context, parent, collectsFromSingleBucket, this.factories.createReducers(), this.metaData);
     }
 
     public void doValidate() {

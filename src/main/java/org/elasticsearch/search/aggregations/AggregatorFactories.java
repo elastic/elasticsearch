@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -36,18 +37,22 @@ public class AggregatorFactories {
     public static final AggregatorFactories EMPTY = new Empty();
 
     private AggregatorFactory[] factories;
-    private List<Reducer> reducers;
+    private List<ReducerFactory> reducerFactories;
 
     public static Builder builder() {
         return new Builder();
     }
 
-    private AggregatorFactories(AggregatorFactory[] factories, List<Reducer> reducers) {
+    private AggregatorFactories(AggregatorFactory[] factories, List<ReducerFactory> reducers) {
         this.factories = factories;
-        this.reducers = reducers;
+        this.reducerFactories = reducers;
     }
 
-    public List<Reducer> reducers() {
+    public List<Reducer> createReducers() throws IOException {
+        List<Reducer> reducers = new ArrayList<>();
+        for (ReducerFactory factory : this.reducerFactories) {
+            reducers.add(factory.create(null, null, false)); // NOCOMIT add context, parent etc.
+        }
         return reducers;
     }
 
@@ -107,7 +112,7 @@ public class AggregatorFactories {
 
         private static final AggregatorFactory[] EMPTY_FACTORIES = new AggregatorFactory[0];
         private static final Aggregator[] EMPTY_AGGREGATORS = new Aggregator[0];
-        private static final List<Reducer> EMPTY_REDUCERS = new ArrayList<>();
+        private static final List<ReducerFactory> EMPTY_REDUCERS = new ArrayList<>();
 
         private Empty() {
             super(EMPTY_FACTORIES, EMPTY_REDUCERS);
@@ -129,9 +134,9 @@ public class AggregatorFactories {
 
         private final Set<String> names = new HashSet<>();
         private final List<AggregatorFactory> factories = new ArrayList<>();
-        private List<Reducer> reducers = new ArrayList<>();
+        private final List<ReducerFactory> reducerFactories = new ArrayList<>();
 
-        public Builder add(AggregatorFactory factory) {
+        public Builder addAggregator(AggregatorFactory factory) {
             if (!names.add(factory.name)) {
                 throw new ElasticsearchIllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");
             }
@@ -139,8 +144,8 @@ public class AggregatorFactories {
             return this;
         }
 
-        public Builder setReducers(List<Reducer> reducers) {
-            this.reducers = reducers;
+        public Builder addReducer(ReducerFactory reducerFactory) {
+            this.reducerFactories.add(reducerFactory);
             return this;
         }
 
@@ -148,7 +153,8 @@ public class AggregatorFactories {
             if (factories.isEmpty()) {
                 return EMPTY;
             }
-            return new AggregatorFactories(factories.toArray(new AggregatorFactory[factories.size()]), this.reducers);
+            // NOCOMMIT work out dependency order of reducer factories
+            return new AggregatorFactories(factories.toArray(new AggregatorFactory[factories.size()]), this.reducerFactories);
         }
     }
 }

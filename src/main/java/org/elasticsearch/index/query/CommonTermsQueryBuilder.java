@@ -27,7 +27,7 @@ import java.io.IOException;
 /**
  * CommonTermsQuery query is a query that executes high-frequency terms in a
  * optional sub-query to prevent slow queries due to "common" terms like
- * stopwords. This query basically builds 2 queries off the {@link #add(Term)
+ * stopwords. This query basically builds 2 queries off the {@link #addAggregator(Term)
  * added} terms where low-frequency terms are added to a required boolean clause
  * and high-frequency terms are added to an optional boolean clause. The
  * optional clause is only executed if the required "low-frequency' clause

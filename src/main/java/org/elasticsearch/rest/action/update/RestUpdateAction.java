@@ -131,7 +131,8 @@ public class RestUpdateAction extends BaseRestHandler {
                 builder.field(Fields._INDEX, response.getIndex())
                         .field(Fields._TYPE, response.getType())
                         .field(Fields._ID, response.getId())
-                        .field(Fields._VERSION, response.getVersion());
+                        .field(Fields._VERSION, response.getVersion())
+                        .field(Fields._NOOP, response.isNoOp());
 
                 shardInfo.toXContent(builder, request);
                 if (response.getGetResult() != null) {
@@ -155,6 +156,7 @@ public class RestUpdateAction extends BaseRestHandler {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
+        static final XContentBuilderString _NOOP = new XContentBuilderString("_noop");
         static final XContentBuilderString GET = new XContentBuilderString("get");
     }
 }

@@ -35,6 +35,7 @@ public class UpdateResponse extends ActionWriteResponse {
     private String type;
     private long version;
     private boolean created;
+    private boolean noop;
     private GetResult getResult;
 
     public UpdateResponse() {
@@ -55,6 +56,11 @@ public class UpdateResponse extends ActionWriteResponse {
         this.type = type;
         this.version = version;
         this.created = created;
+    }
+
+    public UpdateResponse(String index, String type, String id, long version, boolean created, boolean noop) {
+        this(index, type, id, version, created);
+        this.noop = noop;
     }
 
     /**
@@ -98,6 +104,14 @@ public class UpdateResponse extends ActionWriteResponse {
      */
     public boolean isCreated() {
         return this.created;
+
+    }
+
+    /**
+     * Returns true if document was not updated due to a noop operation
+     */
+    public boolean isNoOp() {
+        return this.noop;
 
     }
 

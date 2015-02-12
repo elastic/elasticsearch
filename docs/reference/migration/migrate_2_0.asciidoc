@@ -217,11 +217,7 @@ The following query was possible in 1.x:
 curl -XGET 'localhost:9200/index/type/_search'
 {
   "query": {
-    "bool": {
-      "should": [
-        {"match": { "first": "foo" }}
-      ]
-    }
+    "match": { "first": "foo" }
   }
 }
 ---------------
@@ -231,11 +227,7 @@ In 2.0, the same query should now be:
 curl -XGET 'localhost:9200/index/type/_search'
 {
   "query": {
-    "bool": {
-      "should": [
-        {"match": { "name.first": "foo" }}
-      ]
-    }
+    "match": { "name.first": "foo" }
   }
 }
 ---------------

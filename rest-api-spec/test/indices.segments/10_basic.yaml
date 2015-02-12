@@ -63,10 +63,6 @@
       index: index1
 
   - do:
-       cluster.health:
-         wait_for_status: green
-
-  - do:
       catch: forbidden
       indices.segments:
           index: index1

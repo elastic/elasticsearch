@@ -5,18 +5,18 @@
  */
 package org.elasticsearch.shield.support;
 
-import org.apache.lucene.util.automaton.Automata;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.Operations;
-import org.apache.lucene.util.automaton.RegExp;
+import dk.brics.automaton.BasicAutomata;
+import dk.brics.automaton.Automaton;
+import dk.brics.automaton.BasicOperations;
+import dk.brics.automaton.RegExp;
 import org.elasticsearch.common.collect.ImmutableList;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.apache.lucene.util.automaton.MinimizationOperations.minimize;
-import static org.apache.lucene.util.automaton.Operations.*;
+import static dk.brics.automaton.MinimizationOperations.minimize;
+import static dk.brics.automaton.BasicOperations.*;
 
 /**
  *
@@ -42,7 +42,7 @@ public final class Automatons {
      */
     public static Automaton patterns(Collection<String> patterns) {
         if (patterns.isEmpty()) {
-            return Automata.makeEmpty();
+            return BasicAutomata.makeEmpty();
         }
         Automaton automaton = null;
         for (String pattern : patterns) {
@@ -52,7 +52,8 @@ public final class Automatons {
                 automaton = union(automaton, pattern(pattern));
             }
         }
-        return determinize(minimize(automaton));
+        minimize(automaton); // minimal is also deterministic
+        return automaton;
     }
 
     /**
@@ -77,36 +78,40 @@ public final class Automatons {
     static Automaton wildcard(String text) {
         List<Automaton> automata = new ArrayList<>();
         for (int i = 0; i < text.length();) {
-            final int c = text.codePointAt(i);
-            int length = Character.charCount(c);
+            final char c = text.charAt(i);
+            int length = 1;
             switch(c) {
                 case WILDCARD_STRING:
-                    automata.add(Automata.makeAnyString());
+                    automata.add(BasicAutomata.makeAnyString());
                     break;
                 case WILDCARD_CHAR:
-                    automata.add(Automata.makeAnyChar());
+                    automata.add(BasicAutomata.makeAnyChar());
                     break;
                 case WILDCARD_ESCAPE:
                     // add the next codepoint instead, if it exists
                     if (i + length < text.length()) {
-                        final int nextChar = text.codePointAt(i + length);
-                        length += Character.charCount(nextChar);
-                        automata.add(Automata.makeChar(nextChar));
+                        final char nextChar = text.charAt(i + length);
+                        length += 1;
+                        automata.add(BasicAutomata.makeChar(nextChar));
                         break;
                     } // else fallthru, lenient parsing with a trailing \
                 default:
-                    automata.add(Automata.makeChar(c));
+                    automata.add(BasicAutomata.makeChar(c));
             }
             i += length;
         }
-        return Operations.concatenate(automata);
+        return BasicOperations.concatenate(automata);
     }
 
     public static Automaton unionAndDeterminize(Automaton a1, Automaton a2) {
-        return determinize(union(a1, a2));
+        Automaton res = union(a1, a2);
+        res.determinize();
+        return res;
     }
 
     public static Automaton minusAndDeterminize(Automaton a1, Automaton a2) {
-        return determinize(minus(a1, a2));
+        Automaton res = minus(a1, a2);
+        res.determinize();
+        return res;
     }
 }

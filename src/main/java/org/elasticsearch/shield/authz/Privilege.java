@@ -5,9 +5,10 @@
  */
 package org.elasticsearch.shield.authz;
 
-import org.apache.lucene.util.automaton.Automata;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.Operations;
+import dk.brics.automaton.Automaton;
+import dk.brics.automaton.BasicAutomata;
+import dk.brics.automaton.BasicOperations;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
@@ -115,7 +116,7 @@ public abstract class Privilege<P extends Privilege<P>> {
 
     public static class General extends AutomatonPrivilege<General> {
 
-        private static final General NONE = new General(Name.NONE, Automata.makeEmpty());
+        private static final General NONE = new General(Name.NONE, BasicAutomata.makeEmpty());
 
         public General(String name, String... patterns) {
             super(name, patterns);
@@ -143,7 +144,7 @@ public abstract class Privilege<P extends Privilege<P>> {
 
     public static class Index extends AutomatonPrivilege<Index> {
 
-        public static final Index NONE =            new Index(Name.NONE,        Automata.makeEmpty());
+        public static final Index NONE =            new Index(Name.NONE,        BasicAutomata.makeEmpty());
         public static final Index ALL =             new Index(Name.ALL,         "indices:*");
         public static final Index MANAGE =          new Index("manage",         "indices:monitor/*", "indices:admin/*");
         public static final Index CREATE_INDEX =    new Index("create_index",   CreateIndexAction.NAME);
@@ -246,7 +247,7 @@ public abstract class Privilege<P extends Privilege<P>> {
 
     public static class Cluster extends AutomatonPrivilege<Cluster> {
 
-        public static final Cluster NONE    = new Cluster(Name.NONE,                Automata.makeEmpty());
+        public static final Cluster NONE    = new Cluster(Name.NONE,                BasicAutomata.makeEmpty());
         public static final Cluster ALL     = new Cluster(Name.ALL,                 "cluster:*", "indices:admin/template/*");
         public static final Cluster MONITOR = new Cluster("monitor",                "cluster:monitor/*");
         public static final Cluster MANAGE_SHIELD = new Cluster("manage_shield",    "cluster:admin/shield/*");
@@ -374,7 +375,7 @@ public abstract class Privilege<P extends Privilege<P>> {
 
         @Override
         public boolean implies(P other) {
-            return Operations.subsetOf(other.automaton, automaton);
+            return BasicOperations.subsetOf(other.automaton, automaton);
         }
 
         public String toString() {

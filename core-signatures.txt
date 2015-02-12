@@ -11,11 +11,6 @@ java.util.concurrent.Executors#privilegedThreadFactory()
 java.lang.Character#codePointBefore(char[],int) @ Implicit start offset is error-prone when the char[] is a buffer and the first chars are random chars
 java.lang.Character#codePointAt(char[],int) @ Implicit end offset is error-prone when the char[] is a buffer and the last chars are random chars
 
-@defaultMessage Collections.sort dumps data into an array, sorts the array and reinserts data into the list, one should rather use Lucene's CollectionUtil sort methods which sort in place
-
-java.util.Collections#sort(java.util.List)
-java.util.Collections#sort(java.util.List,java.util.Comparator)
-
 java.io.StringReader#<init>(java.lang.String) @ Use FastStringReader instead
 
 @defaultMessage Reference management is tricky, leave it to SearcherManager

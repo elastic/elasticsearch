@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.shield.authc;
 
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.collect.Sets;
@@ -100,7 +99,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
         }
 
         if (!realms.isEmpty()) {
-            CollectionUtil.introSort(realms);
+            Collections.sort(realms);
             return realms;
         }
 

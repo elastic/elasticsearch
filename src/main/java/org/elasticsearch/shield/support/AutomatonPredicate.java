@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.shield.support;
 
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import dk.brics.automaton.RunAutomaton;
+import dk.brics.automaton.Automaton;
 import org.elasticsearch.common.base.Predicate;
 
 /**
@@ -14,13 +14,13 @@ import org.elasticsearch.common.base.Predicate;
 */
 public class AutomatonPredicate implements Predicate<String> {
 
-    private final CharacterRunAutomaton automaton;
+    private final RunAutomaton automaton;
 
     public AutomatonPredicate(Automaton automaton) {
-        this(new CharacterRunAutomaton(automaton));
+        this(new RunAutomaton(automaton));
     }
 
-    public AutomatonPredicate(CharacterRunAutomaton automaton) {
+    public AutomatonPredicate(RunAutomaton automaton) {
         this.automaton = automaton;
     }
 

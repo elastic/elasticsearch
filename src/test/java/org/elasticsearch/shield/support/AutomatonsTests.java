@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.shield.support;
 
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import dk.brics.automaton.Automaton;
+import dk.brics.automaton.RunAutomaton;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -60,12 +60,12 @@ public class AutomatonsTests extends ElasticsearchTestCase {
     }
 
     private void assertMatch(Automaton automaton, String text) {
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
+        RunAutomaton runAutomaton = new RunAutomaton(automaton);
         assertThat(runAutomaton.run(text), is(true));
     }
 
     private void assertMismatch(Automaton automaton, String text) {
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
+        RunAutomaton runAutomaton = new RunAutomaton(automaton);
         assertThat(runAutomaton.run(text), is(false));
     }
 

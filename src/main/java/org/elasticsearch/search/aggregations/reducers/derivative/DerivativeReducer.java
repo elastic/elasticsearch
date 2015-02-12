@@ -37,7 +37,6 @@ import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
 import org.elasticsearch.search.aggregations.reducers.ReducerStreams;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
-import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,6 +88,7 @@ public class DerivativeReducer extends Reducer {
         InternalHistogram.Factory<? extends InternalHistogram.Bucket> factory = histo.getFactory();
         List newBuckets = new ArrayList<>();
         Double lastBucketValue = null;
+        // NOCOMMIT this needs to be improved so that the aggs are cloned correctly to ensure aggs are fully immutable.
         for (InternalHistogram.Bucket bucket : buckets) {
             double thisBucketValue = (double) bucket.getProperty(histo.getName(), AggregationPath.parse(bucketsPath)
                     .getPathElementsAsStringList());
@@ -97,8 +97,9 @@ public class DerivativeReducer extends Reducer {
 
                 List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), FUNCTION));
                 aggs.add(new InternalSimpleValue(name(), diff, null, new ArrayList<Reducer>(), metaData())); // NOCOMMIT implement formatter for derivative reducer
-                InternalHistogram.Bucket newBucket = factory.createBucket(((DateTime) bucket.getKey()).getMillis(), bucket.getDocCount(),
-                        new InternalAggregations(aggs), bucket.getKeyed(), bucket.getFormatter()); // NOCOMMIT fix key resolution to deal with numbers and dates
+                InternalHistogram.Bucket newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(),
+ new InternalAggregations(
+                        aggs), bucket.getKeyed(), bucket.getFormatter());
                 newBuckets.add(newBucket);
             } else {
                 newBuckets.add(bucket);

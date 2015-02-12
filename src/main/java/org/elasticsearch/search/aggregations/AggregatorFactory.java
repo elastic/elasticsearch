@@ -112,7 +112,11 @@ public abstract class AggregatorFactory {
      * to collect bucket <tt>0</tt>, this returns an aggregator that can collect any bucket.
      */
     protected static Aggregator asMultiBucketAggregator(final AggregatorFactory factory, final AggregationContext context, final Aggregator parent) throws IOException {
-        final Aggregator first = factory.create(context, parent, truegator> aggregators;
+        final Aggregator first = factory.create(context, parent, true);
+        final BigArrays bigArrays = context.bigArrays();
+        return new Aggregator() {
+
+            ObjectArray<Aggregator> aggregators;
             ObjectArray<LeafBucketCollector> collectors;
 
             {
@@ -188,9 +192,9 @@ public abstract class AggregatorFactory {
                         LeafBucketCollector collector = collectors.get(bucket);
                         if (collector == null) {
                             Aggregator aggregator = aggregators.get(bucket);
-                if (aggregator == null) {
-                    aggregator = factory.create(context, parent, true);
-                    aggregator.preCollection();
+                            if (aggregator == null) {
+                                aggregator = factory.create(context, parent, true);
+                                aggregator.preCollection();
                                 aggregators.set(bucket, aggregator);
                             }
                             collector = aggregator.getLeafCollector(ctx);
@@ -198,7 +202,7 @@ public abstract class AggregatorFactory {
                             collectors.set(bucket, collector);
                         }
                         collector.collect(doc, 0);
-                }
+                    }
 
                 };
             }

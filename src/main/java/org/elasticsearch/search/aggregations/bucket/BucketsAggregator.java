@@ -21,13 +21,13 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.IntArray;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -47,6 +47,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
  AggregationContext context, Aggregator parent,
             List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, reducers, metaData);
+        bigArrays = context.bigArrays();
         docCounts = bigArrays.newIntArray(1, true);
     }
 

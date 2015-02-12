@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import com.carrotsearch.hppc.LongOpenHashSet;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -938,6 +939,19 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
             assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
             assertThat(bucket.getDocCount(), equalTo(extendedValueCounts[i]));
             key += interval;
+        }
+    }
+
+    /**
+     * see issue #9634, negative interval in histogram should raise exception
+     */
+    public void testExeptionOnNegativerInterval() {
+        try {
+            client().prepareSearch("empty_bucket_idx")
+                    .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(-1).minDocCount(0)).execute().actionGet();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), containsString("Missing required field [interval]"));
         }
     }
 

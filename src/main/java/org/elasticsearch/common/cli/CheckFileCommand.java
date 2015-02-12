@@ -92,6 +92,10 @@ public abstract class CheckFileCommand extends CliTool.Command {
 
         // check if permissions differ
         for (Map.Entry<Path, Set<PosixFilePermission>> entry : permissions.entrySet()) {
+            if (!Files.exists(entry.getKey())) {
+                continue;
+            }
+
             Set<PosixFilePermission> permissionsBeforeWrite = entry.getValue();
             Set<PosixFilePermission> permissionsAfterWrite = Files.getPosixFilePermissions(entry.getKey());
             if (!permissionsBeforeWrite.equals(permissionsAfterWrite)) {
@@ -103,6 +107,10 @@ public abstract class CheckFileCommand extends CliTool.Command {
 
         // check if owner differs
         for (Map.Entry<Path, String> entry : owners.entrySet()) {
+            if (!Files.exists(entry.getKey())) {
+                continue;
+            }
+
             String ownerBeforeWrite = entry.getValue();
             String ownerAfterWrite = Files.getOwner(entry.getKey()).getName();
             if (!ownerAfterWrite.equals(ownerBeforeWrite)) {
@@ -112,6 +120,10 @@ public abstract class CheckFileCommand extends CliTool.Command {
 
         // check if group differs
         for (Map.Entry<Path, String> entry : groups.entrySet()) {
+            if (!Files.exists(entry.getKey())) {
+                continue;
+            }
+
             String groupBeforeWrite = entry.getValue();
             String groupAfterWrite = Files.readAttributes(entry.getKey(), PosixFileAttributes.class).group().getName();
             if (!groupAfterWrite.equals(groupBeforeWrite)) {

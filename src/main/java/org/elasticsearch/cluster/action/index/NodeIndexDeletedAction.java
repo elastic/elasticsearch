@@ -33,11 +33,9 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -87,7 +85,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
                 @Override
                 protected void doRun() throws Exception {
                     innerNodeIndexDeleted(index, nodeId);
-                    lockIndexAndAck(index, nodes, nodeId, clusterState);
+                    lockIndexAndAckIfNeeded(index, nodes, nodeId, clusterState);
 
                 }
             });
@@ -102,13 +100,17 @@ public class NodeIndexDeletedAction extends AbstractComponent {
 
                 @Override
                 protected void doRun() throws Exception {
-                    lockIndexAndAck(index, nodes, nodeId, clusterState);
+                    lockIndexAndAckIfNeeded(index, nodes, nodeId, clusterState);
                 }
             });
         }
     }
 
-    private void lockIndexAndAck(String index, DiscoveryNodes nodes, String nodeId, ClusterState clusterState) throws IOException {
+    private void lockIndexAndAckIfNeeded(String index, DiscoveryNodes nodes, String nodeId, ClusterState clusterState) throws IOException {
+        if (nodes.localNode().isDataNode() == false) {
+            logger.trace("[{}] not acking store deletion (not a data node)");
+            return;
+        }
         try {
             // we are waiting until we can lock the index / all shards on the node and then we ack the delete of the store to the
             // master. If we can't acquire the locks here immediately there might be a shard of this index still holding on to the lock

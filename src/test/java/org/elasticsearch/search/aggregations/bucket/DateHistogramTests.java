@@ -1028,13 +1028,11 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         List<? extends Histogram.Bucket> buckets = histo.getBuckets();
         assertThat(buckets.size(), equalTo(2));
 
-        DateTime key = new DateTime(2014, 3, 10, 2, 0, DateTimeZone.UTC);
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo("2014-03-10:02-00-00"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        key = new DateTime(2014, 3, 11, 2, 0, DateTimeZone.UTC);
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat(bucket.getKeyAsString(), equalTo("2014-03-11:02-00-00"));

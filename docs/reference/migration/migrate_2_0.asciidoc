@@ -186,3 +186,49 @@ curl -XGET 'localhost:9200/index/t1,t2/_search'
 }
 ---------------
 
+==== Removed short name field access
+Field names in queries, aggregations, etc. must now use the complete name.  Use of the short name
+caused ambiguities in field lookups when the same name existed within multiple object mappings.
+
+The following example illustrates the difference between 1.x and 2.0.
+
+Given these mappings:
+---------------
+curl -XPUT 'localhost:9200/index'
+{
+  "mappings": {
+    "type": {
+      "properties": {
+        "name": {
+          "type": "object",
+          "properties": {
+            "first": {"type": "string"},
+            "last": {"type": "string"}
+          }
+        }
+      }
+    }
+  }
+}
+---------------
+
+The following query was possible in 1.x:
+---------------
+curl -XGET 'localhost:9200/index/type/_search'
+{
+  "query": {
+    "match": { "first": "foo" }
+  }
+}
+---------------
+
+In 2.0, the same query should now be:
+---------------
+curl -XGET 'localhost:9200/index/type/_search'
+{
+  "query": {
+    "match": { "name.first": "foo" }
+  }
+}
+---------------
+

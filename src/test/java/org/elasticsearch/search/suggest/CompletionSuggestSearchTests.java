@@ -510,7 +510,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertThat(putMappingResponse.isAcknowledged(), is(true));
 
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
+                new CompletionSuggestionBuilder("suggs").field(FIELD + ".suggest").text("f").size(10)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, "suggs");
 
@@ -553,7 +553,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertThat(putMappingResponse.isAcknowledged(), is(true));
 
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                SuggestBuilders.completionSuggestion("suggs").field("suggest").text("f").size(10)
+                SuggestBuilders.completionSuggestion("suggs").field(FIELD + ".suggest").text("f").size(10)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, "suggs");
 

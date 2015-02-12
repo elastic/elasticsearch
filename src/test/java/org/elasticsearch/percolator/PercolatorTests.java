@@ -1748,10 +1748,10 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         // The previous percolate request introduced the custom.color field, so now we register the query again
         // and the field name `color` will be resolved to `custom.color` field in mapping via smart field mapping resolving.
         client().prepareIndex("idx", PercolatorService.TYPE_NAME, "1")
-                .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryStringQuery("color:red")).endObject())
+                .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryStringQuery("custom.color:red")).endObject())
                 .get();
         client().prepareIndex("idx", PercolatorService.TYPE_NAME, "2")
-                .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryStringQuery("color:blue")).field("type", "type").endObject())
+                .setSource(jsonBuilder().startObject().field("query", QueryBuilders.queryStringQuery("custom.color:blue")).field("type", "type").endObject())
                 .get();
 
         // The second request will yield a match, since the query during the proper field during parsing.

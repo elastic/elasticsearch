@@ -49,7 +49,7 @@ public abstract class ReducerFactory {
     /**
      * Validates the state of this factory (makes sure the factory is properly configured)
      */
-    public final void validate() { // NOCOMMIT hook in validation 
+    public final void validate() {
         doValidate();
     }
 

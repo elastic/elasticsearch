@@ -106,6 +106,9 @@ public class AggregatorFactories {
         for (AggregatorFactory factory : factories) {
             factory.validate();
         }
+        for (ReducerFactory factory : reducerFactories) {
+            factory.validate();
+        }
     }
 
     private final static class Empty extends AggregatorFactories {

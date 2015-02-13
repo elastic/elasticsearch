@@ -25,13 +25,15 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.GroupShardsIterator;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.nio.file.Path;
@@ -70,7 +72,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
         ensureGreen(IDX);
 
         // So basically, the primary should fail and the replica will need to
@@ -181,7 +183,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
         ensureGreen(IDX);
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
@@ -225,13 +227,13 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
         ensureGreen(IDX);
 
         int docCount = randomIntBetween(10, 100);
         List<IndexRequestBuilder> builders = newArrayList();
         for (int i = 0; i < docCount; i++) {
-            builders.add(client().prepareIndex(IDX, "doc", i + "").setSource("body", "foo"));
+            builders.add(client().prepareIndex(IDX, "doc", i + "").setSource("foo", "bar"));
         }
         indexRandom(true, true, true, builders);
         flushAndRefresh(IDX);
@@ -277,7 +279,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, false)
                 .build();
 
-        prepareCreate(IDX).setSettings(idxSettings).get();
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string").get();
         ensureGreen(IDX);
 
         IndexRequestBuilder[] builders = new IndexRequestBuilder[between(10, 20)];

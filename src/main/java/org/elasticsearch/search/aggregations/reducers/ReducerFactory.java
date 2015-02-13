@@ -31,6 +31,7 @@ public abstract class ReducerFactory {
 
     protected String name;
     protected String type;
+    protected String[] bucketsPaths;
     protected Map<String, Object> metaData;
 
     /**
@@ -41,9 +42,10 @@ public abstract class ReducerFactory {
      * @param type
      *            The aggregation type
      */
-    public ReducerFactory(String name, String type) {
+    public ReducerFactory(String name, String type, String[] bucketsPaths) {
         this.name = name;
         this.type = type;
+        this.bucketsPaths = bucketsPaths;
     }
 
     /**

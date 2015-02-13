@@ -63,19 +63,25 @@ public abstract class Reducer implements Streamable {
 
     }
 
-    protected String name;
-    protected Map<String, Object> metaData;
+    private String name;
+    private String[] bucketsPaths;
+    private Map<String, Object> metaData;
 
     protected Reducer() { // for Serialisation
     }
 
-    protected Reducer(String name, Map<String, Object> metaData) {
+    protected Reducer(String name, String[] bucketsPaths, Map<String, Object> metaData) {
         this.name = name;
+        this.bucketsPaths = bucketsPaths;
         this.metaData = metaData;
     }
 
     public String name() {
         return name;
+    }
+
+    public String[] bucketsPaths() {
+        return bucketsPaths;
     }
 
     public Map<String, Object> metaData() {
@@ -89,6 +95,7 @@ public abstract class Reducer implements Streamable {
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
+        out.writeStringArray(bucketsPaths);
         out.writeMap(metaData);
         doWriteTo(out);
     }
@@ -98,6 +105,7 @@ public abstract class Reducer implements Streamable {
     @Override
     public final void readFrom(StreamInput in) throws IOException {
         name = in.readString();
+        bucketsPaths = in.readStringArray();
         metaData = in.readMap();
         doReadFrom(in);
     }

@@ -618,6 +618,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         /**
          * We cache the file length because we call fileLength(name) extensively
          * on out stats APIs.
+         *
+         * The fileLength call can be really expensive since it corresponds to
+         * a random seek which can add up quickly if these call are done over thousands of files constantly.
+         * The importance of being able to monitor these file properties without impacting system performance too much
+         * justifies the complexity of adding thsi cache.
          */
         private final ConcurrentHashMap<String, Long> fileLengthCache = new ConcurrentHashMap<>();
 

@@ -102,7 +102,6 @@ public abstract class TimeZoneRounding extends Rounding {
         private DateTimeField field;
         private DurationField durationField;
         private DateTimeZone timeZone;
-        private boolean isUtc;
 
         TimeUnitRounding() { // for serialization
         }
@@ -112,7 +111,6 @@ public abstract class TimeZoneRounding extends Rounding {
             this.field = unit.field();
             this.durationField = field.getDurationField();
             this.timeZone = timeZone;
-            this.isUtc = timeZone.equals(DateTimeZone.UTC);
         }
 
         @Override
@@ -123,15 +121,9 @@ public abstract class TimeZoneRounding extends Rounding {
         @Override
         public long roundKey(long utcMillis) {
             long timeLocal = utcMillis;
-            if (!isUtc) {
-                timeLocal = timeZone.convertUTCToLocal(utcMillis);
-            }
+            timeLocal = timeZone.convertUTCToLocal(utcMillis);
             long rounded = field.roundFloor(timeLocal);
-            if (!isUtc) {
-                return timeZone.convertLocalToUTC(rounded, true, utcMillis);
-            } else {
-                return rounded;
-            }
+            return timeZone.convertLocalToUTC(rounded, true, utcMillis);
         }
 
         @Override
@@ -143,15 +135,9 @@ public abstract class TimeZoneRounding extends Rounding {
         @Override
         public long nextRoundingValue(long time) {
             long timeLocal = time;
-            if (!isUtc) {
-                timeLocal = timeZone.convertUTCToLocal(time);
-            }
+            timeLocal = timeZone.convertUTCToLocal(time);
             long nextInLocalTime = durationField.add(timeLocal, 1);
-            if (!isUtc) {
-                return timeZone.convertLocalToUTC(nextInLocalTime, true);
-            } else {
-                return nextInLocalTime;
-            }
+            return timeZone.convertLocalToUTC(nextInLocalTime, true);
         }
 
         @Override
@@ -160,7 +146,6 @@ public abstract class TimeZoneRounding extends Rounding {
             field = unit.field();
             durationField = field.getDurationField();
             timeZone = DateTimeZone.forID(in.readString());
-            isUtc = timeZone.equals(DateTimeZone.UTC);
         }
 
         @Override
@@ -176,7 +161,6 @@ public abstract class TimeZoneRounding extends Rounding {
 
         private long interval;
         private DateTimeZone timeZone;
-        private boolean isUtc;
 
         TimeIntervalRounding() { // for serialization
         }
@@ -186,7 +170,6 @@ public abstract class TimeZoneRounding extends Rounding {
                 throw new ElasticsearchIllegalArgumentException("Negative time interval not supported");
             this.interval = interval;
             this.timeZone = timeZone;
-            this.isUtc = timeZone.equals(DateTimeZone.UTC);
         }
 
         @Override
@@ -197,41 +180,29 @@ public abstract class TimeZoneRounding extends Rounding {
         @Override
         public long roundKey(long utcMillis) {
             long timeLocal = utcMillis;
-            if (!isUtc) {
-                timeLocal = timeZone.convertUTCToLocal(utcMillis);
-            }
-            return Rounding.Interval.roundKey(timeLocal, interval);
+            timeLocal = timeZone.convertUTCToLocal(utcMillis);
+            long rounded = Rounding.Interval.roundValue(Rounding.Interval.roundKey(timeLocal, interval), interval);
+            return timeZone.convertLocalToUTC(rounded, true);
         }
 
         @Override
-        public long valueForKey(long key) {
-            long localTime = Rounding.Interval.roundValue(key, interval);
-            if (!isUtc) {
-                return timeZone.convertLocalToUTC(localTime, true);
-            } else {
-                return localTime;
-            }
+        public long valueForKey(long time) {
+            assert roundKey(time) == time;
+            return time;
         }
 
         @Override
         public long nextRoundingValue(long time) {
             long timeLocal = time;
-            if (!isUtc) {
-                timeLocal = timeZone.convertUTCToLocal(time);
-            }
+            timeLocal = timeZone.convertUTCToLocal(time);
             long next = timeLocal + interval;
-            if (!isUtc){
-                return timeZone.convertLocalToUTC(next, true);
-            } else {
-                return next;
-            }
+            return timeZone.convertLocalToUTC(next, true);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             interval = in.readVLong();
             timeZone = DateTimeZone.forID(in.readString());
-            isUtc = timeZone.equals(DateTimeZone.UTC);
         }
 
         @Override

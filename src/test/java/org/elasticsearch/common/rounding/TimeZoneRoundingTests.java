@@ -37,7 +37,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class TimeZoneRoundingTests extends ElasticsearchTestCase {
 
     @Test
-    public void testUTCMonthRounding() {
+    public void testUTCTimeUnitRounding() {
         Rounding tzRounding = TimeZoneRounding.builder(DateTimeUnit.MONTH_OF_YEAR).build();
         assertThat(tzRounding.round(utc("2009-02-03T01:01:01")), equalTo(utc("2009-02-01T00:00:00.000Z")));
         assertThat(tzRounding.nextRoundingValue(utc("2009-02-01T00:00:00.000Z")), equalTo(utc("2009-03-01T00:00:00.000Z")));
@@ -150,7 +150,7 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testTimeTimeZoneRoundingDST() {
+    public void testTimeUnitRoundingDST() {
         Rounding tzRounding;
         // testing savings to non savings switch
         tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(DateTimeZone.forID("UTC")).build();
@@ -199,8 +199,7 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
     }
 
     /**
-     * randomized test on UTC/Day/TimeTimeZoneRoundingFloor with random time
-     * units and time zone offsets
+     * randomized test on TimeUnitRounding with random time units and time zone offsets
      */
     @Test
     public void testTimeZoneRoundingRandom() {
@@ -220,8 +219,7 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
     }
 
     /**
-     * randomized test on UTC/Day/TimeIntervalTimeZoneRounding with random
-     * interval and time zone offsets
+     * randomized test on TimeIntervalRounding with random interval and time zone offsets
      */
     @Test
     public void testIntervalRoundingRandom() {
@@ -251,11 +249,7 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
         tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).timeZone(DateTimeZone.forID("Asia/Jerusalem")).build();
         assertThat(tzRounding.round(time("2014-10-25T22:30:00", DateTimeZone.UTC)), equalTo(time("2014-10-25T22:00:00", DateTimeZone.UTC)));
         assertThat(tzRounding.round(time("2014-10-25T23:30:00", DateTimeZone.UTC)), equalTo(time("2014-10-25T23:00:00", DateTimeZone.UTC)));
-    }
 
-    @Test
-    public void testAdjustPreTimeZone() {
-        Rounding tzRounding;
         // Day interval
         tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).timeZone(DateTimeZone.forID("Asia/Jerusalem")).build();
         assertThat(tzRounding.round(time("2014-11-11T17:00:00", DateTimeZone.forID("Asia/Jerusalem"))),

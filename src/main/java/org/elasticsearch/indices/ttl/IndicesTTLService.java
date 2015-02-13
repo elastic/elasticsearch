@@ -170,7 +170,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 }
 
                 // should be optimized with the hasTTL flag
-                FieldMappers ttlFieldMappers = indexService.mapperService().name(TTLFieldMapper.NAME);
+                FieldMappers ttlFieldMappers = indexService.mapperService().fullName(TTLFieldMapper.NAME);
                 if (ttlFieldMappers == null) {
                     continue;
                 }

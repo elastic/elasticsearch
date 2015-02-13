@@ -79,8 +79,9 @@ public final class DocumentFieldMappers extends ForwardingSet<FieldMapper<?>> {
         return new DocumentFieldMappers(fieldMappers, indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer);
     }
 
+    // TODO: replace all uses of this with fullName, or change the meaning of name to be fullName
     public FieldMappers name(String name) {
-        return fieldMappers.name(name);
+        return fieldMappers.fullName(name);
     }
 
     public FieldMappers indexName(String indexName) {

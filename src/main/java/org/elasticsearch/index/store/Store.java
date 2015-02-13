@@ -665,8 +665,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public final static class MetadataSnapshot implements Iterable<StoreFileMetaData>, Streamable {
         private static final ESLogger logger = Loggers.getLogger(MetadataSnapshot.class);
         private static final Version FIRST_LUCENE_CHECKSUM_VERSION = Version.LUCENE_4_8;
-        // we stopped writing legacy checksums in 1.3.0 so all segments here must use the new CRC32 version
-        private static final Version FIRST_ES_CRC32_VERSION = org.elasticsearch.Version.V_1_3_0.luceneVersion;
 
         private Map<String, StoreFileMetaData> metadata;
 

@@ -447,6 +447,36 @@ To run test:
 mvn -Dtests.azure=true -Dtests.config=/path/to/config/file/elasticsearch.yml clean test
 ```
 
+Optimizing index storage on Azure File Service
+==============================================
+When using a shared file system based on the SMB protocol (like Azure File Service) to store indices, the way Lucene open index segment files
+can slow down some functionalities like indexing documents and recovering index shards. If you'd like to know more about this behavior and how Lucene and SMB interact,
+have a look at [LUCENE-6176](https://issues.apache.org/jira/browse/LUCENE-6176).
+
+In order to get better performance, the Azure Cloud plugin provides two storage types optimized for SMB:
+
+- `org.elasticsearch.index.store.fs.SmbMmapFsIndexStoreModule`: a SMB specific implementation of the default [mmap fs](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/index-modules-store.html#mmapfs)
+- `org.elasticsearch.index.store.fs.SmbSimpleFsIndexStoreModule`: a SMB specific implementation of the default [simple fs](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/index-modules-store.html#simplefs)
+
+To use one of these specific storage types, you need to install the Azure Cloud plugin and restart the node. Then configure Elasticsearch to set
+the storage type you want.
+
+This can be configured for all indices by adding this to the config/elasticsearch.yml file:
+```
+index.store.type: org.elasticsearch.index.store.fs.SmbSimpleFsIndexStoreModule
+```
+
+Note that setting will be applied for newly created indices.
+
+It can also be set on a per-index basis at index creation time:
+```
+curl -XPUT localhost:9200/my_index -d '{
+   "settings": {
+       "index.store.type": "org.elasticsearch.index.store.fs.SmbMmapFsIndexStoreModule"
+   }
+}'
+```
+
 
 License
 -------

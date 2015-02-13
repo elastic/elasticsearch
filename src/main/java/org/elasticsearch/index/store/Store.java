@@ -28,7 +28,6 @@ import org.apache.lucene.store.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -540,10 +539,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * This method deletes every file in this store that is not contained in the given source meta data or is a
      * legacy checksum file. After the delete it pulls the latest metadata snapshot from the store and compares it
-     * to the given snapshot. If the snapshots are inconsistent an illegal state exception is thrown.
-     *
-     * If the store is part of a shadow replica, extra files are not cleaned up because they could be in use
-     * by a shared filesystem.
+     * to the given snapshot. If the snapshots are inconsistent an illegal state exception is thrown
      *
      * @param reason         the reason for this cleanup operation logged for each deleted file
      * @param sourceMetaData the metadata used for cleanup. all files in this metadata should be kept around.
@@ -555,18 +551,17 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         metadataLock.writeLock().lock();
         try {
             final StoreDirectory dir = directory;
-                for (String existingFile : dir.listAll()) {
-                    // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
-                    // we also don't want to deleted IndexWriter's write.lock
-                    // files, since it could be a shared filesystem
-                    if (!sourceMetaData.contains(existingFile) && !Store.isChecksum(existingFile) && !Store.isEngineLock(existingFile)) {
-                        try {
-                            dir.deleteFile(reason, existingFile);
-                        } catch (Exception e) {
-                            // ignore, we don't really care, will get deleted later on
-                        }
+            for (String existingFile : dir.listAll()) {
+                // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
+                if (!sourceMetaData.contains(existingFile) && !Store.isChecksum(existingFile)) {
+                    try {
+                        dir.deleteFile(reason, existingFile);
+                        dir.deleteFile(existingFile);
+                    } catch (Exception e) {
+                        // ignore, we don't really care, will get deleted later on
                     }
                 }
+            }
             final Store.MetadataSnapshot metadataOrEmpty = getMetadata();
             verifyAfterCleanup(sourceMetaData, metadataOrEmpty);
         } finally {
@@ -1086,10 +1081,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public static final boolean isChecksum(String name) {
         // TODO can we drowp .cks
         return name.startsWith(CHECKSUMS_PREFIX) || name.endsWith(".cks"); // bwcomapt - .cks used to be a previous checksum file
-    }
-
-    public static final boolean isEngineLock(String name) {
-        return name.equals("write.lock");
     }
 
     /**

@@ -198,7 +198,7 @@ public abstract class Engine implements Closeable {
 
     public abstract void delete(DeleteByQuery delete) throws EngineException;
 
-    protected GetResult getFromSearcher(Get get) throws EngineException {
+    final protected GetResult getFromSearcher(Get get) throws EngineException {
         final Searcher searcher = acquireSearcher("get");
         final Versions.DocIdAndVersion docIdAndVersion;
         try {
@@ -244,7 +244,6 @@ public abstract class Engine implements Closeable {
         store.incRef();
         try {
             final SearcherManager manager = getSearcherManager(); // can never be null
-            assert manager != null : "SearcherManager is null";
             /* This might throw NPE but that's fine we will run ensureOpen()
             *  in the catch block and throw the right exception */
             final IndexSearcher searcher = manager.acquire();

@@ -475,7 +475,10 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
         ParseContext.Document document = testDocumentWithTextField();
         document.add(new Field(SourceFieldMapper.NAME, B_1.toBytes(), SourceFieldMapper.Defaults.FIELD_TYPE));
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, false);
-        replicaEngine.create(new Engine.Create(null, newUid("1"), doc));
+        try {
+            replicaEngine.create(new Engine.Create(null, newUid("1"), doc));
+            fail("should have thrown an exception");
+        } catch (UnsupportedOperationException e) {}
         replicaEngine.refresh("test");
 
         // its not there...
@@ -491,7 +494,10 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
         document = testDocument();
         document.add(new TextField("value", "test1", Field.Store.YES));
         doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_1, false);
-        replicaEngine.index(new Engine.Index(null, newUid("1"), doc));
+        try {
+            replicaEngine.index(new Engine.Index(null, newUid("1"), doc));
+            fail("should have thrown an exception");
+        } catch (UnsupportedOperationException e) {}
         replicaEngine.refresh("test");
 
         // its still not there...
@@ -524,7 +530,10 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
         getResult.release();
 
         // try to delete it on the replica
-        replicaEngine.delete(new Engine.Delete("test", "1", newUid("1")));
+        try {
+            replicaEngine.delete(new Engine.Delete("test", "1", newUid("1")));
+            fail("should have thrown an exception");
+        } catch (UnsupportedOperationException e) {}
         replicaEngine.flush();
         replicaEngine.refresh("test");
         primaryEngine.refresh("test");

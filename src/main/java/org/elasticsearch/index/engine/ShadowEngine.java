@@ -102,26 +102,22 @@ public class ShadowEngine extends Engine {
 
     @Override
     public void create(Create create) throws EngineException {
-        // no-op
-        logger.trace("skipping CREATE on shadow engine");
+        throw new UnsupportedOperationException("create operation not allowed on shadow engine");
     }
 
     @Override
     public void index(Index index) throws EngineException {
-        // no-op
-        logger.trace("skipping INDEX on shadow engine");
+        throw new UnsupportedOperationException("index operation not allowed on shadow engine");
     }
 
     @Override
     public void delete(Delete delete) throws EngineException {
-        // no-op
-        logger.trace("skipping DELETE on shadow engine");
+        throw new UnsupportedOperationException("delete operation not allowed on shadow engine");
     }
 
     @Override
     public void delete(DeleteByQuery delete) throws EngineException {
-        // no-op
-        logger.trace("skipping DELETE-BY-QUERY on shadow engine");
+        throw new UnsupportedOperationException("delete-by-query operation not allowed on shadow engine");
     }
 
     @Override

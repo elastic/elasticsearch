@@ -227,7 +227,10 @@ public class IndexMetaData {
         } else {
             excludeFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, excludeMap);
         }
-        indexCreatedVersion = Version.indexCreated(settings);
+        indexCreatedVersion = Version.indexCreatedOrNull(settings);
+        if (indexCreatedVersion == null) {
+            throw new ElasticsearchIllegalStateException("[" + IndexMetaData.SETTING_VERSION_CREATED + "] is not present in the index settings for index with uuid: [" + settings.get(IndexMetaData.SETTING_UUID) + "]");
+        }
         final Class<? extends HashFunction> hashFunctionClass = settings.getAsClass(SETTING_LEGACY_ROUTING_HASH_FUNCTION, null);
         if (hashFunctionClass == null) {
             routingHashFunction = MURMUR3_HASH_FUNCTION;

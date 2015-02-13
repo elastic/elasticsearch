@@ -83,7 +83,7 @@ public class NRTLookupTest extends LuceneTestCase {
         final SegmentLookup.LongBased segmentLookup = lookup.getKey();
         final LeafReader leafReader = lookup.getValue();
 
-        List<DefaultCollector<Long>.Result<Long>> results = segmentLookup.lookup(leafReader, "b", 3, 4);
+        List<DefaultCollector.Result<Long>> results = segmentLookup.lookup(leafReader, "b", 3, 4);
 
         assertResults(results,
                 new ExpectedResult("bmw", 10l, 5l, 4l, 2l));
@@ -108,7 +108,7 @@ public class NRTLookupTest extends LuceneTestCase {
         final LeafReader leafReader = lookup.getValue();
 
         // lookup for 'app'
-        List<DefaultCollector<Long>.Result<Long>> results = segmentLookup.lookup(leafReader, "app", 3, 3);
+        List<DefaultCollector.Result<Long>> results = segmentLookup.lookup(leafReader, "app", 3, 3);
 
         assertResults(results,
                 new ExpectedResult("apple", 10l, 4l, 2l),
@@ -128,7 +128,7 @@ public class NRTLookupTest extends LuceneTestCase {
         final SegmentLookup.LongBased segmentLookup = lookup.getKey();
         final LeafReader leafReader = lookup.getValue();
 
-        List<DefaultCollector<Long>.Result<Long>> results = segmentLookup.lookup(leafReader, "app", 3);
+        List<DefaultCollector.Result<Long>> results = segmentLookup.lookup(leafReader, "app", 3);
 
         assertResults(results,
                 new ExpectedResult("application", 5l),
@@ -166,7 +166,7 @@ public class NRTLookupTest extends LuceneTestCase {
         final SegmentLookup.LongBased segmentLookup = lookup.getKey();
         final LeafReader secondleafReader = lookup.getValue();
 
-        List<DefaultCollector<Long>.Result<Long>> results = firstLookup.lookup(leafReader, "foo", 3);
+        List<DefaultCollector.Result<Long>> results = firstLookup.lookup(leafReader, "foo", 3);
 
         assertResults(results,
                 new ExpectedResult("foobar", 5l),
@@ -190,16 +190,16 @@ public class NRTLookupTest extends LuceneTestCase {
 
     }
 
-    public void assertResults(List<DefaultCollector<Long>.Result<Long>> results, ExpectedResult... expectedResults) {
+    public void assertResults(List<DefaultCollector.Result<Long>> results, ExpectedResult... expectedResults) {
         assertThat(results.size(), equalTo(expectedResults.length));
         int i = 0;
-        for (DefaultCollector<Long>.Result<Long> result : results) {
+        for (DefaultCollector.Result<Long> result : results) {
             ExpectedResult expectedResult = expectedResults[i];
             assertThat(result.key().toString(), equalTo(expectedResult.key));
-            assertThat(result.resultMetaDataList().size(), equalTo(expectedResult.weights.length));
+            assertThat(result.innerResults().size(), equalTo(expectedResult.weights.length));
             int count = 0;
-            for (SegmentLookup.Collector.ResultMetaData<Long> longResultMetaData : result.resultMetaDataList()) {
-                assertThat(longResultMetaData.score(), equalTo(expectedResult.weights[count]));
+            for (DefaultCollector.Result.InnerResult<Long> longInnerResult : result.innerResults()) {
+                assertThat(longInnerResult.score(), equalTo(expectedResult.weights[count]));
                 count++;
             }
             i++;
@@ -277,23 +277,23 @@ public class NRTLookupTest extends LuceneTestCase {
             String firstTerm = builder.toString();
             String prefix = firstTerm.isEmpty() ? "" : firstTerm.substring(0, between(1, firstTerm.length()));
 
-            final List<DefaultCollector<Long>.Result<Long>> results = segmentLookup.lookup(leafReader, prefix, res);
+            final List<DefaultCollector.Result<Long>> results = segmentLookup.lookup(leafReader, prefix, res);
 
             assertThat(results.size(), greaterThan(0));
             long topScorePerKey = -1;
-            for (DefaultCollector<Long>.Result<Long> result : results) {
+            for (DefaultCollector.Result<Long> result : results) {
                 long innerTopScore = -1;
-                for (SegmentLookup.Collector.ResultMetaData<Long> longResultMetaData : result.resultMetaDataList()) {
+                for (DefaultCollector.Result.InnerResult<Long> longInnerResult : result.innerResults()) {
                     if (topScorePerKey == -1) {
-                        topScorePerKey = longResultMetaData.score();
+                        topScorePerKey = longInnerResult.score();
                     } else {
-                        assertThat(longResultMetaData.score(), lessThanOrEqualTo(topScorePerKey));
+                        assertThat(longInnerResult.score(), lessThanOrEqualTo(topScorePerKey));
                     }
                     if (innerTopScore == -1) {
-                        innerTopScore = longResultMetaData.score();
+                        innerTopScore = longInnerResult.score();
                     } else {
-                        assertThat(longResultMetaData.score(), lessThanOrEqualTo(innerTopScore));
-                        innerTopScore = longResultMetaData.score();
+                        assertThat(longInnerResult.score(), lessThanOrEqualTo(innerTopScore));
+                        innerTopScore = longInnerResult.score();
                     }
                 }
             }

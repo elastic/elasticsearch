@@ -55,7 +55,7 @@ public abstract class SegmentLookup<W> implements Accountable {
          * Called every time an analyzed form is collected in order specified by the configured scorer
          *
          * @param key the matched analyzed form
-         * @param results a list of surface form, score and docID of the matched documents
+         * @param results a list of output, score and docID of the matched documents
          * @throws IOException
          */
         void collect(CharSequence key, List<ResultMetaData<W>> results) throws IOException;
@@ -71,7 +71,7 @@ public abstract class SegmentLookup<W> implements Accountable {
                 this.docId = docId;
             }
 
-            public CharSequence outputForm() {
+            public CharSequence output() {
                 return outputForm;
             }
 
@@ -202,7 +202,7 @@ public abstract class SegmentLookup<W> implements Accountable {
         /**
          * long score based lookup with {@link DefaultCollector}
          */
-        public List<DefaultCollector<Long>.Result<Long>> lookup(LeafReader reader, CharSequence key, int num, int nLeaf, Context<Long> context) {
+        public List<DefaultCollector.Result<Long>> lookup(LeafReader reader, CharSequence key, int num, int nLeaf, Context<Long> context) {
             DefaultCollector<Long> defaultLongCollector = new DefaultCollector<>();
             this.lookup(reader, key, num, nLeaf, context, defaultLongCollector);
             return defaultLongCollector.get();
@@ -211,14 +211,14 @@ public abstract class SegmentLookup<W> implements Accountable {
         /**
          * long score based lookup with {@link DefaultCollector} and no context
          */
-        public List<DefaultCollector<Long>.Result<Long>> lookup(LeafReader reader, CharSequence key, int num, int nLeaf) {
+        public List<DefaultCollector.Result<Long>> lookup(LeafReader reader, CharSequence key, int num, int nLeaf) {
             return lookup(reader, key, num, nLeaf, null);
         }
 
         /**
          * long score based lookup with {@link DefaultCollector} and no context and <code>nLeaf = 1</code>
          */
-        public List<DefaultCollector<Long>.Result<Long>> lookup(LeafReader reader, CharSequence key, int num) {
+        public List<DefaultCollector.Result<Long>> lookup(LeafReader reader, CharSequence key, int num) {
             return lookup(reader, key, num, 1);
         }
     }

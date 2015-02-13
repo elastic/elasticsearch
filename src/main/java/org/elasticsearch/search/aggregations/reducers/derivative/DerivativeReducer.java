@@ -41,6 +41,7 @@ import org.elasticsearch.search.aggregations.reducers.ReducerStreams;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -72,14 +73,12 @@ public class DerivativeReducer extends Reducer {
     };
 
     private ValueFormatter formatter;
-    private String bucketsPath;
 
     public DerivativeReducer() {
     }
 
-    public DerivativeReducer(String name, String bucketsPath, @Nullable ValueFormatter formatter, Map<String, Object> metadata) {
-        super(name, metadata);
-        this.bucketsPath = bucketsPath;
+    public DerivativeReducer(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, Map<String, Object> metadata) {
+        super(name, bucketsPaths, metadata);
         this.formatter = formatter;
     }
 
@@ -115,7 +114,7 @@ public class DerivativeReducer extends Reducer {
     }
 
     private double resolveBucketValue(InternalHistogram<? extends InternalHistogram.Bucket> histo, InternalHistogram.Bucket bucket) {
-        Object propertyValue = bucket.getProperty(histo.getName(), AggregationPath.parse(bucketsPath)
+        Object propertyValue = bucket.getProperty(histo.getName(), AggregationPath.parse(bucketsPaths()[0])
                 .getPathElementsAsStringList());
         if (propertyValue instanceof Number) {
             return ((Number) propertyValue).doubleValue();
@@ -129,30 +128,27 @@ public class DerivativeReducer extends Reducer {
 
     @Override
     public void doReadFrom(StreamInput in) throws IOException {
-        bucketsPath = in.readString();
-
+        formatter = ValueFormatterStreams.readOptional(in);
     }
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(bucketsPath);
+        ValueFormatterStreams.writeOptional(formatter, out);
     }
 
     public static class Factory extends ReducerFactory {
 
-        private final String bucketsPath;
         private final ValueFormatter formatter;
 
-        public Factory(String name, String bucketsPath, @Nullable ValueFormatter formatter) {
-            super(name, TYPE.name());
-            this.bucketsPath = bucketsPath;
+        public Factory(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter) {
+            super(name, TYPE.name(), bucketsPaths);
             this.formatter = formatter;
         }
 
         @Override
         protected Reducer createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
                 Map<String, Object> metaData) throws IOException {
-            return new DerivativeReducer(name, bucketsPath, formatter, metaData);
+            return new DerivativeReducer(name, bucketsPaths, formatter, metaData);
         }
 
     }

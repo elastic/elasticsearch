@@ -63,6 +63,7 @@ public class SharedFSRecoveryHandler extends ShardRecoveryHandler {
             try {
                 shard.relocated("to " + request.targetNode());
                 shard.close("relocated on shared filesystem");
+                // nocommit we need to figure out a better way how to handle failures in phase3 we might need to restart the engine we recovering from?
             } catch (IOException e) {
 
             }

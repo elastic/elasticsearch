@@ -49,7 +49,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * Tests for indices that use shadow replicas and a shared filesystem
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numDataNodes = 0)
-@TestLogging("_root:DEBUG,env:TRACE") //nocommit
 public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test

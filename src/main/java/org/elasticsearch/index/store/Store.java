@@ -697,8 +697,9 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         public void renameFile(String source, String dest) throws IOException {
             final long len = fileLength(source);
             super.renameFile(source, dest);
-            fileLengthCache.put(dest, len);
+            // first remove in case source == dest
             fileLengthCache.remove(source);
+            fileLengthCache.put(dest, len);
         }
 
         @Override

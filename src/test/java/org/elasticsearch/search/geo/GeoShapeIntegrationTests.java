@@ -383,7 +383,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
     @Test
     public void testShapeFilterWithRandomGeoCollection() throws Exception {
         // Create a random geometry collection.
-        GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection();
+        GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(getRandom());
 
         logger.info("Created Random GeometryCollection containing " + gcb.numShapes() + " shapes");
 

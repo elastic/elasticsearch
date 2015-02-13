@@ -1088,8 +1088,21 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
                 } catch (FileNotFoundException | NoSuchFileException ex) {
                     // all fine
                 }
+            } else if (randomBoolean()) {
+                if (randomBoolean()) {
+                    directory.deleteFile(fileName);
+                } else {
+                    store.deleteFile("foo", fileName);
+                }
+                try {
+                    directory.fileLength(fileName);
+                    fail("file doesn't exist: " + fileName);
+                } catch (FileNotFoundException | NoSuchFileException ex) {
+                    // all fine
+                }
             }
         }
+
         store.deleteContent();
         IOUtils.close(store);
     }

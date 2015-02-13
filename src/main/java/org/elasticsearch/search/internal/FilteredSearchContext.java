@@ -562,4 +562,5 @@ public abstract class FilteredSearchContext extends SearchContext {
     public Counter timeEstimateCounter() {
         return in.timeEstimateCounter();
     }
+
 }

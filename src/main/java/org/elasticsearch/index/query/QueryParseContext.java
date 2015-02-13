@@ -54,6 +54,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -111,6 +112,8 @@ public class QueryParseContext {
 
     private boolean mapUnmappedFieldAsString;
 
+    private NestedScope nestedScope;
+
     public QueryParseContext(Index index, IndexQueryParserService indexQueryParser) {
         this(index, indexQueryParser, false);
     }
@@ -138,6 +141,7 @@ public class QueryParseContext {
         this.namedFilters.clear();
         this.requireCustomQueryWrappingFilter = false;
         this.propagateNoCache = false;
+        this.nestedScope = new NestedScope();
     }
 
     public Index index() {
@@ -466,5 +470,9 @@ public class QueryParseContext {
 
     public boolean requireCustomQueryWrappingFilter() {
         return requireCustomQueryWrappingFilter;
+    }
+
+    public NestedScope nestedScope() {
+        return nestedScope;
     }
 }

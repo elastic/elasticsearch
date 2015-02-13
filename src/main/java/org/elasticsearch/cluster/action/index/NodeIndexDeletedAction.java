@@ -85,13 +85,21 @@ public class NodeIndexDeletedAction extends AbstractComponent {
                 @Override
                 protected void doRun() throws Exception {
                     innerNodeIndexDeleted(index, nodeId);
-                    lockIndexAndAckIfNeeded(index, nodes, nodeId, clusterState);
+                    if (nodes.localNode().isDataNode() == false) {
+                        logger.trace("[{}] not acking store deletion (not a data node)");
+                        return;
+                    }
+                    lockIndexAndAck(index, nodes, nodeId, clusterState);
 
                 }
             });
         } else {
             transportService.sendRequest(clusterState.nodes().masterNode(),
                     INDEX_DELETED_ACTION_NAME, new NodeIndexDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
+            if (nodes.localNode().isDataNode() == false) {
+                logger.trace("[{}] not acking store deletion (not a data node)");
+                return;
+            }
             threadPool.generic().execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Throwable t) {
@@ -100,17 +108,13 @@ public class NodeIndexDeletedAction extends AbstractComponent {
 
                 @Override
                 protected void doRun() throws Exception {
-                    lockIndexAndAckIfNeeded(index, nodes, nodeId, clusterState);
+                    lockIndexAndAck(index, nodes, nodeId, clusterState);
                 }
             });
         }
     }
 
-    private void lockIndexAndAckIfNeeded(String index, DiscoveryNodes nodes, String nodeId, ClusterState clusterState) throws IOException {
-        if (nodes.localNode().isDataNode() == false) {
-            logger.trace("[{}] not acking store deletion (not a data node)");
-            return;
-        }
+    private void lockIndexAndAck(String index, DiscoveryNodes nodes, String nodeId, ClusterState clusterState) throws IOException {
         try {
             // we are waiting until we can lock the index / all shards on the node and then we ack the delete of the store to the
             // master. If we can't acquire the locks here immediately there might be a shard of this index still holding on to the lock

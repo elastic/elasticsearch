@@ -15,6 +15,7 @@ bin/plugin install elasticsearch/elasticsearch-analysis-smartcn/2.4.3
 | master        |  Build from source    | See below  |
 | es-1.x        |  Build from source    | [2.5.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/es-1.x/#version-250-snapshot-for-elasticsearch-1x)  |
 |    es-1.4              |     2.4.3         | [2.4.3](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/v2.4.3/#version-243-for-elasticsearch-14)                  |
+| < 1.4.3       |     2.4.1             | [2.4.1](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/v2.4.1/#version-241-for-elasticsearch-14)                  |
 |    es-1.3              |     2.3.1         | [2.3.1](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/v2.3.1/#version-231-for-elasticsearch-13)                  |
 | es-1.2        |  2.2.0                | [2.2.0](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/v2.2.0/#smart-chinese-analysis-for-elasticsearch)  |
 | es-1.1        |  2.1.0                | [2.1.0](https://github.com/elasticsearch/elasticsearch-analysis-smartcn/tree/v2.1.0/#smart-chinese-analysis-for-elasticsearch)  |

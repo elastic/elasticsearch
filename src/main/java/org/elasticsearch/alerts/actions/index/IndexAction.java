@@ -23,6 +23,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  */
@@ -66,9 +68,13 @@ public class IndexAction extends Action<IndexAction.Result> {
 
         try {
             IndexResponse response = client.index(indexRequest).actionGet();
-            //@TODO this doesn't seem to work for index response
-            //return new Result(new Payload.Simple(responseToData(response)), null, true);
-            return new Result(new Payload.Simple(), null, response.isCreated());
+            Map<String,Object> data = new HashMap<>();
+            data.put("created", response.isCreated());
+            data.put("id", response.getId());
+            data.put("version", response.getVersion());
+            data.put("type", response.getType());
+            data.put("index", response.getIndex());
+            return new Result(new Payload.Simple(data), null, response.isCreated());
         } catch (ElasticsearchException e) {
             logger.error("failed to index result for alert [{}]", e, ctx.alert().name());
             return new Result(null, "failed to build index request. " + e.getMessage(), false);

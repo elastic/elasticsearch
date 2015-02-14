@@ -22,11 +22,11 @@ import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
 import org.elasticsearch.alerts.trigger.search.ScriptSearchTrigger;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -87,7 +87,7 @@ public class BootStrapTest extends AbstractAlertingTests {
                 new Alert.Status()
         );
 
-        DateTime scheduledFireTime = new DateTime();
+        DateTime scheduledFireTime = new DateTime(DateTimeZone.UTC);
         FiredAlert entry = new FiredAlert(alert, scheduledFireTime, scheduledFireTime, FiredAlert.State.AWAITS_RUN);
         String actionHistoryIndex = HistoryStore.getAlertHistoryIndexNameForTime(scheduledFireTime);
 
@@ -114,7 +114,7 @@ public class BootStrapTest extends AbstractAlertingTests {
     @Test
     @TestLogging("alerts.actions:DEBUG")
     public void testBootStrapManyHistoryIndices() throws Exception {
-        DateTime now = new DateTime();
+        DateTime now = new DateTime(DateTimeZone.UTC);
         long numberOfAlertHistoryIndices = randomIntBetween(2,8);
         long numberOfAlertHistoryEntriesPerIndex = randomIntBetween(5,10);
         SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
@@ -149,7 +149,6 @@ public class BootStrapTest extends AbstractAlertingTests {
                 IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, HistoryStore.ALERT_HISTORY_TYPE, entry.id())
                         .setConsistencyLevel(WriteConsistencyLevel.ALL)
                         .setSource(XContentFactory.jsonBuilder().value(entry))
-                        .setVersionType(VersionType.INTERNAL)
                         .get();
                 assertTrue(indexResponse.isCreated());
             }

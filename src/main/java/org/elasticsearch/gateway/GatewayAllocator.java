@@ -264,8 +264,14 @@ public class GatewayAllocator extends AbstractComponent {
         while (unassignedIterator.hasNext()) {
             MutableShardRouting shard = unassignedIterator.next();
 
+            // if its not a primary, no need to check for this shard at all, this should only handle replicas
+            if (shard.primary()) {
+                continue;
+            }
+
             // pre-check if it can be allocated to any node that currently exists, so we won't list the store for it for nothing
             boolean canBeAllocatedToAtLeastOneNode = false;
+            boolean allAreThrottled = true;
             for (ObjectCursor<DiscoveryNode> cursor : nodes.dataNodes().values()) {
                 RoutingNode node = routingNodes.node(cursor.value.id());
                 if (node == null) {
@@ -274,13 +280,17 @@ public class GatewayAllocator extends AbstractComponent {
                 // if we can't allocate it on a node, ignore it, for example, this handles
                 // cases for only allocating a replica after a primary
                 Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
+                if (decision.type() != Decision.Type.THROTTLE) {
+                    allAreThrottled = false;
+                }
                 if (decision.type() == Decision.Type.YES) {
                     canBeAllocatedToAtLeastOneNode = true;
                     break;
                 }
             }
 
-            if (!canBeAllocatedToAtLeastOneNode) {
+            // if it can't be allocated on a single node, or it gets throttled on all nodes, no need to try and allocate it
+            if (!canBeAllocatedToAtLeastOneNode || allAreThrottled) {
                 continue;
             }
 

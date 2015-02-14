@@ -447,13 +447,11 @@ To run test:
 mvn -Dtests.azure=true -Dtests.config=/path/to/config/file/elasticsearch.yml clean test
 ```
 
-Optimizing index storage on Azure File Service
-==============================================
-When using a shared file system based on the SMB protocol (like Azure File Service) to store indices, the way Lucene open index segment files
-can slow down some functionalities like indexing documents and recovering index shards. If you'd like to know more about this behavior and how Lucene and SMB interact,
-have a look at [LUCENE-6176](https://issues.apache.org/jira/browse/LUCENE-6176).
+Working around a bug in Windows SMB and Java on windows
+=======================================================
+When using a shared file system based on the SMB protocol (like Azure File Service) to store indices, the way Lucene open index segment files is with a write only flag. This is the *correct* way to open the files, as they will only be used for writes and allows different FS implementations to optimize for it. Sadly, in windows with SMB, this disables the cache manager, causing writes to be slow. This has been described in [LUCENE-6176](https://issues.apache.org/jira/browse/LUCENE-6176), but it affects each and every Java program out there!. This need and must be fixed outside of ES and/or Lucene, either in windows or OpenJDK. For now, we are providing an experimental support to open the files with read flag, but this should be considered experimental and the correct way to fix it is in OpenJDK or Windows.
 
-In order to get better performance, the Azure Cloud plugin provides two storage types optimized for SMB:
+The Azure Cloud plugin provides two storage types optimized for SMB:
 
 - `org.elasticsearch.index.store.fs.SmbMmapFsIndexStoreModule`: a SMB specific implementation of the default [mmap fs](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/index-modules-store.html#mmapfs)
 - `org.elasticsearch.index.store.fs.SmbSimpleFsIndexStoreModule`: a SMB specific implementation of the default [simple fs](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/index-modules-store.html#simplefs)

@@ -548,13 +548,12 @@ public class RecoveryState implements ToXContent, Streamable {
 
         private volatile long version = -1;
 
-        private volatile int totalFileCount = 0;
-        private volatile int reusedFileCount = 0;
-        private AtomicInteger recoveredFileCount = new AtomicInteger();
+        private int reusedFileCount = 0;
+        private int recoveredFileCount = 0;
 
-        private volatile long totalByteCount = 0;
-        private volatile long reusedByteCount = 0;
-        private AtomicLong recoveredByteCount = new AtomicLong();
+        private long totalByteCount = 0;
+        private long reusedByteCount = 0;
+        private long recoveredByteCount = 0;
 
         public synchronized List<File> fileDetails() {
             return ImmutableList.copyOf(fileDetails);
@@ -564,7 +563,13 @@ public class RecoveryState implements ToXContent, Streamable {
             return ImmutableList.copyOf(reusedFileDetails);
         }
 
-        public synchronized void addFileDetail(String name, long length) {
+
+        public synchronized void addFileDetail(File file) {
+            fileDetails.add(file);
+            recoveredFileCount();
+        }
+
+        public void addFileDetail(String name, long length) {
             fileDetails.add(new File(name, length));
         }
 

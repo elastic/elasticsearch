@@ -2494,4 +2494,132 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                     equalTo(true));
         }
     }
+
+    @Test
+    public void testRangeQueryWithNullLimits() {
+        String indexName = "test";
+        String type = "type1";
+        createIndex(indexName);
+        ensureGreen(indexName);
+
+        String doc1 = "{\n" +
+                "  \"field\": 1\n" +
+                "}";
+        String doc2 = "{\n" +
+                "  \"field\": 5\n" +
+                "}";
+        String doc3 = "{\n" +
+                "  \"field\": 10\n" +
+                "}";
+        index(indexName, type, "1", doc1);
+        index(indexName, type, "2", doc2);
+        index(indexName, type, "3", doc3);
+        refresh();
+
+        RangeQueryBuilder rangeQueryBuilder = QueryBuilders.rangeQuery("field");
+        rangeQueryBuilder.from(null);
+        rangeQueryBuilder.to(5);
+        SearchResponse searchResponse = search(rangeQueryBuilder, indexName);
+        assertSearchHits(searchResponse, "1", "2");
+
+        rangeQueryBuilder = QueryBuilders.rangeQuery("field");
+        rangeQueryBuilder.includeLower(true);
+        rangeQueryBuilder.from(null);
+        rangeQueryBuilder.to(10);
+        searchResponse = search(rangeQueryBuilder, indexName);
+        assertSearchHits(searchResponse, "1", "2", "3");
+
+        rangeQueryBuilder = QueryBuilders.rangeQuery("field");
+        rangeQueryBuilder.includeUpper(true);
+        rangeQueryBuilder.to(null);
+        rangeQueryBuilder.from(9);
+        searchResponse = search(rangeQueryBuilder, indexName);
+        assertSearchHits(searchResponse, "3");
+
+        rangeQueryBuilder = QueryBuilders.rangeQuery("field");
+        rangeQueryBuilder.includeUpper(true);
+        rangeQueryBuilder.to(null);
+        rangeQueryBuilder.from(10);
+        rangeQueryBuilder.includeLower(false);
+        searchResponse = search(rangeQueryBuilder, indexName);
+        assertNoSearchHits(searchResponse);
+
+        rangeQueryBuilder = QueryBuilders.rangeQuery("field");
+        rangeQueryBuilder.from(null);
+        rangeQueryBuilder.to(null);
+        searchResponse = search(rangeQueryBuilder, indexName);
+        assertSearchHits(searchResponse, "1", "2", "3");
+
+        rangeQueryBuilder = QueryBuilders.rangeQuery("field");
+        rangeQueryBuilder.from(null);
+        rangeQueryBuilder.to(null);
+        rangeQueryBuilder.includeLower(true);
+        rangeQueryBuilder.includeUpper(true);
+        searchResponse = search(rangeQueryBuilder, indexName);
+        assertSearchHits(searchResponse, "1", "2", "3");
+    }
+
+    @Test
+    public void testRangeFilterWithNullLimits() {
+        String indexName = "test";
+        String type = "type1";
+        createIndex(indexName);
+        ensureGreen(indexName);
+
+        String doc1 = "{\n" +
+                "  \"field\": 1\n" +
+                "}";
+        String doc2 = "{\n" +
+                "  \"field\": 5\n" +
+                "}";
+        String doc3 = "{\n" +
+                "  \"field\": 10\n" +
+                "}";
+        index(indexName, type, "1", doc1);
+        index(indexName, type, "2", doc2);
+        index(indexName, type, "3", doc3);
+        refresh();
+
+        RangeFilterBuilder rangeFilterBuilder = FilterBuilders.rangeFilter("field");
+        rangeFilterBuilder.from(null);
+        rangeFilterBuilder.to(5);
+        SearchResponse searchResponse = search(QueryBuilders.constantScoreQuery(rangeFilterBuilder), indexName);
+        assertSearchHits(searchResponse, "1", "2");
+
+        rangeFilterBuilder = FilterBuilders.rangeFilter("field");
+        rangeFilterBuilder.includeLower(true);
+        rangeFilterBuilder.from(null);
+        rangeFilterBuilder.to(10);
+        searchResponse = search(QueryBuilders.constantScoreQuery(rangeFilterBuilder), indexName);
+        assertSearchHits(searchResponse, "1", "2", "3");
+
+        rangeFilterBuilder = FilterBuilders.rangeFilter("field");
+        rangeFilterBuilder.includeUpper(true);
+        rangeFilterBuilder.to(null);
+        rangeFilterBuilder.from(9);
+        searchResponse = search(QueryBuilders.constantScoreQuery(rangeFilterBuilder), indexName);
+        assertSearchHits(searchResponse, "3");
+
+        rangeFilterBuilder = FilterBuilders.rangeFilter("field");
+        rangeFilterBuilder.includeUpper(true);
+        rangeFilterBuilder.to(null);
+        rangeFilterBuilder.from(10);
+        rangeFilterBuilder.includeLower(false);
+        searchResponse = search(QueryBuilders.constantScoreQuery(rangeFilterBuilder), indexName);
+        assertNoSearchHits(searchResponse);
+
+        rangeFilterBuilder = FilterBuilders.rangeFilter("field");
+        rangeFilterBuilder.from(null);
+        rangeFilterBuilder.to(null);
+        searchResponse = search(QueryBuilders.constantScoreQuery(rangeFilterBuilder), indexName);
+        assertSearchHits(searchResponse, "1", "2", "3");
+
+        rangeFilterBuilder = FilterBuilders.rangeFilter("field");
+        rangeFilterBuilder.from(null);
+        rangeFilterBuilder.to(null);
+        rangeFilterBuilder.includeLower(true);
+        rangeFilterBuilder.includeUpper(true);
+        searchResponse = search(QueryBuilders.constantScoreQuery(rangeFilterBuilder), indexName);
+        assertSearchHits(searchResponse, "1", "2", "3");
+    }
 }

@@ -385,13 +385,17 @@ public class RangeFilterBuilder extends BaseFilterBuilder {
         builder.startObject(RangeFilterParser.NAME);
 
         builder.startObject(name);
-        builder.field("from", from);
-        builder.field("to", to);
+        if (from != null) {
+            builder.field("from", from);
+            builder.field("include_lower", includeLower);
+        }
+        if (to != null) {
+            builder.field("to", to);
+            builder.field("include_upper", includeUpper);
+        }
         if (timeZone != null) {
             builder.field("time_zone", timeZone);
         }
-        builder.field("include_lower", includeLower);
-        builder.field("include_upper", includeUpper);
         builder.endObject();
 
         if (filterName != null) {

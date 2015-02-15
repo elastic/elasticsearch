@@ -411,13 +411,17 @@ public class RangeQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(RangeQueryParser.NAME);
         builder.startObject(name);
-        builder.field("from", from);
-        builder.field("to", to);
+        if (from != null) {
+            builder.field("from", from);
+            builder.field("include_lower", includeLower);
+        }
+        if (to != null) {
+            builder.field("to", to);
+            builder.field("include_upper", includeUpper);
+        }
         if (timeZone != null) {
             builder.field("time_zone", timeZone);
         }
-        builder.field("include_lower", includeLower);
-        builder.field("include_upper", includeUpper);
         if (boost != -1) {
             builder.field("boost", boost);
         }

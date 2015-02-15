@@ -55,6 +55,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
@@ -99,6 +100,7 @@ import org.elasticsearch.index.merge.policy.*;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerModule;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.store.StoreModule;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.index.translog.fs.FsTranslog;
@@ -318,7 +320,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
             randomSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, numberOfShards())
                     .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas());
-            
+
             randomSettingsBuilder.put("index.codec", randomFrom("default", "best_compression"));
             XContentBuilder mappings = null;
             if (frequently() && randomDynamicTemplates()) {
@@ -468,7 +470,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         if (random.nextBoolean()) {
             builder.put(IndicesQueryCache.INDEX_CACHE_QUERY_ENABLED, random.nextBoolean());
         }
-        
+
         if (random.nextBoolean()) {
             builder.put("index.shard.check_on_startup", randomFrom(random, "false", "checksum", "true"));
         }
@@ -1382,6 +1384,19 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     private AtomicInteger dummmyDocIdGenerator = new AtomicInteger();
+
+    /**
+     * Syntactic sugar for:
+     *
+     * <pre>
+     *   return client().prepareSearch(index).setQuery(query).execute().actionGet();
+     * </pre>
+     *
+     * where querying using query builder.
+     */
+    public static SearchResponse search(QueryBuilder query, String... indices) {
+        return client().prepareSearch(indices).setQuery(query).execute().actionGet();
+    }
 
     /** Disables translog flushing for the specified index */
     public static void disableTranslogFlush(String index) {

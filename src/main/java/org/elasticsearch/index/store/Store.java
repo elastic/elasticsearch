@@ -29,6 +29,7 @@ import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -38,9 +39,10 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -84,6 +86,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     private static final int VERSION_START = 0;
     private static final int VERSION = VERSION_STACK_TRACE;
     private static final String CORRUPTED = "corrupted_";
+    public static final String INDEX_STORE_STATS_REFRESH_INTERVAL = "index.store.stats_refresh_interval";
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final AtomicInteger refCount = new AtomicInteger(1);
@@ -91,6 +94,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     private final DirectoryService directoryService;
     private final StoreDirectory directory;
     private final DistributorDirectory distributorDirectory;
+    private final SingleObjectCache<StoreStats> statsCache;
 
     @Inject
     public Store(ShardId shardId, @IndexSettings Settings indexSettings, CodecService codecService, DirectoryService directoryService, Distributor distributor) throws IOException {
@@ -99,6 +103,9 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         this.directoryService = directoryService;
         this.distributorDirectory = new DistributorDirectory(distributor);
         this.directory = new StoreDirectory(distributorDirectory);
+        final TimeValue refreshInterval = indexSettings.getAsTime(INDEX_STORE_STATS_REFRESH_INTERVAL, TimeValue.timeValueSeconds(10));
+        this.statsCache = new StoreStatsCache(refreshInterval, directory, directoryService);
+        logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
     }
 
 
@@ -213,7 +220,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
     public StoreStats stats() throws IOException {
         ensureOpen();
-        return new StoreStats(Directories.estimateSize(directory), directoryService.throttleTimeInNanos());
+        return statsCache.getOrRefresh();
     }
 
     public void renameFile(String from, String to) throws IOException {
@@ -550,6 +557,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         public String toString() {
             return "store(" + in.toString() + ")";
         }
+
     }
 
     /** Log that we are about to delete this file, to the index.store.deletes component. */
@@ -1165,6 +1173,39 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 logger.warn("Can't mark store as corrupted", ex);
             }
             directory().sync(Collections.singleton(uuid));
+        }
+    }
+
+    private static class StoreStatsCache extends SingleObjectCache<StoreStats> {
+        private final Directory directory;
+        private final DirectoryService directoryService;
+
+        public StoreStatsCache(TimeValue refreshInterval, Directory directory, DirectoryService directoryService) throws IOException {
+            super(refreshInterval, new StoreStats(estimateSize(directory), directoryService.throttleTimeInNanos()));
+            this.directory = directory;
+            this.directoryService = directoryService;
+        }
+
+        @Override
+        protected StoreStats refresh() {
+            try {
+                return new StoreStats(estimateSize(directory), directoryService.throttleTimeInNanos());
+            } catch (IOException ex) {
+                throw new ElasticsearchException("failed to refresh store stats");
+            }
+        }
+
+        private static long estimateSize(Directory directory) throws IOException {
+            long estimatedSize = 0;
+            String[] files = directory.listAll();
+            for (String file : files) {
+                try {
+                    estimatedSize += directory.fileLength(file);
+                } catch (NoSuchFileException | FileNotFoundException e) {
+                    // ignore, the file is not there no more
+                }
+            }
+            return estimatedSize;
         }
     }
 }

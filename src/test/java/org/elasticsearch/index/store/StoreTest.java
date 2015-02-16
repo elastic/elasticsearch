@@ -28,6 +28,8 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.distributor.Distributor;
@@ -979,6 +981,37 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             assertThat(newCommitDiff.different.size(), equalTo(0));
             assertThat(newCommitDiff.missing.size(), equalTo(4)); // an entire segment must be missing (single doc segment got dropped)  plus the commit is different
         }
+
+        store.deleteContent();
+        IOUtils.close(store);
+    }
+
+    @Test
+    public void testStoreStats() throws IOException {
+        final ShardId shardId = new ShardId(new Index("index"), 1);
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
+        Settings settings = ImmutableSettings.builder().put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, TimeValue.timeValueMinutes(0)).build();
+        Store store = new Store(shardId, settings, null, directoryService, randomDistributor(directoryService));
+
+        StoreStats stats = store.stats();
+        assertEquals(stats.getSize().bytes(), 0);
+
+        Directory dir = store.directory();
+        long length = 0;
+        try (IndexOutput output = dir.createOutput("foo.bar", IOContext.DEFAULT)) {
+            int iters = scaledRandomIntBetween(10, 100);
+            for (int i = 0; i < iters; i++) {
+                BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
+                output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+            }
+            stats = store.stats();
+            assertEquals(stats.getSize().bytes(), 0);
+            length = output.getFilePointer();
+        }
+
+        assertTrue(store.directory().listAll().length > 0);
+        stats = store.stats();
+        assertEquals(stats.getSizeInBytes(), length);
 
         store.deleteContent();
         IOUtils.close(store);

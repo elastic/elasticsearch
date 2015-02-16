@@ -301,6 +301,10 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         return factory;
     }
 
+    public InternalOrder getOrder() {
+        return order;
+    }
+
     private static class IteratorAndCurrent<B> {
 
         private final Iterator<B> iterator;

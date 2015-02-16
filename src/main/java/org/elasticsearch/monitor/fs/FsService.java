@@ -23,6 +23,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.SingleObjectCache;
 
 /**
  */
@@ -30,26 +31,30 @@ public class FsService extends AbstractComponent {
 
     private final FsProbe probe;
 
-    private final TimeValue refreshInterval;
-
-    private FsStats cachedStats;
+    private final SingleObjectCache<FsStats> fsStatsCache;
 
     @Inject
     public FsService(Settings settings, FsProbe probe) {
         super(settings);
         this.probe = probe;
-        this.cachedStats = probe.stats();
-
-        this.refreshInterval = componentSettings.getAsTime("refresh_interval", TimeValue.timeValueSeconds(1));
-
+        TimeValue refreshInterval = settings.getAsTime("monitor.fs.refresh_interval", TimeValue.timeValueSeconds(1));
+        fsStatsCache = new FsStatsCache(refreshInterval, probe.stats());
         logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);
     }
 
-    public synchronized FsStats stats() {
-        if ((System.currentTimeMillis() - cachedStats.getTimestamp()) > refreshInterval.millis()) {
-            cachedStats = probe.stats();
+    public FsStats stats() {
+        return fsStatsCache.getOrRefresh();
+    }
+
+    private class FsStatsCache extends SingleObjectCache<FsStats> {
+        public FsStatsCache(TimeValue interval, FsStats initValue) {
+            super(interval, initValue);
         }
-        return cachedStats;
+
+        @Override
+        protected FsStats refresh() {
+            return probe.stats();
+        }
     }
 
 }

@@ -22,18 +22,18 @@ package org.elasticsearch.index.store;
 import java.io.IOException;
 
 import org.apache.lucene.store.IndexOutput;
+import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 
 /** 
  * abstract class for verifying what was written.
  * subclasses override {@link #writeByte(byte)} and {@link #writeBytes(byte[], int, int)}
  */
 // do NOT optimize this class for performance
-public abstract class VerifyingIndexOutput extends IndexOutput {
-    protected final IndexOutput out;
-    
+public abstract class VerifyingIndexOutput extends FilterIndexOutput {
+
     /** Sole constructor */
     VerifyingIndexOutput(IndexOutput out) {
-        this.out = out;
+        super(out);
     }
     
     /**
@@ -41,32 +41,5 @@ public abstract class VerifyingIndexOutput extends IndexOutput {
      * called after all data has been written to this output.
      */
     public abstract void verify() throws IOException;
-    
-    // default implementations... forwarding to delegate
-    
-    @Override
-    public final void close() throws IOException {
-        out.close();
-    }
 
-    @Override
-    @Deprecated
-    public final void flush() throws IOException {
-        out.flush(); // we dont buffer, but whatever
-    }
-
-    @Override
-    public final long getChecksum() throws IOException {
-        return out.getChecksum();
-    }
-
-    @Override
-    public final long getFilePointer() {
-        return out.getFilePointer();
-    }
-    
-    @Override
-    public final long length() throws IOException {
-        return out.length();
-    }
 }

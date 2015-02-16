@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.indices.recovery.RecoveryState.Type;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -401,7 +402,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> creating test index: {}", name);
         assertAcked(prepareCreate(name, nodeCount, settingsBuilder().put("number_of_shards", shardCount)
-                .put("number_of_replicas", replicaCount)));
+                .put("number_of_replicas", replicaCount).put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0)));
         ensureGreen();
 
         logger.info("--> indexing sample data");

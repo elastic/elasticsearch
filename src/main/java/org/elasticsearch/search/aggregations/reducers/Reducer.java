@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.reducers;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -40,6 +41,8 @@ public abstract class Reducer implements Streamable {
      * @see {@link ReducerFactory}
      */
     public static interface Parser {
+
+        public static final ParseField BUCKETS_PATH = new ParseField("bucketsPath");
 
         /**
          * @return The reducer type this parser is associated with.

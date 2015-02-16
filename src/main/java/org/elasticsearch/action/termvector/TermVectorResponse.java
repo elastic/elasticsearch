@@ -109,10 +109,8 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
         out.writeVLong(docVersion);
         final boolean docExists = isExists();
         out.writeBoolean(docExists);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeBoolean(artificial);
-        }
         if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            out.writeBoolean(artificial);
             out.writeVLong(tookInMillis);
         }
         out.writeBoolean(hasTermVectors());
@@ -134,10 +132,8 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
         id = in.readString();
         docVersion = in.readVLong();
         exists = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            artificial = in.readBoolean();
-        }
         if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            artificial = in.readBoolean();
             tookInMillis = in.readVLong();
         }
         if (in.readBoolean()) {
@@ -180,7 +176,7 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
         assert id != null;
         builder.field(FieldStrings._INDEX, index);
         builder.field(FieldStrings._TYPE, type);
-        if (!isArtificial()) {
+        if (isArtificial() == false) {
             builder.field(FieldStrings._ID, id);
         }
         builder.field(FieldStrings._VERSION, docVersion);

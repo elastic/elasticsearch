@@ -86,4 +86,12 @@ public abstract class ReducerFactory {
         this.metaData = metaData;
     }
 
+    public String getName() {
+        return name;
+    }
+
+    public String[] getBucketsPaths() {
+        return bucketsPaths;
+    }
+
 }

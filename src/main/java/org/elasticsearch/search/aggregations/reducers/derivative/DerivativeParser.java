@@ -33,8 +33,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class DerivativeParser implements Reducer.Parser {
-
-    public static final ParseField BUCKETS_PATH = new ParseField("bucketsPath");
     public static final ParseField FORMAT = new ParseField("format");
 
     @Override

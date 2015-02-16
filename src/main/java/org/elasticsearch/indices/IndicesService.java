@@ -502,17 +502,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param indexSettings the shards index settings.
      * @throws IOException if an IOException occurs
      */
-    public void deleteShardStore(String reason, ShardLock lock, Settings indexSettings, boolean ownsShard) throws IOException {
+    public void deleteShardStore(String reason, ShardLock lock, Settings indexSettings) throws IOException {
         ShardId shardId = lock.getShardId();
-        if (canDeleteShardContent(shardId, indexSettings, ownsShard) == false) {
-            if (canDeleteShardContent(shardId, indexSettings, true)) {
-                throw new ElasticsearchIllegalStateException("Can't delete shard " + shardId + " ownsShard: " + ownsShard);
-            }
-            logger.trace("{} skip deleting shard shard ownsShard: {} ", shardId, ownsShard);
-        } else {
-            logger.trace("{} deleting shard reason [{}]", shardId, reason);
-            nodeEnv.deleteShardDirectoryUnderLock(lock, indexSettings);
-        }
+        logger.trace("{} deleting shard reason [{}]", shardId, reason);
+        nodeEnv.deleteShardDirectoryUnderLock(lock, indexSettings);
     }
 
     /**
@@ -526,7 +519,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      */
     public void deleteShardStore(String reason, ShardId shardId, IndexMetaData metaData) throws IOException {
         final Settings indexSettings = buildIndexSettings(metaData);
-        if (canDeleteShardContent(shardId, indexSettings, false) == false) {
+        if (canDeleteShardContent(shardId, indexSettings) == false) {
             throw new ElasticsearchIllegalStateException("Can't delete shard " + shardId);
         }
         nodeEnv.deleteShardDirectorySafe(shardId, indexSettings);
@@ -571,12 +564,12 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         // The plan was to make it harder to miss-use and ask for metadata instead of simple settings
         assert shardId.getIndex().equals(metaData.getIndex());
         final Settings indexSettings = buildIndexSettings(metaData);
-        return canDeleteShardContent(shardId, indexSettings, false);
+        return canDeleteShardContent(shardId, indexSettings);
     }
 
-    private boolean canDeleteShardContent(ShardId shardId, @IndexSettings Settings indexSettings, boolean ownsShard) {
+    private boolean canDeleteShardContent(ShardId shardId, @IndexSettings Settings indexSettings) {
         final Tuple<IndexService, Injector> indexServiceInjectorTuple = this.indices.get(shardId.getIndex());
-        if (IndexMetaData.usesSharedFilesystem(indexSettings) == false || ownsShard) {
+        if (IndexMetaData.usesSharedFilesystem(indexSettings) == false) {
             if (indexServiceInjectorTuple != null && nodeEnv.hasNodeFile()) {
                 final IndexService indexService = indexServiceInjectorTuple.v1();
                 return indexService.hasShard(shardId.id()) == false;

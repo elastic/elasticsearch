@@ -26,6 +26,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.*;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
@@ -37,11 +38,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.lucene.Directories;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
+import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.env.ShardLock;
@@ -87,6 +89,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private static final int VERSION_START = 0;
     private static final int VERSION = VERSION_STACK_TRACE;
     private static final String CORRUPTED = "corrupted_";
+    public static final String INDEX_STORE_STATS_REFRESH_INTERVAL = "index.store.stats_refresh_interval";
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final DirectoryService directoryService;
@@ -94,6 +97,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final ReentrantReadWriteLock metadataLock = new ReentrantReadWriteLock();
     private final ShardLock shardLock;
     private final OnClose onClose;
+    private final SingleObjectCache<StoreStats> statsCache;
 
     private final AbstractRefCounted refCounter = new AbstractRefCounted("store") {
         @Override
@@ -114,6 +118,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         this.directory = new StoreDirectory(directoryService.newFromDistributor(distributor), Loggers.getLogger("index.store.deletes", indexSettings, shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
+        final TimeValue refreshInterval = indexSettings.getAsTime(INDEX_STORE_STATS_REFRESH_INTERVAL, TimeValue.timeValueSeconds(10));
+
+        this.statsCache = new StoreStatsCache(refreshInterval, directory, directoryService);
+        logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
+
         assert onClose != null;
         assert shardLock != null;
         assert shardLock.getShardId().equals(shardId);
@@ -283,7 +292,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     public StoreStats stats() throws IOException {
         ensureOpen();
-        return new StoreStats(Directories.estimateSize(directory), directoryService.throttleTimeInNanos());
+        return statsCache.getOrRefresh();
     }
 
     public void renameFile(String from, String to) throws IOException {
@@ -621,6 +630,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             this.deletesLogger = deletesLogger;
         }
 
+
         @Override
         public void close() throws IOException {
             assert false : "Nobody should close this directory except of the Store itself";
@@ -644,6 +654,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         public String toString() {
             return "store(" + in.toString() + ")";
         }
+
     }
 
     /** Log that we are about to delete this file, to the index.store.deletes component. */
@@ -1328,5 +1339,38 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             public void handle(ShardLock Lock) {
             }
         };
+    }
+
+    private static class StoreStatsCache extends SingleObjectCache<StoreStats> {
+        private final Directory directory;
+        private final DirectoryService directoryService;
+
+        public StoreStatsCache(TimeValue refreshInterval, Directory directory, DirectoryService directoryService) throws IOException {
+            super(refreshInterval, new StoreStats(estimateSize(directory), directoryService.throttleTimeInNanos()));
+            this.directory = directory;
+            this.directoryService = directoryService;
+        }
+
+        @Override
+        protected StoreStats refresh()  {
+            try {
+                return new StoreStats(estimateSize(directory), directoryService.throttleTimeInNanos());
+            } catch (IOException ex) {
+                throw new ElasticsearchException("failed to refresh store stats");
+            }
+        }
+
+        private static long estimateSize(Directory directory) throws IOException {
+            long estimatedSize = 0;
+            String[] files = directory.listAll();
+            for (String file : files) {
+                try {
+                    estimatedSize += directory.fileLength(file);
+                } catch (NoSuchFileException | FileNotFoundException e) {
+                    // ignore, the file is not there no more
+                }
+            }
+            return estimatedSize;
+        }
     }
 }

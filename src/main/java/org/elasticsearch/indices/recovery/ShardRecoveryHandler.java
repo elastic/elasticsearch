@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
@@ -41,6 +42,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.CancellableThreads.Interruptable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -62,6 +64,9 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
@@ -345,13 +350,49 @@ public final class ShardRecoveryHandler implements Engine.RecoveryHandler {
                     // Once the files have been renamed, any other files that are not
                     // related to this recovery (out of date segments, for example)
                     // are deleted
-                    transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.CLEAN_FILES,
-                            new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), recoverySourceMetadata),
-                            TransportRequestOptions.options().withTimeout(recoverySettings.internalActionTimeout()),
-                            EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                    try {
+                        transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.CLEAN_FILES,
+                                new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), recoverySourceMetadata),
+                                TransportRequestOptions.options().withTimeout(recoverySettings.internalActionTimeout()),
+                                EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                    } catch (RemoteTransportException remoteException) {
+                        final IOException corruptIndexException;
+                        // we realized that after the index was copied and we wanted to finalize the recovery
+                        // the index was corrupted:
+                        //   - maybe due to a broken segments file on an empty index (transferred with no checksum)
+                        //   - maybe due to old segments without checksums or length only checks
+                        if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(remoteException)) != null) {
+                            try {
+                                final Store.MetadataSnapshot recoverySourceMetadata = store.getMetadata(snapshot);
+                                StoreFileMetaData[] metadata = Iterables.toArray(recoverySourceMetadata, StoreFileMetaData.class);
+                                ArrayUtil.timSort(metadata, new Comparator<StoreFileMetaData>() {
+                                    @Override
+                                    public int compare(StoreFileMetaData o1, StoreFileMetaData o2) {
+                                        return Long.compare(o1.length(), o2.length()); // check small files first
+                                    }
+                                });
+                                for (StoreFileMetaData md : metadata) {
+                                    logger.debug("{} checking integrity for file {} after remove corruption exception", shard.shardId(), md);
+                                    if (store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
+                                        logger.warn("{} Corrupted file detected {} checksum mismatch", shard.shardId(), md);
+                                        throw corruptIndexException;
+                                    }
+                                }
+                            } catch (IOException ex) {
+                                remoteException.addSuppressed(ex);
+                                throw remoteException;
+                            }
+                            // corruption has happened on the way to replica
+                            RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but checksums are ok", null);
+                            exception.addSuppressed(remoteException);
+                            logger.warn("{} Remote file corruption during finalization on node {}, recovering {}. local checksum OK",
+                                    corruptIndexException, shard.shardId(), request.targetNode());
+                        } else {
+                            throw remoteException;
+                        }
+                    }
                 }
             });
-
             stopWatch.stop();
             logger.trace("[{}][{}] recovery [phase1] to {}: took [{}]", indexName, shardId, request.targetNode(), stopWatch.totalTime());
             response.phase1Time = stopWatch.totalTime().millis();

@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -46,6 +47,10 @@ public class RestSpec {
         return restApiMap.get(api);
     }
 
+    public Collection<RestApi> getApis() {
+        return restApiMap.values();
+    }
+
     /**
      * Parses the complete set of REST spec available under the provided directories
      */
@@ -56,14 +61,6 @@ public class RestSpec {
                 try (InputStream stream = Files.newInputStream(jsonFile)) {
                     XContentParser parser = JsonXContent.jsonXContent.createParser(stream);
                     RestApi restApi = new RestApiParser().parse(parser);
-                    if (restApi.getMethods().contains("GET") && restApi.isBodySupported()) {
-                        if (!restApi.getMethods().contains("POST")) {
-                            throw new IllegalArgumentException(restApi.getName() + " supports GET with a body but doesn't support POST");
-                        }
-                        if (!restApi.getParams().contains("source")) {
-                            throw new IllegalArgumentException(restApi.getName() + " supports GET with a body but doesn't support the source query string parameter");
-                        }
-                    }
                     restSpec.addApi(restApi);
                 } catch (Throwable ex) {
                     throw new IOException("Can't parse rest spec file: [" + jsonFile + "]", ex);

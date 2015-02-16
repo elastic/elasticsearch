@@ -22,6 +22,7 @@ package org.elasticsearch.search.aggregations.reducers.derivative;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,6 +33,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.reducers.InternalSimpleValue;
@@ -92,12 +94,16 @@ public class DerivativeReducer extends Reducer {
         InternalHistogram<? extends InternalHistogram.Bucket> histo = (InternalHistogram<? extends InternalHistogram.Bucket>) aggregation;
         List<? extends InternalHistogram.Bucket> buckets = histo.getBuckets();
         InternalHistogram.Factory<? extends InternalHistogram.Bucket> factory = histo.getFactory();
+
         List newBuckets = new ArrayList<>();
         Double lastBucketValue = null;
         // NOCOMMIT this needs to be improved so that the aggs are cloned correctly to ensure aggs are fully immutable.
         for (InternalHistogram.Bucket bucket : buckets) {
-            double thisBucketValue = resolveBucketValue(histo, bucket);
+            Double thisBucketValue = resolveBucketValue(histo, bucket);
             if (lastBucketValue != null) {
+                if (thisBucketValue == null) {
+                    throw new ElasticsearchIllegalStateException("FOUND GAP IN DATA"); // NOCOMMIT deal with gaps in data
+                }
                 double diff = thisBucketValue - lastBucketValue;
 
                 List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), FUNCTION));
@@ -113,16 +119,20 @@ public class DerivativeReducer extends Reducer {
         return factory.create(histo.getName(), newBuckets, null, 1, null, null, false, new ArrayList<Reducer>(), histo.getMetaData()); // NOCOMMIT get order, minDocCount, emptyBucketInfo etc. from histo
     }
 
-    private double resolveBucketValue(InternalHistogram<? extends InternalHistogram.Bucket> histo, InternalHistogram.Bucket bucket) {
-        Object propertyValue = bucket.getProperty(histo.getName(), AggregationPath.parse(bucketsPaths()[0])
-                .getPathElementsAsStringList());
-        if (propertyValue instanceof Number) {
-            return ((Number) propertyValue).doubleValue();
-        } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
-            return ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
-        } else {
-            throw new AggregationExecutionException(DerivativeParser.BUCKETS_PATH.getPreferredName()
-                    + "must reference either a number value or a single value numeric metric aggregation");
+    private Double resolveBucketValue(InternalHistogram<? extends InternalHistogram.Bucket> histo, InternalHistogram.Bucket bucket) {
+        try {
+            Object propertyValue = bucket.getProperty(histo.getName(), AggregationPath.parse(bucketsPaths()[0])
+                    .getPathElementsAsStringList());
+            if (propertyValue instanceof Number) {
+                return ((Number) propertyValue).doubleValue();
+            } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
+                return ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
+            } else {
+                throw new AggregationExecutionException(DerivativeParser.BUCKETS_PATH.getPreferredName()
+                        + " must reference either a number value or a single value numeric metric aggregation");
+            }
+        } catch (InvalidAggregationPathException e) {
+            return null;
         }
     }
 

@@ -156,21 +156,21 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long roundKey(long utcMillis) {
-            long offset = preTz.getOffset(utcMillis);
-            long time = utcMillis + offset;
-            return field.roundFloor(time) - offset;
+            long local = preTz.convertUTCToLocal(utcMillis);
+            return preTz.convertLocalToUTC(field.roundFloor(local), true, utcMillis);
         }
 
         @Override
         public long valueForKey(long time) {
             // now apply post Tz
-            time = time + postTz.getOffset(time);
-            return time;
+            return postTz.convertUTCToLocal(time);
         }
 
         @Override
-        public long nextRoundingValue(long value) {
-            return durationField.add(value, 1);
+        public long nextRoundingValue(long time) {
+            long currentWithoutPostZone = postTz.convertLocalToUTC(time, true);
+            long nextWithoutPostZone = durationField.add(currentWithoutPostZone, 1);
+            return postTz.convertUTCToLocal(nextWithoutPostZone);
         }
 
         @Override
@@ -268,21 +268,22 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long roundKey(long utcMillis) {
-            long time = utcMillis + preTz.getOffset(utcMillis);
-            return field.roundFloor(time);
+            long local = preTz.convertUTCToLocal(utcMillis);
+            return field.roundFloor(local);
         }
 
         @Override
         public long valueForKey(long time) {
             // after rounding, since its day level (and above), its actually UTC!
             // now apply post Tz
-            time = time + postTz.getOffset(time);
-            return time;
+            return postTz.convertUTCToLocal(time);
         }
 
         @Override
-        public long nextRoundingValue(long value) {
-            return durationField.add(value, 1);
+        public long nextRoundingValue(long currentWithPostZone) {
+            long currentWithoutPostZone = postTz.convertLocalToUTC(currentWithPostZone, true);
+            long nextWithoutPostZone = durationField.add(currentWithoutPostZone, 1);
+            return postTz.convertUTCToLocal(nextWithoutPostZone);
         }
 
         @Override
@@ -375,7 +376,7 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long roundKey(long utcMillis) {
-            long time = utcMillis + preTz.getOffset(utcMillis);
+            long time = preTz.convertUTCToLocal(utcMillis);
             return Rounding.Interval.roundKey(time, interval);
         }
 
@@ -383,9 +384,9 @@ public abstract class TimeZoneRounding extends Rounding {
         public long valueForKey(long key) {
             long time = Rounding.Interval.roundValue(key, interval);
             // now, time is still in local, move it to UTC
-            time = time - preTz.getOffset(time);
+            time = preTz.convertLocalToUTC(time,  true);
             // now apply post Tz
-            time = time + postTz.getOffset(time);
+            time = postTz.convertUTCToLocal(time);
             return time;
         }
 
@@ -435,7 +436,7 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long roundKey(long utcMillis) {
-            long time = utcMillis + preTz.getOffset(utcMillis);
+            long time = preTz.convertUTCToLocal(utcMillis);
             return Rounding.Interval.roundKey(time, interval);
         }
 
@@ -444,7 +445,7 @@ public abstract class TimeZoneRounding extends Rounding {
             long time = Rounding.Interval.roundValue(key, interval);
             // after rounding, since its day level (and above), its actually UTC!
             // now apply post Tz
-            time = time + postTz.getOffset(time);
+            time = postTz.convertUTCToLocal(time);
             return time;
         }
 

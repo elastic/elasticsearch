@@ -28,6 +28,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.termvector.TermVectorRequest.Flag;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -108,8 +109,12 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
         out.writeVLong(docVersion);
         final boolean docExists = isExists();
         out.writeBoolean(docExists);
-        out.writeBoolean(artificial);
-        out.writeVLong(tookInMillis);
+        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            out.writeBoolean(artificial);
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            out.writeVLong(tookInMillis);
+        }
         out.writeBoolean(hasTermVectors());
         if (hasTermVectors()) {
             out.writeBytesReference(headerRef);
@@ -129,8 +134,12 @@ public class TermVectorResponse extends ActionResponse implements ToXContent {
         id = in.readString();
         docVersion = in.readVLong();
         exists = in.readBoolean();
-        artificial = in.readBoolean();
-        tookInMillis = in.readVLong();
+        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
+            artificial = in.readBoolean();
+        }
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            tookInMillis = in.readVLong();
+        }
         if (in.readBoolean()) {
             headerRef = in.readBytesReference();
             termVectors = in.readBytesReference();

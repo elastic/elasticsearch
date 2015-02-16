@@ -57,6 +57,7 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.InternalExte
 import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCount;
+import org.elasticsearch.search.aggregations.reducers.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeReducer;
 
 /**
@@ -103,6 +104,7 @@ public class TransportAggregationModule extends AbstractModule implements SpawnM
         InternalTopHits.registerStreams();
         InternalGeoBounds.registerStream();
         InternalChildren.registerStream();
+        InternalSimpleValue.registerStreams();
 
         // Reducers
         DerivativeReducer.registerStreams();

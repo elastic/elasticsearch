@@ -23,7 +23,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -33,7 +32,7 @@ public abstract class ReducerBuilder<B extends ReducerBuilder<B>> implements ToX
 
     private final String name;
     protected final String type;
-    private List<String> bucketsPaths;
+    private String[] bucketsPaths;
     private Map<String, Object> metaData;
 
     /**
@@ -54,7 +53,7 @@ public abstract class ReducerBuilder<B extends ReducerBuilder<B>> implements ToX
     /**
      * Sets the paths to the buckets to use for this reducer
      */
-    public B setBucketsPaths(List<String> bucketsPaths) {
+    public B setBucketsPaths(String... bucketsPaths) {
         this.bucketsPaths = bucketsPaths;
         return (B) this;
     }

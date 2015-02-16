@@ -29,7 +29,7 @@ import java.util.Comparator;
 /**
  * An internal {@link Histogram.Order} strategy which is identified by a unique id.
  */
-class InternalOrder extends Histogram.Order {
+public class InternalOrder extends Histogram.Order {
 
     final byte id;
     final String key;

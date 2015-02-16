@@ -58,7 +58,7 @@ public class AlertSerializationTest extends AbstractAlertingTests {
         assertEqualByGeneratedXContent(parsedAlert.schedule(), alert.schedule());
         assertEqualByGeneratedXContent(parsedAlert.trigger(), alert.trigger());
         assertEquals(parsedAlert.throttlePeriod().getMillis(), alert.throttlePeriod().getMillis());
-        assertEquals(parsedAlert.status().ack().state(), alert.status().ack().state());
+        assertEquals(parsedAlert.status().ackStatus().state(), alert.status().ackStatus().state());
         assertEquals(parsedAlert.metadata().get("foo"), "bar");
     }
 

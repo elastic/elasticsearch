@@ -6,7 +6,7 @@
 package org.elasticsearch.alerts.actions.email;
 
 import org.elasticsearch.alerts.Alert;
-import org.elasticsearch.alerts.AlertContext;
+import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.actions.email.service.Authentication;
 import org.elasticsearch.alerts.actions.email.service.Email;
@@ -29,9 +29,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
 import javax.mail.MessagingException;
-import javax.mail.internet.InternetAddress;
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
 */
@@ -41,40 +43,17 @@ public class EmailActionTest extends ElasticsearchTestCase {
         //createIndex("my-trigger-index");
         StringTemplateUtils.Template template =
                 new StringTemplateUtils.Template("{{alert_name}} triggered with {{response.hits.total}} hits");
-        List<InternetAddress> addresses = new ArrayList<>();
-        addresses.addAll(Arrays.asList(InternetAddress.parse("you@foo.com")));
 
         Settings settings = ImmutableSettings.settingsBuilder().build();
         MustacheScriptEngineService mustacheScriptEngineService = new MustacheScriptEngineService(settings);
-        ThreadPool tp;
-        tp = new ThreadPool(ThreadPool.Names.SAME);
+        ThreadPool threadPool = new ThreadPool(ThreadPool.Names.SAME);
         Set<ScriptEngineService> engineServiceSet = new HashSet<>();
         engineServiceSet.add(mustacheScriptEngineService);
 
-        ScriptService scriptService = new ScriptService(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp));
+        ScriptService scriptService = new ScriptService(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, threadPool));
         StringTemplateUtils stringTemplateUtils = new StringTemplateUtils(settings, ScriptServiceProxy.of(scriptService));
 
-        EmailService alwaysSuccessEmailService = new EmailService() {
-            @Override
-            public void start(ClusterState state) {
-
-            }
-
-            @Override
-            public void stop() {
-
-            }
-
-            @Override
-            public EmailSent send(Email email, Authentication auth, Profile profile) {
-                return new EmailSent(auth.username(), email);
-            }
-
-            @Override
-            public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) {
-                return new EmailSent(accountName, email);
-            }
-        };
+        EmailService emailService = new EmailServiceMock();
 
         Email.Address from = new Email.Address("from@test.com");
         List<Email.Address> emailAddressList = new ArrayList<>();
@@ -86,7 +65,7 @@ public class EmailActionTest extends ElasticsearchTestCase {
         emailBuilder.from(from);
         emailBuilder.to(to);
 
-        EmailAction emailAction = new EmailAction(logger, alwaysSuccessEmailService, stringTemplateUtils, emailBuilder,
+        EmailAction emailAction = new EmailAction(logger, emailService, stringTemplateUtils, emailBuilder,
                 new Authentication("testname", "testpassword"), Profile.STANDARD, "testaccount", template, template, null, true);
 
         //This is ok since the execution of the action only relies on the alert name
@@ -100,12 +79,10 @@ public class EmailActionTest extends ElasticsearchTestCase {
                 null,
                 new Alert.Status()
         );
-
-
-        AlertContext ctx = new AlertContext(alert, new DateTime(), new DateTime());
+        ExecutionContext ctx = new ExecutionContext("test-serialization#1", alert, new DateTime(), new DateTime());
         EmailAction.Result result = emailAction.execute(ctx, new Payload.Simple());
 
-        tp.shutdownNow();
+        threadPool.shutdownNow();
         
         assertTrue(result.success());
 
@@ -114,7 +91,28 @@ public class EmailActionTest extends ElasticsearchTestCase {
         assertArrayEquals(success.email().to().toArray(), to.toArray() );
         assertEquals(success.email().from(), from);
         //@TODO add more here
+    }
 
+    static class EmailServiceMock implements EmailService {
+        @Override
+        public void start(ClusterState state) {
+
+        }
+
+        @Override
+        public void stop() {
+
+        }
+
+        @Override
+        public EmailSent send(Email email, Authentication auth, Profile profile) {
+            return new EmailSent(auth.username(), email);
+        }
+
+        @Override
+        public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) {
+            return new EmailSent(accountName, email);
+        }
     }
 
 }

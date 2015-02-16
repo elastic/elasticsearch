@@ -7,7 +7,7 @@ package org.elasticsearch.alerts.trigger.search;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.alerts.AlertContext;
+import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
@@ -35,7 +35,7 @@ public abstract class SearchTrigger extends Trigger<SearchTrigger.Result> {
     }
 
     @Override
-    public Result execute(AlertContext ctx) throws IOException {
+    public Result execute(ExecutionContext ctx) throws IOException {
         SearchRequest request = AlertUtils.createSearchRequestWithTimes(this.request, ctx.scheduledTime(), ctx.fireTime(), scriptService);
         if (logger.isTraceEnabled()) {
             logger.trace("running query for [{}]", ctx.alert().name(), XContentHelper.convertToJson(request.source(), false, true));

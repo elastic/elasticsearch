@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.alerts.actions.webhook;
 
-import org.elasticsearch.alerts.AlertContext;
+import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.ActionException;
@@ -59,7 +59,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
     }
 
     @Override
-    public Result execute(AlertContext ctx, Payload payload) throws IOException {
+    public Result execute(ExecutionContext ctx, Payload payload) throws IOException {
         Map<String, Object> data = payload.data();
         String renderedUrl = applyTemplate(templateUtils, urlTemplate, ctx.alert().name(), data);
         String body = applyTemplate(templateUtils, bodyTemplate != null ? bodyTemplate : DEFAULT_BODY_TEMPLATE, ctx.alert().name(), data);
@@ -225,7 +225,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
         public Action.Result parseResult(XContentParser parser) throws IOException {
             String currentFieldName = null;
             XContentParser.Token token;
-            boolean success = false;
+            Boolean success = null;
             String url = null;
             String body = null;
             String reason = null;
@@ -246,7 +246,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
                         if (Action.Result.SUCCESS_FIELD.match(currentFieldName)) {
                             success = parser.booleanValue();
                         } else {
-                            throw new ActionException("could not parse index result. unexpected boolean field [" + currentFieldName + "]");
+                            throw new ActionException("could not parse webhook result. unexpected boolean field [" + currentFieldName + "]");
                         }
                     } else {
                         throw new ActionException("unable to parse webhook action result. unexpected field [" + currentFieldName + "]" );
@@ -256,12 +256,11 @@ public class WebhookAction extends Action<WebhookAction.Result> {
                 }
             }
 
-            if (success) {
-                return new Result.Executed(httpStatus, url, body);
-            } else {
-                return new Result.Failure(reason);
+            if (success == null) {
+                throw new ActionException("could not parse webhook result. expected boolean field [success]");
             }
 
+            return success ? new Result.Executed(httpStatus, url, body) : new Result.Failure(reason);
         }
     }
 

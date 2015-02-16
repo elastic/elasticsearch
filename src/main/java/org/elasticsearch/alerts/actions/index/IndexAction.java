@@ -8,7 +8,7 @@ package org.elasticsearch.alerts.actions.index;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.alerts.AlertContext;
+import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.ActionException;
@@ -50,7 +50,7 @@ public class IndexAction extends Action<IndexAction.Result> {
     }
 
     @Override
-    public Result execute(AlertContext ctx, Payload payload) throws IOException {
+    public Result execute(ExecutionContext ctx, Payload payload) throws IOException {
         IndexRequest indexRequest = new IndexRequest();
         indexRequest.index(index);
         indexRequest.type(type);
@@ -58,7 +58,7 @@ public class IndexAction extends Action<IndexAction.Result> {
             XContentBuilder resultBuilder = XContentFactory.jsonBuilder().prettyPrint();
             resultBuilder.startObject();
             resultBuilder.field("data", payload.data());
-            resultBuilder.field("timestamp", ctx.alert().status().lastExecuted());
+            resultBuilder.field("timestamp", ctx.fireTime());
             resultBuilder.endObject();
             indexRequest.source(resultBuilder);
         } catch (IOException ioe) {
@@ -149,7 +149,7 @@ public class IndexAction extends Action<IndexAction.Result> {
         public Action.Result parseResult(XContentParser parser) throws IOException {
             String currentFieldName = null;
             XContentParser.Token token;
-            boolean success = false;
+            Boolean success = null;
             Payload payload = null;
 
             String reason = null;
@@ -178,6 +178,11 @@ public class IndexAction extends Action<IndexAction.Result> {
                     throw new ActionException("could not parse index result. unexpected token [" + token + "]");
                 }
             }
+
+            if (success == null) {
+                throw new ActionException("could not parse index result. expected boolean field [success]");
+            }
+
             return new Result(payload, reason, success);
         }
     }

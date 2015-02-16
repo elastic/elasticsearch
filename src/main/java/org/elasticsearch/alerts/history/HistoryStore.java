@@ -30,6 +30,7 @@ import org.elasticsearch.search.SearchHit;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 /**
@@ -37,7 +38,7 @@ import java.util.List;
 public class HistoryStore extends AbstractComponent {
 
     public static final String ALERT_HISTORY_INDEX_PREFIX = ".alert_history_";
-    public static final String ALERT_HISTORY_TYPE = "alerthistory";
+    public static final String ALERT_HISTORY_TYPE = "fired_alert";
 
     static final DateTimeFormatter alertHistoryIndexTimeFormat = DateTimeFormat.forPattern("YYYY-MM-dd");
 
@@ -84,10 +85,10 @@ public class HistoryStore extends AbstractComponent {
         }
     }
 
-    public LoadResult loadFiredAlerts(ClusterState state) {
+    public LoadResult loadFiredAlerts(ClusterState state, FiredAlert.State firedAlertState) {
         String[] indices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), ALERT_HISTORY_INDEX_PREFIX + "*");
         if (indices.length == 0) {
-            logger.info("No previous .alerthistory index, skip loading of alert actions");
+            logger.info("No .alert_history indices found, skip loading of alert actions");
             templateUtils.ensureIndexTemplateIsLoaded(state, "alerthistory");
             return new LoadResult(true);
         }
@@ -110,7 +111,7 @@ public class HistoryStore extends AbstractComponent {
         }
 
         SearchResponse response = client.prepareSearch(ALERT_HISTORY_INDEX_PREFIX + "*")
-                .setQuery(QueryBuilders.termQuery(FiredAlert.Parser.STATE_FIELD.getPreferredName(), FiredAlert.State.AWAITS_RUN.toString()))
+                .setQuery(QueryBuilders.termQuery(FiredAlert.Parser.STATE_FIELD.getPreferredName(), firedAlertState.toString()))
                 .setSearchType(SearchType.SCAN)
                 .setScroll(scrollTimeout)
                 .setSize(scrollSize)
@@ -130,7 +131,7 @@ public class HistoryStore extends AbstractComponent {
                     for (SearchHit sh : response.getHits()) {
                         String historyId = sh.getId();
                         FiredAlert historyEntry = alertRecordParser.parse(sh.getSourceRef(), historyId, sh.version());
-                        assert historyEntry.state() == FiredAlert.State.AWAITS_RUN;
+                        assert historyEntry.state() == FiredAlert.State.AWAITS_EXECUTION;
                         logger.debug("loaded fired alert from index [{}/{}/{}]", sh.index(), sh.type(), sh.id());
                         alerts.add(historyEntry);
                     }
@@ -151,27 +152,28 @@ public class HistoryStore extends AbstractComponent {
         return ALERT_HISTORY_INDEX_PREFIX + alertHistoryIndexTimeFormat.print(time);
     }
 
-    public class LoadResult {
+    public class LoadResult implements Iterable<FiredAlert> {
 
         private final boolean succeeded;
-        private final List<FiredAlert> notRanFiredAlerts;
+        private final List<FiredAlert> alerts;
 
-        public LoadResult(boolean succeeded, List<FiredAlert> notRanFiredAlerts) {
+        public LoadResult(boolean succeeded, List<FiredAlert> alerts) {
             this.succeeded = succeeded;
-            this.notRanFiredAlerts = notRanFiredAlerts;
+            this.alerts = alerts;
         }
 
         public LoadResult(boolean succeeded) {
             this.succeeded = succeeded;
-            this.notRanFiredAlerts = Collections.emptyList();
+            this.alerts = Collections.emptyList();
+        }
+
+        @Override
+        public Iterator<FiredAlert> iterator() {
+            return alerts.iterator();
         }
 
         public boolean succeeded() {
             return succeeded;
-        }
-
-        public List<FiredAlert> notRanFiredAlerts() {
-            return notRanFiredAlerts;
         }
     }
 }

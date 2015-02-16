@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.alerts.actions;
 
-import org.elasticsearch.alerts.AlertContext;
+import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.ESLogger;
@@ -36,7 +36,7 @@ public abstract class Action<R extends Action.Result> implements ToXContent {
     /**
      * Executes this action
      */
-    public abstract R execute(AlertContext context, Payload payload) throws IOException;
+    public abstract R execute(ExecutionContext context, Payload payload) throws IOException;
 
 
     /**
@@ -60,7 +60,9 @@ public abstract class Action<R extends Action.Result> implements ToXContent {
 
 
     public static abstract class Result implements ToXContent {
+
         public static final ParseField SUCCESS_FIELD = new ParseField("success");
+
         protected final String type;
         protected final boolean success;
 
@@ -80,7 +82,7 @@ public abstract class Action<R extends Action.Result> implements ToXContent {
         @Override
         public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("success", success);
+            builder.field(SUCCESS_FIELD.getPreferredName(), success);
             xContentBody(builder, params);
             return builder.endObject();
         }

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.alerts.throttle;
 
-import org.elasticsearch.alerts.AlertContext;
+import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.trigger.Trigger;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
@@ -24,7 +24,7 @@ public class AlertThrottler implements Throttler {
     }
 
     @Override
-    public Result throttle(AlertContext ctx, Trigger.Result result) {
+    public Result throttle(ExecutionContext ctx, Trigger.Result result) {
         if (periodThrottler != null) {
             Result throttleResult = periodThrottler.throttle(ctx, result);
             if (throttleResult.throttle()) {

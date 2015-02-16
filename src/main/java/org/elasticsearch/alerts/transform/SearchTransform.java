@@ -7,7 +7,7 @@ package org.elasticsearch.alerts.transform;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.alerts.AlertContext;
+import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
@@ -58,7 +58,7 @@ public class SearchTransform implements Transform {
     }
 
     @Override
-    public Transform.Result apply(AlertContext ctx, Payload payload) throws IOException {
+    public Transform.Result apply(ExecutionContext ctx, Payload payload) throws IOException {
         SearchRequest req = createRequest(request, ctx.scheduledTime(), ctx.fireTime(), payload.data());
         SearchResponse resp = client.search(req).actionGet();
         return new Transform.Result(TYPE, new Payload.ActionResponse(resp));

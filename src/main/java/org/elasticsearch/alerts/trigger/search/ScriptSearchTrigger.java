@@ -70,8 +70,7 @@ public class ScriptSearchTrigger extends SearchTrigger {
         builder.field(ScriptService.SCRIPT_INLINE.getPreferredName(), script);
         builder.field(Parser.SCRIPT_TYPE_FIELD.getPreferredName(), scriptType);
         builder.field(ScriptService.SCRIPT_LANG.getPreferredName(), scriptLang);
-        builder.endObject();
-        return builder;
+        return builder.endObject();
     }
 
     public static class Parser extends AbstractComponent implements SearchTrigger.Parser<ScriptSearchTrigger> {

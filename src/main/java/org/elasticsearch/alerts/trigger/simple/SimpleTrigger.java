@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.alerts.trigger.simple;
 
-import org.elasticsearch.alerts.AlertContext;
+import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.trigger.Trigger;
 import org.elasticsearch.alerts.trigger.TriggerException;
@@ -38,7 +38,7 @@ public class SimpleTrigger extends Trigger<SimpleTrigger.Result> {
     }
 
     @Override
-    public Result execute(AlertContext ctx) throws IOException {
+    public Result execute(ExecutionContext ctx) throws IOException {
         return new Result(payload);
     }
 

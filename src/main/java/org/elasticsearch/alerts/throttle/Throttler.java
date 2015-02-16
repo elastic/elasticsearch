@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.alerts.throttle;
 
-import org.elasticsearch.alerts.AlertContext;
+import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.trigger.Trigger;
 import org.elasticsearch.common.ParseField;
 
@@ -16,18 +16,19 @@ public interface Throttler {
 
     public static final Throttler NO_THROTTLE = new Throttler() {
         @Override
-        public Result throttle(AlertContext ctx, Trigger.Result result) {
+        public Result throttle(ExecutionContext ctx, Trigger.Result result) {
             return Result.NO;
         }
     };
 
-    Result throttle(AlertContext ctx, Trigger.Result result);
+    Result throttle(ExecutionContext ctx, Trigger.Result result);
 
     static class Result {
+
         public static ParseField THROTTLE_FIELD = new ParseField("throttle");
         public static ParseField REASON_FIELD = new ParseField("reason");
 
-        static final Result NO = new Result(false, null);
+        public static final Result NO = new Result(false, null);
         
         private final boolean throttle;
         private final String reason;

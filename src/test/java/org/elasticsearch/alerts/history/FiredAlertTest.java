@@ -27,7 +27,7 @@ public class FiredAlertTest extends AbstractAlertingTests {
     public void testFiredAlertParser() throws Exception {
 
         Alert alert = createTestAlert("fired_test");
-        FiredAlert firedAlert = new FiredAlert(alert, new DateTime(), new DateTime(), FiredAlert.State.AWAITS_RUN);
+        FiredAlert firedAlert = new FiredAlert(alert, new DateTime(), new DateTime());
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         firedAlert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
         FiredAlert parsedFiredAlert = firedAlertParser().parse(jsonBuilder.bytes(), firedAlert.id(), 0);
@@ -43,14 +43,14 @@ public class FiredAlertTest extends AbstractAlertingTests {
     @Test
     public void testFinalizedFiredAlertParser() throws Exception {
         Alert alert = createTestAlert("fired_test");
-        FiredAlert firedAlert = new FiredAlert(alert, new DateTime(), new DateTime(), FiredAlert.State.AWAITS_RUN);
-        AlertContext ctx = new AlertContext(alert, new DateTime(), new DateTime());
-        ctx.addActionResult(new EmailAction.Result.Failure("failed to send because blah"));
-        ctx.addActionResult(new WebhookAction.Result.Executed(300, "http://localhost:8000/alertfoo", "{'awesome' : 'us'}"));
+        FiredAlert firedAlert = new FiredAlert(alert, new DateTime(), new DateTime());
+        ExecutionContext ctx = new ExecutionContext(firedAlert.id(), alert, new DateTime(), new DateTime());
+        ctx.onActionResult(new EmailAction.Result.Failure("failed to send because blah"));
+        ctx.onActionResult(new WebhookAction.Result.Executed(300, "http://localhost:8000/alertfoo", "{'awesome' : 'us'}"));
         Trigger.Result triggerResult = new SimpleTrigger.Result(new Payload.Simple());
-        ctx.throttleResult(Throttler.NO_THROTTLE.throttle(ctx, triggerResult));
-        ctx.triggerResult(triggerResult);
-        firedAlert.finalize(alert, new AlertsService.AlertRun(ctx));
+        ctx.onThrottleResult(Throttler.NO_THROTTLE.throttle(ctx, triggerResult));
+        ctx.onTriggerResult(triggerResult);
+        firedAlert.update(new AlertExecution(ctx));
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         firedAlert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
         logger.error("FOO : " + jsonBuilder.bytes().toUtf8());
@@ -63,14 +63,14 @@ public class FiredAlertTest extends AbstractAlertingTests {
     @Test
     public void testFinalizedFiredAlertParserScriptSearchTrigger() throws Exception {
         Alert alert = createTestAlert("fired_test");
-        FiredAlert firedAlert = new FiredAlert(alert, new DateTime(), new DateTime(), FiredAlert.State.AWAITS_RUN);
-        AlertContext ctx = new AlertContext(alert, new DateTime(), new DateTime());
-        ctx.addActionResult(new EmailAction.Result.Failure("failed to send because blah"));
-        ctx.addActionResult(new WebhookAction.Result.Executed(300, "http://localhost:8000/alertfoo", "{'awesome' : 'us'}"));
+        FiredAlert firedAlert = new FiredAlert(alert, new DateTime(), new DateTime());
+        ExecutionContext ctx = new ExecutionContext(firedAlert.id(), alert, new DateTime(), new DateTime());
+        ctx.onActionResult(new EmailAction.Result.Failure("failed to send because blah"));
+        ctx.onActionResult(new WebhookAction.Result.Executed(300, "http://localhost:8000/alertfoo", "{'awesome' : 'us'}"));
         Trigger.Result triggerResult = new SearchTrigger.Result(ScriptSearchTrigger.TYPE, true, createTriggerSearchRequest(), new Payload.Simple());
-        ctx.throttleResult(Throttler.NO_THROTTLE.throttle(ctx, triggerResult));
-        ctx.triggerResult(triggerResult);
-        firedAlert.finalize(alert, new AlertsService.AlertRun(ctx));
+        ctx.onThrottleResult(Throttler.NO_THROTTLE.throttle(ctx, triggerResult));
+        ctx.onTriggerResult(triggerResult);
+        firedAlert.update(new AlertExecution(ctx));
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         firedAlert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
         FiredAlert parsedFiredAlert = firedAlertParser().parse(jsonBuilder.bytes(), firedAlert.id(), 0);

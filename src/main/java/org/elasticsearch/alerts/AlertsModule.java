@@ -42,6 +42,7 @@ public class AlertsModule extends AbstractModule implements SpawnModules {
     protected void configure() {
 
         bind(Alert.Parser.class).asEagerSingleton();
+        bind(AlertLockService.class).asEagerSingleton();
         bind(AlertsService.class).asEagerSingleton();
         bind(AlertsStore.class).asEagerSingleton();
         bind(TemplateUtils.class).asEagerSingleton();

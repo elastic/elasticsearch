@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.alerts.actions.email;
 
-import org.elasticsearch.alerts.AlertContext;
+import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.email.service.*;
@@ -64,8 +64,8 @@ public class EmailAction extends Action<EmailAction.Result> {
     }
 
     @Override
-    public Result execute(AlertContext ctx, Payload payload) throws IOException {
-        email.id(ctx.runId());
+    public Result execute(ExecutionContext ctx, Payload payload) throws IOException {
+        email.id(ctx.id());
 
         Map<String, Object> alertParams = new HashMap<>();
         alertParams.put(Action.ALERT_NAME_VARIABLE_NAME, ctx.alert().name());
@@ -213,7 +213,7 @@ public class EmailAction extends Action<EmailAction.Result> {
 
             String currentFieldName = null;
             XContentParser.Token token;
-            boolean success = false;
+            Boolean success = null;
             Email email = null;
             String account = null;
             String reason = null;
@@ -247,11 +247,11 @@ public class EmailAction extends Action<EmailAction.Result> {
                 }
             }
 
-            if (success) {
-                return new Result.Success(new EmailService.EmailSent(account, email));
-            } else {
-                return new Result.Failure(reason);
+            if (success == null) {
+                throw new EmailException("could not parse email result. expected field [success]");
             }
+
+            return success ? new Result.Success(new EmailService.EmailSent(account, email)) : new Result.Failure(reason);
         }
     }
 

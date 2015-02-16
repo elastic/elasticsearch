@@ -87,7 +87,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
 
         Thread.sleep(20000);
         AckAlertResponse ackResponse = alertsClient.prepareAckAlert("throttled-alert").get();
-        assertEquals(Alert.Status.Ack.State.ACKED, ackResponse.getStatus().ack().state());
+        assertEquals(Alert.Status.AckStatus.State.ACKED, ackResponse.getStatus().ackStatus().state());
 
         refresh();
         SearchResponse searchResponse = client()
@@ -123,7 +123,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
 
         Alert parsedAlert = alertParser.parse(getAlertResponse.getResponse().getId(), true,
                 getAlertResponse.getResponse().getSourceAsBytesRef());
-        assertThat(parsedAlert.status().ack().state(), equalTo(Alert.Status.Ack.State.AWAITS_EXECUTION));
+        assertThat(parsedAlert.status().ackStatus().state(), equalTo(Alert.Status.AckStatus.State.AWAITS_EXECUTION));
 
         CountResponse countOfThrottledActions = client()
                 .prepareCount(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.alerts.trigger;
 
-import org.elasticsearch.alerts.AlertContext;
+import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.ESLogger;
@@ -34,7 +34,7 @@ public abstract class Trigger<R extends Trigger.Result> implements ToXContent {
     /**
      * Executes this trigger
      */
-    public abstract R execute(AlertContext ctx) throws IOException;
+    public abstract R execute(ExecutionContext ctx) throws IOException;
 
 
     /**

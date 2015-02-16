@@ -88,7 +88,7 @@ public class BootStrapTest extends AbstractAlertingTests {
         );
 
         DateTime scheduledFireTime = new DateTime(DateTimeZone.UTC);
-        FiredAlert entry = new FiredAlert(alert, scheduledFireTime, scheduledFireTime, FiredAlert.State.AWAITS_RUN);
+        FiredAlert entry = new FiredAlert(alert, scheduledFireTime, scheduledFireTime);
         String actionHistoryIndex = HistoryStore.getAlertHistoryIndexNameForTime(scheduledFireTime);
 
         createIndex(actionHistoryIndex);
@@ -145,7 +145,7 @@ public class BootStrapTest extends AbstractAlertingTests {
                 PutAlertResponse putAlertResponse = alertClient().preparePutAlert(alert.name()).setAlertSource(jsonBuilder.bytes()).get();
                 assertTrue(putAlertResponse.indexResponse().isCreated());
 
-                FiredAlert entry = new FiredAlert(alert, historyIndexDate, historyIndexDate, FiredAlert.State.AWAITS_RUN);
+                FiredAlert entry = new FiredAlert(alert, historyIndexDate, historyIndexDate);
                 IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, HistoryStore.ALERT_HISTORY_TYPE, entry.id())
                         .setConsistencyLevel(WriteConsistencyLevel.ALL)
                         .setSource(XContentFactory.jsonBuilder().value(entry))

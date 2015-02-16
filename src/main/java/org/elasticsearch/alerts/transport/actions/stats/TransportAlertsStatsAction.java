@@ -57,7 +57,7 @@ public class TransportAlertsStatsAction extends TransportMasterNodeOperationActi
     @Override
     protected void masterOperation(AlertsStatsRequest request, ClusterState state, ActionListener<AlertsStatsResponse> listener) throws ElasticsearchException {
         AlertsStatsResponse statsResponse = new AlertsStatsResponse();
-        statsResponse.setAlertManagerState(alertsService.getState());
+        statsResponse.setAlertManagerState(alertsService.state());
         statsResponse.setAlertActionManagerStarted(historyService.started());
         statsResponse.setAlertActionManagerQueueSize(historyService.getQueueSize());
         statsResponse.setNumberOfRegisteredAlerts(alertsService.getNumberOfAlerts());

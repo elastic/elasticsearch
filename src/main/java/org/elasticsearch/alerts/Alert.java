@@ -102,6 +102,18 @@ public class Alert implements ToXContent {
         return status;
     }
 
+    /**
+     * Acks this alert.
+     *
+     * @return  {@code true} if the status of this alert changed, {@code false} otherwise.
+     */
+    public boolean ack() {
+        return status.onAck(new DateTime());
+    }
+
+    public boolean acked() {
+        return status.ackStatus.state == Status.AckStatus.State.ACKED;
+    }
 
     @Override
     public boolean equals(Object o) {
@@ -244,24 +256,24 @@ public class Alert implements ToXContent {
         private DateTime lastRan;
         private DateTime lastTriggered;
         private DateTime lastExecuted;
-        private Ack ack;
+        private AckStatus ackStatus;
         private Throttle lastThrottle;
 
         public Status() {
-            this(-1, null, null, null, null, new Ack());
+            this(-1, null, null, null, null, new AckStatus());
         }
 
         public Status(Status other) {
-            this(other.version, other.lastRan, other.lastTriggered, other.lastExecuted, other.lastThrottle, other.ack);
+            this(other.version, other.lastRan, other.lastTriggered, other.lastExecuted, other.lastThrottle, other.ackStatus);
         }
 
-        private Status(long version, DateTime lastRan, DateTime lastTriggered, DateTime lastExecuted, Throttle lastThrottle, Ack ack) {
+        private Status(long version, DateTime lastRan, DateTime lastTriggered, DateTime lastExecuted, Throttle lastThrottle, AckStatus ackStatus) {
             this.version = version;
             this.lastRan = lastRan;
             this.lastTriggered = lastTriggered;
             this.lastExecuted = lastExecuted;
             this.lastThrottle = lastThrottle;
-            this.ack = ack;
+            this.ackStatus = ackStatus;
         }
 
         public long version() {
@@ -300,18 +312,14 @@ public class Alert implements ToXContent {
             return lastThrottle;
         }
 
-        public Ack ack() {
-            return ack;
-        }
-
-        public boolean acked() {
-            return ack.state == Ack.State.ACKED;
+        public AckStatus ackStatus() {
+            return ackStatus;
         }
 
         /**
          * Called whenever an alert is ran
          */
-        public void onRun(DateTime timestamp) {
+        public void onExecute(DateTime timestamp) {
             lastRan = timestamp;
         }
 
@@ -324,41 +332,41 @@ public class Alert implements ToXContent {
 
         /**
          * Notifies this status about the triggered event of an alert run. The state will be updated accordingly -
-         * if the alert is can be acked and during a run, the alert was not triggered and the current state is {@link Status.Ack.State#ACKED},
-         * we then need to reset the state to {@link Status.Ack.State#AWAITS_EXECUTION}
+         * if the alert is can be acked and during a run, the alert was not triggered and the current state is {@link org.elasticsearch.alerts.Alert.Status.AckStatus.State#ACKED},
+         * we then need to reset the state to {@link org.elasticsearch.alerts.Alert.Status.AckStatus.State#AWAITS_EXECUTION}
          */
         public void onTrigger(boolean triggered, DateTime timestamp) {
             if (triggered) {
                 lastTriggered = timestamp;
-            } else if (ack.state == Ack.State.ACKED) {
+            } else if (ackStatus.state == AckStatus.State.ACKED) {
                 // didn't trigger now after it triggered in the past - we need to reset the ack state
-                ack = new Ack(Ack.State.AWAITS_EXECUTION, timestamp);
+                ackStatus = new AckStatus(AckStatus.State.AWAITS_EXECUTION, timestamp);
             }
         }
 
         /**
-         * Notifies this status that the alert was acked. If the current state is {@link Status.Ack.State#ACKABLE}, then we'll change it
-         * to {@link Status.Ack.State#ACKED} (when set to {@link Status.Ack.State#ACKED}, the {@link org.elasticsearch.alerts.throttle.AckThrottler} will lastThrottle the
+         * Notifies this status that the alert was acked. If the current state is {@link org.elasticsearch.alerts.Alert.Status.AckStatus.State#ACKABLE}, then we'll change it
+         * to {@link org.elasticsearch.alerts.Alert.Status.AckStatus.State#ACKED} (when set to {@link org.elasticsearch.alerts.Alert.Status.AckStatus.State#ACKED}, the {@link org.elasticsearch.alerts.throttle.AckThrottler} will lastThrottle the
          * execution.
          *
          * @return {@code true} if the state of changed due to the ack, {@code false} otherwise.
          */
-        public boolean onAck(DateTime timestamp) {
-            if (ack.state == Ack.State.ACKABLE) {
-                ack = new Ack(Ack.State.ACKED, timestamp);
+        boolean onAck(DateTime timestamp) {
+            if (ackStatus.state == AckStatus.State.ACKABLE) {
+                ackStatus = new AckStatus(AckStatus.State.ACKED, timestamp);
                 return true;
             }
             return false;
         }
 
         /**
-         * Notified this status that the alert was executed. If the current state is {@link Status.Ack.State#AWAITS_EXECUTION}, it will change to
-         * {@link Status.Ack.State#ACKABLE}.
+         * Notified this status that the alert was executed. If the current state is {@link org.elasticsearch.alerts.Alert.Status.AckStatus.State#AWAITS_EXECUTION}, it will change to
+         * {@link org.elasticsearch.alerts.Alert.Status.AckStatus.State#ACKABLE}.
          */
         public void onExecution(DateTime timestamp) {
             lastExecuted = timestamp;
-            if (ack.state == Ack.State.AWAITS_EXECUTION) {
-                ack = new Ack(Ack.State.ACKABLE, timestamp);
+            if (ackStatus.state == AckStatus.State.AWAITS_EXECUTION) {
+                ackStatus = new AckStatus(AckStatus.State.ACKABLE, timestamp);
             }
         }
 
@@ -375,8 +383,8 @@ public class Alert implements ToXContent {
                 writeDate(out, lastThrottle.timestamp);
                 out.writeString(lastThrottle.reason);
             }
-            out.writeString(ack.state.name());
-            writeDate(out, ack.timestamp);
+            out.writeString(ackStatus.state.name());
+            writeDate(out, ackStatus.timestamp);
         }
 
         @Override
@@ -386,7 +394,7 @@ public class Alert implements ToXContent {
             lastTriggered = readOptionalDate(in);
             lastExecuted = readOptionalDate(in);
             lastThrottle = in.readBoolean() ? new Throttle(readDate(in), in.readString()) : null;
-            ack = new Ack(Ack.State.valueOf(in.readString()), readDate(in));
+            ackStatus = new AckStatus(AckStatus.State.valueOf(in.readString()), readDate(in));
         }
 
         public static Status read(StreamInput in) throws IOException {
@@ -408,8 +416,8 @@ public class Alert implements ToXContent {
                 builder.field(LAST_EXECUTED_FIELD.getPreferredName(), lastExecuted);
             }
             builder.startObject(ACK_FIELD.getPreferredName())
-                    .field(STATE_FIELD.getPreferredName(), ack.state.name().toLowerCase(Locale.ROOT))
-                    .field(TIMESTAMP_FIELD.getPreferredName(), ack.timestamp)
+                    .field(STATE_FIELD.getPreferredName(), ackStatus.state.name().toLowerCase(Locale.ROOT))
+                    .field(TIMESTAMP_FIELD.getPreferredName(), ackStatus.timestamp)
                     .endObject();
             if (lastThrottle != null) {
                 builder.startObject(LAST_THROTTLE_FIELD.getPreferredName())
@@ -426,7 +434,7 @@ public class Alert implements ToXContent {
             DateTime lastTriggered = null;
             DateTime lastExecuted = null;
             Throttle lastThrottle = null;
-            Ack ack = null;
+            AckStatus ackStatus = null;
 
             String currentFieldName = null;
             XContentParser.Token token = null;
@@ -474,7 +482,7 @@ public class Alert implements ToXContent {
                     }
                 } else if (ACK_FIELD.match(currentFieldName)) {
                     if (token == XContentParser.Token.START_OBJECT) {
-                        Ack.State state = null;
+                        AckStatus.State state = null;
                         DateTime timestamp = null;
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                             if (token == XContentParser.Token.FIELD_NAME) {
@@ -483,24 +491,24 @@ public class Alert implements ToXContent {
                                 if (TIMESTAMP_FIELD.match(currentFieldName)) {
                                     timestamp = parseDate(currentFieldName, token, parser);
                                 } else if (STATE_FIELD.match(currentFieldName)) {
-                                    state = Ack.State.valueOf(parser.text().toUpperCase(Locale.ROOT));
+                                    state = AckStatus.State.valueOf(parser.text().toUpperCase(Locale.ROOT));
                                 } else {
                                     throw new AlertsException("unknown filed [" + currentFieldName + "] in alert status throttle entry");
                                 }
                             }
                         }
-                        ack = new Ack(state, timestamp);
+                        ackStatus = new AckStatus(state, timestamp);
                     } else {
                         throw new AlertsException("expecting field [" + currentFieldName + "] to be an object, found [" + token + "] instead");
                     }
                 }
             }
 
-            return new Status(-1, lastRan, lastTriggered, lastExecuted, lastThrottle, ack);
+            return new Status(-1, lastRan, lastTriggered, lastExecuted, lastThrottle, ackStatus);
         }
 
 
-        public static class Ack {
+        public static class AckStatus {
 
             public static enum State {
                 AWAITS_EXECUTION,
@@ -511,11 +519,11 @@ public class Alert implements ToXContent {
             private final State state;
             private final DateTime timestamp;
 
-            public Ack() {
+            public AckStatus() {
                 this(State.AWAITS_EXECUTION, new DateTime());
             }
 
-            public Ack(State state, DateTime timestamp) {
+            public AckStatus(State state, DateTime timestamp) {
                 this.state = state;
                 this.timestamp = timestamp;
             }

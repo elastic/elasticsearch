@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.alerts.transform;
 
-import org.elasticsearch.alerts.AlertContext;
+import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -25,7 +25,7 @@ public interface Transform extends ToXContent {
         }
 
         @Override
-        public Result apply(AlertContext context, Payload payload) throws IOException {
+        public Result apply(ExecutionContext context, Payload payload) throws IOException {
             return new Result("noop", payload);
         }
 
@@ -37,7 +37,7 @@ public interface Transform extends ToXContent {
 
     String type();
 
-    Result apply(AlertContext context, Payload payload) throws IOException;
+    Result apply(ExecutionContext context, Payload payload) throws IOException;
 
     static class Result {
 

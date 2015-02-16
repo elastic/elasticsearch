@@ -161,7 +161,6 @@ public class AggregatorFactories {
                 return EMPTY;
             }
             List<ReducerFactory> orderedReducers = resolveReducerOrder(this.reducerFactories, this.factories);
-            // NOCOMMIT work out dependency order of reducer factories
             return new AggregatorFactories(factories.toArray(new AggregatorFactory[factories.size()]), orderedReducers);
         }
 
@@ -200,7 +199,6 @@ public class AggregatorFactories {
             for (ReducerFactory reducerFactory : orderedReducers) {
                 orderedReducerNames.add(reducerFactory.getName());
             }
-            System.out.println("ORDERED REDUCERS: " + orderedReducerNames);
             return orderedReducers;
         }
 

@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.logging.ESLogger;
@@ -48,8 +49,17 @@ public class SharedFSRecoveryHandler extends ShardRecoveryHandler {
 
     @Override
     public void phase1(SnapshotIndexCommit snapshot) throws ElasticsearchException {
+        if (request.recoveryType() == RecoveryState.Type.RELOCATION && shard.routingEntry().primary()) {
+            // here we simply fail the primary shard since we can't move them (have 2 writers open at the same time)
+            // by failing the shard we play safe and just go through the entire reallocation procedure of the primary
+            // it would be ideal to make sure we flushed the translog here but that is not possible in the current design.
+            ElasticsearchIllegalStateException exception = new ElasticsearchIllegalStateException("Can't relocate primary - failing");
+            shard.failShard("primary_relocation", exception);
+            throw exception;
+        }
         logger.trace("{} recovery [phase2] to {}: skipping phase 1 for shared filesystem", request.shardId(), request.targetNode());
     }
+
 
     @Override
     protected int sendSnapshot(Translog.Snapshot snapshot) throws ElasticsearchException {
@@ -57,17 +67,4 @@ public class SharedFSRecoveryHandler extends ShardRecoveryHandler {
         return 0;
     }
 
-    @Override
-    public void phase3(Translog.Snapshot snapshot) throws ElasticsearchException {
-        if (request.markAsRelocated()) {
-            try {
-                shard.relocated("to " + request.targetNode());
-                shard.close("relocated on shared filesystem");
-                // nocommit we need to figure out a better way how to handle failures in phase3 we might need to restart the engine we recovering from?
-            } catch (IOException e) {
-
-            }
-        }
-        super.phase3(snapshot);
-    }
 }

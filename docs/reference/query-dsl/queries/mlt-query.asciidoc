@@ -239,3 +239,10 @@ results returned. Defaults to `false`.
 
 `boost`::
 Sets the boost value of the whole query. Defaults to `1.0`.
+
+[NOTE]
+The goal here is to maximize the tf-idf score, so depending on your
+application increasing the value of `min_term_freq` or `min_word_length` may
+yield greater speed without compromising accuracy. Another parameter to play
+with is `max_query_terms`. Depending on your application, only a few terms may
+already return fairly good results.

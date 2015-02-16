@@ -19,6 +19,7 @@
 
 package org.elasticsearch.nested;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
@@ -101,11 +102,11 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
 
         // now, do a nested query
-        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("n_field1", "n_value1_1"))).get();
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
-        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("n_field1", "n_value1_1"))).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).get();
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).setSearchType(SearchType.DFS_QUERY_THEN_FETCH).get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -130,19 +131,19 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertDocumentCount("test", 6);
 
         searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
-                boolQuery().must(termQuery("n_field1", "n_value1_1")).must(termQuery("n_field2", "n_value2_1")))).execute().actionGet();
+                boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1")))).execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         // filter
         searchResponse = client().prepareSearch("test").setQuery(filteredQuery(matchAllQuery(), nestedFilter("nested1",
-                boolQuery().must(termQuery("n_field1", "n_value1_1")).must(termQuery("n_field2", "n_value2_1"))))).execute().actionGet();
+                boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1"))))).execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         // check with type prefix
         searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
-                boolQuery().must(termQuery("n_field1", "n_value1_1")).must(termQuery("n_field2", "n_value2_1")))).execute().actionGet();
+                boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1")))).execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
@@ -154,11 +155,11 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         flush();
         assertDocumentCount("test", 3);
 
-        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("n_field1", "n_value1_1"))).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
-        searchResponse = client().prepareSearch("test").setTypes("type1", "type2").setQuery(nestedQuery("nested1", termQuery("n_field1", "n_value1_1"))).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setTypes("type1", "type2").setQuery(nestedQuery("nested1", termQuery("nested1.n_field1", "n_value1_1"))).execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
@@ -1211,7 +1212,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
 
             // only when querying with nested the fixed bitsets are loaded
             SearchResponse searchResponse = client().prepareSearch("test")
-                    .setQuery(nestedQuery("array1", termQuery("field1", "value1")))
+                    .setQuery(nestedQuery("array1", termQuery("array1.field1", "value1")))
                     .get();
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().totalHits(), equalTo(5l));

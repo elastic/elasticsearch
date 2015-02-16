@@ -565,7 +565,7 @@ public class ReverseNestedTests extends ElasticsearchIntegrationTest {
                                         reverseNested("to_root").subAggregation(
                                                 nested("nested_1").path("sku").subAggregation(
                                                         filter("filter_by_sku").filter(termFilter("sku.sku_type", "bar1")).subAggregation(
-                                                                count("sku_count").field("sku_type")
+                                                                count("sku_count").field("sku.sku_type")
                                                         )
                                                 )
                                         )
@@ -603,7 +603,7 @@ public class ReverseNestedTests extends ElasticsearchIntegrationTest {
                                                                 nested("nested_2").path("sku.colors").subAggregation(
                                                                         filter("filter_sku_color").filter(termFilter("sku.colors.name", "red")).subAggregation(
                                                                                 reverseNested("reverse_to_sku").path("sku").subAggregation(
-                                                                                        count("sku_count").field("sku_type")
+                                                                                        count("sku_count").field("sku.sku_type")
                                                                                 )
                                                                         )
                                                                 )

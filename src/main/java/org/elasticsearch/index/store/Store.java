@@ -556,7 +556,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 if (!sourceMetaData.contains(existingFile) && !Store.isChecksum(existingFile)) {
                     try {
                         dir.deleteFile(reason, existingFile);
-                        dir.deleteFile(existingFile);
                     } catch (Exception e) {
                         // ignore, we don't really care, will get deleted later on
                     }
@@ -666,8 +665,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public final static class MetadataSnapshot implements Iterable<StoreFileMetaData>, Streamable {
         private static final ESLogger logger = Loggers.getLogger(MetadataSnapshot.class);
         private static final Version FIRST_LUCENE_CHECKSUM_VERSION = Version.LUCENE_4_8;
-        // we stopped writing legacy checksums in 1.3.0 so all segments here must use the new CRC32 version
-        private static final Version FIRST_ES_CRC32_VERSION = org.elasticsearch.Version.V_1_3_0.luceneVersion;
 
         private Map<String, StoreFileMetaData> metadata;
 
@@ -714,7 +711,13 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 if (maxVersion.onOrAfter(FIRST_LUCENE_CHECKSUM_VERSION)) {
                     checksumFromLuceneFile(directory, segmentsFile, builder, logger, maxVersion, true);
                 } else {
-                    builder.put(segmentsFile, new StoreFileMetaData(segmentsFile, directory.fileLength(segmentsFile), legacyChecksum, maxVersion, hashFile(directory, segmentsFile)));
+                    final BytesRefBuilder fileHash = new BytesRefBuilder();
+                    final long length;
+                    try (final IndexInput in = directory.openInput(segmentsFile, IOContext.READONCE)) {
+                        length = in.length();
+                        hashFile(fileHash, new InputStreamIndexInput(in, length), length);
+                    }
+                    builder.put(segmentsFile, new StoreFileMetaData(segmentsFile, length, legacyChecksum, maxVersion, fileHash.get()));
                 }
             } catch (CorruptIndexException | IndexNotFoundException | IndexFormatTooOldException | IndexFormatTooNewException ex) {
                 // we either know the index is corrupted or it's just not there
@@ -799,14 +802,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             final String checksum;
             final BytesRefBuilder fileHash = new BytesRefBuilder();
             try (final IndexInput in = directory.openInput(file, IOContext.READONCE)) {
+                final long length;
                 try {
-                    if (in.length() < CodecUtil.footerLength()) {
+                    length = in.length();
+                    if (length < CodecUtil.footerLength()) {
                         // truncated files trigger IAE if we seek negative... these files are really corrupted though
                         throw new CorruptIndexException("Can't retrieve checksum from file: " + file + " file length must be >= " + CodecUtil.footerLength() + " but was: " + in.length(), in);
                     }
                     if (readFileAsHash) {
                         final VerifyingIndexInput verifyingIndexInput = new VerifyingIndexInput(in); // additional safety we checksum the entire file we read the hash for...
-                        hashFile(fileHash, new InputStreamIndexInput(verifyingIndexInput, in.length()), in.length());
+                        hashFile(fileHash, new InputStreamIndexInput(verifyingIndexInput, length), length);
                         checksum = digestToString(verifyingIndexInput.verify());
                     } else {
                         checksum = digestToString(CodecUtil.retrieveChecksum(in));
@@ -816,7 +821,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                     logger.debug("Can retrieve checksum from file [{}]", ex, file);
                     throw ex;
                 }
-                builder.put(file, new StoreFileMetaData(file, directory.fileLength(file), checksum, version, fileHash.get()));
+                builder.put(file, new StoreFileMetaData(file, length, checksum, version, fileHash.get()));
             }
         }
 

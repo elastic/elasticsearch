@@ -172,7 +172,7 @@ Ranges with one side unbounded can use the following syntax:
 To combine an upper and lower bound with the simplified syntax, you
 would need to join two clauses with an `AND` operator:
 
-    age:(>=10 AND < 20)
+    age:(>=10 AND <20)
     age:(+>=10 +<20)
 
 ===================================================================

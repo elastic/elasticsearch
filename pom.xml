@@ -219,7 +219,7 @@
             <artifactId>joda-time</artifactId>
             <!-- joda 2.0 moved to using volatile fields for datetime -->
             <!-- When updating to a new version, make sure to update our copy of BaseDateTime -->
-            <version>2.3</version>
+            <version>2.7</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
@@ -948,7 +948,7 @@
                                 </data>
                                 <data>
                                     <src>${project.build.directory}/lib</src>
-                                    <includes>lucene*, *log4j*, jna*, spatial4j*, jts*, groovy*</includes>
+                                    <includes>lucene*, *log4j*, jna*, spatial4j*, jts*, groovy*, antlr-runtime*, asm*</includes>
                                     <type>directory</type>
                                     <mapper>
                                         <type>perm</type>
@@ -1154,6 +1154,8 @@
                                         <include>spatial4j*</include>
                                         <include>jts*</include>
                                         <include>groovy*</include>
+                                        <include>antlr-runtime*</include>
+                                        <include>asm*</include>
                                     </includes>
                                 </source>
                                 <source>

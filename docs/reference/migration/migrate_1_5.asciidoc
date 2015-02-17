@@ -11,6 +11,6 @@ The `date_histogram` aggregation now support a simplified `offset` option that r
 `post_offset` which are deprecated in 1.5. Instead of having to specify two separate offset shifts of the underlying buckets, the `offset` option
 moves the bucket boundaries in positive or negative direction depending on its argument.
 
-Also for the `date_histogram`, options for `pre_zone` and `post_zone` options and the `pre_zone_adjust_large_interval` parameter
-are deprecated in 1.5 and replaced by the already existing `time_zone` option. The behavior of `time_zone` is currently equivalent to the former
+Also for `date_histogram`, options for `pre_zone` and `post_zone` options and the `pre_zone_adjust_large_interval` parameter
+are deprecated in 1.5 and replaced by the already existing `time_zone` option. The behavior of `time_zone` is equivalent to the former
 `pre_zone` option.

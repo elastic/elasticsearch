@@ -72,6 +72,11 @@ set `pre_zone_adjust_large_interval` to `true`, which will apply the same conver
 example, to day and above intervals (it can be set regardless of the interval, but only kick in when using day and
 higher intervals).
 
+deprecated[1.5.0, The `pre_zone` and `post_zone` options are deprecated. Instead of `pre_zone`, use the `time_zone` option.
+The use of `post_zone` is discouraged because bucket keys should be returned in UTC for better consistency. For the same reason
+the use of `pre_zone_adjust_large_interval` is deprecated. Setting `pre_zone_adjust_large_interval` to `true` is equivalent to the
+time zone behavior in future versions.]
+
 ==== Offset
 
 The `offset` option can be provided for shifting the date bucket intervals boundaries after any other shifts because of

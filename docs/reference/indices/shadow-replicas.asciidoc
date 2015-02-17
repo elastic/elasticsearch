@@ -19,10 +19,10 @@ this path for the data:
 
 [source,js]
 --------------------------------------------------
-curl -XPUT 'localhost:9200/my_index/_settings' -d '
+curl -XPUT 'localhost:9200/my_index' -d '
 {
     "index" : {
-        "number_of_shards" : 1
+        "number_of_shards" : 1,
         "number_of_replicas" : 4,
         "data_path": "/var/data/my_index",
         "shadow_replicas": true

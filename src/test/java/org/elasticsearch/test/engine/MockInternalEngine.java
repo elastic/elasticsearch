@@ -33,6 +33,7 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.util.Map;
 import java.util.Random;
@@ -76,7 +77,7 @@ public class MockInternalEngine extends InternalEngine {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         try {
             super.close();
         } finally {

@@ -81,56 +81,56 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     public static final boolean DEFAULT_SETTING_PIPELINING = true;
     public static final int DEFAULT_SETTING_PIPELINING_MAX_EVENTS = 10000;
 
-    private final NetworkService networkService;
-    final BigArrays bigArrays;
+    protected final NetworkService networkService;
+    protected final BigArrays bigArrays;
 
-    final ByteSizeValue maxContentLength;
-    final ByteSizeValue maxInitialLineLength;
-    final ByteSizeValue maxHeaderSize;
-    final ByteSizeValue maxChunkSize;
+    protected final ByteSizeValue maxContentLength;
+    protected final ByteSizeValue maxInitialLineLength;
+    protected final ByteSizeValue maxHeaderSize;
+    protected final ByteSizeValue maxChunkSize;
 
-    private final int workerCount;
+    protected final int workerCount;
 
-    private final boolean blockingServer;
+    protected final boolean blockingServer;
 
-    final boolean pipelining;
+    protected final boolean pipelining;
 
-    private final int pipeliningMaxEvents;
+    protected final int pipeliningMaxEvents;
 
-    final boolean compression;
+    protected final boolean compression;
 
-    private final int compressionLevel;
+    protected final int compressionLevel;
 
-    final boolean resetCookies;
+    protected final boolean resetCookies;
 
-    private final String port;
+    protected final String port;
 
-    private final String bindHost;
+    protected final String bindHost;
 
-    private final String publishHost;
+    protected final String publishHost;
 
-    private int publishPort;
+    protected int publishPort;
 
-    private final String tcpNoDelay;
-    private final String tcpKeepAlive;
-    private final Boolean reuseAddress;
+    protected final String tcpNoDelay;
+    protected final String tcpKeepAlive;
+    protected final Boolean reuseAddress;
 
-    private final ByteSizeValue tcpSendBufferSize;
-    private final ByteSizeValue tcpReceiveBufferSize;
-    private final ReceiveBufferSizePredictorFactory receiveBufferSizePredictorFactory;
+    protected final ByteSizeValue tcpSendBufferSize;
+    protected final ByteSizeValue tcpReceiveBufferSize;
+    protected final ReceiveBufferSizePredictorFactory receiveBufferSizePredictorFactory;
 
-    final ByteSizeValue maxCumulationBufferCapacity;
-    final int maxCompositeBufferComponents;
+    protected final ByteSizeValue maxCumulationBufferCapacity;
+    protected final int maxCompositeBufferComponents;
 
-    private volatile ServerBootstrap serverBootstrap;
+    protected volatile ServerBootstrap serverBootstrap;
 
-    private volatile BoundTransportAddress boundAddress;
+    protected volatile BoundTransportAddress boundAddress;
 
-    private volatile Channel serverChannel;
+    protected volatile Channel serverChannel;
 
-    OpenChannelsHandler serverOpenChannels;
+    protected OpenChannelsHandler serverOpenChannels;
 
-    private volatile HttpServerAdapter httpServerAdapter;
+    protected volatile HttpServerAdapter httpServerAdapter;
 
     @Inject
     public NettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays) {
@@ -323,11 +323,11 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         return new HttpStats(channels == null ? 0 : channels.numberOfOpenChannels(), channels == null ? 0 : channels.totalChannels());
     }
 
-    void dispatchRequest(HttpRequest request, HttpChannel channel) {
+    protected void dispatchRequest(HttpRequest request, HttpChannel channel) {
         httpServerAdapter.dispatchRequest(request, channel);
     }
 
-    void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
+    protected void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
         if (e.getCause() instanceof ReadTimeoutException) {
             if (logger.isTraceEnabled()) {
                 logger.trace("Connection timeout [{}]", ctx.getChannel().getRemoteAddress());

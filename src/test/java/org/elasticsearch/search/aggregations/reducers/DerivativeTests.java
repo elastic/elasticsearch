@@ -333,7 +333,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @AwaitsFix(bugUrl="waiting for derivative to gaps") // NOCOMMIT
+    @AwaitsFix(bugUrl = "waiting for derivative to gaps")
     @Test
     public void singleValuedFieldWithGaps() throws Exception {
         SearchResponse searchResponse = client()
@@ -341,7 +341,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                        .subAggregation(derivative("deriv").setBucketsPaths("_count")))
+                                .subAggregation(derivative("deriv").setBucketsPaths("_count"))) // NOCOMMITadd ignore gapPolicy
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(14l));
@@ -394,7 +394,6 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
     }
 
     @AwaitsFix(bugUrl = "waiting for derivative to support insert_zeros gap policy")
-    // NOCOMMIT
     @Test
     public void singleValuedFieldWithGaps_insertZeros() throws Exception {
         SearchResponse searchResponse = client()
@@ -503,7 +502,6 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
     }
 
     @AwaitsFix(bugUrl = "waiting for derivative to support interpolate gapPolicy")
-    // NOCOMMIT
     @Test
     public void singleValuedFieldWithGaps_interpolate() throws Exception {
         SearchResponse searchResponse = client()

@@ -88,7 +88,7 @@ public class HistoryStore extends AbstractComponent {
     public LoadResult loadFiredAlerts(ClusterState state, FiredAlert.State firedAlertState) {
         String[] indices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), ALERT_HISTORY_INDEX_PREFIX + "*");
         if (indices.length == 0) {
-            logger.info("No .alert_history indices found, skip loading of alert actions");
+            logger.debug("No .alert_history indices found, skip loading of alert actions");
             templateUtils.ensureIndexTemplateIsLoaded(state, "alerthistory");
             return new LoadResult(true);
         }
@@ -97,7 +97,7 @@ public class HistoryStore extends AbstractComponent {
             IndexMetaData indexMetaData = state.getMetaData().index(index);
             if (indexMetaData != null) {
                 if (!state.routingTable().index(index).allPrimaryShardsActive()) {
-                    logger.warn("Not all primary shards of the [{}] index are started. Schedule to retry alert action loading..", index);
+                    logger.debug("Not all primary shards of the [{}] index are started. Schedule to retry alert action loading..", index);
                     return new LoadResult(false);
                 } else {
                     numPrimaryShards += indexMetaData.numberOfShards();

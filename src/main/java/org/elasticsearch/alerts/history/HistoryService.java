@@ -8,11 +8,15 @@ package org.elasticsearch.alerts.history;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.alerts.*;
 import org.elasticsearch.alerts.actions.Action;
+import org.elasticsearch.alerts.condition.Condition;
 import org.elasticsearch.alerts.scheduler.Scheduler;
+import org.elasticsearch.alerts.support.Callback;
 import org.elasticsearch.alerts.throttle.Throttler;
 import org.elasticsearch.alerts.transform.Transform;
-import org.elasticsearch.alerts.condition.Condition;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -26,6 +30,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  */
@@ -34,33 +39,39 @@ public class HistoryService extends AbstractComponent {
     private final HistoryStore historyStore;
     private final ThreadPool threadPool;
     private final AlertsStore alertsStore;
+    private final ClusterService clusterService;
     private final AlertLockService alertLockService;
 
     private final AtomicBoolean started = new AtomicBoolean(false);
+    private final AtomicInteger initializationRetries = new AtomicInteger();
 
     // Holds fired alerts that were fired before on a different elected master node, but never had the chance to run.
     private volatile ImmutableList<FiredAlert> previousFiredAlerts = ImmutableList.of();
 
     @Inject
     public HistoryService(Settings settings, HistoryStore historyStore, ThreadPool threadPool,
-                          AlertsStore alertsStore, AlertLockService alertLockService, Scheduler scheduler) {
+                          AlertsStore alertsStore, AlertLockService alertLockService, Scheduler scheduler,
+                          ClusterService clusterService) {
         super(settings);
         this.historyStore = historyStore;
         this.threadPool = threadPool;
         this.alertsStore = alertsStore;
         this.alertLockService = alertLockService;
+        this.clusterService = clusterService;
         scheduler.addListener(new SchedulerListener());
     }
 
-    public boolean start(ClusterState state) {
+    public void start(ClusterState state, Callback<ClusterState> callback) {
         if (started.get()) {
-            return true;
+            callback.onSuccess(state);
+            return;
         }
 
         assert alertsThreadPool().getQueue().isEmpty() : "queue should be empty, but contains " + alertsThreadPool().getQueue().size() + " elements.";
         HistoryStore.LoadResult loadResult = historyStore.loadFiredAlerts(state, FiredAlert.State.AWAITS_EXECUTION);
         if (!loadResult.succeeded()) {
-            return false;
+            retry(callback);
+            return;
         }
         this.previousFiredAlerts = ImmutableList.copyOf(loadResult);
         if (!previousFiredAlerts.isEmpty()) {
@@ -92,7 +103,7 @@ public class HistoryService extends AbstractComponent {
             logger.debug("started history service");
         }
         executePreviouslyFiredAlerts();
-        return true;
+        callback.onSuccess(state);
     }
 
     public void stop() {
@@ -160,6 +171,32 @@ public class HistoryService extends AbstractComponent {
 
     private EsThreadPoolExecutor alertsThreadPool() {
         return (EsThreadPoolExecutor) threadPool.executor(AlertsPlugin.NAME);
+    }
+
+    private void retry(final Callback<ClusterState> callback) {
+        ClusterStateListener clusterStateListener = new ClusterStateListener() {
+
+            @Override
+            public void clusterChanged(final ClusterChangedEvent event) {
+                // Remove listener, so that it doesn't get called on the next cluster state update:
+                assert initializationRetries.decrementAndGet() == 0 : "Only one retry can run at the time";
+                clusterService.remove(this);
+                // We fork into another thread, because start(...) is expensive and we can't call this from the cluster update thread.
+                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+
+                    @Override
+                    public void run() {
+                        try {
+                            start(event.state(), callback);
+                        } catch (Exception e) {
+                            callback.onFailure(e);
+                        }
+                    }
+                });
+            }
+        };
+        assert initializationRetries.incrementAndGet() == 1 : "Only one retry can run at the time";
+        clusterService.add(clusterStateListener);
     }
 
     private final class AlertExecutionTask implements Runnable {

@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.alerts.history.HistoryService;
 import org.elasticsearch.alerts.scheduler.Scheduler;
+import org.elasticsearch.alerts.support.Callback;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -92,22 +93,37 @@ public class AlertsService extends AbstractComponent {
         }
     }
 
-    private void internalStart(ClusterState initialState) {
+    private void internalStart(ClusterState clusterState) {
         if (state.compareAndSet(State.STOPPED, State.STARTING)) {
             logger.info("starting alert service...");
             alertLockService.start();
-            ClusterState clusterState = initialState;
 
             // Try to load alert store before the action service, b/c action depends on alert store
-            while (!alertsStore.start(clusterState)) {
-                clusterState = newClusterState(clusterState);
-            }
-            while (!historyService.start(clusterState)) {
-                clusterState = newClusterState(clusterState);
-            }
-            scheduler.start(alertsStore.getAlerts().values());
-            state.set(State.STARTED);
-            logger.info("alert service has started");
+            alertsStore.start(clusterState, new Callback<ClusterState>(){
+
+                @Override
+                public void onSuccess(ClusterState clusterState) {
+                    historyService.start(clusterState, new Callback<ClusterState>() {
+
+                        @Override
+                        public void onSuccess(ClusterState clusterState) {
+                            scheduler.start(alertsStore.getAlerts().values());
+                            state.set(State.STARTED);
+                            logger.info("alert service has started");
+                        }
+
+                        @Override
+                        public void onFailure(Throwable e) {
+                            logger.error("failed to start alert service", e);
+                        }
+                    });
+                }
+
+                @Override
+                public void onFailure(Throwable e) {
+                    logger.error("failed to start alert service", e);
+                }
+            });
         }
     }
 

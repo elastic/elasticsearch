@@ -15,9 +15,13 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.alerts.support.Callback;
 import org.elasticsearch.alerts.support.TemplateUtils;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -27,11 +31,13 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  */
@@ -44,28 +50,35 @@ public class AlertsStore extends AbstractComponent {
     private final ClientProxy client;
     private final TemplateUtils templateUtils;
     private final Alert.Parser alertParser;
+    private final ClusterService clusterService;
+    private final ThreadPool threadPool;
 
     private final ConcurrentMap<String, Alert> alertMap;
     private final AtomicBoolean started = new AtomicBoolean(false);
+    private final AtomicInteger initializationRetries = new AtomicInteger();
 
     private final int scrollSize;
     private final TimeValue scrollTimeout;
 
     @Inject
-    public AlertsStore(Settings settings, ClientProxy client, TemplateUtils templateUtils, Alert.Parser alertParser) {
+    public AlertsStore(Settings settings, ClientProxy client, TemplateUtils templateUtils, Alert.Parser alertParser,
+                       ClusterService clusterService, ThreadPool threadPool) {
         super(settings);
         this.client = client;
         this.templateUtils = templateUtils;
         this.alertParser = alertParser;
+        this.clusterService = clusterService;
+        this.threadPool = threadPool;
         this.alertMap = ConcurrentCollections.newConcurrentMap();
 
         this.scrollTimeout = componentSettings.getAsTime("scroll.timeout", TimeValue.timeValueSeconds(30));
         this.scrollSize = componentSettings.getAsInt("scroll.size", 100);
     }
 
-    public boolean start(ClusterState state) {
+    public void start(ClusterState state, Callback<ClusterState> callback) {
         if (started.get()) {
-            return true;
+            callback.onSuccess(state);
+            return;
         }
 
         IndexMetaData alertIndexMetaData = state.getMetaData().index(ALERT_INDEX);
@@ -73,25 +86,28 @@ public class AlertsStore extends AbstractComponent {
             logger.trace("alerts index [{}] was not found. skipping alerts loading...", ALERT_INDEX);
             templateUtils.ensureIndexTemplateIsLoaded(state, ALERT_INDEX_TEMPLATE);
             started.set(true);
-            return true;
+            callback.onSuccess(state);
+            return;
         }
 
         if (state.routingTable().index(ALERT_INDEX).allPrimaryShardsActive()) {
             logger.debug("alerts index [{}] found with all active primary shards. loading alerts...", ALERT_INDEX);
             try {
                 int count = loadAlerts(client, scrollSize, scrollTimeout, alertIndexMetaData.numberOfShards(), alertParser, alertMap);
-                logger.info("loaded [{}] alerts from the alert index [{}]", count, ALERT_INDEX);
+                logger.debug("loaded [{}] alerts from the alert index [{}]", count, ALERT_INDEX);
             } catch (Exception e) {
-                logger.warn("failed to load alerts for alert index [{}]. scheduled to retry alert loading...", e, ALERT_INDEX);
+                logger.debug("failed to load alerts for alert index [{}]. scheduled to retry alert loading...", e, ALERT_INDEX);
                 alertMap.clear();
-                return false;
+                retry(callback);
+                return;
             }
             templateUtils.ensureIndexTemplateIsLoaded(state, ALERT_INDEX_TEMPLATE);
             started.set(true);
-            return true;
+            callback.onSuccess(state);
+        } else {
+            logger.warn("not all primary shards of the alerts index [{}] are started. scheduled to retry alert loading...", ALERT_INDEX);
+            retry(callback);
         }
-        logger.warn("not all primary shards of the alerts index [{}] are started. scheduled to retry alert loading...", ALERT_INDEX);
-        return false;
     }
 
     public boolean started() {
@@ -174,6 +190,36 @@ public class AlertsStore extends AbstractComponent {
         indexRequest.listenerThreaded(false);
         indexRequest.source(alertSource, false);
         return indexRequest;
+    }
+
+    private void retry(final Callback<ClusterState> callback) {
+        ClusterStateListener clusterStateListener = new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                final ClusterState state = event.state();
+                IndexMetaData alertIndexMetaData = state.getMetaData().index(ALERT_INDEX);
+                if (alertIndexMetaData != null) {
+                    if (state.routingTable().index(ALERT_INDEX).allPrimaryShardsActive()) {
+                        // Remove listener, so that it doesn't get called on the next cluster state update:
+                        assert initializationRetries.decrementAndGet() == 0 : "Only one retry can run at the time";
+                        clusterService.remove(this);
+                        // We fork into another thread, because start(...) is expensive and we can't call this from the cluster update thread.
+                        threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                            @Override
+                            public void run() {
+                                try {
+                                    start(state, callback);
+                                } catch (Exception e) {
+                                    callback.onFailure(e);
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+        };
+        clusterService.add(clusterStateListener);
+        assert initializationRetries.incrementAndGet() == 1 : "Only one retry can run at the time";
     }
 
     /**

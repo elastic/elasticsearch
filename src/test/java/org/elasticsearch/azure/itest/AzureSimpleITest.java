@@ -44,7 +44,9 @@ public class AzureSimpleITest extends AbstractAzureTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("discovery.type", "azure")
+                // For now we let the user who runs tests to define if he wants or not to run discovery tests
+                // by setting in elasticsearch.yml: discovery.type: azure
+                // .put("discovery.type", "azure")
                 .build();
     }
 

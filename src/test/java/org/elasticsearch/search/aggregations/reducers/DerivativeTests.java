@@ -44,6 +44,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSear
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
+import static org.hamcrest.core.IsNull.nullValue;
 
 @ElasticsearchIntegrationTest.SuiteScopeTest
 public class DerivativeTests extends ElasticsearchIntegrationTest {
@@ -157,7 +158,6 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         ensureSearchable();
     }
 
-    @AwaitsFix(bugUrl="waiting for derivative to support _count") // NOCOMMIT
     @Test
     public void singleValuedField() {
 
@@ -173,17 +173,21 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = deriv.getBuckets();
-        assertThat(buckets.size(), equalTo(numFirstDerivValueBuckets));
+        assertThat(buckets.size(), equalTo(numValueBuckets));
 
-        for (int i = 0; i < numFirstDerivValueBuckets; ++i) {
+        for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
             assertThat(bucket.getKeyAsString(), equalTo(String.valueOf(i * interval)));
             assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
             SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
-            assertThat(docCountDeriv, notNullValue());
-            assertThat(docCountDeriv.value(), equalTo((double) firstDerivValueCounts[i]));
+            if (i > 0) {
+                assertThat(docCountDeriv, notNullValue());
+                assertThat(docCountDeriv.value(), equalTo((double) firstDerivValueCounts[i - 1]));
+            } else {
+                assertThat(docCountDeriv, nullValue());
+            }
         }
     }
 
@@ -222,9 +226,9 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                     s += j + 1;
                 }
             }
+            SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
             assertThat(sum.getValue(), equalTo((double) s));
             if (i > 0) {
-                SimpleValue sumDeriv = bucket.getAggregations().get("deriv");
                 assertThat(sumDeriv, notNullValue());
                 long s1 = 0;
                 long s2 = 0;
@@ -240,6 +244,8 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                 assertThat(sumDeriv.value(), equalTo((double) sumDerivValue));
                 assertThat((double) bucket.getProperty("histo", AggregationPath.parse("deriv.value").getPathElementsAsStringList()),
                         equalTo((double) sumDerivValue));
+            } else {
+                assertThat(sumDeriv, nullValue());
             }
             assertThat((long) propertiesKeys[i], equalTo((long) i * interval));
             assertThat((long) propertiesDocCounts[i], equalTo(valueCounts[i]));
@@ -247,7 +253,6 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @AwaitsFix(bugUrl="waiting for derivative to support _count") // NOCOMMIT
     @Test
     public void multiValuedField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
@@ -262,21 +267,24 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = deriv.getBuckets();
-        assertThat(deriv.getBuckets().size(), equalTo(numFirstDerivValuesBuckets));
+        assertThat(deriv.getBuckets().size(), equalTo(numValuesBuckets));
 
-        for (int i = 0; i < numFirstDerivValuesBuckets; ++i) {
+        for (int i = 0; i < numValuesBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
             assertThat(bucket.getKeyAsString(), equalTo(String.valueOf(i * interval)));
             assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
-            assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
+            assertThat(bucket.getDocCount(), equalTo(valuesCounts[i]));
             SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
-            assertThat(docCountDeriv, notNullValue());
-            assertThat(docCountDeriv.value(), equalTo((double) firstDerivValuesCounts[i]));
+            if (i > 0) {
+                assertThat(docCountDeriv, notNullValue());
+                assertThat(docCountDeriv.value(), equalTo((double) firstDerivValuesCounts[i - 1]));
+            } else {
+                assertThat(docCountDeriv, nullValue());
+            }
         }
     }
 
-    @AwaitsFix(bugUrl="waiting for derivative to support _count") // NOCOMMIT
     @Test
     public void unmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped")
@@ -293,7 +301,6 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(deriv.getBuckets().size(), equalTo(0));
     }
 
-    @AwaitsFix(bugUrl="waiting for derivative to support _count") // NOCOMMIT
     @Test
     public void partiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
@@ -308,21 +315,25 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = deriv.getBuckets();
-        assertThat(deriv.getBuckets().size(), equalTo(numFirstDerivValueBuckets));
+        assertThat(deriv.getBuckets().size(), equalTo(numValueBuckets));
 
-        for (int i = 0; i < numFirstDerivValueBuckets; ++i) {
+        for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
             assertThat(bucket.getKeyAsString(), equalTo(String.valueOf(i * interval)));
             assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
             SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
-            assertThat(docCountDeriv, notNullValue());
-            assertThat(docCountDeriv.value(), equalTo((double) firstDerivValueCounts[i]));
+            if (i > 0) {
+                assertThat(docCountDeriv, notNullValue());
+                assertThat(docCountDeriv.value(), equalTo((double) firstDerivValueCounts[i - 1]));
+            } else {
+                assertThat(docCountDeriv, nullValue());
+            }
         }
     }
 
-    @AwaitsFix(bugUrl="waiting for derivative to support _count and gaps") // NOCOMMIT
+    @AwaitsFix(bugUrl="waiting for derivative to gaps") // NOCOMMIT
     @Test
     public void singleValuedFieldWithGaps() throws Exception {
         SearchResponse searchResponse = client()
@@ -382,7 +393,8 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(docCountDeriv.value(), equalTo(-1d));
     }
 
-    @AwaitsFix(bugUrl="waiting for derivative to support _count and insert_zeros gap policy") // NOCOMMIT
+    @AwaitsFix(bugUrl = "waiting for derivative to support insert_zeros gap policy")
+    // NOCOMMIT
     @Test
     public void singleValuedFieldWithGaps_insertZeros() throws Exception {
         SearchResponse searchResponse = client()
@@ -490,7 +502,8 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(docCountDeriv.value(), equalTo(-1d));
     }
 
-    @AwaitsFix(bugUrl="waiting for derivative to support _count and interpolate gapPolicy") // NOCOMMIT
+    @AwaitsFix(bugUrl = "waiting for derivative to support interpolate gapPolicy")
+    // NOCOMMIT
     @Test
     public void singleValuedFieldWithGaps_interpolate() throws Exception {
         SearchResponse searchResponse = client()

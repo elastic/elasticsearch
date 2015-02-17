@@ -74,6 +74,7 @@ public final class EngineConfig {
     private final CodecService codecService;
     private final Engine.FailedEngineListener failedEngineListener;
 
+
     /**
      * Index setting for index concurrency / number of threadstates in the indexwriter.
      * The default is depending on the number of CPUs in the system. We use a 0.65 the number of CPUs or at least {@value org.apache.lucene.index.IndexWriterConfig#DEFAULT_MAX_THREAD_STATES}

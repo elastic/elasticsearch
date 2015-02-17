@@ -43,18 +43,21 @@ import java.util.concurrent.ConcurrentMap;
 public class MockInternalEngine extends InternalEngine {
     public static final String WRAP_READER_RATIO = "index.engine.mock.random.wrap_reader_ratio";
     public static final String READER_WRAPPER_TYPE = "index.engine.mock.random.wrapper";
+    public static final String FLUSH_ON_CLOSE_RATIO = "index.engine.mock.flush_on_close.ratio";
 
     public static class MockContext {
         public final Random random;
         public final boolean wrapReader;
         public final Class<? extends FilterDirectoryReader> wrapper;
         public final Settings indexSettings;
+        private final double flushOnClose;
 
         public MockContext(Random random, boolean wrapReader, Class<? extends FilterDirectoryReader> wrapper, Settings indexSettings) {
             this.random = random;
             this.wrapReader = wrapReader;
             this.wrapper = wrapper;
             this.indexSettings = indexSettings;
+            flushOnClose = indexSettings.getAsDouble(FLUSH_ON_CLOSE_RATIO, 0.5d);
         }
     }
 
@@ -79,7 +82,11 @@ public class MockInternalEngine extends InternalEngine {
     @Override
     public void close() throws IOException {
         try {
-            super.close();
+            if (mockContext.flushOnClose > mockContext.random.nextDouble()) {
+                super.flushAndClose();
+            } else {
+                super.close();
+            }
         } finally {
             if (logger.isTraceEnabled()) {
                 // log debug if we have pending searchers
@@ -89,6 +96,15 @@ public class MockInternalEngine extends InternalEngine {
             }
         }
         logger.debug("Ongoing recoveries after engine close: " + onGoingRecoveries.get());
+    }
+
+    @Override
+    public void flushAndClose() throws IOException {
+        if (mockContext.flushOnClose > mockContext.random.nextDouble()) {
+            super.flushAndClose();
+        } else {
+            super.close();
+        }
     }
 
     @Override

@@ -25,13 +25,26 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.Test;
 
+import java.io.IOException;
+import java.util.concurrent.ExecutionException;
+
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -288,4 +301,42 @@ public class OpenCloseIndexTests extends ElasticsearchIntegrationTest {
             assertThat(indexMetaData.getState(), equalTo(expectedState));
         }
     }
+
+    @Test
+    public void testOpenCloseWithDocs() throws IOException, ExecutionException, InterruptedException {
+        String mapping = XContentFactory.jsonBuilder().
+                startObject().
+                startObject("type").
+                startObject("properties").
+                startObject("test")
+                .field("type", "string")
+                .field("index", "not_analyzed")
+                .endObject().
+                        endObject().
+                        endObject()
+                .endObject().string();
+
+        assertAcked(client().admin().indices().prepareCreate("test")
+                .addMapping("type", mapping));
+        ensureGreen();
+        int docs = between(10, 100);
+        IndexRequestBuilder[] builder = new IndexRequestBuilder[docs];
+        for (int i = 0; i < docs ; i++) {
+            builder[i] = client().prepareIndex("test", "initial", "" + i).setSource("test", "init");
+        }
+        indexRandom(true, builder);
+        if (randomBoolean()) {
+            client().admin().indices().prepareFlush("test").setWaitIfOngoing(true).setForce(true).execute().get();
+        }
+        client().admin().indices().prepareClose("test").execute().get();
+
+        // check the index still contains the records that we indexed
+        client().admin().indices().prepareOpen("test").execute().get();
+        ensureGreen();
+        SearchResponse searchResponse = client().prepareSearch().setTypes("initial").setQuery(QueryBuilders.matchQuery("test", "init")).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, docs);
+    }
+
+
 }

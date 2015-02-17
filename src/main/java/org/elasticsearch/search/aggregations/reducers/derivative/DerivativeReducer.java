@@ -116,7 +116,8 @@ public class DerivativeReducer extends Reducer {
             }
             lastBucketValue = thisBucketValue;
         }
-        return factory.create(histo.getName(), newBuckets, null, 1, null, null, false, new ArrayList<Reducer>(), histo.getMetaData()); // NOCOMMIT get order, minDocCount, emptyBucketInfo etc. from histo
+        return factory.create(histo.getName(), newBuckets, histo.getOrder(), 1, null, null, false, new ArrayList<Reducer>(),
+                histo.getMetaData()); // NOCOMMIT get order, minDocCount, emptyBucketInfo etc. from histo
     }
 
     private Double resolveBucketValue(InternalHistogram<? extends InternalHistogram.Bucket> histo, InternalHistogram.Bucket bucket) {

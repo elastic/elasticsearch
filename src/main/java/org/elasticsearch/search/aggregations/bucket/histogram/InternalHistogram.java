@@ -248,6 +248,11 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, this, reducers, metaData);
         }
 
+        public InternalHistogram<B> create(String name, List<B> buckets, InternalHistogram prototype) {
+            return new InternalHistogram<>(name, buckets, prototype.order, prototype.minDocCount, prototype.emptyBucketInfo,
+                    prototype.formatter, prototype.keyed, this, prototype.reducers(), prototype.metaData);
+        }
+
         public B createBucket(Object key, long docCount, InternalAggregations aggregations, boolean keyed,
                 @Nullable ValueFormatter formatter) {
             if (key instanceof Number) {
@@ -299,10 +304,6 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     public Factory<B> getFactory() {
         return factory;
-    }
-
-    public InternalOrder getOrder() {
-        return order;
     }
 
     private static class IteratorAndCurrent<B> {

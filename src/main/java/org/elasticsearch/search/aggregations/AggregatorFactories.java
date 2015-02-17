@@ -157,7 +157,7 @@ public class AggregatorFactories {
         }
 
         public AggregatorFactories build() {
-            if (factories.isEmpty()) {
+            if (factories.isEmpty() && reducerFactories.isEmpty()) {
                 return EMPTY;
             }
             List<ReducerFactory> orderedReducers = resolveReducerOrder(this.reducerFactories, this.factories);
@@ -212,7 +212,7 @@ public class AggregatorFactories {
                 String[] bucketsPaths = factory.getBucketsPaths();
                 for (String bucketsPath : bucketsPaths) {
                     ReducerFactory matchingFactory = reducerFactoriesMap.get(bucketsPath);
-                    if (aggFactoryNames.contains(bucketsPath)) {
+                    if (bucketsPath.equals("_count") || bucketsPath.equals("_key") || aggFactoryNames.contains(bucketsPath)) {
                         continue;
                     } else if (matchingFactory != null) {
                         resolveReducerOrder(aggFactoryNames, reducerFactoriesMap, orderedReducers, unmarkedFactories, temporarilyMarked,

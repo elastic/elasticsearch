@@ -55,10 +55,15 @@ public abstract class AbstractAzureTest extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        ImmutableSettings.Builder settings = ImmutableSettings.builder()
+        return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true);
+                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
+                .put(readSettingsFromFile())
+                .build();
+    }
 
+    protected static Settings readSettingsFromFile() {
+        ImmutableSettings.Builder settings = ImmutableSettings.builder();
         Environment environment = new Environment();
 
         // if explicit, just load it and don't load from env
@@ -73,5 +78,4 @@ public abstract class AbstractAzureTest extends ElasticsearchIntegrationTest {
         }
         return settings.build();
     }
-
 }

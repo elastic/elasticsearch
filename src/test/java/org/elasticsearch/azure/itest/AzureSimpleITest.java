@@ -40,6 +40,14 @@ import org.junit.Test;
         transportClientRatio = 0.0)
 public class AzureSimpleITest extends AbstractAzureTest {
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("discovery.type", "azure")
+                .build();
+    }
+
     @Test
     public void one_node_should_run() {
         // Do nothing... Just start :-)

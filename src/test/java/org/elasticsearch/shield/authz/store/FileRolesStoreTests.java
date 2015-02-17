@@ -174,9 +174,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
             if (watcherService != null) {
                 watcherService.stop();
             }
-            if (threadPool != null) {
-                threadPool.shutdownNow();
-            }
+            terminate(threadPool);
         }
     }
 

@@ -45,9 +45,9 @@ public class LdapRealmTest extends LdapTest {
     }
 
     @After
-    public void shutdown() {
+    public void shutdown() throws InterruptedException {
         resourceWatcherService.stop();
-        threadPool.shutdownNow();
+        terminate(threadPool);
     }
 
     @Test

@@ -69,5 +69,11 @@ public class VersionCompatibilityTests extends ElasticsearchTestCase {
          * since es core 1.5.0 introduced the AliasesRequest interface.
          */
         assertThat("Remove special treatment for IndicesAliasesRequest and GetAliasesRequest", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
+
+        /**
+         * see https://github.com/elasticsearch/elasticsearch/pull/9508
+         * CheckFileCommand has been moved into ES-Core, please check the supported versions in the PR, if it can be removed completely
+         */
+        assertThat("Remove built-in CheckFileCommand", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
     }
 }

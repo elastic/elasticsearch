@@ -51,8 +51,8 @@ public abstract class AbstractGroupToRoleMapperTests extends ElasticsearchTestCa
     }
 
     @After
-    public void shutdown() {
-        threadPool.shutdownNow();
+    public void shutdown() throws InterruptedException {
+        terminate(threadPool);
     }
 
     protected abstract AbstractGroupToRoleMapper createMapper(Path file, ResourceWatcherService watcherService);

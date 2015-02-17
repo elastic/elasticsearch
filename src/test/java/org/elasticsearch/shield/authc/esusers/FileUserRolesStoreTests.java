@@ -59,8 +59,8 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
     }
 
     @After
-    public void shutdown() {
-        threadPool.shutdownNow();
+    public void shutdown() throws InterruptedException {
+        terminate(threadPool);
     }
 
     @Test
@@ -239,9 +239,7 @@ public class FileUserRolesStoreTests extends ElasticsearchTestCase {
             FileUserRolesStore store = new FileUserRolesStore(config, watcherService);
             assertThat(store.roles("user"), equalTo(Strings.EMPTY_ARRAY));
         } finally {
-            if (threadPool != null) {
-                threadPool.shutdownNow();
-            }
+            terminate(threadPool);
         }
     }
 

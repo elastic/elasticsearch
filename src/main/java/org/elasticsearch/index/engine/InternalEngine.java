@@ -63,7 +63,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  *
@@ -914,6 +913,7 @@ public class InternalEngine extends Engine {
             return Arrays.asList(segmentsArr);
         }
     }
+
 
     /**
      * Closes the engine without acquiring the write lock. This should only be

@@ -171,6 +171,14 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final ShardEngineFailListener failedEngineListener = new ShardEngineFailListener();
 
+    private volatile boolean flushOnClose = true;
+
+    /**
+     * Index setting to control if a flush is executed before engine is closed
+     * This setting is realtime updateable.
+     */
+    public static final String INDEX_FLUSH_ON_CLOSE = "index.flush_on_close";
+
     @Inject
     public IndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler, Translog translog,
                               ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
@@ -209,6 +217,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.shardFixedBitSetFilterCache = shardFixedBitSetFilterCache;
         state = IndexShardState.CREATED;
         this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
+        this.flushOnClose = indexSettings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, true);
         indexSettingsService.addListener(applyRefreshSettings);
 
         this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
@@ -648,7 +657,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         return engine().acquireSearcher(source);
     }
 
-    public void close(String reason) throws IOException {
+    public void close(String reason, boolean flushEngine) throws IOException {
         synchronized (mutex) {
             try {
                 indexSettingsService.removeListener(applyRefreshSettings);
@@ -661,7 +670,13 @@ public class IndexShard extends AbstractIndexShardComponent {
                 changeState(IndexShardState.CLOSED, reason);
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
-                IOUtils.close(engine);
+                try {
+                    if (flushEngine && this.flushOnClose) {
+                        engine.flushAndClose();
+                    }
+                } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
+                    IOUtils.close(engine);
+                }
             }
         }
     }
@@ -933,6 +948,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         updateBufferSize(EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER, Translog.INACTIVE_SHARD_TRANSLOG_BUFFER);
     }
 
+    public final boolean isFlushOnClose() {
+        return flushOnClose;
+    }
+
     private class ApplyRefreshSettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
@@ -941,6 +960,12 @@ public class IndexShard extends AbstractIndexShardComponent {
                 if (state == IndexShardState.CLOSED) {
                     return;
                 }
+                final boolean flushOnClose = settings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, IndexShard.this.flushOnClose);
+                if (flushOnClose != IndexShard.this.flushOnClose) {
+                    logger.info("updating {} from [{}] to [{}]", INDEX_FLUSH_ON_CLOSE, IndexShard.this.flushOnClose, flushOnClose);
+                    IndexShard.this.flushOnClose = flushOnClose;
+                }
+
                 TimeValue refreshInterval = settings.getAsTime(INDEX_REFRESH_INTERVAL, IndexShard.this.refreshInterval);
                 if (!refreshInterval.equals(IndexShard.this.refreshInterval)) {
                     logger.info("updating refresh_interval from [{}] to [{}]", IndexShard.this.refreshInterval, refreshInterval);

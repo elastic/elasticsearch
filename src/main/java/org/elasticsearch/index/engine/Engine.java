@@ -1023,6 +1023,27 @@ public abstract class Engine implements Closeable {
 
     protected abstract void closeNoLock(String reason) throws ElasticsearchException;
 
+    public void flushAndClose() throws IOException {
+        if (isClosed.get() == false) {
+            logger.trace("flushAndClose now acquire writeLock");
+            try (ReleasableLock _ = writeLock.acquire()) {
+                logger.trace("flushAndClose now acquired writeLock");
+                try {
+                    logger.debug("flushing shard on close - this might take some time to sync files to disk");
+                    try {
+                        flush(); // TODO we might force a flush in the future since we have the write lock already even though recoveries are running.
+                    } catch (FlushNotAllowedEngineException ex) {
+                        logger.debug("flush not allowed during flushAndClose - skipping");
+                    } catch (EngineClosedException ex) {
+                        logger.debug("engine already closed - skipping flushAndClose");
+                    }
+                } finally {
+                    close(); // double close is not a problem
+                }
+            }
+        }
+    }
+
     @Override
     public void close() throws IOException {
         if (isClosed.get() == false) { // don't acquire the write lock if we are already closed

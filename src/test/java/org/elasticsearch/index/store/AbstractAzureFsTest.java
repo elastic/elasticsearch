@@ -17,15 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store.fs;
+package org.elasticsearch.index.store;
 
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.junit.Test;
 
-public class SmbSimpleFsIndexStoreModule extends AbstractModule {
+import static org.hamcrest.Matchers.is;
 
-    @Override
-    protected void configure() {
-        bind(IndexStore.class).to(SmbSimpleFsIndexStore.class).asEagerSingleton();
+abstract public class AbstractAzureFsTest extends ElasticsearchIntegrationTest {
+
+    @Test
+    public void testAzureFs() {
+        // Create an index and index some documents
+        createIndex("test");
+        long nbDocs = randomIntBetween(10, 1000);
+        for (long i = 0; i < nbDocs; i++) {
+            index("test", "doc", "" + i, "foo", "bar");
+        }
+        refresh();
+        SearchResponse response = client().prepareSearch("test").get();
+        assertThat(response.getHits().totalHits(), is(nbDocs));
     }
 }

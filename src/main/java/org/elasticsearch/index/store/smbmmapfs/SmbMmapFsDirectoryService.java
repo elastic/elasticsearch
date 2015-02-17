@@ -17,27 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store.fs;
+package org.elasticsearch.index.store.smbmmapfs;
 
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.LockFactory;
+import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.store.SmbDirectoryWrapper;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.store.DirectoryService;
-import org.elasticsearch.index.store.support.AbstractIndexStore;
-import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.index.store.fs.FsDirectoryService;
 
-public class SmbMmapFsIndexStore extends AbstractIndexStore {
+import java.io.IOException;
+import java.nio.file.Path;
+
+public class SmbMmapFsDirectoryService extends FsDirectoryService {
 
     @Inject
-    public SmbMmapFsIndexStore(Index index, @IndexSettings Settings indexSettings, IndexService indexService, IndicesStore indicesStore, NodeEnvironment nodeEnv) {
-        super(index, indexSettings, indexService, indicesStore, nodeEnv);
+    public SmbMmapFsDirectoryService(ShardId shardId, @IndexSettings Settings indexSettings, IndexStore indexStore) {
+        super(shardId, indexSettings, indexStore);
     }
 
     @Override
-    public Class<? extends DirectoryService> shardDirectory() {
-        return SmbMmapFsDirectoryService.class;
+    protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
+        logger.debug("wrapping MMapDirectory for SMB");
+        return new SmbDirectoryWrapper(new MMapDirectory(location, buildLockFactory()));
     }
 }

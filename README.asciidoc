@@ -5,3 +5,27 @@ This plugins adds alerting features to elasticsearch
 You can build the plugin with `mvn package`.
 
 The documentation is put in the `docs/` directory.
+
+== Core Concepts
+
+Alert     ::  a tuple of: *Schedule*, *Condition* and a list of *Action*s, where the schedule defines when the alert is checked 
+              (see below), the condition checks whether the alert should be executed and the actions define what happens when the alert 
+              is executed.
+Schedule  ::  defines when and how often should the alert be checked (e.g. every 5 minutes, every 
+			  first wednesday of the month at noon, etc..)
+Condition ::  represents a condition based on which a decision is made to execute the alert or not
+Action    ::  defines the actions that are taken when the alert executes
+
+
+== Alert Events
+
+`checked`     ::  the `Scheduler` fired an event that caused the condition of the alert to be evaluated
+`throttled`   ::  the alert's condition was checked and met, but a decision was made **not** to **execute* the alert.
+				  This can be based on the throttle period that is associated with the alert, or based on the fact that the 
+				  alert was `acked`
+`executed`    ::  the alert's condition was checked and met and no throttling took place - the actions were executed.
+`acked`       ::  the user acked the alert, causing it to stop executing its action until it's condition is not met anymore
+
+== Alert Run Process
+
+image:docs/alert-run.png[]

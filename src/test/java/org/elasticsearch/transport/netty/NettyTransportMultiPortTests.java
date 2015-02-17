@@ -70,7 +70,7 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
             assertPortIsBound(ports[1]);
             assertPortIsBound(ports[2]);
         } finally {
-            threadPool.shutdownNow();
+            terminate(threadPool);
         }
     }
 
@@ -89,7 +89,7 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
             assertPortIsBound(ports[0]);
             assertPortIsBound(ports[1]);
         } finally {
-            threadPool.shutdownNow();
+            terminate(threadPool);
         }
     }
 
@@ -107,7 +107,7 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
         try (NettyTransport ignored = startNettyTransport(settings, threadPool)) {
             assertPortIsBound(ports[0]);
         } finally {
-            threadPool.shutdownNow();
+            terminate(threadPool);
         }
     }
 
@@ -128,7 +128,7 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
             assertConnectionRefused(ports[1]);
             assertPortIsBound(ports[2]);
         } finally {
-            threadPool.shutdownNow();
+            terminate(threadPool);
         }
     }
 
@@ -151,7 +151,7 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
             assertPortIsBound(firstNonLoopbackAddress.getHostAddress(), ports[1]);
             assertConnectionRefused(ports[1]);
         } finally {
-            threadPool.shutdownNow();
+            terminate(threadPool);
         }
     }
 

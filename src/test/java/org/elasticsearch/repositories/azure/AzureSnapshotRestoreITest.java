@@ -27,27 +27,30 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.cloud.azure.AbstractAzureTest;
+import org.elasticsearch.cloud.azure.AzureSettingsFilter;
 import org.elasticsearch.cloud.azure.AzureStorageService;
+import org.elasticsearch.cloud.azure.AzureStorageServiceImpl;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.base.Predicate;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.store.MockDirectoryHelper;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.*;
 
 import java.net.URISyntaxException;
 import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  * This test needs Azure to run and -Dtests.azure=true to be set
@@ -61,14 +64,24 @@ import static org.hamcrest.Matchers.*;
         transportClientRatio = 0.0)
 public class AzureSnapshotRestoreITest extends AbstractAzureTest {
 
+    private static ESLogger logger = ESLoggerFactory.getLogger(AzureSnapshotRestoreITest.class.getName());
+
     private String getRepositoryPath() {
-        String testName = "/snapshot-itest/repo-".concat("" + randomIntBetween(1, 1000));
+        String testName = "it-".concat(Strings.toUnderscoreCase(getTestName()).replaceAll("_", "-"));
         return testName.contains(" ") ? Strings.split(testName, " ")[0] : testName;
     }
 
-    private String getContainerName() {
-        String testName = "it-".concat(Strings.toUnderscoreCase(getTestName()).replaceAll("_", "-"));
+    private static String getContainerName() {
+        String testName = "snapshot-itest-".concat(getContext().getRunnerSeedAsString().toLowerCase());
         return testName.contains(" ") ? Strings.split(testName, " ")[0] : testName;
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
+                // In snapshot tests, we explicitly disable cloud discovery
+                .put("discovery.type", "local")
+                .build();
     }
 
     @Override
@@ -81,18 +94,13 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
                 .build();
     }
 
-    @Before
-    public final void wipeBefore() throws StorageException, URISyntaxException {
+    @Before @After
+    public final void wipeAzureRepositories() throws StorageException, URISyntaxException {
         wipeRepositories();
-        cleanRepositoryFiles(
-                getContainerName(),
-                getContainerName().concat("-1"),
-                getContainerName().concat("-2"));
     }
 
-    @After
-    public final void wipeAfter() throws StorageException, URISyntaxException {
-        wipeRepositories();
+    @BeforeClass @AfterClass
+    public static final void wipeAzureContainers() throws StorageException, URISyntaxException {
         cleanRepositoryFiles(
                 getContainerName(),
                 getContainerName().concat("-1"),
@@ -329,7 +337,7 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
      * For issue #21: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/21
      */
     @Test
-    public void testForbiddenContainerName() {
+    public void testForbiddenContainerName() throws URISyntaxException, StorageException, InterruptedException {
         checkContainerName("", false);
         checkContainerName("es", false);
         checkContainerName("-elasticsearch", false);
@@ -347,23 +355,35 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
      * @param container Container name we want to create
      * @param correct Is this container name correct
      */
-    private void checkContainerName(String container, boolean correct) {
+    private void checkContainerName(final String container, final boolean correct) throws URISyntaxException, StorageException, InterruptedException {
         logger.info("-->  creating azure repository with container name [{}]", container);
-        try {
-            PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
-                    .setType("azure").setSettings(ImmutableSettings.settingsBuilder()
-                                    .put(AzureStorageService.Fields.CONTAINER, container)
-                                    .put(AzureStorageService.Fields.BASE_PATH, getRepositoryPath())
-                                    .put(AzureStorageService.Fields.CHUNK_SIZE, randomIntBetween(1000, 10000))
-                    ).get();
-            assertThat(putRepositoryResponse.isAcknowledged(), is(correct));
-            client().admin().cluster().prepareDeleteRepository("test-repo").get();
-        } catch (RepositoryException e) {
-            if (correct) {
-                // We did not expect any exception here :(
-                throw e;
+        // It could happen that we just removed from a previous test the same container so
+        // we can not create it yet.
+        assertThat(awaitBusy(new Predicate<Object>() {
+            public boolean apply(Object obj) {
+                try {
+                    PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
+                            .setType("azure").setSettings(ImmutableSettings.settingsBuilder()
+                                            .put(AzureStorageService.Fields.CONTAINER, container)
+                                            .put(AzureStorageService.Fields.BASE_PATH, getRepositoryPath())
+                                            .put(AzureStorageService.Fields.CHUNK_SIZE, randomIntBetween(1000, 10000))
+                            ).get();
+                    client().admin().cluster().prepareDeleteRepository("test-repo").get();
+                    try {
+                        cleanRepositoryFiles(container);
+                    } catch (StorageException | URISyntaxException e) {
+                        // We can ignore that as we just try to clean after the test
+                    }
+                    return (putRepositoryResponse.isAcknowledged() == correct);
+                } catch (RepositoryVerificationException e) {
+                    if (!correct) {
+                        return true;
+                    }
+                    logger.debug(" -> container is being removed. Let's wait a bit...");
+                    return false;
+                }
             }
-        }
+        }, 5, TimeUnit.MINUTES), equalTo(true));
     }
 
     /**
@@ -395,7 +415,7 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
      */
     @Test
     public void testRemoveAndCreateContainer() throws URISyntaxException, StorageException, InterruptedException {
-        final String container = getContainerName();
+        final String container = getContainerName().concat("-testremove");
         final AzureStorageService storageService = internalCluster().getInstance(AzureStorageService.class);
 
         // It could happen that we run this test really close to a previous one
@@ -451,8 +471,12 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
     /**
      * Purge the test containers
      */
-    public void cleanRepositoryFiles(String... containers) throws StorageException, URISyntaxException {
-        AzureStorageService client = internalCluster().getInstance(AzureStorageService.class);
+    public static void cleanRepositoryFiles(String... containers) throws StorageException, URISyntaxException {
+        Settings settings = readSettingsFromFile();
+        SettingsFilter settingsFilter = new SettingsFilter(settings);
+        settingsFilter.addFilter(new AzureSettingsFilter());
+
+        AzureStorageService client = new AzureStorageServiceImpl(settings, settingsFilter);
         for (String container : containers) {
             logger.info("--> remove container [{}]", container);
             client.removeContainer(container);

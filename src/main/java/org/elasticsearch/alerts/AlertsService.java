@@ -63,6 +63,54 @@ public class AlertsService extends AbstractComponent {
         manuallyStopped = !settings.getAsBoolean("alerts.start_immediately",  true);
     }
 
+    /**
+     * Manually starts alerting if not already started
+     */
+    public void start() {
+        manuallyStopped = false;
+        ClusterState state = clusterService.state();
+        internalStart(state);
+    }
+
+    /**
+     * Manually stops alerting if not already stopped.
+     */
+    public void stop() {
+        manuallyStopped = true;
+        internalStop();
+    }
+
+    private void internalStop() {
+        if (state.compareAndSet(State.STARTED, State.STOPPING)) {
+            logger.info("stopping alert service...");
+            alertLockService.stop();
+            historyService.stop();
+            scheduler.stop();
+            alertsStore.stop();
+            state.set(State.STOPPED);
+            logger.info("alert service has stopped");
+        }
+    }
+
+    private void internalStart(ClusterState initialState) {
+        if (state.compareAndSet(State.STOPPED, State.STARTING)) {
+            logger.info("starting alert service...");
+            alertLockService.start();
+            ClusterState clusterState = initialState;
+
+            // Try to load alert store before the action service, b/c action depends on alert store
+            while (!alertsStore.start(clusterState)) {
+                clusterState = newClusterState(clusterState);
+            }
+            while (!historyService.start(clusterState)) {
+                clusterState = newClusterState(clusterState);
+            }
+            scheduler.start(alertsStore.getAlerts().values());
+            state.set(State.STARTED);
+            logger.info("alert service has started");
+        }
+    }
+
     public AlertsStore.AlertDelete deleteAlert(String name) throws InterruptedException, ExecutionException {
         ensureStarted();
         AlertLockService.Lock lock = alertLockService.acquire(name);
@@ -127,62 +175,14 @@ public class AlertsService extends AbstractComponent {
         }
     }
 
-    /**
-     * Manually starts alerting if not already started
-     */
-    public void start() {
-        manuallyStopped = false;
-        ClusterState state = clusterService.state();
-        internalStart(state);
-    }
-
-    /**
-     * Manually stops alerting if not already stopped.
-     */
-    public void stop() {
-        manuallyStopped = true;
-        internalStop();
-    }
-
-    private void internalStop() {
-        if (state.compareAndSet(State.STARTED, State.STOPPING)) {
-            logger.info("stopping alert service...");
-            alertLockService.stop();
-            historyService.stop();
-            scheduler.stop();
-            alertsStore.stop();
-            state.set(State.STOPPED);
-            logger.info("alert service has stopped");
-        }
-    }
-
-    private void internalStart(ClusterState initialState) {
-        if (state.compareAndSet(State.STOPPED, State.STARTING)) {
-            logger.info("starting alert service...");
-            alertLockService.start();
-            ClusterState clusterState = initialState;
-
-            // Try to load alert store before the action service, b/c action depends on alert store
-            while (!alertsStore.start(clusterState)) {
-                clusterState = newClusterState(clusterState);
-            }
-            while (!historyService.start(clusterState)) {
-                clusterState = newClusterState(clusterState);
-            }
-            scheduler.start(alertsStore.getAlerts().values());
-            state.set(State.STARTED);
-            logger.info("alert service has started");
-        }
+    public long getNumberOfAlerts() {
+        return alertsStore.getAlerts().size();
     }
 
     private void ensureStarted() {
         if (state.get() != State.STARTED) {
             throw new ElasticsearchIllegalStateException("not started");
         }
-    }
-
-    public long getNumberOfAlerts() {
-        return alertsStore.getAlerts().size();
     }
 
     /**
@@ -216,7 +216,7 @@ public class AlertsService extends AbstractComponent {
             } else {
                 if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
                     // wait until the gateway has recovered from disk, otherwise we think may not have .alerts and
-                    // a .alertshistory index, but they may not have been restored from the cluster state on disk
+                    // a .alerts_history index, but they may not have been restored from the cluster state on disk
                     return;
                 }
                 if (state.get() == State.STOPPED && !manuallyStopped) {

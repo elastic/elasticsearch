@@ -26,7 +26,9 @@ import java.util.Map;
 /**
  */
 public class StringTemplateUtils extends AbstractComponent {
+
     private final ScriptServiceProxy scriptService;
+
     @Inject
     public StringTemplateUtils(Settings settings, ScriptServiceProxy scriptService) {
         super(settings);
@@ -81,7 +83,7 @@ public class StringTemplateUtils extends AbstractComponent {
                             language = parser.text();
                             break;
                         case "type":
-                            type = readScriptType(parser.text());
+                            type = AlertUtils.readScriptType(parser.text());
                             break;
                         default:
                             throw new ElasticsearchIllegalArgumentException("Unexpected field [" + fieldName + "]");
@@ -97,7 +99,7 @@ public class StringTemplateUtils extends AbstractComponent {
     public static void writeTemplate(String objectName, Template template, XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject(objectName);
         builder.field("script", template.getTemplate());
-        builder.field("type", writeScriptType(template.getScriptType()));
+        builder.field("type", AlertUtils.writeScriptType(template.getScriptType()));
         builder.field("language", template.getLanguage());
         if (template.getParams() != null && !template.getParams().isEmpty()) {
             builder.field("params", template.getParams());
@@ -105,30 +107,6 @@ public class StringTemplateUtils extends AbstractComponent {
         builder.endObject();
     }
 
-    private static ScriptService.ScriptType readScriptType(String value) {
-        switch (value) {
-            case "indexed":
-                return ScriptService.ScriptType.INDEXED;
-            case "inline":
-                return ScriptService.ScriptType.INLINE;
-            case "file":
-                return ScriptService.ScriptType.FILE;
-            default:
-                throw new ElasticsearchIllegalArgumentException("Unknown script_type value [" + value + "]");
-        }
-    }
-    private static String writeScriptType(ScriptService.ScriptType value) {
-        switch (value) {
-            case INDEXED:
-                return "indexed";
-            case INLINE:
-                return "inline";
-            case FILE:
-                return "file";
-            default:
-                throw new ElasticsearchIllegalArgumentException("Illegal script_type value [" + value + "]");
-        }
-    }
     public static class Template {
         private final String template;
         private final Map<String, String> params;

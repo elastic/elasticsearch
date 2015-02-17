@@ -24,7 +24,7 @@
         "throttle_period": {
           "type": "string"
         },
-        "trigger": {
+        "condition": {
           "type": "object",
           "enabled" : false,
           "dynamic" : true

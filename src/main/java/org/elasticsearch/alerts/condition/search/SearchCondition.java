@@ -3,8 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts.transform;
+package org.elasticsearch.alerts.condition.search;
 
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -14,20 +15,18 @@ import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.Variables;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.alerts.condition.Condition;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchHit;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -35,46 +34,51 @@ import java.util.Map;
 
 import static org.elasticsearch.alerts.support.AlertsDateUtils.formatDate;
 
-/**
- *
- */
-public class SearchTransform implements Transform {
+public abstract class SearchCondition extends Condition<SearchCondition.Result> {
 
-    public static final String TYPE = "search";
+    public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.COUNT;
 
-    public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.DFS_QUERY_AND_FETCH;
-
-    protected final ESLogger logger;
     protected final ScriptServiceProxy scriptService;
     protected final ClientProxy client;
     protected final SearchRequest request;
 
-    public SearchTransform(ESLogger logger, ScriptServiceProxy scriptService, ClientProxy client, SearchRequest request) {
-        this.logger = logger;
+    public SearchCondition(ESLogger logger, ScriptServiceProxy scriptService, ClientProxy client, SearchRequest request) {
+        super(logger);
         this.scriptService = scriptService;
         this.client = client;
         this.request = request;
     }
 
     @Override
-    public String type() {
-        return TYPE;
+    public Result execute(ExecutionContext ctx) throws IOException {
+        SearchRequest request = createSearchRequestWithTimes(this.request, ctx.scheduledTime(), ctx.fireTime(), scriptService);
+        if (logger.isTraceEnabled()) {
+            logger.trace("running query for [{}]", ctx.alert().name(), XContentHelper.convertToJson(request.source(), false, true));
+        }
+
+        // actionGet deals properly with InterruptedException
+        SearchResponse response = client.search(request).actionGet();
+
+        if (logger.isDebugEnabled()) {
+            logger.debug("got [{}] hits", ctx.alert().name(), response.getHits().getTotalHits());
+            for (SearchHit hit : response.getHits()) {
+                logger.debug("hit [{}]", XContentHelper.toString(hit));
+            }
+
+        }
+        return processSearchResponse(response);
     }
 
-    @Override
-    public Transform.Result apply(ExecutionContext ctx, Payload payload) throws IOException {
-        SearchRequest req = createRequest(request, ctx.scheduledTime(), ctx.fireTime(), payload.data());
-        SearchResponse resp = client.search(req).actionGet();
-        return new Transform.Result(TYPE, new Payload.ActionResponse(resp));
-    }
+    /**
+     * Processes the search response and returns the appropriate condition result
+     */
+    protected abstract Result processSearchResponse(SearchResponse response);
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        AlertUtils.writeSearchRequest(request, builder, params);
-        return builder;
-    }
 
-    public SearchRequest createRequest(SearchRequest requestPrototype, DateTime scheduledFireTime, DateTime fireTime, Map<String, Object> data) throws IOException {
+    /**
+     * Creates a new search request applying the scheduledFireTime and fireTime to the original request
+     */
+    public static SearchRequest createSearchRequestWithTimes(SearchRequest requestPrototype, DateTime scheduledFireTime, DateTime fireTime, ScriptServiceProxy scriptService) throws IOException {
         SearchRequest request = new SearchRequest(requestPrototype)
                 .indicesOptions(requestPrototype.indicesOptions())
                 .indices(requestPrototype.indices());
@@ -93,32 +97,31 @@ public class SearchTransform implements Transform {
             request.templateName(requestPrototype.templateName());
             request.templateType(requestPrototype.templateType());
         } else {
-            throw new TransformException("search requests needs either source or template name");
+            throw new ElasticsearchIllegalStateException("Search requests needs either source or template name");
         }
         return request;
     }
 
-    public static class Parser extends AbstractComponent implements Transform.Parser<SearchTransform> {
+    public static class Result extends Condition.Result {
 
-        protected final ScriptServiceProxy scriptService;
-        protected final ClientProxy client;
+        public static final ParseField REQUEST_FIELD = new ParseField("request");
 
-        @Inject
-        public Parser(Settings settings, ScriptServiceProxy scriptService, ClientProxy client) {
-            super(settings);
-            this.scriptService = scriptService;
-            this.client = client;
+        private final SearchRequest request;
+
+        public Result(String type, boolean met, SearchRequest request, Payload payload) {
+            super(type, met, payload);
+            this.request = request;
+        }
+
+        public SearchRequest request() {
+            return request;
         }
 
         @Override
-        public String type() {
-            return TYPE;
-        }
-
-        @Override
-        public SearchTransform parse(XContentParser parser) throws IOException {
-            SearchRequest request = AlertUtils.readSearchRequest(parser, DEFAULT_SEARCH_TYPE);
-            return new SearchTransform(logger, scriptService, client, request);
+        public XContentBuilder toXContentBody(XContentBuilder builder, Params params) throws IOException {
+            builder.field(REQUEST_FIELD.getPreferredName());
+            AlertUtils.writeSearchRequest(request(), builder, params);
+            return builder;
         }
     }
 

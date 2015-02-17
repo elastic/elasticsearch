@@ -7,9 +7,9 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.ActionRegistry;
+import org.elasticsearch.alerts.condition.Condition;
+import org.elasticsearch.alerts.condition.ConditionRegistry;
 import org.elasticsearch.alerts.throttle.Throttler;
-import org.elasticsearch.alerts.trigger.Trigger;
-import org.elasticsearch.alerts.trigger.TriggerRegistry;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -24,24 +24,24 @@ import java.util.Map;
 */
 public class AlertExecution implements ToXContent {
 
-    private final Trigger.Result triggerResult;
+    private final Condition.Result conditionResult;
     private final Throttler.Result throttleResult;
     private final Map<String, Action.Result> actionsResults;
     private final Payload payload;
 
     public AlertExecution(ExecutionContext context) {
-        this(context.triggerResult(), context.throttleResult(), context.actionsResults(), context.payload());
+        this(context.conditionResult(), context.throttleResult(), context.actionsResults(), context.payload());
     }
 
-    AlertExecution(Trigger.Result triggerResult, Throttler.Result throttleResult, Map<String, Action.Result> actionsResults, Payload payload) {
-        this.triggerResult = triggerResult;
+    AlertExecution(Condition.Result conditionResult, Throttler.Result throttleResult, Map<String, Action.Result> actionsResults, Payload payload) {
+        this.conditionResult = conditionResult;
         this.throttleResult = throttleResult;
         this.actionsResults = actionsResults;
         this.payload = payload;
     }
 
-    public Trigger.Result triggerResult() {
-        return triggerResult;
+    public Condition.Result conditionResult() {
+        return conditionResult;
     }
 
     public Throttler.Result throttleResult() {
@@ -59,8 +59,8 @@ public class AlertExecution implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (triggerResult != null) {
-            builder.startObject(Parser.TRIGGER_RESULT.getPreferredName()).field(triggerResult.type(), triggerResult).endObject();
+        if (conditionResult != null) {
+            builder.startObject(Parser.CONDITION_RESULT.getPreferredName()).field(conditionResult.type(), conditionResult).endObject();
         }
         if (throttleResult != null && throttleResult.throttle()) {
             builder.field(Parser.THROTTLED.getPreferredName(), throttleResult.throttle());
@@ -82,17 +82,17 @@ public class AlertExecution implements ToXContent {
 
     public static class Parser {
 
-        public static final ParseField TRIGGER_RESULT = new ParseField("trigger_result");
+        public static final ParseField CONDITION_RESULT = new ParseField("condition_result");
         public static final ParseField PAYLOAD = new ParseField("payload");
         public static final ParseField ACTIONS_RESULTS = new ParseField("actions_results");
         public static final ParseField THROTTLED = new ParseField("throttled");
         public static final ParseField THROTTLE_REASON = new ParseField("throttle_reason");
 
-        public static AlertExecution parse(XContentParser parser, TriggerRegistry triggerRegistry, ActionRegistry actionRegistry) throws IOException {
+        public static AlertExecution parse(XContentParser parser, ConditionRegistry conditionRegistry, ActionRegistry actionRegistry) throws IOException {
             boolean throttled = false;
             String throttleReason = null;
             Map<String, Action.Result> actionResults = new HashMap<>();
-            Trigger.Result triggerResult = null;
+            Condition.Result conditionResult = null;
             Payload payload = null;
 
             String currentFieldName = null;
@@ -109,10 +109,10 @@ public class AlertExecution implements ToXContent {
                         throw new AlertsException("unable to parse alert run. unexpected field [" + currentFieldName + "]");
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (TRIGGER_RESULT.match(currentFieldName)) {
-                        triggerResult = triggerRegistry.parseResult(parser);
+                    if (CONDITION_RESULT.match(currentFieldName)) {
+                        conditionResult = conditionRegistry.parseResult(parser);
                     } else if (PAYLOAD.match(currentFieldName)) {
-                        payload = new Payload.Simple(parser.map()); //TODO fixme
+                        payload = new Payload.XContent(parser);
                     } else {
                         throw new AlertsException("unable to parse alert run. unexpected field [" + currentFieldName + "]");
                     }
@@ -128,14 +128,12 @@ public class AlertExecution implements ToXContent {
             }
 
             Throttler.Result throttleResult = throttled ? Throttler.Result.throttle(throttleReason) : Throttler.Result.NO;
-            return new AlertExecution(triggerResult, throttleResult, actionResults, payload );
+            return new AlertExecution(conditionResult, throttleResult, actionResults, payload );
 
         }
 
         private static Map<String, Action.Result> parseActionResults(XContentParser parser, ActionRegistry actionRegistry) throws IOException {
             Map<String, Action.Result> actionResults = new HashMap<>();
-
-            String currentFieldName = null;
             XContentParser.Token token;
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 Action.Result actionResult = actionRegistry.parseResult(parser);

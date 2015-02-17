@@ -9,6 +9,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.support.AlertUtils;
+import org.elasticsearch.alerts.support.Variables;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
@@ -44,12 +45,12 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         createIndex("my-index");
         // Have a sample document in the index, the alert is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
-        SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+        SearchRequest searchRequest = createConditionSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
         alertsClient.preparePutAlert("my-first-alert")
                 .setAlertSource(alertSource)
                 .get();
-        assertAlertTriggered("my-first-alert", 1);
+        assertAlertWithMinimumPerformedActionsCount("my-first-alert", 1);
 
         GetAlertResponse getAlertResponse = alertClient().prepareGetAlert().setAlertName("my-first-alert").get();
         assertThat(getAlertResponse.getResponse().isExists(), is(true));
@@ -59,18 +60,18 @@ public class BasicAlertingTest extends AbstractAlertingTests {
     @Test
     public void testIndexAlert_registerAlertBeforeTargetIndex() throws Exception {
         AlertsClient alertsClient = alertClient();
-        SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+        SearchRequest searchRequest = createConditionSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
         alertsClient.preparePutAlert("my-first-alert")
                 .setAlertSource(alertSource)
                 .get();
 
-        // The alert can't trigger because there is no data that matches with the query
-        assertNoAlertTrigger("my-first-alert", 1);
+        // The alert's condition won't meet because there is no data that matches with the query
+        assertAlertWithNoActionNeeded("my-first-alert", 1);
 
-        // Index sample doc after we register the alert and the alert should get triggered
+        // Index sample doc after we register the alert and the alert's condition should meet
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
-        assertAlertTriggered("my-first-alert", 1);
+        assertAlertWithMinimumPerformedActionsCount("my-first-alert", 1);
     }
 
     @Test
@@ -79,7 +80,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         createIndex("my-index");
         // Have a sample document in the index, the alert is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
-        SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(matchAllQuery()));
+        SearchRequest searchRequest = createConditionSearchRequest("my-index").source(searchSource().query(matchAllQuery()));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
         PutAlertResponse indexResponse = alertsClient.preparePutAlert("my-first-alert")
                 .setAlertSource(alertSource)
@@ -113,8 +114,8 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         alertSource.field("malformed_field", "x");
         alertSource.startObject("schedule").field("cron", "0/5 * * * * ? *").endObject();
 
-        alertSource.startObject("trigger").startObject("script").field("script", "return true").field("request");
-        AlertUtils.writeSearchRequest(createTriggerSearchRequest(), alertSource, ToXContent.EMPTY_PARAMS);
+        alertSource.startObject("condition").startObject("script").field("script", "return true").field("request");
+        AlertUtils.writeSearchRequest(createConditionSearchRequest(), alertSource, ToXContent.EMPTY_PARAMS);
         alertSource.endObject();
 
         alertSource.endObject();
@@ -142,7 +143,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         createIndex("my-index");
         // Have a sample document in the index, the alert is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
-        SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(matchAllQuery()));
+        SearchRequest searchRequest = createConditionSearchRequest("my-index").source(searchSource().query(matchAllQuery()));
         searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
         // By accessing the actual hit we know that the fetch phase has been performed
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits?.hits[0]._score == 1.0");
@@ -150,30 +151,30 @@ public class BasicAlertingTest extends AbstractAlertingTests {
                 .setAlertSource(alertSource)
                 .get();
         assertThat(indexResponse.indexResponse().isCreated(), is(true));
-        assertAlertTriggered("my-first-alert", 1);
+        assertAlertWithMinimumPerformedActionsCount("my-first-alert", 1);
     }
 
     @Test
     public void testModifyAlerts() throws Exception {
-        SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(matchAllQuery()));
+        SearchRequest searchRequest = createConditionSearchRequest("my-index").source(searchSource().query(matchAllQuery()));
         alertClient().preparePutAlert("1")
                 .setAlertSource(createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1"))
                 .get();
-        assertAlertTriggered("1", 0, false);
+        assertAlertWithMinimumPerformedActionsCount("1", 0, false);
 
         alertClient().preparePutAlert("1")
                 .setAlertSource(createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 0"))
                 .get();
-        assertAlertTriggered("1", 1, false);
+        assertAlertWithMinimumPerformedActionsCount("1", 1, false);
 
         alertClient().preparePutAlert("1")
                 .setAlertSource(createAlertSource("0/5 * * * * ? 2020", searchRequest, "hits.total == 0"))
                 .get();
 
         Thread.sleep(5000);
-        long triggered =  findNumberOfPerformedActions("1");
+        long count =  findNumberOfPerformedActions("1");
         Thread.sleep(5000);
-        assertThat(triggered, equalTo(findNumberOfPerformedActions("1")));
+        assertThat(count, equalTo(findNumberOfPerformedActions("1")));
     }
 
     @Test
@@ -204,7 +205,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         }
 
         assertAcked(prepareCreate("my-index").addMapping("my-type", "_timestamp", "enabled=true"));
-        SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(
+        SearchRequest searchRequest = createConditionSearchRequest("my-index").source(
                 searchSource()
                         .query(QueryBuilders.constantScoreQuery(FilterBuilders.rangeFilter("_timestamp").from("{{scheduled_fire_time}}||-1m").to("{{scheduled_fire_time}}")))
                         .aggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp").interval(DateHistogram.Interval.SECOND).order(Histogram.Order.COUNT_DESC))
@@ -216,40 +217,40 @@ public class BasicAlertingTest extends AbstractAlertingTests {
         indexThread.start();
         indexThread.join();
 
-        assertAlertTriggeredExact("rate-alert", 0);
-        assertNoAlertTrigger("rate-alert", 1);
+        assertAlertWithExactPerformedActionsCount("rate-alert", 0);
+        assertAlertWithNoActionNeeded("rate-alert", 1);
 
         indexThread = new Thread(new R(100, 60000));
         indexThread.start();
         indexThread.join();
-        assertAlertTriggered("rate-alert", 1);
+        assertAlertWithMinimumPerformedActionsCount("rate-alert", 1);
     }
 
     private final SearchSourceBuilder searchSourceBuilder = searchSource().query(
-            filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{" + AlertUtils.SCHEDULED_FIRE_TIME_VARIABLE_NAME + "}}||-30s").to("{{" + AlertUtils.SCHEDULED_FIRE_TIME_VARIABLE_NAME + "}}"))
+            filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{" + Variables.SCHEDULED_FIRE_TIME + "}}||-30s").to("{{" + Variables.SCHEDULED_FIRE_TIME + "}}"))
     );
 
     @Test
-    public void testTriggerSearchWithSource() throws Exception {
-        testTriggerSearch(
-                createTriggerSearchRequest("my-index").source(searchSourceBuilder)
+    public void testConditionSearchWithSource() throws Exception {
+        testConditionSearch(
+                createConditionSearchRequest("my-index").source(searchSourceBuilder)
         );
     }
 
     @Test
-    public void testTriggerSearchWithIndexedTemplate() throws Exception {
+    public void testConditionSearchWithIndexedTemplate() throws Exception {
         client().preparePutIndexedScript()
                 .setScriptLang("mustache")
                 .setId("my-template")
                 .setSource(jsonBuilder().startObject().field("template").value(searchSourceBuilder).endObject())
                 .get();
-        SearchRequest searchRequest = createTriggerSearchRequest("my-index");
+        SearchRequest searchRequest = createConditionSearchRequest("my-index");
         searchRequest.templateName("my-template");
         searchRequest.templateType(ScriptService.ScriptType.INDEXED);
-        testTriggerSearch(searchRequest);
+        testConditionSearch(searchRequest);
     }
 
-    private void testTriggerSearch(SearchRequest request) throws Exception {
+    private void testConditionSearch(SearchRequest request) throws Exception {
         long scheduleTimeInMs = 5000;
         String alertName = "red-alert";
         assertAcked(prepareCreate("my-index").addMapping("my-type", "_timestamp", "enabled=true", "event_type", "type=string"));
@@ -270,7 +271,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
                 .get();
         long timeLeft = scheduleTimeInMs - (System.currentTimeMillis() - time1);
         Thread.sleep(timeLeft);
-        assertNoAlertTrigger(alertName, 1);
+        assertAlertWithNoActionNeeded(alertName, 1);
 
         time1 = System.currentTimeMillis();
         client().prepareIndex("my-index", "my-type")
@@ -279,7 +280,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
                 .get();
         timeLeft = scheduleTimeInMs - (System.currentTimeMillis() - time1);
         Thread.sleep(timeLeft);
-        assertNoAlertTrigger(alertName, 2);
+        assertAlertWithNoActionNeeded(alertName, 2);
 
         time1 = System.currentTimeMillis();
         client().prepareIndex("my-index", "my-type")
@@ -288,6 +289,6 @@ public class BasicAlertingTest extends AbstractAlertingTests {
                 .get();
         timeLeft = scheduleTimeInMs - (System.currentTimeMillis() - time1);
         Thread.sleep(timeLeft);
-        assertAlertTriggered(alertName, 1);
+        assertAlertWithMinimumPerformedActionsCount(alertName, 1);
     }
 }

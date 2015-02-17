@@ -13,8 +13,8 @@ import org.elasticsearch.alerts.throttle.AlertThrottler;
 import org.elasticsearch.alerts.throttle.Throttler;
 import org.elasticsearch.alerts.transform.Transform;
 import org.elasticsearch.alerts.transform.TransformRegistry;
-import org.elasticsearch.alerts.trigger.Trigger;
-import org.elasticsearch.alerts.trigger.TriggerRegistry;
+import org.elasticsearch.alerts.condition.Condition;
+import org.elasticsearch.alerts.condition.ConditionRegistry;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -41,7 +41,7 @@ public class Alert implements ToXContent {
 
     private final String name;
     private final Schedule schedule;
-    private final Trigger trigger;
+    private final Condition condition;
     private final Actions actions;
     private final Throttler throttler;
     private final Status status;
@@ -53,10 +53,10 @@ public class Alert implements ToXContent {
     @Nullable
     private final Transform transform;
 
-    public Alert(String name, Schedule schedule, Trigger trigger, Transform transform, TimeValue throttlePeriod, Actions actions, Map<String, Object> metadata, Status status) {
+    public Alert(String name, Schedule schedule, Condition condition, Transform transform, TimeValue throttlePeriod, Actions actions, Map<String, Object> metadata, Status status) {
         this.name = name;
         this.schedule = schedule;
-        this.trigger = trigger;
+        this.condition = condition;
         this.actions = actions;
         this.status = status != null ? status : new Status();
         this.throttlePeriod = throttlePeriod;
@@ -74,8 +74,8 @@ public class Alert implements ToXContent {
         return schedule;
     }
 
-    public Trigger trigger() {
-        return trigger;
+    public Condition condition() {
+        return condition;
     }
 
     public Transform transform() {
@@ -133,7 +133,7 @@ public class Alert implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Parser.SCHEDULE_FIELD.getPreferredName()).startObject().field(schedule.type(), schedule).endObject();
-        builder.field(Parser.TRIGGER_FIELD.getPreferredName()).startObject().field(trigger.type(), trigger).endObject();
+        builder.field(Parser.CONDITION_FIELD.getPreferredName()).startObject().field(condition.type(), condition).endObject();
         if (transform != Transform.NOOP) {
             builder.field(Parser.TRANSFORM_FIELD.getPreferredName()).startObject().field(transform.type(), transform).endObject();
         }
@@ -152,24 +152,24 @@ public class Alert implements ToXContent {
     public static class Parser extends AbstractComponent {
 
         public static final ParseField SCHEDULE_FIELD = new ParseField("schedule");
-        public static final ParseField TRIGGER_FIELD = new ParseField("trigger");
+        public static final ParseField CONDITION_FIELD = new ParseField("condition");
         public static final ParseField ACTIONS_FIELD = new ParseField("actions");
         public static final ParseField TRANSFORM_FIELD = new ParseField("transform");
         public static final ParseField META_FIELD = new ParseField("meta");
         public static final ParseField STATUS_FIELD = new ParseField("status");
         public static final ParseField THROTTLE_PERIOD_FIELD = new ParseField("throttle_period");
 
-        private final TriggerRegistry triggerRegistry;
+        private final ConditionRegistry conditionRegistry;
         private final ScheduleRegistry scheduleRegistry;
         private final TransformRegistry transformRegistry;
         private final ActionRegistry actionRegistry;
 
         @Inject
-        public Parser(Settings settings, TriggerRegistry triggerRegistry, ScheduleRegistry scheduleRegistry,
+        public Parser(Settings settings, ConditionRegistry conditionRegistry, ScheduleRegistry scheduleRegistry,
                       TransformRegistry transformRegistry, ActionRegistry actionRegistry) {
 
             super(settings);
-            this.triggerRegistry = triggerRegistry;
+            this.conditionRegistry = conditionRegistry;
             this.scheduleRegistry = scheduleRegistry;
             this.transformRegistry = transformRegistry;
             this.actionRegistry = actionRegistry;
@@ -188,7 +188,7 @@ public class Alert implements ToXContent {
 
         public Alert parse(String name, boolean includeStatus, XContentParser parser) throws IOException {
             Schedule schedule = null;
-            Trigger trigger = null;
+            Condition condition = null;
             Actions actions = null;
             Transform transform = null;
             Map<String, Object> metatdata = null;
@@ -205,8 +205,8 @@ public class Alert implements ToXContent {
                 } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) && currentFieldName !=null ) {
                     if (SCHEDULE_FIELD.match(currentFieldName)) {
                         schedule = scheduleRegistry.parse(parser);
-                    } else if (TRIGGER_FIELD.match(currentFieldName)) {
-                        trigger = triggerRegistry.parse(parser);
+                    } else if (CONDITION_FIELD.match(currentFieldName)) {
+                        condition = conditionRegistry.parse(parser);
                     } else if (ACTIONS_FIELD.match(currentFieldName)) {
                         actions = actionRegistry.parseActions(parser);
                     } else if (TRANSFORM_FIELD.match(currentFieldName)) {
@@ -214,7 +214,7 @@ public class Alert implements ToXContent {
                     } else if (META_FIELD.match(currentFieldName)) {
                         metatdata = parser.map();
                     } else if (STATUS_FIELD.match(currentFieldName) && includeStatus) {
-                        status = Status.fromXContent(parser);
+                        status = Status.parse(parser);
                     } else if (THROTTLE_PERIOD_FIELD.match(currentFieldName)) {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             throttlePeriod = TimeValue.parseTimeValue(parser.text(), null);
@@ -229,14 +229,14 @@ public class Alert implements ToXContent {
             if (schedule == null) {
                 throw new AlertsSettingsException("could not parse alert [" + name + "]. missing alert schedule");
             }
-            if (trigger == null) {
-                throw new AlertsSettingsException("could not parse alert [" + name + "]. missing alert trigger");
+            if (condition == null) {
+                throw new AlertsSettingsException("could not parse alert [" + name + "]. missing alert condition");
             }
             if (actions == null) {
                 throw new AlertsSettingsException("could not parse alert [" + name + "]. missing alert actions");
             }
 
-            return new Alert(name, schedule, trigger, transform, throttlePeriod, actions, metatdata, status);
+            return new Alert(name, schedule, condition, transform, throttlePeriod, actions, metatdata, status);
         }
 
     }
@@ -244,33 +244,34 @@ public class Alert implements ToXContent {
     public static class Status implements ToXContent, Streamable {
 
         public static final ParseField TIMESTAMP_FIELD = new ParseField("last_throttled");
-        public static final ParseField LAST_RAN_FIELD = new ParseField("last_ran");
-        public static final ParseField LAST_TRIGGERED_FIELD = new ParseField("last_triggered");
+        public static final ParseField LAST_CHECKED_FIELD = new ParseField("last_checked");
+        public static final ParseField LAST_MET_CONDITION_FIELD = new ParseField("last_met_condition");
+        public static final ParseField LAST_THROTTLED_FIELD = new ParseField("last_throttled");
         public static final ParseField LAST_EXECUTED_FIELD = new ParseField("last_executed");
         public static final ParseField ACK_FIELD = new ParseField("ack");
         public static final ParseField STATE_FIELD = new ParseField("state");
-        public static final ParseField LAST_THROTTLE_FIELD = new ParseField("last_throttle");
         public static final ParseField REASON_FIELD = new ParseField("reason");
 
         private transient long version;
-        private DateTime lastRan;
-        private DateTime lastTriggered;
+
+        private DateTime lastChecked;
+        private DateTime lastMetCondition;
+        private Throttle lastThrottle;
         private DateTime lastExecuted;
         private AckStatus ackStatus;
-        private Throttle lastThrottle;
 
         public Status() {
             this(-1, null, null, null, null, new AckStatus());
         }
 
         public Status(Status other) {
-            this(other.version, other.lastRan, other.lastTriggered, other.lastExecuted, other.lastThrottle, other.ackStatus);
+            this(other.version, other.lastChecked, other.lastMetCondition, other.lastExecuted, other.lastThrottle, other.ackStatus);
         }
 
-        private Status(long version, DateTime lastRan, DateTime lastTriggered, DateTime lastExecuted, Throttle lastThrottle, AckStatus ackStatus) {
+        private Status(long version, DateTime lastChecked, DateTime lastMetCondition, DateTime lastExecuted, Throttle lastThrottle, AckStatus ackStatus) {
             this.version = version;
-            this.lastRan = lastRan;
-            this.lastTriggered = lastTriggered;
+            this.lastChecked = lastChecked;
+            this.lastMetCondition = lastMetCondition;
             this.lastExecuted = lastExecuted;
             this.lastThrottle = lastThrottle;
             this.ackStatus = ackStatus;
@@ -284,20 +285,20 @@ public class Alert implements ToXContent {
             this.version = version;
         }
 
-        public boolean ran() {
-            return lastRan != null;
+        public boolean checked() {
+            return lastChecked != null;
         }
 
-        public DateTime lastRan() {
-            return lastRan;
+        public DateTime lastChecked() {
+            return lastChecked;
         }
 
-        public boolean triggered() {
-            return lastTriggered != null;
+        public boolean metCondition() {
+            return lastMetCondition != null;
         }
 
-        public DateTime lastTriggered() {
-            return lastTriggered;
+        public DateTime lastMetCondition() {
+            return lastMetCondition;
         }
 
         public boolean executed() {
@@ -317,10 +318,19 @@ public class Alert implements ToXContent {
         }
 
         /**
-         * Called whenever an alert is ran
+         * Called whenever an alert is checked, ie. the condition of the alert is evaluated to see if
+         * the alert should be executed.
+         *
+         * @param metCondition  indicates whether the alert's condition was met.
          */
-        public void onExecute(DateTime timestamp) {
-            lastRan = timestamp;
+        public void onCheck(boolean metCondition, DateTime timestamp) {
+            lastChecked = timestamp;
+            if (metCondition) {
+                lastMetCondition = timestamp;
+            } else if (ackStatus.state == AckStatus.State.ACKED) {
+                // didn't meet condition now after it met it in the past - we need to reset the ack state
+                ackStatus = new AckStatus(AckStatus.State.AWAITS_EXECUTION, timestamp);
+            }
         }
 
         /**
@@ -331,16 +341,13 @@ public class Alert implements ToXContent {
         }
 
         /**
-         * Notifies this status about the triggered event of an alert run. The state will be updated accordingly -
-         * if the alert is can be acked and during a run, the alert was not triggered and the current state is {@link org.elasticsearch.alerts.Alert.Status.AckStatus.State#ACKED},
-         * we then need to reset the state to {@link org.elasticsearch.alerts.Alert.Status.AckStatus.State#AWAITS_EXECUTION}
+         * Notified this status that the alert was executed. If the current state is {@link org.elasticsearch.alerts.Alert.Status.AckStatus.State#AWAITS_EXECUTION}, it will change to
+         * {@link org.elasticsearch.alerts.Alert.Status.AckStatus.State#ACKABLE}.
          */
-        public void onTrigger(boolean triggered, DateTime timestamp) {
-            if (triggered) {
-                lastTriggered = timestamp;
-            } else if (ackStatus.state == AckStatus.State.ACKED) {
-                // didn't trigger now after it triggered in the past - we need to reset the ack state
-                ackStatus = new AckStatus(AckStatus.State.AWAITS_EXECUTION, timestamp);
+        public void onExecution(DateTime timestamp) {
+            lastExecuted = timestamp;
+            if (ackStatus.state == AckStatus.State.AWAITS_EXECUTION) {
+                ackStatus = new AckStatus(AckStatus.State.ACKABLE, timestamp);
             }
         }
 
@@ -359,22 +366,13 @@ public class Alert implements ToXContent {
             return false;
         }
 
-        /**
-         * Notified this status that the alert was executed. If the current state is {@link org.elasticsearch.alerts.Alert.Status.AckStatus.State#AWAITS_EXECUTION}, it will change to
-         * {@link org.elasticsearch.alerts.Alert.Status.AckStatus.State#ACKABLE}.
-         */
-        public void onExecution(DateTime timestamp) {
-            lastExecuted = timestamp;
-            if (ackStatus.state == AckStatus.State.AWAITS_EXECUTION) {
-                ackStatus = new AckStatus(AckStatus.State.ACKABLE, timestamp);
-            }
-        }
+
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeLong(version);
-            writeOptionalDate(out, lastRan);
-            writeOptionalDate(out, lastTriggered);
+            writeOptionalDate(out, lastChecked);
+            writeOptionalDate(out, lastMetCondition);
             writeOptionalDate(out, lastExecuted);
             if (lastThrottle == null) {
                 out.writeBoolean(false);
@@ -390,8 +388,8 @@ public class Alert implements ToXContent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             version = in.readLong();
-            lastRan = readOptionalDate(in);
-            lastTriggered = readOptionalDate(in);
+            lastChecked = readOptionalDate(in);
+            lastMetCondition = readOptionalDate(in);
             lastExecuted = readOptionalDate(in);
             lastThrottle = in.readBoolean() ? new Throttle(readDate(in), in.readString()) : null;
             ackStatus = new AckStatus(AckStatus.State.valueOf(in.readString()), readDate(in));
@@ -406,11 +404,11 @@ public class Alert implements ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (lastRan != null) {
-                builder.field(LAST_RAN_FIELD.getPreferredName(), lastRan);
+            if (lastChecked != null) {
+                builder.field(LAST_CHECKED_FIELD.getPreferredName(), lastChecked);
             }
-            if (lastTriggered != null) {
-                builder.field(LAST_TRIGGERED_FIELD.getPreferredName(), lastTriggered);
+            if (lastMetCondition != null) {
+                builder.field(LAST_MET_CONDITION_FIELD.getPreferredName(), lastMetCondition);
             }
             if (lastExecuted != null) {
                 builder.field(LAST_EXECUTED_FIELD.getPreferredName(), lastExecuted);
@@ -420,7 +418,7 @@ public class Alert implements ToXContent {
                     .field(TIMESTAMP_FIELD.getPreferredName(), ackStatus.timestamp)
                     .endObject();
             if (lastThrottle != null) {
-                builder.startObject(LAST_THROTTLE_FIELD.getPreferredName())
+                builder.startObject(LAST_THROTTLED_FIELD.getPreferredName())
                         .field(TIMESTAMP_FIELD.getPreferredName(), lastThrottle.timestamp)
                         .field(REASON_FIELD.getPreferredName(), lastThrottle.reason)
                         .endObject();
@@ -428,12 +426,12 @@ public class Alert implements ToXContent {
             return builder.endObject();
         }
 
-        public static Status fromXContent(XContentParser parser) throws IOException {
+        public static Status parse(XContentParser parser) throws IOException {
 
-            DateTime lastRan = null;
-            DateTime lastTriggered = null;
-            DateTime lastExecuted = null;
+            DateTime lastChecked = null;
+            DateTime lastMetCondition = null;
             Throttle lastThrottle = null;
+            DateTime lastExecuted = null;
             AckStatus ackStatus = null;
 
             String currentFieldName = null;
@@ -441,15 +439,15 @@ public class Alert implements ToXContent {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (LAST_RAN_FIELD.match(currentFieldName)) {
+                } else if (LAST_CHECKED_FIELD.match(currentFieldName)) {
                     if (token.isValue()) {
-                        lastRan = parseDate(currentFieldName, token, parser);
+                        lastChecked = parseDate(currentFieldName, token, parser);
                     } else {
                         throw new AlertsException("expecting field [" + currentFieldName + "] to hold a date value, found [" + token + "] instead");
                     }
-                } else if (LAST_TRIGGERED_FIELD.match(currentFieldName)) {
+                } else if (LAST_MET_CONDITION_FIELD.match(currentFieldName)) {
                     if (token.isValue()) {
-                        lastTriggered = parseDate(currentFieldName, token, parser);
+                        lastMetCondition = parseDate(currentFieldName, token, parser);
                     } else {
                         throw new AlertsException("expecting field [" + currentFieldName + "] to hold a date value, found [" + token + "] instead");
                     }
@@ -459,7 +457,7 @@ public class Alert implements ToXContent {
                     } else {
                         throw new AlertsException("expecting field [" + currentFieldName + "] to hold a date value, found [" + token + "] instead");
                     }
-                } else if (LAST_THROTTLE_FIELD.match(currentFieldName)) {
+                } else if (LAST_THROTTLED_FIELD.match(currentFieldName)) {
                     if (token == XContentParser.Token.START_OBJECT) {
                         DateTime timestamp = null;
                         String reason = null;
@@ -504,7 +502,7 @@ public class Alert implements ToXContent {
                 }
             }
 
-            return new Status(-1, lastRan, lastTriggered, lastExecuted, lastThrottle, ackStatus);
+            return new Status(-1, lastChecked, lastMetCondition, lastExecuted, lastThrottle, ackStatus);
         }
 
 

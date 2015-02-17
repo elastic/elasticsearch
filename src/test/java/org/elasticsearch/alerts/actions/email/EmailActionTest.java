@@ -40,9 +40,8 @@ import java.util.Set;
 public class EmailActionTest extends ElasticsearchTestCase {
 
     public void testEmailTemplateRender() throws IOException, MessagingException {
-        //createIndex("my-trigger-index");
         StringTemplateUtils.Template template =
-                new StringTemplateUtils.Template("{{alert_name}} triggered with {{response.hits.total}} hits");
+                new StringTemplateUtils.Template("{{alert_name}} executed with {{response.hits.total}} hits");
 
         Settings settings = ImmutableSettings.settingsBuilder().build();
         MustacheScriptEngineService mustacheScriptEngineService = new MustacheScriptEngineService(settings);

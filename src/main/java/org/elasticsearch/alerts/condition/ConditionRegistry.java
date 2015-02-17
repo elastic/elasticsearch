@@ -3,9 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts.trigger;
+package org.elasticsearch.alerts.condition;
 
-import org.elasticsearch.alerts.trigger.search.SearchTrigger;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -16,55 +15,56 @@ import java.util.Map;
 /**
  *
  */
-public class TriggerRegistry {
+public class ConditionRegistry {
 
-    private final ImmutableMap<String, SearchTrigger.Parser> parsers;
+    private final ImmutableMap<String, Condition.Parser> parsers;
 
     @Inject
-    public TriggerRegistry(Map<String, SearchTrigger.Parser> parsers) {
+    public ConditionRegistry(Map<String, Condition.Parser> parsers) {
         this.parsers = ImmutableMap.copyOf(parsers);
     }
 
     /**
-     * Reads the contents of parser to create the correct Trigger
-     * @param parser The parser containing the trigger definition
-     * @return a new AlertTrigger instance from the parser
+     * Reads the contents of parser to create the correct Condition
+     *
+     * @param parser    The parser containing the condition definition
+     * @return          A new condition instance from the parser
      * @throws IOException
      */
-    public Trigger parse(XContentParser parser) throws IOException {
+    public Condition parse(XContentParser parser) throws IOException {
         String type = null;
         XContentParser.Token token;
-        Trigger trigger = null;
+        Condition condition = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT && type != null) {
-                SearchTrigger.Parser triggerParser = parsers.get(type);
-                if (triggerParser == null) {
-                    throw new TriggerException("unknown trigger type [" + type + "]");
+                Condition.Parser conditionParser = parsers.get(type);
+                if (conditionParser == null) {
+                    throw new ConditionException("unknown condition type [" + type + "]");
                 }
-                trigger = triggerParser.parse(parser);
+                condition = conditionParser.parse(parser);
             }
         }
-        return trigger;
+        return condition;
     }
 
-    public Trigger.Result parseResult(XContentParser parser) throws IOException {
+    public Condition.Result parseResult(XContentParser parser) throws IOException {
         String type = null;
         XContentParser.Token token;
-        Trigger.Result triggerResult = null;
+        Condition.Result conditionResult = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT && type != null) {
-                SearchTrigger.Parser triggerParser = parsers.get(type);
-                if (triggerParser == null) {
-                    throw new TriggerException("unknown trigger type [" + type + "]");
+                Condition.Parser conditionParser = parsers.get(type);
+                if (conditionParser == null) {
+                    throw new ConditionException("unknown condition type [" + type + "]");
                 }
-                triggerResult = triggerParser.parseResult(parser);
+                conditionResult = conditionParser.parseResult(parser);
             }
         }
-        return triggerResult;
+        return conditionResult;
     }
 
 }

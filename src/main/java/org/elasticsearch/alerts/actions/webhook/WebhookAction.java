@@ -157,7 +157,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
     }
 
 
-    public static class Parser extends AbstractComponent implements Action.Parser<WebhookAction> {
+    public static class Parser extends AbstractComponent implements Action.Parser<Result, WebhookAction> {
 
         public static final ParseField METHOD_FIELD = new ParseField("method");
         public static final ParseField URL_TEMPLATE_FIELD = new ParseField("url_template");
@@ -222,7 +222,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
         }
 
         @Override
-        public Action.Result parseResult(XContentParser parser) throws IOException {
+        public Result parseResult(XContentParser parser) throws IOException {
             String currentFieldName = null;
             XContentParser.Token token;
             Boolean success = null;

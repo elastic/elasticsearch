@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts.trigger.search;
+package org.elasticsearch.alerts.condition.search;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -34,9 +34,9 @@ import java.util.Set;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 
-public class SearchTriggerUnitTest extends ElasticsearchTestCase {
+public class SearchConditionTests extends ElasticsearchTestCase {
 
-    private XContentBuilder createTriggerContent(String script, String scriptLang, ScriptService.ScriptType scriptType, SearchRequest request) throws IOException {
+    private XContentBuilder createConditionContent(String script, String scriptLang, ScriptService.ScriptType scriptType, SearchRequest request) throws IOException {
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         jsonBuilder.startObject();
         jsonBuilder.field("script");
@@ -48,14 +48,14 @@ public class SearchTriggerUnitTest extends ElasticsearchTestCase {
         if (scriptType != null) {
             jsonBuilder.field("script_type", scriptType.toString());
         }
-        jsonBuilder.field(ScriptSearchTrigger.Parser.REQUEST_FIELD.getPreferredName());
+        jsonBuilder.field(ScriptSearchCondition.Parser.REQUEST_FIELD.getPreferredName());
         AlertUtils.writeSearchRequest(request, jsonBuilder, ToXContent.EMPTY_PARAMS);
         jsonBuilder.endObject();
         jsonBuilder.endObject();
         return jsonBuilder;
     }
 
-    public void testInlineScriptTriggers() throws Exception {
+    public void testInlineScriptConditions() throws Exception {
 
         Settings settings = ImmutableSettings.settingsBuilder().build();
         GroovyScriptEngineService groovyScriptEngineService = new GroovyScriptEngineService(settings);
@@ -64,12 +64,12 @@ public class SearchTriggerUnitTest extends ElasticsearchTestCase {
         engineServiceSet.add(groovyScriptEngineService);
 
         ScriptService scriptService = new ScriptService(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp));
-        ScriptSearchTrigger.Parser triggerParser = new ScriptSearchTrigger.Parser(settings, null, ScriptServiceProxy.of(scriptService));
+        ScriptSearchCondition.Parser conditionParser = new ScriptSearchCondition.Parser(settings, null, ScriptServiceProxy.of(scriptService));
 
         try {
-            XContentBuilder builder = createTriggerContent("hits.total > 1", null, null, AbstractAlertingTests.createTriggerSearchRequest());
+            XContentBuilder builder = createConditionContent("hits.total > 1", null, null, AbstractAlertingTests.createConditionSearchRequest());
             XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
-            ScriptSearchTrigger trigger = triggerParser.parse(parser);
+            ScriptSearchCondition condition = conditionParser.parse(parser);
 
             SearchRequest request = new SearchRequest();
             request.indices("my-index");
@@ -78,18 +78,18 @@ public class SearchTriggerUnitTest extends ElasticsearchTestCase {
 
             SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
             XContentBuilder responseBuilder = jsonBuilder().startObject().value(response).endObject();
-            assertFalse(trigger.processSearchResponse(response).triggered());
+            assertFalse(condition.processSearchResponse(response).met());
 
 
-            builder = createTriggerContent("return true", null, null, AbstractAlertingTests.createTriggerSearchRequest());
+            builder = createConditionContent("return true", null, null, AbstractAlertingTests.createConditionSearchRequest());
             parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
-            trigger = triggerParser.parse(parser);
+            condition = conditionParser.parse(parser);
 
-            assertTrue(trigger.processSearchResponse(response).triggered());
+            assertTrue(condition.processSearchResponse(response).met());
 
             tp.shutdownNow();
         } catch (IOException ioe) {
-            throw new ElasticsearchException("Failed to construct the trigger", ioe);
+            throw new ElasticsearchException("Failed to construct the condition", ioe);
         }
     }
 

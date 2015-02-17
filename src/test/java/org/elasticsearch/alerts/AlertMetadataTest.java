@@ -35,12 +35,12 @@ public class AlertMetadataTest extends AbstractAlertingTests {
         metaList.add("test");
 
         metadata.put("baz", metaList);
-        SearchRequest triggerRequest = createTriggerSearchRequest("my-index").source(searchSource().query(matchAllQuery()));
+        SearchRequest conditionRequest = createConditionSearchRequest("my-index").source(searchSource().query(matchAllQuery()));
         alertClient().preparePutAlert("1")
-                .setAlertSource(createAlertSource("0/5 * * * * ? *", triggerRequest, "hits.total == 1", metadata))
+                .setAlertSource(createAlertSource("0/5 * * * * ? *", conditionRequest, "hits.total == 1", metadata))
                 .get();
-        // Wait for a no action entry to be added. (the trigger search request will not match, because there are no docs in my-index)
-        assertNoAlertTrigger("1", 1);
+        // Wait for a no action entry to be added. (the condition search request will not match, because there are no docs in my-index)
+        assertAlertWithNoActionNeeded("1", 1);
 
         refresh();
         SearchResponse searchResponse = client().prepareSearch(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")

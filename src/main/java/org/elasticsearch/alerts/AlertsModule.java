@@ -15,7 +15,7 @@ import org.elasticsearch.alerts.support.TemplateUtils;
 import org.elasticsearch.alerts.support.init.InitializingModule;
 import org.elasticsearch.alerts.transform.TransformModule;
 import org.elasticsearch.alerts.transport.AlertsTransportModule;
-import org.elasticsearch.alerts.trigger.TriggerModule;
+import org.elasticsearch.alerts.condition.ConditionModule;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
@@ -33,7 +33,7 @@ public class AlertsModule extends AbstractModule implements SpawnModules {
                 new AlertsRestModule(),
                 new SchedulerModule(),
                 new AlertsTransportModule(),
-                new TriggerModule(),
+                new ConditionModule(),
                 new ActionModule(),
                 new HistoryModule());
     }

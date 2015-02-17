@@ -51,7 +51,7 @@ public class AlertStatsTests extends AbstractAlertingTests {
         assertTrue(response.isAlertActionManagerStarted());
         assertThat(response.getAlertManagerStarted(), equalTo(AlertsService.State.STARTED));
 
-        SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+        SearchRequest searchRequest = createConditionSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         BytesReference alertSource = createAlertSource("* * * * * ? *", searchRequest, "hits.total == 1");
         alertClient().preparePutAlert("testAlert")
                 .setAlertSource(alertSource)

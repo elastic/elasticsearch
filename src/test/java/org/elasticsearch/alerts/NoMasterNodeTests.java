@@ -57,12 +57,12 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
 
         // Have a sample document in the index, the alert is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
-        SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+        SearchRequest searchRequest = createConditionSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
         alertClient().preparePutAlert("my-first-alert")
                 .setAlertSource(alertSource)
                 .get();
-        assertAlertTriggered("my-first-alert", 1);
+        assertAlertWithMinimumPerformedActionsCount("my-first-alert", 1);
 
         // Stop the elected master, no new master will be elected b/c of m_m_n is set to 2
         stopElectedMasterNodeAndWait();
@@ -76,18 +76,18 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
         // Bring back the 2nd node and wait for elected master node to come back and alerting to work as expected.
         startElectedMasterNodeAndWait();
 
-        // Our first alert should at least have been triggered twice
-        assertAlertTriggered("my-first-alert", 2);
+        // Our first alert's condition should at least have been met twice
+        assertAlertWithMinimumPerformedActionsCount("my-first-alert", 2);
 
         // Delete the existing alert
         DeleteAlertResponse response = alertClient().prepareDeleteAlert("my-first-alert").get();
         assertThat(response.deleteResponse().isFound(), is(true));
 
-        // Add a new alert and wait for it get triggered
+        // Add a new alert and wait for its condition to be met
         alertClient().preparePutAlert("my-second-alert")
                 .setAlertSource(alertSource)
                 .get();
-        assertAlertTriggered("my-second-alert", 1);
+        assertAlertWithMinimumPerformedActionsCount("my-second-alert", 1);
     }
 
     @Test
@@ -104,7 +104,7 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
         ensureAlertingStarted();
         for (int i = 1; i <= numberOfAlerts; i++) {
             String alertName = "alert" + i;
-            SearchRequest searchRequest = createTriggerSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+            SearchRequest searchRequest = createConditionSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
             BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
             alertClient().preparePutAlert(alertName)
                     .setAlertSource(alertSource)
@@ -116,7 +116,7 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
 
             for (int j = 1; j < numberOfAlerts; j++) {
                 String alertName = "alert" + i;
-                assertAlertTriggered(alertName, i);
+                assertAlertWithMinimumPerformedActionsCount(alertName, i);
             }
             stopElectedMasterNodeAndWait();
             startElectedMasterNodeAndWait();

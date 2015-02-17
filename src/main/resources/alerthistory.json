@@ -15,9 +15,6 @@
           "type": "string",
           "index": "not_analyzed"
         },
-        "triggered": {
-          "type": "boolean"
-        },
         "fire_time": {
           "type": "date"
         },
@@ -31,32 +28,12 @@
         "message": {
           "type": "string"
         },
-        "trigger" : {
-          "type" : "object",
-          "enabled" : false,
-          "dynamic" : true
-        },
-        "transform" : {
+        "condition" : {
           "type" : "object",
           "enabled" : false,
           "dynamic" : true
         },
         "alert_execution" : {
-          "type" : "object",
-          "enabled" : false,
-          "dynamic" : true
-        },
-        "payload" : {
-          "type" : "object",
-          "enabled" : false,
-          "dynamic" : true
-        },        
-        "trigger_response": {
-          "type": "object",
-          "enabled" : false,
-          "dynamic" : true
-        },
-        "actions": {
           "type" : "object",
           "enabled" : false,
           "dynamic" : true

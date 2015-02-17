@@ -24,7 +24,7 @@ import org.elasticsearch.alerts.transform.SearchTransform;
 import org.elasticsearch.alerts.transport.actions.ack.AckAlertResponse;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
-import org.elasticsearch.alerts.trigger.search.ScriptSearchTrigger;
+import org.elasticsearch.alerts.condition.search.ScriptSearchCondition;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -60,7 +60,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         refresh();
 
 
-        SearchRequest request = createTriggerSearchRequest("test-index").source(searchSource().query(matchAllQuery()));
+        SearchRequest request = createConditionSearchRequest("test-index").source(searchSource().query(matchAllQuery()));
 
         List<Action> actions = new ArrayList<>();
 
@@ -69,7 +69,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         Alert alert = new Alert(
                 "test-serialization",
                 new CronSchedule("0/5 * * * * ? *"),
-                new ScriptSearchTrigger(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()),
+                new ScriptSearchCondition(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()),
                         request, "hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"),
                 new SearchTransform(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()), request),
                 new TimeValue(0),
@@ -110,7 +110,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         long countAfterSleep = searchResponse.getHits().getTotalHits();
         assertThat("There shouldn't be more entries in the index after we ack the alert", countAfterAck, equalTo(countAfterSleep));
 
-        //Now delete the event and the ack state should change to NOT_TRIGGERED
+        //Now delete the event and the ack state should change to AWAITS_EXECUTION
         DeleteResponse response = client().prepareDelete("test-index", "test-type", dummyEventIndexResponse.getId()).get();
         assertTrue(response.isFound());
 
@@ -143,7 +143,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         assertTrue(dummyEventIndexResponse.isCreated());
         refresh();
 
-        SearchRequest request = createTriggerSearchRequest("test-index").source(searchSource().query(matchAllQuery()));
+        SearchRequest request = createConditionSearchRequest("test-index").source(searchSource().query(matchAllQuery()));
 
         List<Action> actions = new ArrayList<>();
 
@@ -152,7 +152,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         Alert alert = new Alert(
                 "test-time-throttle",
                 new CronSchedule("0/5 * * * * ? *"),
-                new ScriptSearchTrigger(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()),
+                new ScriptSearchCondition(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()),
                         request, "hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"),
                 new SearchTransform(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()), request),
                 new TimeValue(10, TimeUnit.SECONDS),

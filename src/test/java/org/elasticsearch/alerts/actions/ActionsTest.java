@@ -19,8 +19,8 @@ import org.elasticsearch.alerts.transport.actions.get.GetAlertRequest;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertRequest;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
-import org.elasticsearch.alerts.trigger.Trigger;
-import org.elasticsearch.alerts.trigger.search.ScriptSearchTrigger;
+import org.elasticsearch.alerts.condition.Condition;
+import org.elasticsearch.alerts.condition.search.ScriptSearchCondition;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -57,15 +57,15 @@ public class ActionsTest extends AbstractAlertingTests {
         final List<Action> actionList = new ArrayList<>();
         actionList.add(alertAction);
 
-        Trigger alertTrigger = new ScriptSearchTrigger(logger, ScriptServiceProxy.of(scriptService()),
-                ClientProxy.of(client()), createTriggerSearchRequest(), "return true", ScriptService.ScriptType.INLINE, "groovy");
+        Condition alertCondition = new ScriptSearchCondition(logger, ScriptServiceProxy.of(scriptService()),
+                ClientProxy.of(client()), createConditionSearchRequest(), "return true", ScriptService.ScriptType.INLINE, "groovy");
 
 
         Alert alert = new Alert(
                 "my-first-alert",
                 new CronSchedule("0/5 * * * * ? *"),
-                alertTrigger,
-                new SearchTransform(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()),createTriggerSearchRequest()),
+                alertCondition,
+                new SearchTransform(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()), createConditionSearchRequest()),
                 new TimeValue(0),
                 new Actions(actionList),
                 null,

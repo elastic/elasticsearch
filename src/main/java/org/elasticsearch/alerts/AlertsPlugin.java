@@ -61,7 +61,7 @@ public class AlertsPlugin extends AbstractPlugin {
     }
 
     public static Settings alertThreadPoolSettings(int availableProcessors, Integer queueSize) {
-        // Executing an alert involves a lot of wait time for networking (search, several index requests + optional trigger logic)
+        // Executing an alert involves a lot of wait time for networking (search, several index requests + optional condition logic)
         //TODO Hack to get around threadpool issue
         if (queueSize != null) {
             return settingsBuilder()

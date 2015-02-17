@@ -8,7 +8,7 @@ package org.elasticsearch.alerts;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.throttle.Throttler;
 import org.elasticsearch.alerts.transform.Transform;
-import org.elasticsearch.alerts.trigger.Trigger;
+import org.elasticsearch.alerts.condition.Condition;
 import org.elasticsearch.common.joda.time.DateTime;
 
 import java.util.HashMap;
@@ -24,7 +24,7 @@ public class ExecutionContext {
     private final DateTime fireTime;
     private final DateTime scheduledTime;
 
-    private Trigger.Result triggerResult;
+    private Condition.Result conditionResult;
     private Throttler.Result throttleResult;
     private Transform.Result transformResult;
     private Map<String, Action.Result> actionsResults = new HashMap<>();
@@ -58,14 +58,14 @@ public class ExecutionContext {
         return payload;
     }
 
-    public void onTriggerResult(Trigger.Result triggerResult) {
-        this.triggerResult = triggerResult;
-        this.payload = triggerResult.payload();
-        alert.status().onTrigger(triggerResult.triggered(), fireTime);
+    public void onConditionResult(Condition.Result conditionResult) {
+        this.conditionResult = conditionResult;
+        this.payload = conditionResult.payload();
+        alert.status().onCheck(conditionResult.met(), fireTime);
     }
 
-    public Trigger.Result triggerResult() {
-        return triggerResult;
+    public Condition.Result conditionResult() {
+        return conditionResult;
     }
 
     public void onThrottleResult(Throttler.Result throttleResult) {
@@ -99,7 +99,6 @@ public class ExecutionContext {
     }
 
     public AlertExecution finish() {
-        alert.status().onExecute(fireTime);
         return new AlertExecution(this);
     }
 

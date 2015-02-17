@@ -6,28 +6,24 @@
 package org.elasticsearch.alerts.support;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.alerts.AlertsException;
-import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
-import static org.elasticsearch.alerts.support.AlertsDateUtils.formatDate;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
@@ -35,12 +31,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 public final class AlertUtils {
 
     public final static IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.lenientExpandOpen();
-    public final static SearchType DEFAULT_TRIGGER_SEARCH_TYPE = SearchType.COUNT;
-    public final static SearchType DEFAULT_PAYLOAD_SEARCH_TYPE = SearchType.DFS_QUERY_AND_FETCH;
-
-    public static final String FIRE_TIME_VARIABLE_NAME = "fire_time";
-    public static final String SCHEDULED_FIRE_TIME_VARIABLE_NAME = "scheduled_fire_time";
-
 
     private AlertUtils() {
     }
@@ -52,37 +42,6 @@ public final class AlertUtils {
         } catch (IOException ioe) {
             throw new AlertsException("failed to convert search response to script parameters", ioe);
         }
-    }
-
-    /**
-     * Creates a new search request applying the scheduledFireTime and fireTime to the original request
-     */
-    public static SearchRequest createSearchRequestWithTimes(SearchRequest request, DateTime scheduledFireTime, DateTime fireTime, ScriptServiceProxy scriptService) throws IOException {
-        SearchRequest triggerSearchRequest = new SearchRequest(request)
-                .indicesOptions(request.indicesOptions())
-                .indices(request.indices());
-        if (Strings.hasLength(request.source())) {
-            Map<String, String> templateParams = new HashMap<>();
-            templateParams.put(SCHEDULED_FIRE_TIME_VARIABLE_NAME, formatDate(scheduledFireTime));
-            templateParams.put(FIRE_TIME_VARIABLE_NAME, formatDate(fireTime));
-            String requestSource = XContentHelper.convertToJson(request.source(), false);
-            ExecutableScript script = scriptService.executable("mustache", requestSource, ScriptService.ScriptType.INLINE, templateParams);
-            triggerSearchRequest.source((BytesReference) script.unwrap(script.run()), false);
-        } else if (request.templateName() != null) {
-            MapBuilder<String, String> templateParams = MapBuilder.newMapBuilder(request.templateParams())
-                    .put(SCHEDULED_FIRE_TIME_VARIABLE_NAME, formatDate(scheduledFireTime))
-                    .put(FIRE_TIME_VARIABLE_NAME, formatDate(fireTime));
-            triggerSearchRequest.templateParams(templateParams.map());
-            triggerSearchRequest.templateName(request.templateName());
-            triggerSearchRequest.templateType(request.templateType());
-        } else {
-            throw new ElasticsearchIllegalStateException("Search requests needs either source or template name");
-        }
-        return triggerSearchRequest;
-    }
-
-    public static SearchRequest readSearchRequest(XContentParser parser) throws IOException {
-        return readSearchRequest(parser, DEFAULT_TRIGGER_SEARCH_TYPE);
     }
 
     /**
@@ -235,13 +194,13 @@ public final class AlertUtils {
             builder.field("allow_no_indices", options.allowNoIndices());
             builder.endObject();
         }
-        if (searchRequest.searchType() != DEFAULT_TRIGGER_SEARCH_TYPE) {
+        if (searchRequest.searchType() != null) {
             builder.field("search_type", searchRequest.searchType().toString().toLowerCase(Locale.ENGLISH));
         }
         builder.endObject();
     }
 
-    private static ScriptService.ScriptType readScriptType(String value) {
+    static ScriptService.ScriptType readScriptType(String value) {
         switch (value) {
             case "indexed":
                 return ScriptService.ScriptType.INDEXED;
@@ -254,7 +213,7 @@ public final class AlertUtils {
         }
     }
 
-    private static String writeScriptType(ScriptService.ScriptType value) {
+    static String writeScriptType(ScriptService.ScriptType value) {
         switch (value) {
             case INDEXED:
                 return "indexed";

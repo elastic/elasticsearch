@@ -3,12 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts.trigger.simple;
+package org.elasticsearch.alerts.condition.simple;
 
 import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
-import org.elasticsearch.alerts.trigger.Trigger;
-import org.elasticsearch.alerts.trigger.TriggerException;
+import org.elasticsearch.alerts.condition.Condition;
+import org.elasticsearch.alerts.condition.ConditionException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -19,15 +19,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 /**
- * A trigger that always triggered and returns a static/fixed data
+ * A condition that is always met and returns a static/fixed payload
  */
-public class SimpleTrigger extends Trigger<SimpleTrigger.Result> {
+public class SimpleCondition extends Condition<SimpleCondition.Result> {
 
     public static final String TYPE = "simple";
 
     private final Payload payload;
 
-    public SimpleTrigger(ESLogger logger, Payload payload) {
+    public SimpleCondition(ESLogger logger, Payload payload) {
         super(logger);
         this.payload = payload;
     }
@@ -47,7 +47,7 @@ public class SimpleTrigger extends Trigger<SimpleTrigger.Result> {
         return payload.toXContent(builder, params);
     }
 
-    public static class Result extends Trigger.Result {
+    public static class Result extends Condition.Result {
 
         public Result(Payload payload) {
             super(TYPE, true, payload);
@@ -59,7 +59,7 @@ public class SimpleTrigger extends Trigger<SimpleTrigger.Result> {
         }
     }
 
-    public static class Parser extends AbstractComponent implements Trigger.Parser<SimpleTrigger> {
+    public static class Parser extends AbstractComponent implements Condition.Parser<Result, SimpleCondition> {
 
         @Inject
         public Parser(Settings settings) {
@@ -72,42 +72,44 @@ public class SimpleTrigger extends Trigger<SimpleTrigger.Result> {
         }
 
         @Override
-        public SimpleTrigger parse(XContentParser parser) throws IOException {
-            return new SimpleTrigger(logger, new Payload.XContent(parser));
+        public SimpleCondition parse(XContentParser parser) throws IOException {
+            return new SimpleCondition(logger, new Payload.XContent(parser));
         }
 
         @Override
         public Result parseResult(XContentParser parser) throws IOException {
             String currentFieldName = null;
             XContentParser.Token token;
-            String type = null;
-            boolean triggered = false;
             Payload payload = null;
+            boolean met = false;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token.isValue()) {
-                    if (Trigger.Result.TYPE_FIELD.match(currentFieldName)) {
-                        type = parser.text();
-                    } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                        if (Trigger.Result.TRIGGERED_FIELD.match(currentFieldName)) {
-                            triggered = parser.booleanValue();
+                    if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                        if (Condition.Result.MET_FIELD.match(currentFieldName)) {
+                            met = parser.booleanValue();
                         } else {
-                            throw new TriggerException("unable to parse trigger result. unexpected field [" + currentFieldName + "]");
+                            throw new ConditionException("unable to parse simple condition result. unexpected field [" + currentFieldName + "]");
                         }
                     } else {
-                        throw new TriggerException("unable to parse trigger result. unexpected field [" + currentFieldName + "]");
+                        throw new ConditionException("unable to parse simple condition result. unexpected field [" + currentFieldName + "]");
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (Trigger.Result.PAYLOAD_FIELD.match(currentFieldName)) {
-                        payload = new Payload.Simple(parser.map()); ///@TODO FIXME
+                    if (Condition.Result.PAYLOAD_FIELD.match(currentFieldName)) {
+                        payload = new Payload.XContent(parser);
                     } else {
-                        throw new TriggerException("unable to parse trigger result. unexpected field [" + currentFieldName + "]");
+                        throw new ConditionException("unable to parse simple condition result. unexpected field [" + currentFieldName + "]");
                     }
                 } else {
-                    throw new TriggerException("unable to parse trigger result. unexpected token [" + token + "]");
+                    throw new ConditionException("unable to parse simple condition result. unexpected token [" + token + "]");
                 }
             }
+
+            if (!met) {
+                throw new ConditionException("unable to parse simple condition result. simple condition always matches, yet [met] field is either missing or set to [false]");
+            }
+
             return new Result(payload);
         }
     }

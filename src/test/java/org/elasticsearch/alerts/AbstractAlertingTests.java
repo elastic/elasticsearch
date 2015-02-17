@@ -18,6 +18,8 @@ import org.elasticsearch.alerts.actions.email.service.Profile;
 import org.elasticsearch.alerts.actions.webhook.HttpClient;
 import org.elasticsearch.alerts.actions.webhook.WebhookAction;
 import org.elasticsearch.alerts.client.AlertsClient;
+import org.elasticsearch.alerts.condition.search.ScriptSearchCondition;
+import org.elasticsearch.alerts.condition.search.SearchCondition;
 import org.elasticsearch.alerts.history.FiredAlert;
 import org.elasticsearch.alerts.history.HistoryStore;
 import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
@@ -27,7 +29,6 @@ import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.transform.SearchTransform;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
-import org.elasticsearch.alerts.trigger.search.ScriptSearchTrigger;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -49,7 +50,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import javax.mail.internet.AddressException;
-import javax.mail.internet.InternetAddress;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.*;
@@ -109,11 +109,11 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         stopAlerting();
     }
 
-    protected BytesReference createAlertSource(String cron, SearchRequest request, String scriptTrigger) throws IOException {
-        return createAlertSource(cron, request, scriptTrigger, null);
+    protected BytesReference createAlertSource(String cron, SearchRequest conditionRequest, String conditionScript) throws IOException {
+        return createAlertSource(cron, conditionRequest, conditionScript, null);
     }
 
-    protected BytesReference createAlertSource(String cron, SearchRequest request, String scriptTrigger, Map<String,Object> metadata) throws IOException {
+    protected BytesReference createAlertSource(String cron, SearchRequest conditionRequest, String conditionScript, Map<String,Object> metadata) throws IOException {
         XContentBuilder builder;
         if (randomBoolean()) {
             builder = jsonBuilder();
@@ -134,11 +134,11 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
             builder.field("meta", metadata);
         }
 
-        builder.startObject("trigger");
+        builder.startObject("condition");
         builder.startObject("script");
         builder.field("request");
-        AlertUtils.writeSearchRequest(request, builder, ToXContent.EMPTY_PARAMS);
-        builder.field("script", scriptTrigger);
+        AlertUtils.writeSearchRequest(conditionRequest, builder, ToXContent.EMPTY_PARAMS);
+        builder.field("script", conditionScript);
         builder.endObject();
         builder.endObject();
 
@@ -156,28 +156,25 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         return builder.bytes();
     }
 
-    public static SearchRequest createTriggerSearchRequest(String... indices) {
+    public static SearchRequest createConditionSearchRequest(String... indices) {
         SearchRequest request = new SearchRequest(indices);
         request.indicesOptions(AlertUtils.DEFAULT_INDICES_OPTIONS);
-        request.searchType(AlertUtils.DEFAULT_TRIGGER_SEARCH_TYPE);
+        request.searchType(SearchCondition.DEFAULT_SEARCH_TYPE);
         return request;
     }
 
     protected Alert createTestAlert(String alertName) throws AddressException {
-        SearchRequest triggerRequest = createTriggerSearchRequest("my-trigger-index").source(searchSource().query(matchAllQuery()));
-        SearchRequest transformRequest = createTriggerSearchRequest("my-payload-index").source(searchSource().query(matchAllQuery()));
-        transformRequest.searchType(AlertUtils.DEFAULT_PAYLOAD_SEARCH_TYPE);
-        triggerRequest.searchType(AlertUtils.DEFAULT_TRIGGER_SEARCH_TYPE);
+        SearchRequest conditionRequest = createConditionSearchRequest("my-condition-index").source(searchSource().query(matchAllQuery()));
+        SearchRequest transformRequest = createConditionSearchRequest("my-payload-index").source(searchSource().query(matchAllQuery()));
+        transformRequest.searchType(SearchTransform.DEFAULT_SEARCH_TYPE);
+        conditionRequest.searchType(SearchCondition.DEFAULT_SEARCH_TYPE);
 
         List<Action> actions = new ArrayList<>();
 
         StringTemplateUtils.Template template =
-                new StringTemplateUtils.Template("{{alert_name}} triggered with {{response.hits.total}} hits");
+                new StringTemplateUtils.Template("{{alert_name}} executed with {{response.hits.total}} hits");
 
-        actions.add(new WebhookAction(logger, stringTemplateUtils(), httpClient(),  template, new StringTemplateUtils.Template("http://localhost/foobarbaz/{{alert_name}}"), HttpMethod.GET));
-
-        List<InternetAddress> addresses = new ArrayList<>();
-        addresses.addAll(Arrays.asList(InternetAddress.parse("you@foo.com")));
+        actions.add(new WebhookAction(logger, stringTemplateUtils(), httpClient(), template, new StringTemplateUtils.Template("http://localhost/foobarbaz/{{alert_name}}"), HttpMethod.GET));
 
         Email.Address from = new Email.Address("from@test.com");
         List<Email.Address> emailAddressList = new ArrayList<>();
@@ -201,8 +198,8 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         return new Alert(
                 alertName,
                 new CronSchedule("0/5 * * * * ? *"),
-                new ScriptSearchTrigger(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()),
-                        triggerRequest,"return true", ScriptService.ScriptType.INLINE, "groovy"),
+                new ScriptSearchCondition(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()),
+                        conditionRequest,"return true", ScriptService.ScriptType.INLINE, "groovy"),
                 new SearchTransform(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()), transformRequest),
                 new TimeValue(0),
                 new Actions(actions),
@@ -236,8 +233,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         return internalTestCluster().getInstance(FiredAlert.Parser.class);
     }
 
-
-    protected void assertAlertTriggeredExact(final String alertName, final long expectedAlertActionsWithActionPerformed) throws Exception {
+    protected void assertAlertWithExactPerformedActionsCount(final String alertName, final long expectedAlertActionsWithActionPerformed) throws Exception {
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -255,11 +251,11 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         });
     }
 
-    protected void assertAlertTriggered(final String alertName, final long minimumExpectedAlertActionsWithActionPerformed) throws Exception {
-        assertAlertTriggered(alertName, minimumExpectedAlertActionsWithActionPerformed, true);
+    protected void assertAlertWithMinimumPerformedActionsCount(final String alertName, final long minimumExpectedAlertActionsWithActionPerformed) throws Exception {
+        assertAlertWithMinimumPerformedActionsCount(alertName, minimumExpectedAlertActionsWithActionPerformed, true);
     }
 
-    protected void assertAlertTriggered(final String alertName, final long minimumExpectedAlertActionsWithActionPerformed, final boolean assertTriggerSearchMatched) throws Exception {
+    protected void assertAlertWithMinimumPerformedActionsCount(final String alertName, final long minimumExpectedAlertActionsWithActionPerformed, final boolean assertConditionMet) throws Exception {
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -274,11 +270,11 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
 
                 SearchResponse searchResponse = client().prepareSearch(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                        .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", FiredAlert.State.ACTION_PERFORMED.toString())))
+                        .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", FiredAlert.State.EXECUTED.toString())))
                         .get();
                 assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(minimumExpectedAlertActionsWithActionPerformed));
-                if (assertTriggerSearchMatched) {
-                    assertThat((Integer) XContentMapValues.extractValue("alert_execution.trigger_result.script.payload.hits.total", searchResponse.getHits().getAt(0).sourceAsMap()), greaterThanOrEqualTo(1));
+                if (assertConditionMet) {
+                    assertThat((Integer) XContentMapValues.extractValue("alert_execution.condition_result.script.payload.hits.total", searchResponse.getHits().getAt(0).sourceAsMap()), greaterThanOrEqualTo(1));
                 }
             }
         });
@@ -287,12 +283,12 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
     protected long findNumberOfPerformedActions(String alertName) {
         SearchResponse searchResponse = client().prepareSearch(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", FiredAlert.State.ACTION_PERFORMED.toString())))
+                .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", FiredAlert.State.EXECUTED.toString())))
                 .get();
         return searchResponse.getHits().getTotalHits();
     }
 
-    protected void assertNoAlertTrigger(final String alertName, final long expectedAlertActionsWithNoActionNeeded) throws Exception {
+    protected void assertAlertWithNoActionNeeded(final String alertName, final long expectedAlertActionsWithNoActionNeeded) throws Exception {
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -308,7 +304,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
 
                 SearchResponse searchResponse = client().prepareSearch(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                        .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", FiredAlert.State.NO_ACTION_NEEDED.toString())))
+                        .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", FiredAlert.State.EXECUTION_NOT_NEEDED.toString())))
                         .get();
                 assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(expectedAlertActionsWithNoActionNeeded));
             }
@@ -482,7 +478,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
 
     }
 
-    private final class NoopEmailService implements EmailService {
+    private static class NoopEmailService implements EmailService {
         @Override
         public void start(ClusterState state) {
 
@@ -502,7 +498,6 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) {
             return new EmailSent(accountName, email);
         }
-    };
-
+    }
 
 }

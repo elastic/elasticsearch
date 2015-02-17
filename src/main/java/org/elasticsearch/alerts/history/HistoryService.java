@@ -11,7 +11,7 @@ import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.scheduler.Scheduler;
 import org.elasticsearch.alerts.throttle.Throttler;
 import org.elasticsearch.alerts.transform.Transform;
-import org.elasticsearch.alerts.trigger.Trigger;
+import org.elasticsearch.alerts.condition.Condition;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -120,22 +120,22 @@ public class HistoryService extends AbstractComponent {
         return alertsThreadPool().getLargestPoolSize();
     }
 
-    void execute(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws HistoryException {
+    void fire(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws HistoryException {
         if (!started.get()) {
             throw new ElasticsearchIllegalStateException("not started");
         }
         FiredAlert firedAlert = new FiredAlert(alert, scheduledFireTime, fireTime);
         logger.debug("adding fired alert [{}]", alert.name());
         historyStore.put(firedAlert);
-        execute(firedAlert);
+        execute(firedAlert, alert);
     }
 
-    void execute(FiredAlert firedAlert) {
+    void execute(FiredAlert firedAlert, Alert alert) {
         try {
             if (alertsThreadPool().isShutdown()) {
                 throw new AlertsException("attempting to add to a shutdown thread pool");
             }
-            alertsThreadPool().execute(new AlertExecutionTask(firedAlert));
+            alertsThreadPool().execute(new AlertExecutionTask(firedAlert, alert));
         } catch (EsRejectedExecutionException e) {
             logger.debug("[{}] failed to execute fired alert", firedAlert.name());
             firedAlert.update(FiredAlert.State.FAILED, "failed to run fired alert due to thread pool capacity");
@@ -148,7 +148,12 @@ public class HistoryService extends AbstractComponent {
         if (firedAlerts != null) {
             this.previousFiredAlerts = ImmutableList.of();
             for (FiredAlert firedAlert : firedAlerts) {
-                execute(firedAlert);
+                Alert alert = alertsStore.getAlert(firedAlert.name());
+                if (alert == null) {
+                    logger.warn("unable to find alert [{}] in alert store, perhaps it has been deleted. skipping...", firedAlert.name());
+                    continue;
+                }
+                execute(firedAlert, alert);
             }
         }
     }
@@ -160,24 +165,25 @@ public class HistoryService extends AbstractComponent {
     private final class AlertExecutionTask implements Runnable {
 
         private final FiredAlert firedAlert;
+        private final Alert alert;
 
-        private AlertExecutionTask(FiredAlert firedAlert) {
+        private AlertExecutionTask(FiredAlert firedAlert, Alert alert) {
             this.firedAlert = firedAlert;
+            this.alert = alert;
         }
 
         @Override
         public void run() {
+            if (!started.get()) {
+                throw new ElasticsearchIllegalStateException("not started");
+            }
             try {
-                Alert alert = alertsStore.getAlert(firedAlert.name());
-                if (alert == null) {
-                    firedAlert.update(FiredAlert.State.FAILED, "alert was not found in the alerts store");
-                } else {
-                    this.firedAlert.update(FiredAlert.State.RUNNING, null);
-                    logger.debug("executing alert [{}]", this.firedAlert.name());
-                    AlertExecution alertExecution = execute(alert, this.firedAlert);
-                    this.firedAlert.update(alertExecution);
-                }
-                historyStore.update(this.firedAlert);
+                firedAlert.update(FiredAlert.State.CHECKING, null);
+                logger.debug("checking alert [{}]", firedAlert.name());
+                ExecutionContext ctx = new ExecutionContext(firedAlert.id(), alert, firedAlert.fireTime(), firedAlert.scheduledTime());
+                AlertExecution alertExecution = execute(ctx);
+                firedAlert.update(alertExecution);
+                historyStore.update(firedAlert);
             } catch (Exception e) {
                 if (started()) {
                     logger.warn("failed to run alert [{}]", e, firedAlert.name());
@@ -205,23 +211,19 @@ public class HistoryService extends AbstractComponent {
            we lose fired jobs signficantly.
          */
 
-        AlertExecution execute(Alert alert, FiredAlert firedAlert) throws IOException {
-            if (!started.get()) {
-                throw new ElasticsearchIllegalStateException("not started");
-            }
+        AlertExecution execute(ExecutionContext ctx) throws IOException {
             AlertLockService.Lock lock = alertLockService.acquire(alert.name());
             try {
-                ExecutionContext ctx = new ExecutionContext(firedAlert.id(), alert, firedAlert.fireTime(), firedAlert.scheduledTime());
 
-                Trigger.Result triggerResult = alert.trigger().execute(ctx);
-                ctx.onTriggerResult(triggerResult);
+                Condition.Result conditionResult = alert.condition().execute(ctx);
+                ctx.onConditionResult(conditionResult);
 
-                if (triggerResult.triggered()) {
-                    Throttler.Result throttleResult = alert.throttler().throttle(ctx, triggerResult);
+                if (conditionResult.met()) {
+                    Throttler.Result throttleResult = alert.throttler().throttle(ctx, conditionResult);
                     ctx.onThrottleResult(throttleResult);
 
                     if (!throttleResult.throttle()) {
-                        Transform.Result result = alert.transform().apply(ctx, triggerResult.payload());
+                        Transform.Result result = alert.transform().apply(ctx, conditionResult.payload());
                         ctx.onTransformResult(result);
 
                         for (Action action : alert.actions()) {
@@ -250,9 +252,9 @@ public class HistoryService extends AbstractComponent {
                 return;
             }
             try {
-                execute(alert, scheduledFireTime, fireTime);
+                HistoryService.this.fire(alert, scheduledFireTime, fireTime);
             } catch (Exception e) {
-                logger.error("failed to fire alert [{}]", e, alert);
+                logger.error("failed to fire alert [{}]", e, name);
             }
         }
     }

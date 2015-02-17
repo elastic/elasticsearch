@@ -115,7 +115,7 @@ public class EmailAction extends Action<EmailAction.Result> {
         return builder.endObject();
     }
 
-    public static class Parser extends AbstractComponent implements Action.Parser<EmailAction> {
+    public static class Parser extends AbstractComponent implements Action.Parser<Result, EmailAction> {
 
         public static final ParseField ACCOUNT_FIELD = new ParseField("account");
         public static final ParseField PROFILE_FIELD = new ParseField("profile");

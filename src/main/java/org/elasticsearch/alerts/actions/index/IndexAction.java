@@ -90,7 +90,7 @@ public class IndexAction extends Action<IndexAction.Result> {
         return builder;
     }
 
-    public static class Parser extends AbstractComponent implements Action.Parser<IndexAction> {
+    public static class Parser extends AbstractComponent implements Action.Parser<Result, IndexAction> {
 
         public static final ParseField INDEX_FIELD = new ParseField("index");
         public static final ParseField TYPE_FIELD = new ParseField("type");
@@ -146,7 +146,7 @@ public class IndexAction extends Action<IndexAction.Result> {
         }
 
         @Override
-        public Action.Result parseResult(XContentParser parser) throws IOException {
+        public Result parseResult(XContentParser parser) throws IOException {
             String currentFieldName = null;
             XContentParser.Token token;
             Boolean success = null;

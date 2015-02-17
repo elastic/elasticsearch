@@ -26,6 +26,8 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.Test;
 
+import java.util.Locale;
+
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -257,7 +259,7 @@ public class BasicAlertingTest extends AbstractAlertingTests {
 
         alertClient().prepareDeleteAlert(alertName).get();
         alertClient().preparePutAlert(alertName)
-                .setAlertSource(createAlertSource(String.format("0/%s * * * * ? *", (scheduleTimeInMs / 1000)), request, "return hits.total >= 3"))
+                .setAlertSource(createAlertSource(String.format(Locale.ROOT, "0/%s * * * * ? *", (scheduleTimeInMs / 1000)), request, "return hits.total >= 3"))
                 .get();
 
         long time1 = System.currentTimeMillis();

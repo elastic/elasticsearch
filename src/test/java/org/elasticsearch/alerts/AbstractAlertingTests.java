@@ -270,7 +270,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
 
                 SearchResponse searchResponse = client().prepareSearch(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                        .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", FiredAlert.State.EXECUTED.toString())))
+                        .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", FiredAlert.State.EXECUTED.id())))
                         .get();
                 assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(minimumExpectedAlertActionsWithActionPerformed));
                 if (assertConditionMet) {
@@ -283,7 +283,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
     protected long findNumberOfPerformedActions(String alertName) {
         SearchResponse searchResponse = client().prepareSearch(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", FiredAlert.State.EXECUTED.toString())))
+                .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", FiredAlert.State.EXECUTED.id())))
                 .get();
         return searchResponse.getHits().getTotalHits();
     }
@@ -304,7 +304,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
 
                 SearchResponse searchResponse = client().prepareSearch(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                        .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", FiredAlert.State.EXECUTION_NOT_NEEDED.toString())))
+                        .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", FiredAlert.State.EXECUTION_NOT_NEEDED.id())))
                         .get();
                 assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(expectedAlertActionsWithNoActionNeeded));
             }

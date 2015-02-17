@@ -111,7 +111,7 @@ public enum Profile implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(name().toLowerCase());
+        return builder.value(name().toLowerCase(Locale.ROOT));
     }
 
     static MimeMessage createCommon(Email email, Session session) throws MessagingException {

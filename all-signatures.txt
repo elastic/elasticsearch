@@ -1,0 +1,3 @@
+@defaultMessage Convert to URI
+java.net.URL#getPath()
+java.net.URL#getFile()

@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertExecution;
 import org.elasticsearch.alerts.AlertsException;
+import org.elasticsearch.alerts.AlertsSettingsException;
 import org.elasticsearch.alerts.actions.ActionRegistry;
 import org.elasticsearch.alerts.condition.Condition;
 import org.elasticsearch.alerts.condition.ConditionRegistry;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -127,7 +129,7 @@ public class FiredAlert implements ToXContent {
         historyEntry.field(Parser.FIRE_TIME_FIELD.getPreferredName(), fireTime.toDateTimeISO());
         historyEntry.field(Parser.SCHEDULED_FIRE_TIME_FIELD.getPreferredName(), scheduledTime.toDateTimeISO());
         historyEntry.startObject(Alert.Parser.CONDITION_FIELD.getPreferredName()).field(condition.type(), condition, params).endObject();
-        historyEntry.field(Parser.STATE_FIELD.getPreferredName(), state.toString());
+        historyEntry.field(Parser.STATE_FIELD.getPreferredName(), state.id());
 
         if (message != null) {
             historyEntry.field(Parser.MESSAGE_FIELD.getPreferredName(), message);
@@ -174,45 +176,22 @@ public class FiredAlert implements ToXContent {
         EXECUTED,
         FAILED;
 
+        public String id() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        public static State resolve(String id) {
+            try {
+                return valueOf(id.toUpperCase(Locale.ROOT));
+            } catch (IllegalArgumentException iae) {
+                throw new AlertsSettingsException("unknown fired alert state [" + id + "]");
+            }
+        }
+
         @Override
         public String toString() {
-            switch (this) {
-                case AWAITS_EXECUTION:
-                    return "AWAITS_EXECUTION";
-                case CHECKING:
-                    return "CHECKING";
-                case EXECUTION_NOT_NEEDED:
-                    return "EXECUTION_NOT_NEEDED";
-                case EXECUTED:
-                    return "EXECUTED";
-                case FAILED:
-                    return "FAILED";
-                case THROTTLED:
-                    return "THROTTLED";
-                default:
-                    return "EXECUTION_NOT_NEEDED";
-            }
+            return id();
         }
-
-        public static State fromString(String value) {
-            switch(value.toUpperCase()) {
-                case "AWAITS_EXECUTION":
-                    return AWAITS_EXECUTION;
-                case "CHECKING":
-                    return CHECKING;
-                case "EXECUTION_NOT_NEEDED":
-                    return EXECUTION_NOT_NEEDED;
-                case "EXECUTED":
-                    return EXECUTED;
-                case "FAILED":
-                    return FAILED;
-                case "THROTTLED":
-                    return THROTTLED;
-                default:
-                    throw new ElasticsearchIllegalArgumentException("unknown fired alert state [" + value + "]");
-            }
-        }
-
     }
 
     public static class Parser extends AbstractComponent {
@@ -274,7 +253,7 @@ public class FiredAlert implements ToXContent {
                     } else if (MESSAGE_FIELD.match(currentFieldName)) {
                         alert.message = parser.textOrNull();
                     } else if (STATE_FIELD.match(currentFieldName)) {
-                        alert.state = State.fromString(parser.text());
+                        alert.state = State.resolve(parser.text());
                     } else {
                         throw new AlertsException("unable to parse fired alert. unexpected field [" + currentFieldName + "]");
                     }

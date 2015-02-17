@@ -177,7 +177,7 @@ public class BootStrapTest extends AbstractAlertingTests {
             public void run() {
                 CountResponse countResponse = client().prepareCount(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")
                         .setTypes(HistoryStore.ALERT_HISTORY_TYPE)
-                        .setQuery(QueryBuilders.termQuery(FiredAlert.Parser.STATE_FIELD.getPreferredName(), FiredAlert.State.EXECUTED.toString())).get();
+                        .setQuery(QueryBuilders.termQuery(FiredAlert.Parser.STATE_FIELD.getPreferredName(), FiredAlert.State.EXECUTED.id())).get();
 
                 assertEquals(totalHistoryEntries, countResponse.getCount());
             }

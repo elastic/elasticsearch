@@ -392,7 +392,6 @@
                     </execution>
                 </executions>
             </plugin>
-
             <plugin>
                 <!-- we skip surefire to work with randomized testing above -->
                 <groupId>org.apache.maven.plugins</groupId>
@@ -402,7 +401,6 @@
                     <skipTests>true</skipTests>
                 </configuration>
             </plugin>
-
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>buildnumber-maven-plugin</artifactId>
@@ -420,7 +418,88 @@
                     <doUpdate>false</doUpdate>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>de.thetaphi</groupId>
+                <artifactId>forbiddenapis</artifactId>
+                <version>1.6.1</version>
 
+                <executions>
+                    <execution>
+                        <id>check-forbidden-apis</id>
+                        <configuration>
+                            <targetVersion>1.7</targetVersion>
+                            <!-- disallow undocumented classes like sun.misc.Unsafe: -->
+                            <internalRuntimeForbidden>true</internalRuntimeForbidden>
+                            <!-- if the used Java version is too new, don't fail, just do nothing: -->
+                            <failOnUnsupportedJava>false</failOnUnsupportedJava>
+                            <excludes>
+                                <exclude>jsr166e/**</exclude>
+                                <exclude>
+                                    org/elasticsearch/common/lucene/search/Queries$QueryWrapperFilterFactory.class
+                                </exclude>
+                                <!-- end excludes for valid system-out -->
+                                <!-- start excludes for Unsafe -->
+                                <exclude>org/elasticsearch/common/util/UnsafeUtils.class</exclude>
+                                <!-- end excludes for Unsafe -->
+                                <!-- start excludes for Math.abs -->
+                                <exclude>org/elasticsearch/common/util/MathUtils.class</exclude>
+                                <exclude>org/elasticsearch/common/math/UnboxedMathUtils.class</exclude>
+                                <exclude>org/elasticsearch/cluster/routing/operation/plain/PlainOperationRouting.class
+                                </exclude>
+                                <!-- end excludes for Math.abs -->
+                                <!-- start exclude for FilteredQuery -->
+                                <exclude>org/elasticsearch/common/lucene/search/XFilteredQuery.class</exclude>
+                                <!-- end exclude for FilteredQuery -->
+                                <!-- start exclude for Channels utility class -->
+                                <exclude>org/elasticsearch/common/io/Channels.class</exclude>
+                                <!-- end exclude for Channels -->
+                            </excludes>
+                            <bundledSignatures>
+                                <!-- This will automatically choose the right signatures based on 'targetVersion': -->
+                                <bundledSignature>jdk-unsafe</bundledSignature>
+                                <bundledSignature>jdk-deprecated</bundledSignature>
+                                <bundledSignature>jdk-system-out</bundledSignature>
+                            </bundledSignatures>
+                            <signaturesFiles>
+                                <signaturesFile>core-signatures.txt</signaturesFile>
+                                <signaturesFile>all-signatures.txt</signaturesFile>
+                            </signaturesFiles>
+                            <!--<signatures>${forbidden.signatures}</signatures>-->
+                        </configuration>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>check-forbidden-test-apis</id>
+                        <configuration>
+                            <targetVersion>1.7</targetVersion>
+                            <!-- disallow undocumented classes like sun.misc.Unsafe: -->
+                            <internalRuntimeForbidden>true</internalRuntimeForbidden>
+                            <!-- if the used Java version is too new, don't fail, just do nothing: -->
+                            <failOnUnsupportedJava>false</failOnUnsupportedJava>
+                            <excludes>
+                                <exclude>org/quartz/**</exclude>
+                            </excludes>
+                            <bundledSignatures>
+                                <!-- This will automatically choose the right signatures based on 'targetVersion': -->
+                                <bundledSignature>jdk-unsafe</bundledSignature>
+                                <bundledSignature>jdk-deprecated</bundledSignature>
+                            </bundledSignatures>
+                            <signaturesFiles>
+                                <signaturesFile>test-signatures.txt</signaturesFile>
+                                <signaturesFile>all-signatures.txt</signaturesFile>
+                            </signaturesFiles>
+                            <!--<signatures>${forbidden.test.signatures}</signatures>-->
+                        </configuration>
+                        <phase>test-compile</phase>
+                        <goals>
+                            <goal>testCheck</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
     <profiles>

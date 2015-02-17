@@ -337,7 +337,7 @@ public class Email implements ToXContent {
             if (name == null) {
                 return defaultPriority;
             }
-            switch (name.toLowerCase()) {
+            switch (name.toLowerCase(Locale.ROOT)) {
                 case "highest": return HIGHEST;
                 case "high":    return HIGH;
                 case "normal":  return NORMAL;

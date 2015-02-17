@@ -111,7 +111,7 @@ public class HistoryStore extends AbstractComponent {
         }
 
         SearchResponse response = client.prepareSearch(ALERT_HISTORY_INDEX_PREFIX + "*")
-                .setQuery(QueryBuilders.termQuery(FiredAlert.Parser.STATE_FIELD.getPreferredName(), firedAlertState.toString()))
+                .setQuery(QueryBuilders.termQuery(FiredAlert.Parser.STATE_FIELD.getPreferredName(), firedAlertState.id()))
                 .setSearchType(SearchType.SCAN)
                 .setScroll(scrollTimeout)
                 .setSize(scrollSize)

@@ -33,8 +33,6 @@ import org.elasticsearch.cloud.azure.AzureStorageServiceImpl;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.base.Predicate;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -63,8 +61,6 @@ import static org.hamcrest.Matchers.greaterThan;
         numDataNodes = 1,
         transportClientRatio = 0.0)
 public class AzureSnapshotRestoreITest extends AbstractAzureTest {
-
-    private static ESLogger logger = ESLoggerFactory.getLogger(AzureSnapshotRestoreITest.class.getName());
 
     private String getRepositoryPath() {
         String testName = "it-".concat(Strings.toUnderscoreCase(getTestName()).replaceAll("_", "-"));
@@ -370,6 +366,7 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
                             ).get();
                     client().admin().cluster().prepareDeleteRepository("test-repo").get();
                     try {
+                        logger.info("--> remove container [{}]", container);
                         cleanRepositoryFiles(container);
                     } catch (StorageException | URISyntaxException e) {
                         // We can ignore that as we just try to clean after the test
@@ -478,7 +475,6 @@ public class AzureSnapshotRestoreITest extends AbstractAzureTest {
 
         AzureStorageService client = new AzureStorageServiceImpl(settings, settingsFilter);
         for (String container : containers) {
-            logger.info("--> remove container [{}]", container);
             client.removeContainer(container);
         }
     }

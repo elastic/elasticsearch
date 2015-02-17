@@ -206,7 +206,7 @@ public class AggregatorFactories {
                 List<ReducerFactory> orderedReducers, List<ReducerFactory> unmarkedFactories, Set<ReducerFactory> temporarilyMarked,
                 ReducerFactory factory) {
             if (temporarilyMarked.contains(factory)) {
-                throw new ElasticsearchIllegalStateException("Cyclical dependancy found with reducer [" + factory.getName() + "]"); // NOCOMMIT is this the right Exception to throw?
+                throw new ElasticsearchIllegalStateException("Cyclical dependancy found with reducer [" + factory.getName() + "]");
             } else if (unmarkedFactories.contains(factory)) {
                 temporarilyMarked.add(factory);
                 String[] bucketsPaths = factory.getBucketsPaths();
@@ -218,7 +218,7 @@ public class AggregatorFactories {
                         resolveReducerOrder(aggFactoryNames, reducerFactoriesMap, orderedReducers, unmarkedFactories, temporarilyMarked,
                                 matchingFactory);
                     } else {
-                        throw new ElasticsearchIllegalStateException("No reducer found for path [" + bucketsPath + "]"); // NOCOMMIT is this the right Exception to throw?
+                        throw new ElasticsearchIllegalStateException("No reducer found for path [" + bucketsPath + "]");
                     }
                 }
                 unmarkedFactories.remove(factory);

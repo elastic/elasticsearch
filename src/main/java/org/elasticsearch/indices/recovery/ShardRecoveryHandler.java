@@ -416,10 +416,6 @@ public class ShardRecoveryHandler implements Engine.RecoveryHandler {
      */
     @Override
     public void phase2(Translog.Snapshot snapshot) throws ElasticsearchException {
-        if (request.recoveryType() == RecoveryState.Type.FILE_SYNC) {
-            logger.trace("{} recovery [phase2] to {}: skipping translog for file sync", request.shardId(), request.targetNode());
-            return;
-        }
         if (shard.state() == IndexShardState.CLOSED) {
             throw new IndexShardClosedException(request.shardId());
         }

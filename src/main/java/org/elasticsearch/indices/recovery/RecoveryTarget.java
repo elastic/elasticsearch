@@ -141,17 +141,6 @@ public class RecoveryTarget extends AbstractComponent {
         startRecoveryInternal(indexShard, recoveryType, sourceNode, listener);
     }
 
-    /**
-     * Runs a full recovery but skips phase 2 and 3 and only syncs the files that have been committed.
-     */
-    public void startFileSync(final IndexShard indexShard, final DiscoveryNode sourceNode, final RecoveryListener listener) {
-        if (indexShard.state() != IndexShardState.STARTED) {
-            throw new ElasticsearchIllegalStateException("Shard is not started can't sync files -state: " + indexShard.state());
-        }
-        logger.trace("{} starting file sync with {}", indexShard.shardId(), sourceNode);
-        startRecoveryInternal(indexShard, RecoveryState.Type.FILE_SYNC, sourceNode, listener);
-    }
-
     private void startRecoveryInternal(IndexShard indexShard, RecoveryState.Type recoveryType, DiscoveryNode sourceNode, RecoveryListener listener) {
         // create a new recovery status, and process...
         RecoveryState recoveryState = new RecoveryState(indexShard.shardId());

@@ -75,63 +75,10 @@ import java.util.concurrent.CountDownLatch;
  * of the primary shard.
  */
 public class ShadowIndexShard extends IndexShard {
-    private final RecoveryTarget recoveryTarget;
-    private final ClusterService clusterService;
 
     @Inject
     public ShadowIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler, Translog translog, ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService, ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService, ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache, @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory, RecoveryTarget recoveryTarget, ClusterService clusterService) {
         super(shardId, indexSettings, indexSettingsService, indicesLifecycle, store, mergeScheduler, translog, threadPool, mapperService, queryParserService, indexCache, indexAliasesService, indexingService, getService, searchService, shardWarmerService, shardFilterCache, shardFieldData, percolatorQueriesRegistry, shardPercolateService, codecService, termVectorsService, indexFieldDataService, indexService, shardSuggestService, shardQueryCache, shardBitsetFilterCache, warmer, deletionPolicy, similarityService, mergePolicyProvider, factory);
-        this.recoveryTarget = recoveryTarget;
-        this.clusterService = clusterService;
-    }
-
-    /**
-     * Flush the shard. In a regular {@link org.elasticsearch.index.shard.IndexShard}
-     * this would usually flush the engine, however, with a shadow replica we
-     * also may need to sync newly created segments (that were committed on
-     * the primary) to the shadow replica
-     */
-    public void flush(FlushRequest request) throws ElasticsearchException {
-        if (state() == IndexShardState.STARTED) {
-            syncFilesFromPrimary();
-        }
-        super.flush(request);
-    }
-
-    private void syncFilesFromPrimary() {
-        final ShardRouting shardRouting = routingEntry();
-        if (IndexMetaData.usesSharedFilesystem(indexSettings()) == false && shardRouting.primary() == false) {
-            // nocommit - we are running a  full recovery here I wonder if we should do this only do this if request.waitIfOngoing() == true? Or if we need a new parameter?
-            // I also wonder if we want to have an infrastructure for this instead that communicates with the primary etc?
-            ClusterState state = clusterService.state();
-            final CountDownLatch latch = new CountDownLatch(1);
-            DiscoveryNode sourceNode = IndicesClusterStateService.findSourceNodeForPeerRecovery(state.routingTable(), state.nodes(), shardRouting, logger);
-            if (sourceNode != null) {
-                assert engine() instanceof ShadowEngine;
-                recoveryTarget.startFileSync(this, sourceNode, new RecoveryTarget.RecoveryListener() {
-                    @Override
-                    public void onRecoveryDone(RecoveryState state) {
-                        latch.countDown();
-                        logger.info("shadow replica catchup done  {}", state);
-                        // nocommit
-                    }
-
-                    @Override
-                    public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
-                        latch.countDown();
-                        logger.warn(" failed to catch up shadow replica can't find source node", e);
-                        //nocommit
-                    }
-                });
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    // ignore
-                }
-            } else {
-                logger.warn(" failed to catch up shadow replica can't find source node", shardId);
-            }
-        }
     }
 
     /**
@@ -152,14 +99,5 @@ public class ShadowIndexShard extends IndexShard {
                     new ElasticsearchIllegalStateException("can't promote shadow replica to primary"));
         }
         return this;
-    }
-
-    @Override
-    public void performRecoveryFinalization(boolean withFlush, RecoveryState recoveryState) throws ElasticsearchException {
-        if (recoveryState.getType() == RecoveryState.Type.FILE_SYNC) {
-            logger.debug("skipping recovery finalization file sync runs on a started engine");
-        } else {
-            super.performRecoveryFinalization(withFlush, recoveryState);
-        }
     }
 }

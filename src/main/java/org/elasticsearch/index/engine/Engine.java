@@ -283,7 +283,30 @@ public abstract class Engine implements Closeable {
     /**
      * Global stats on segments.
      */
-    public abstract SegmentsStats segmentsStats();
+    public final SegmentsStats segmentsStats() {
+        ensureOpen();
+        try (final Searcher searcher = acquireSearcher("segments_stats")) {
+            SegmentsStats stats = new SegmentsStats();
+            for (LeafReaderContext reader : searcher.reader().leaves()) {
+                final SegmentReader segmentReader = segmentReader(reader.reader());
+                stats.add(1, segmentReader.ramBytesUsed());
+                stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPostingsReader()));
+                stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
+                stats.addTermVectorsMemoryInBytes(guardedRamBytesUsed(segmentReader.getTermVectorsReader()));
+                stats.addNormsMemoryInBytes(guardedRamBytesUsed(segmentReader.getNormsReader()));
+                stats.addDocValuesMemoryInBytes(guardedRamBytesUsed(segmentReader.getDocValuesReader()));
+            }
+            writerSegmentStats(stats);
+            return stats;
+        }
+    }
+
+    protected void writerSegmentStats(SegmentsStats stats) {
+        // by default we don't have a writer here... subclasses can override this
+        stats.addVersionMapMemoryInBytes(0);
+        stats.addIndexWriterMemoryInBytes(0);
+        stats.addIndexWriterMaxMemoryInBytes(0);
+    }
 
     protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
@@ -405,7 +428,9 @@ public abstract class Engine implements Closeable {
     /**
      * Optimizes to 1 segment
      */
-    abstract void forceMerge(boolean flush);
+    public void forceMerge(boolean flush) {
+        forceMerge(flush, 1, false, false);
+    }
 
     /**
      * Triggers a forced merge on this engine

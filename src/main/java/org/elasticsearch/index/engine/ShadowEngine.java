@@ -62,8 +62,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public class ShadowEngine extends Engine {
 
-    private final RecoveryCounter onGoingRecoveries;
-
     private volatile SearcherManager searcherManager;
 
     private SegmentInfos lastCommittedSegmentInfos;
@@ -71,7 +69,6 @@ public class ShadowEngine extends Engine {
     public ShadowEngine(EngineConfig engineConfig)  {
         super(engineConfig);
         SearcherFactory searcherFactory = new EngineSearcherFactory(engineConfig);
-        this.onGoingRecoveries = new RecoveryCounter(store);
         try {
             DirectoryReader reader = null;
             store.incRef();
@@ -98,22 +95,22 @@ public class ShadowEngine extends Engine {
 
     @Override
     public void create(Create create) throws EngineException {
-        throw new UnsupportedOperationException("create operation not allowed on shadow engine");
+        throw new UnsupportedOperationException(shardId + " create operation not allowed on shadow engine");
     }
 
     @Override
     public void index(Index index) throws EngineException {
-        throw new UnsupportedOperationException("index operation not allowed on shadow engine");
+        throw new UnsupportedOperationException(shardId + " index operation not allowed on shadow engine");
     }
 
     @Override
     public void delete(Delete delete) throws EngineException {
-        throw new UnsupportedOperationException("delete operation not allowed on shadow engine");
+        throw new UnsupportedOperationException(shardId + " delete operation not allowed on shadow engine");
     }
 
     @Override
     public void delete(DeleteByQuery delete) throws EngineException {
-        throw new UnsupportedOperationException("delete-by-query operation not allowed on shadow engine");
+        throw new UnsupportedOperationException(shardId + " delete-by-query operation not allowed on shadow engine");
     }
 
     @Override
@@ -126,7 +123,7 @@ public class ShadowEngine extends Engine {
         logger.trace("skipping FLUSH on shadow engine");
         // reread the last committed segment infos
         refresh("flush");
-        try {
+        try (ReleasableLock _ = readLock.acquire()) {
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
         } catch (Throwable e) {
             if (isClosed.get() == false) {
@@ -139,11 +136,6 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public void forceMerge(boolean flush) {
-        forceMerge(flush, 1, false, false);
-    }
-
-    @Override
     public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, boolean upgrade) throws EngineException {
         // no-op
         logger.trace("skipping FORCE-MERGE on shadow engine");
@@ -153,29 +145,6 @@ public class ShadowEngine extends Engine {
     public GetResult get(Get get) throws EngineException {
         // There is no translog, so we can get it directly from the searcher
         return getFromSearcher(get);
-    }
-
-    @Override
-    public SegmentsStats segmentsStats() {
-        ensureOpen();
-        try (final Searcher searcher = acquireSearcher("segments_stats")) {
-            SegmentsStats stats = new SegmentsStats();
-            for (LeafReaderContext reader : searcher.reader().leaves()) {
-                final SegmentReader segmentReader = segmentReader(reader.reader());
-                stats.add(1, segmentReader.ramBytesUsed());
-                stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPostingsReader()));
-                stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
-                stats.addTermVectorsMemoryInBytes(guardedRamBytesUsed(segmentReader.getTermVectorsReader()));
-                stats.addNormsMemoryInBytes(guardedRamBytesUsed(segmentReader.getNormsReader()));
-                stats.addDocValuesMemoryInBytes(guardedRamBytesUsed(segmentReader.getDocValuesReader()));
-            }
-            // No version map for shadow engine
-            stats.addVersionMapMemoryInBytes(0);
-            // Since there is no IndexWriter, these are 0
-            stats.addIndexWriterMemoryInBytes(0);
-            stats.addIndexWriterMaxMemoryInBytes(0);
-            return stats;
-        }
     }
 
     @Override
@@ -210,56 +179,18 @@ public class ShadowEngine extends Engine {
 
     @Override
     public SnapshotIndexCommit snapshotIndex() throws EngineException {
-        // we have to flush outside of the readlock otherwise we might have a problem upgrading
-        // the to a write lock when we fail the engine in this operation
-        flush(false, true);
-        try (ReleasableLock _ = readLock.acquire()) {
-            ensureOpen();
-            return deletionPolicy.snapshot();
-        } catch (IOException e) {
-            throw new SnapshotFailedEngineException(shardId, e);
-        }
+        throw new UnsupportedOperationException("Can not take snapshot from a shadow engine");
     }
 
     @Override
     public void recover(RecoveryHandler recoveryHandler) throws EngineException {
-        // take a write lock here so it won't happen while a flush is in progress
-        // this means that next commits will not be allowed once the lock is released
-        try (ReleasableLock _ = writeLock.acquire()) {
-            ensureOpen();
-            onGoingRecoveries.startRecovery();
-        }
-
-        SnapshotIndexCommit phase1Snapshot;
-        try {
-            phase1Snapshot = deletionPolicy.snapshot();
-        } catch (Throwable e) {
-            maybeFailEngine("recovery", e);
-            Releasables.closeWhileHandlingException(onGoingRecoveries);
-            throw new RecoveryEngineException(shardId, 1, "Snapshot failed", e);
-        }
-
-        boolean success = false;
-        try {
-            recoveryHandler.phase1(phase1Snapshot);
-            success = true;
-        } catch (Throwable e) {
-            maybeFailEngine("recovery phase 1", e);
-            Releasables.closeWhileHandlingException(onGoingRecoveries, phase1Snapshot);
-            throw new RecoveryEngineException(shardId, 1, "Execution failed", wrapIfClosed(e));
-        } finally {
-            Releasables.close(success, onGoingRecoveries, writeLock, phase1Snapshot);
-        }
-
-        // Since operations cannot be replayed from a translog on a shadow
-        // engine, there is no phase2 and phase3 of recovery
+        throw new UnsupportedOperationException("Can not recover from a shadow engine");
     }
 
     @Override
     protected SearcherManager getSearcherManager() {
         return searcherManager;
     }
-
 
     @Override
     protected void closeNoLock(String reason) throws ElasticsearchException {

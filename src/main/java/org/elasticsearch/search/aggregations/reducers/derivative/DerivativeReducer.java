@@ -97,7 +97,6 @@ public class DerivativeReducer extends Reducer {
 
         List newBuckets = new ArrayList<>();
         Double lastBucketValue = null;
-        // NOCOMMIT this needs to be improved so that the aggs are cloned correctly to ensure aggs are fully immutable.
         for (InternalHistogram.Bucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket);
             if (lastBucketValue != null) {
@@ -116,8 +115,7 @@ public class DerivativeReducer extends Reducer {
             }
             lastBucketValue = thisBucketValue;
         }
-        return factory.create(histo.getName(), newBuckets, histo.getOrder(), 1, null, null, false, new ArrayList<Reducer>(),
-                histo.getMetaData()); // NOCOMMIT get order, minDocCount, emptyBucketInfo etc. from histo
+        return factory.create(histo.getName(), newBuckets, histo);
     }
 
     private Double resolveBucketValue(InternalHistogram<? extends InternalHistogram.Bucket> histo, InternalHistogram.Bucket bucket) {

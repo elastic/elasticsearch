@@ -24,12 +24,10 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.IndexDeletionPolicy;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LiveIndexWriterConfig;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -42,6 +40,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
+import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -56,6 +55,7 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.distributor.LeastUsedDistributor;
 import org.elasticsearch.index.translog.Translog;
@@ -825,7 +825,37 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testFailEngineOnCorruption() {
-        // nocommit - figure out how to implement me for shadow replica
+        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
+        primaryEngine.create(new Engine.Create(null, newUid("1"), doc));
+        primaryEngine.flush();
+        final boolean failEngine = replicaEngine.config().isFailEngineOnCorruption();
+        MockDirectoryWrapper leaf = DirectoryUtils.getLeaf(replicaEngine.config().getStore().directory(), MockDirectoryWrapper.class);
+        leaf.setRandomIOExceptionRate(1.0);
+        leaf.setRandomIOExceptionRateOnOpen(1.0);
+        try {
+            replicaEngine.refresh("foo");
+            fail("exception expected");
+        } catch (Exception ex) {
+
+        }
+        try {
+            Engine.Searcher searchResult = replicaEngine.acquireSearcher("test");
+            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
+            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
+            searchResult.close();
+
+            ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, false);
+            primaryEngine.create(new Engine.Create(null, newUid("2"), doc2));
+            primaryEngine.refresh("foo");
+
+            searchResult = replicaEngine.acquireSearcher("test");
+            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 2));
+            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(2));
+            searchResult.close();
+            assertThat(failEngine, is(false));
+        } catch (EngineClosedException ex) {
+            assertThat(failEngine, is(true));
+        }
     }
 
     @Test

@@ -27,6 +27,7 @@ import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
@@ -61,13 +62,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 public class ShadowEngine extends Engine {
 
-    private final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
-    private final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
-    private final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
-    private final Lock failReleasableLock = new ReentrantLock();
     private final RecoveryCounter onGoingRecoveries;
 
-    private volatile boolean closedOrFailed = false;
     private volatile SearcherManager searcherManager;
 
     private SegmentInfos lastCommittedSegmentInfos;
@@ -230,9 +226,7 @@ public class ShadowEngine extends Engine {
         // take a write lock here so it won't happen while a flush is in progress
         // this means that next commits will not be allowed once the lock is released
         try (ReleasableLock _ = writeLock.acquire()) {
-            if (closedOrFailed) {
-                throw new EngineClosedException(shardId, failedEngine);
-            }
+            ensureOpen();
             onGoingRecoveries.startRecovery();
         }
 
@@ -262,63 +256,21 @@ public class ShadowEngine extends Engine {
     }
 
     @Override
-    public void failEngine(String reason, Throwable failure) {
-        // Note, there is no IndexWriter, so nothing to rollback here
-        assert failure != null;
-        if (failReleasableLock.tryLock()) {
-            try {
-                try {
-                    // we first mark the store as corrupted before we notify any listeners
-                    // this must happen first otherwise we might try to reallocate so quickly
-                    // on the same node that we don't see the corrupted marker file when
-                    // the shard is initializing
-                    if (Lucene.isCorruptionException(failure)) {
-                        try {
-                            store.markStoreCorrupted(ExceptionsHelper.unwrapCorruption(failure));
-                        } catch (IOException e) {
-                            logger.warn("Couldn't marks store corrupted", e);
-                        }
-                    }
-                } finally {
-                    if (failedEngine != null) {
-                        logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", reason, failure);
-                        return;
-                    }
-                    logger.warn("failed engine [{}]", failure, reason);
-                    // we must set a failure exception, generate one if not supplied
-                    failedEngine = failure;
-                    failedEngineListener.onFailedEngine(shardId, reason, failure);
-                }
-            } catch (Throwable t) {
-                // don't bubble up these exceptions up
-                logger.warn("failEngine threw exception", t);
-            } finally {
-                closedOrFailed = true;
-            }
-        } else {
-            logger.debug("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason, failure);
-        }
-    }
-
-    @Override
     protected SearcherManager getSearcherManager() {
         return searcherManager;
     }
 
+
     @Override
-    public void close() throws IOException {
-        logger.debug("shadow replica close now acquiring writeLock");
-        try (ReleasableLock _ = writeLock.acquire()) {
-            logger.debug("shadow replica close acquired writeLock");
-            if (isClosed.compareAndSet(false, true)) {
-                try {
-                    logger.debug("shadow replica close searcher manager refCount: {}", store.refCount());
-                    IOUtils.close(searcherManager);
-                } catch (Throwable t) {
-                    logger.warn("shadow replica failed to close searcher manager", t);
-                } finally {
-                    store.decRef();
-                }
+    protected void closeNoLock(String reason) throws ElasticsearchException {
+        if (isClosed.compareAndSet(false, true)) {
+            try {
+                logger.debug("shadow replica close searcher manager refCount: {}", store.refCount());
+                IOUtils.close(searcherManager);
+            } catch (Throwable t) {
+                logger.warn("shadow replica failed to close searcher manager", t);
+            } finally {
+                store.decRef();
             }
         }
     }

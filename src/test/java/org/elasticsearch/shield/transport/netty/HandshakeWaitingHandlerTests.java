@@ -15,11 +15,11 @@ import org.elasticsearch.common.netty.channel.*;
 import org.elasticsearch.common.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.elasticsearch.common.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.elasticsearch.common.netty.handler.ssl.SslHandler;
+import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import javax.net.ssl.SSLContext;
@@ -27,6 +27,7 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.nio.file.Paths;
 import java.security.SecureRandom;
@@ -45,8 +46,8 @@ public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
 
     private static final int CONCURRENT_CLIENT_REQUESTS = 20;
 
-    private static int iterations;
-    private static int randomPort;
+    private int iterations;
+    private int randomPort;
 
     private ServerBootstrap serverBootstrap;
     private ClientBootstrap clientBootstrap;
@@ -56,14 +57,11 @@ public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
     private volatile Throwable failureCause = null;
     private ExecutorService threadPoolExecutor;
 
-    @BeforeClass
-    public static void generatePort() {
-        randomPort = randomIntBetween(49000, 65500);
-        iterations = randomIntBetween(10, 100);
-    }
-
     @Before
     public void setup() throws Exception {
+        randomPort = randomIntBetween(49000, 65500);
+        iterations = randomIntBetween(10, 100);
+
         ServerSSLService sslService = new ServerSSLService(settingsBuilder()
                 .put("shield.ssl.keystore.path", Paths.get(HandshakeWaitingHandlerTests.class.getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks").toURI()))
                 .put("shield.ssl.keystore.password", "testnode")
@@ -71,9 +69,7 @@ public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
 
         sslContext = sslService.sslContext();
 
-        serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory());
-        serverBootstrap.setPipelineFactory(getServerFactory());
-        serverBootstrap.bind(new InetSocketAddress("localhost", randomPort));
+        startBootstrap();
 
         clientBootstrap = new ClientBootstrap(new NioClientSocketChannelFactory());
 
@@ -81,8 +77,8 @@ public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
     }
 
     @After
-    public void reset() {
-        threadPoolExecutor.shutdown();
+    public void reset() throws InterruptedException {
+        terminate(threadPoolExecutor);
 
         clientBootstrap.shutdown();
         clientBootstrap.releaseExternalResources();
@@ -177,6 +173,28 @@ public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
             }
 
             assertThat("Expected this test to always pass with the HandshakeWaitingHandler in pipeline\n" + writer.toString(), failed.get(), is(false));
+        }
+    }
+
+    private void startBootstrap() {
+        serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory());
+        serverBootstrap.setPipelineFactory(getServerFactory());
+        int tries = 1;
+        int maxTries = 10;
+        while (tries <= maxTries) {
+            try {
+                serverBootstrap.bind(new InetSocketAddress("localhost", randomPort));
+                break;
+            } catch (Throwable t) {
+                if (t.getCause() instanceof BindException) {
+                    logger.error("Tried to bind to port [{}], going to retry", randomPort);
+                    randomPort = randomIntBetween(49000, 65500);
+                }
+                if (tries >= maxTries) {
+                    throw new ShieldException("Failed to start server bootstrap [" + tries + "] times, stopping", t);
+                }
+                tries++;
+            }
         }
     }
 

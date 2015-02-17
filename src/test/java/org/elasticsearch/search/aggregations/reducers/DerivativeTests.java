@@ -56,8 +56,10 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
     static int interval;
     static int numValueBuckets, numValuesBuckets;
     static int numFirstDerivValueBuckets, numFirstDerivValuesBuckets;
+    static int numSecondDerivValueBuckets;
     static long[] valueCounts, valuesCounts;
     static long[] firstDerivValueCounts, firstDerivValuesCounts;
+    static long[] secondDerivValueCounts;
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -95,6 +97,18 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                 firstDerivValueCounts[i - 1] = diff;
             }
             lastValueCount = thisValue;
+        }
+
+        numSecondDerivValueBuckets = numFirstDerivValueBuckets - 1;
+        secondDerivValueCounts = new long[numSecondDerivValueBuckets];
+        long lastFirstDerivativeValueCount = -1;
+        for (int i = 0; i < numFirstDerivValueBuckets; i++) {
+            long thisFirstDerivativeValue = firstDerivValueCounts[i];
+            if (lastFirstDerivativeValueCount != -1) {
+                long diff = thisFirstDerivativeValue - lastFirstDerivativeValueCount;
+                secondDerivValueCounts[i - 1] = diff;
+            }
+            lastFirstDerivativeValueCount = thisFirstDerivativeValue;
         }
 
         numFirstDerivValuesBuckets = numValuesBuckets - 1;
@@ -187,6 +201,47 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                 assertThat(docCountDeriv.value(), equalTo((double) firstDerivValueCounts[i - 1]));
             } else {
                 assertThat(docCountDeriv, nullValue());
+            }
+        }
+    }
+
+    @Test
+    public void singleValuedField_secondDerivative() {
+
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                                .subAggregation(derivative("deriv").setBucketsPaths("_count"))
+                                .subAggregation(derivative("2nd_deriv").setBucketsPaths("deriv"))).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        InternalHistogram deriv = response.getAggregations().get("histo");
+        assertThat(deriv, notNullValue());
+        assertThat(deriv.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = deriv.getBuckets();
+        assertThat(buckets.size(), equalTo(numValueBuckets));
+
+        for (int i = 0; i < numValueBuckets; ++i) {
+            Histogram.Bucket bucket = buckets.get(i);
+            assertThat(bucket, notNullValue());
+            assertThat(bucket.getKeyAsString(), equalTo(String.valueOf(i * interval)));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
+            assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
+            SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
+            if (i > 0) {
+                assertThat(docCountDeriv, notNullValue());
+                assertThat(docCountDeriv.value(), equalTo((double) firstDerivValueCounts[i - 1]));
+            } else {
+                assertThat(docCountDeriv, nullValue());
+            }
+            SimpleValue docCount2ndDeriv = bucket.getAggregations().get("2nd_deriv");
+            if (i > 1) {
+                assertThat(docCount2ndDeriv, notNullValue());
+                assertThat(docCount2ndDeriv.value(), equalTo((double) secondDerivValueCounts[i - 2]));
+            } else {
+                assertThat(docCount2ndDeriv, nullValue());
             }
         }
     }

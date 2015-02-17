@@ -734,11 +734,6 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void forceMerge(boolean flush) {
-        forceMerge(flush, 1, false, false);
-    }
-
-    @Override
     public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, final boolean upgrade) throws EngineException {
         if (optimizeMutex.compareAndSet(false, true)) {
             try (ReleasableLock _ = readLock.acquire()) {
@@ -892,24 +887,11 @@ public class InternalEngine extends Engine {
         }
     }
 
-    private static long getReaderRamBytesUsed(AtomicReaderContext reader) {
-        final SegmentReader segmentReader = SegmentReaderUtils.segmentReader(reader.reader());
-        return segmentReader.ramBytesUsed();
-    }
-
     @Override
-    public SegmentsStats segmentsStats() {
-        ensureOpen();
-        try (final Searcher searcher = acquireSearcher("segments_stats")) {
-                SegmentsStats stats = new SegmentsStats();
-                for (AtomicReaderContext reader : searcher.reader().leaves()) {
-                    stats.add(1, getReaderRamBytesUsed(reader));
-                }
-                stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
-                stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
-                stats.addIndexWriterMaxMemoryInBytes((long) (indexWriter.getConfig().getRAMBufferSizeMB() * 1024 * 1024));
-                return stats;
-        }
+    protected final void writerSegmentStats(SegmentsStats stats) {
+        stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
+        stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
+        stats.addIndexWriterMaxMemoryInBytes((long) (indexWriter.getConfig().getRAMBufferSizeMB() * 1024 * 1024));
     }
 
     @Override

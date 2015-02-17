@@ -133,12 +133,26 @@ public class HasChildQueryParser implements QueryParser {
         }
         innerQuery.setBoost(boost);
 
+        Query query = createChildrenQuery(parseContext, childType, scoreType, minChildren, maxChildren, shortCircuitParentDocSet, innerHits, innerQuery);
+        if (query == null) {
+            return null;
+        }
+        query.setBoost(boost);
+        if (queryName != null) {
+            parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));
+        }
+        return query;
+    }
+
+    static Query createChildrenQuery(QueryParseContext parseContext, String childType, ScoreType scoreType, int minChildren, int maxChildren, int shortCircuitParentDocSet, Tuple<String, SubSearchContext> innerHits, Query innerQuery) {
         DocumentMapper childDocMapper = parseContext.mapperService().documentMapper(childType);
         if (childDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_child] No mapping for for type [" + childType + "]");
+            throw new QueryParsingException(parseContext.index(), "[has_child] no mapping for for type [" + childType + "]");
         }
-        if (!childDocMapper.parentFieldMapper().active()) {
-            throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType + "] does not have parent mapping");
+
+        ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
+        if (!parentFieldMapper.active()) {
+            throw new QueryParsingException(parseContext.index(), "[has_child] type [" + childType + "] does not have parent mapping");
         }
 
         if (innerHits != null) {
@@ -147,16 +161,10 @@ public class HasChildQueryParser implements QueryParser {
             parseContext.addInnerHits(name, parentChildInnerHits);
         }
 
-        ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
-        if (!parentFieldMapper.active()) {
-            throw new QueryParsingException(parseContext.index(), "[has_child] _parent field not configured");
-        }
-
         String parentType = parentFieldMapper.type();
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_child]  Type [" + childType
-                    + "] points to a non existent parent type [" + parentType + "]");
+            throw new QueryParsingException(parseContext.index(), "[has_child] type [" + childType + "] points to a non existent parent type [" + parentType + "]");
         }
 
         if (maxChildren > 0 && maxChildren < minChildren) {
@@ -181,10 +189,6 @@ public class HasChildQueryParser implements QueryParser {
             query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter,
                     shortCircuitParentDocSet, nonNestedDocsFilter);
         }
-        if (queryName != null) {
-            parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));
-        }
-        query.setBoost(boost);
         return query;
     }
 }

@@ -156,22 +156,19 @@ public class HasParentQueryParser implements QueryParser {
             parseContext.addInnerHits(name, parentChildInnerHits);
         }
 
-        Set<String> parentTypes = new HashSet<>(5);
-        parentTypes.add(parentDocMapper.type());
         ParentChildIndexFieldData parentChildIndexFieldData = null;
+        Set<String> parentTypes = new HashSet<>(5);
         for (DocumentMapper documentMapper : parseContext.mapperService().docMappers(false)) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
-            if (parentFieldMapper.active()) {
-                DocumentMapper parentTypeDocumentMapper = parseContext.mapperService().documentMapper(parentFieldMapper.type());
-                parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
-                if (parentTypeDocumentMapper == null) {
-                    // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.
-                    parentTypes.add(parentFieldMapper.type());
+            if (parentFieldMapper.active() && parentType.equals(parentFieldMapper.type())) {
+                parentTypes.add(parentFieldMapper.type());
+                if (parentChildIndexFieldData == null) {
+                    parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
                 }
             }
         }
         if (parentChildIndexFieldData == null) {
-            throw new QueryParsingException(parseContext.index(), "[has_parent] no _parent field configured");
+            throw new QueryParsingException(parseContext.index(), "[has_parent] no child types point to parent type [" + parentType + "]");
         }
 
         Filter parentFilter = null;

@@ -28,6 +28,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.translog.*;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestStatus;
@@ -64,8 +66,6 @@ import java.util.concurrent.TimeUnit;
  *
  */
 public class IndexShardGateway extends AbstractIndexShardComponent implements Closeable {
-
-    private static final int RECOVERY_TRANSLOG_RENAME_RETRIES = 3;
 
     private final ThreadPool threadPool;
     private final MappingUpdatedAction mappingUpdatedAction;
@@ -184,36 +184,20 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
                 return;
             }
 
-            // move an existing translog, if exists, to "recovering" state, and start reading from it
-            Translog translog = indexShard.translog();
+            final Translog translog = indexShard.translog();
             final Path translogName = translog.getPath(translogId);
-            final Path recoverTranslogName = translogName.resolveSibling(translogName.getFileName() + ".recovering");
-
             logger.trace("try recover from translog file {} locations: {}", translogName, Arrays.toString(translog.locations()));
             Path recoveringTranslogFile = null;
+            OUTER:
             for (Path translogLocation : translog.locations()) {
-                final Path tmpRecoveringFile = translogLocation.resolve(recoverTranslogName);
-                if (Files.exists(tmpRecoveringFile) == false) {
-                    Path tmpTranslogFile = translogLocation.resolve(translogName);
-                    if (Files.exists(tmpTranslogFile)) {
-                        logger.trace("Translog file found in {} - renaming", translogLocation);
-                        for (int i = 0; i < RECOVERY_TRANSLOG_RENAME_RETRIES; i++) {
-                            try {
-                                Files.move(tmpTranslogFile, tmpRecoveringFile, StandardCopyOption.ATOMIC_MOVE);
-                                recoveringTranslogFile = tmpRecoveringFile;
-                                logger.trace("Renamed translog from {} to {}", tmpTranslogFile.getFileName(), recoveringTranslogFile.getFileName());
-                                break;
-                            } catch (Exception ex) {
-                                logger.debug("Failed to rename tmp recovery file", ex);
-                            }
-                        }
-                    } else {
-                        logger.trace("Translog file NOT found in {} - continue", translogLocation);
-                    }
-                } else {
-                    recoveringTranslogFile = tmpRecoveringFile;
-                    break;
+                // we have to support .recovering since it's a leftover from previous version but might still be on the filesystem
+                // we used to rename the foo into foo.recovering since foo was reused / overwritten but we fixed that in 1.5
+                for (Path recoveryFiles : FileSystemUtils.files(translogLocation, translogName.getFileName() + "{.recovering,}")) {
+                    logger.trace("Translog file found in {}", recoveryFiles);
+                    recoveringTranslogFile = recoveryFiles;
+                    break OUTER;
                 }
+                logger.trace("Translog file NOT found in {} - continue", translogLocation);
             }
 
             if (recoveringTranslogFile == null || Files.exists(recoveringTranslogFile) == false) {
@@ -293,6 +277,8 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
             } catch (Exception ex) {
                 logger.debug("Failed to delete recovering translog file {}", ex, recoveringTranslogFile);
             }
+        } catch (IOException e) {
+            throw new IndexShardGatewayRecoveryException(shardId, "failed to recovery from gateway", e);
         } finally {
             indexShard.store().decRef();
         }

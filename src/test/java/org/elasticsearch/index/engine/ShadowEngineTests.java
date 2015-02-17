@@ -828,7 +828,6 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
         primaryEngine.create(new Engine.Create(null, newUid("1"), doc));
         primaryEngine.flush();
-        final boolean failEngine = replicaEngine.config().isFailEngineOnCorruption();
         MockDirectoryWrapper leaf = DirectoryUtils.getLeaf(replicaEngine.config().getStore().directory(), MockDirectoryWrapper.class);
         leaf.setRandomIOExceptionRate(1.0);
         leaf.setRandomIOExceptionRateOnOpen(1.0);
@@ -843,18 +842,9 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
             MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
             MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
             searchResult.close();
-
-            ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, false);
-            primaryEngine.create(new Engine.Create(null, newUid("2"), doc2));
-            primaryEngine.refresh("foo");
-
-            searchResult = replicaEngine.acquireSearcher("test");
-            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 2));
-            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(2));
-            searchResult.close();
-            assertThat(failEngine, is(false));
+            fail("exception expected");
         } catch (EngineClosedException ex) {
-            assertThat(failEngine, is(true));
+            // all is well
         }
     }
 

@@ -60,13 +60,8 @@ public abstract class AbstractAzureComputeServiceTest extends ElasticsearchInteg
                 .put("cloud.azure.keystore", "dummy")
                 .put("cloud.azure.password", "dummy")
                 .put("cloud.azure.service_name", "dummy")
-                .put("cloud.azure.refresh_interval", "5s")
                 // We need the network to make the mock working
-                .put("node.mode", "network")
-                // Make the tests run faster
-                .put("discovery.zen.join.timeout", "100ms")
-                .put("discovery.zen.ping.timeout", "10ms")
-                .put("discovery.initial_state_timeout", "300ms");
+                .put("node.mode", "network");
 
         return builder.build();
     }

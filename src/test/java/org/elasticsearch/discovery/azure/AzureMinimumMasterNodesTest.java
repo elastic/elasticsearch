@@ -47,8 +47,12 @@ public class AzureMinimumMasterNodesTest extends AbstractAzureComputeServiceTest
     @Override
     protected final Settings settingsBuilder() {
         ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
+                .put(super.settingsBuilder())
                 .put("discovery.zen.minimum_master_nodes", 2)
-                .put(super.settingsBuilder());
+                // Make the test run faster
+                .put("discovery.zen.join.timeout", "50ms")
+                .put("discovery.zen.ping.timeout", "10ms")
+                .put("discovery.initial_state_timeout", "100ms");
         return builder.build();
     }
 

@@ -87,24 +87,39 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     }
 
     /**
-     * Set the timezone in which to translate dates before computing buckets.
+     * Set the time zone in which to translate dates before computing buckets.
+     * @deprecated use timeZone() instead
      */
+    @Deprecated
     public DateHistogramBuilder preZone(String preZone) {
         this.preZone = preZone;
         return this;
     }
 
     /**
-     * Set the timezone in which to translate dates after having computed buckets.
+     * Set the time zone in which to translate dates after having computed buckets.
+     * @deprecated this option is going to be removed in 2.0 releases
      */
+    @Deprecated
     public DateHistogramBuilder postZone(String postZone) {
         this.postZone = postZone;
         return this;
     }
 
     /**
-     * Set whether to adjust large intervals, when using days or larger intervals.
+     * Set the time zone in which to translate dates before computing buckets.
      */
+    public DateHistogramBuilder timeZone(String timeZone) {
+        // currently this is still equivallent to using pre_zone, will change in future version
+        this.preZone = timeZone;
+        return this;
+    }
+
+    /**
+     * Set whether to adjust large intervals, when using days or larger intervals.
+     * @deprecated this option is going to be removed in 2.0 releases
+     */
+    @Deprecated
     public DateHistogramBuilder preZoneAdjustLargeInterval(boolean preZoneAdjustLargeInterval) {
         this.preZoneAdjustLargeInterval = preZoneAdjustLargeInterval;
         return this;
@@ -122,7 +137,7 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
 
     /**
      * Set the offset to apply after having computed buckets.
-     * @deprecated the preOffset option will be replaced by offset in future version.
+     * @deprecated the postOffset option will be replaced by offset in future version.
      */
     @Deprecated
     public DateHistogramBuilder postOffset(String postOffset) {

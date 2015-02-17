@@ -1020,7 +1020,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void singleValue_WithPreZone() throws Exception {
+    public void singleValue_WithtimeZone() throws Exception {
         prepareCreate("idx2").addMapping("type", "date", "type=date").execute().actionGet();
         IndexRequestBuilder[] reqs = new IndexRequestBuilder[5];
         DateTime date = date("2014-03-11T00:00:00+00:00");
@@ -1034,7 +1034,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                 .setQuery(matchAllQuery())
                 .addAggregation(dateHistogram("date_histo")
                         .field("date")
-                        .preZone("-2:00")
+                        .timeZone("-2:00")
                         .interval(DateHistogram.Interval.DAY)
                         .format("yyyy-MM-dd"))
                 .execute().actionGet();
@@ -1069,7 +1069,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                 .setQuery(matchAllQuery())
                 .addAggregation(dateHistogram("date_histo")
                         .field("date")
-                        .preZone("-2:00")
+                        .timeZone("-2:00")
                         .interval(DateHistogram.Interval.DAY)
                         .preZoneAdjustLargeInterval(true)
                         .format("yyyy-MM-dd'T'HH:mm:ss"))
@@ -1235,7 +1235,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
 
     public void testIssue6965() {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(dateHistogram("histo").field("date").preZone("+01:00").interval(DateHistogram.Interval.MONTH).minDocCount(0))
+                .addAggregation(dateHistogram("histo").field("date").timeZone("+01:00").interval(DateHistogram.Interval.MONTH).minDocCount(0))
                 .execute().actionGet();
 
         assertSearchResponse(response);

@@ -44,8 +44,14 @@ public class DateHistogramParser implements Aggregator.Parser {
 
     static final ParseField EXTENDED_BOUNDS = new ParseField("extended_bounds");
     static final ParseField OFFSET = new ParseField("offset");
-    static final ParseField PRE_OFFSET = new ParseField("", "pre_offset");
-    static final ParseField POST_OFFSET = new ParseField("", "post_offset");
+    static final ParseField PRE_OFFSET = new ParseField("pre_offset").withAllDeprecated("offset");
+    static final ParseField POST_OFFSET = new ParseField("post_offset").withAllDeprecated("offset");
+    static final ParseField PRE_ZONE = new ParseField("pre_zone").withAllDeprecated("time_zone");
+    static final ParseField POST_ZONE = new ParseField("post_zone").withAllDeprecated("time_zone");
+    static final ParseField TIME_ZONE = new ParseField("time_zone");
+    static final ParseField INTERVAL = new ParseField("interval");
+    static final ParseField PRE_ZONE_ADJUST = new ParseField("pre_zone_adjust_large_interval").withAllDeprecated("");
+
 
     private final ImmutableMap<String, DateTimeUnit> dateFieldUnits;
 
@@ -102,11 +108,11 @@ public class DateHistogramParser implements Aggregator.Parser {
             } else if (vsParser.token(currentFieldName, token, parser)) {
                 continue;
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
+                if (TIME_ZONE.match(currentFieldName)) {
                     preZone = DateMathParser.parseZone(parser.text());
-                } else if ("pre_zone".equals(currentFieldName) || "preZone".equals(currentFieldName)) {
+                } else if (PRE_ZONE.match(currentFieldName)) {
                     preZone = DateMathParser.parseZone(parser.text());
-                } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
+                } else if (POST_ZONE.match(currentFieldName)) {
                     postZone = DateMathParser.parseZone(parser.text());
                 } else if (PRE_OFFSET.match(currentFieldName)) {
                     preOffset = parseOffset(parser.text());
@@ -115,7 +121,7 @@ public class DateHistogramParser implements Aggregator.Parser {
                 } else if (OFFSET.match(currentFieldName)) {
                     postOffset = parseOffset(parser.text());
                     preOffset = -postOffset;
-                } else if ("interval".equals(currentFieldName)) {
+                } else if (INTERVAL.match(currentFieldName)) {
                     interval = parser.text();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
@@ -131,11 +137,11 @@ public class DateHistogramParser implements Aggregator.Parser {
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if ("min_doc_count".equals(currentFieldName) || "minDocCount".equals(currentFieldName)) {
                     minDocCount = parser.longValue();
-                } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
+                } else if (TIME_ZONE.match(currentFieldName)) {
                     preZone = DateTimeZone.forOffsetHours(parser.intValue());
-                } else if ("pre_zone".equals(currentFieldName) || "preZone".equals(currentFieldName)) {
+                } else if (PRE_ZONE.match(currentFieldName)) {
                     preZone = DateTimeZone.forOffsetHours(parser.intValue());
-                } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
+                } else if (POST_ZONE.match(currentFieldName)) {
                     postZone = DateTimeZone.forOffsetHours(parser.intValue());
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");

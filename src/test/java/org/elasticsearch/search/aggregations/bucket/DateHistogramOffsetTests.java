@@ -53,7 +53,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 @ElasticsearchIntegrationTest.ClusterScope(scope=ElasticsearchIntegrationTest.Scope.SUITE)
 public class DateHistogramOffsetTests extends ElasticsearchIntegrationTest {
 
-    private static final String DATE_FORMAT = "YY-MM-DD:hh-mm-ss";
+    private static final String DATE_FORMAT = "yyyy-MM-dd:hh-mm-ss";
 
     private DateTime date(String date) {
         return DateFieldMapper.Defaults.DATE_TIME_FORMATTER.parser().parseDateTime(date);

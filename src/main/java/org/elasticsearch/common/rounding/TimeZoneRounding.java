@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
-import org.joda.time.DateTimeConstants;
 import org.joda.time.DateTimeField;
 import org.joda.time.DateTimeZone;
 import org.joda.time.DurationField;
@@ -47,14 +46,11 @@ public abstract class TimeZoneRounding extends Rounding {
         private DateTimeUnit unit;
         private long interval = -1;
 
-        private DateTimeZone preTz = DateTimeZone.UTC;
-        private DateTimeZone postTz = DateTimeZone.UTC;
+        private DateTimeZone timeZone = DateTimeZone.UTC;
 
         private float factor = 1.0f;
 
         private long offset;
-
-        private boolean preZoneAdjustLargeInterval = false;
 
         public Builder(DateTimeUnit unit) {
             this.unit = unit;
@@ -68,18 +64,8 @@ public abstract class TimeZoneRounding extends Rounding {
             this.interval = interval.millis();
         }
 
-        public Builder preZone(DateTimeZone preTz) {
-            this.preTz = preTz;
-            return this;
-        }
-
-        public Builder preZoneAdjustLargeInterval(boolean preZoneAdjustLargeInterval) {
-            this.preZoneAdjustLargeInterval = preZoneAdjustLargeInterval;
-            return this;
-        }
-
-        public Builder postZone(DateTimeZone postTz) {
-            this.postTz = postTz;
+        public Builder timeZone(DateTimeZone timeZone) {
+            this.timeZone = timeZone;
             return this;
         }
 
@@ -96,21 +82,9 @@ public abstract class TimeZoneRounding extends Rounding {
         public Rounding build() {
             Rounding timeZoneRounding;
             if (unit != null) {
-                if (preTz.equals(DateTimeZone.UTC) && postTz.equals(DateTimeZone.UTC)) {
-                    timeZoneRounding = new UTCTimeZoneRoundingFloor(unit);
-                } else if (preZoneAdjustLargeInterval || unit.field().getDurationField().getUnitMillis() < DateTimeConstants.MILLIS_PER_HOUR * 12) {
-                    timeZoneRounding = new TimeTimeZoneRoundingFloor(unit, preTz, postTz);
-                } else {
-                    timeZoneRounding = new DayTimeZoneRoundingFloor(unit, preTz, postTz);
-                }
+                    timeZoneRounding = new TimeUnitRounding(unit, timeZone);
             } else {
-                if (preTz.equals(DateTimeZone.UTC) && postTz.equals(DateTimeZone.UTC)) {
-                    timeZoneRounding = new UTCIntervalTimeZoneRounding(interval);
-                } else if (preZoneAdjustLargeInterval || interval < DateTimeConstants.MILLIS_PER_HOUR * 12) {
-                    timeZoneRounding = new TimeIntervalTimeZoneRounding(interval, preTz, postTz);
-                } else {
-                    timeZoneRounding = new DayIntervalTimeZoneRounding(interval, preTz, postTz);
-                }
+                    timeZoneRounding = new TimeIntervalRounding(interval, timeZone);
             }
             if (offset != 0) {
                 timeZoneRounding = new OffsetRounding(timeZoneRounding, offset);
@@ -122,25 +96,23 @@ public abstract class TimeZoneRounding extends Rounding {
         }
     }
 
-    static class TimeTimeZoneRoundingFloor extends TimeZoneRounding {
+    static class TimeUnitRounding extends TimeZoneRounding {
 
         static final byte ID = 1;
 
         private DateTimeUnit unit;
         private DateTimeField field;
         private DurationField durationField;
-        private DateTimeZone preTz;
-        private DateTimeZone postTz;
+        private DateTimeZone timeZone;
 
-        TimeTimeZoneRoundingFloor() { // for serialization
+        TimeUnitRounding() { // for serialization
         }
 
-        TimeTimeZoneRoundingFloor(DateTimeUnit unit, DateTimeZone preTz, DateTimeZone postTz) {
+        TimeUnitRounding(DateTimeUnit unit, DateTimeZone timeZone) {
             this.unit = unit;
-            field = unit.field();
-            durationField = field.getDurationField();
-            this.preTz = preTz;
-            this.postTz = postTz;
+            this.field = unit.field();
+            this.durationField = field.getDurationField();
+            this.timeZone = timeZone;
         }
 
         @Override
@@ -150,21 +122,24 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long roundKey(long utcMillis) {
-            long offset = preTz.getOffset(utcMillis);
-            long time = utcMillis + offset;
-            return field.roundFloor(time) - offset;
+            long timeLocal = utcMillis;
+            timeLocal = timeZone.convertUTCToLocal(utcMillis);
+            long rounded = field.roundFloor(timeLocal);
+            return timeZone.convertLocalToUTC(rounded, true, utcMillis);
         }
 
         @Override
         public long valueForKey(long time) {
-            // now apply post Tz
-            time = time + postTz.getOffset(time);
+            assert roundKey(time) == time;
             return time;
         }
 
         @Override
-        public long nextRoundingValue(long value) {
-            return durationField.add(value, 1);
+        public long nextRoundingValue(long time) {
+            long timeLocal = time;
+            timeLocal = timeZone.convertUTCToLocal(time);
+            long nextInLocalTime = durationField.add(timeLocal, 1);
+            return timeZone.convertLocalToUTC(nextInLocalTime, true);
         }
 
         @Override
@@ -172,87 +147,31 @@ public abstract class TimeZoneRounding extends Rounding {
             unit = DateTimeUnit.resolve(in.readByte());
             field = unit.field();
             durationField = field.getDurationField();
-            preTz = DateTimeZone.forID(in.readString());
-            postTz = DateTimeZone.forID(in.readString());
+            timeZone = DateTimeZone.forID(in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeByte(unit.id());
-            out.writeString(preTz.getID());
-            out.writeString(postTz.getID());
+            out.writeString(timeZone.getID());
         }
     }
 
-    static class UTCTimeZoneRoundingFloor extends TimeZoneRounding {
+    static class TimeIntervalRounding extends TimeZoneRounding {
 
         final static byte ID = 2;
 
-        private DateTimeUnit unit;
-        private DateTimeField field;
-        private DurationField durationField;
+        private long interval;
+        private DateTimeZone timeZone;
 
-        UTCTimeZoneRoundingFloor() { // for serialization
+        TimeIntervalRounding() { // for serialization
         }
 
-        UTCTimeZoneRoundingFloor(DateTimeUnit unit) {
-            this.unit = unit;
-            field = unit.field();
-            durationField = field.getDurationField();
-        }
-
-        @Override
-        public byte id() {
-            return ID;
-        }
-
-        @Override
-        public long roundKey(long utcMillis) {
-            return field.roundFloor(utcMillis);
-        }
-
-        @Override
-        public long valueForKey(long key) {
-            return key;
-        }
-
-        @Override
-        public long nextRoundingValue(long value) {
-            return durationField.add(value, 1);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            unit = DateTimeUnit.resolve(in.readByte());
-            field = unit.field();
-            durationField = field.getDurationField();
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte(unit.id());
-        }
-    }
-
-    static class DayTimeZoneRoundingFloor extends TimeZoneRounding {
-
-        final static byte ID = 3;
-
-        private DateTimeUnit unit;
-        private DateTimeField field;
-        private DurationField durationField;
-        private DateTimeZone preTz;
-        private DateTimeZone postTz;
-
-        DayTimeZoneRoundingFloor() { // for serialization
-        }
-
-        DayTimeZoneRoundingFloor(DateTimeUnit unit, DateTimeZone preTz, DateTimeZone postTz) {
-            this.unit = unit;
-            field = unit.field();
-            durationField = field.getDurationField();
-            this.preTz = preTz;
-            this.postTz = postTz;
+        TimeIntervalRounding(long interval, DateTimeZone timeZone) {
+            if (interval < 1)
+                throw new ElasticsearchIllegalArgumentException("Zero or negative time interval not supported");
+            this.interval = interval;
+            this.timeZone = timeZone;
         }
 
         @Override
@@ -262,203 +181,36 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long roundKey(long utcMillis) {
-            long time = utcMillis + preTz.getOffset(utcMillis);
-            return field.roundFloor(time);
+            long timeLocal = utcMillis;
+            timeLocal = timeZone.convertUTCToLocal(utcMillis);
+            long rounded = Rounding.Interval.roundValue(Rounding.Interval.roundKey(timeLocal, interval), interval);
+            return timeZone.convertLocalToUTC(rounded, true);
         }
 
         @Override
         public long valueForKey(long time) {
-            // after rounding, since its day level (and above), its actually UTC!
-            // now apply post Tz
-            time = time + postTz.getOffset(time);
+            assert roundKey(time) == time;
             return time;
         }
 
         @Override
-        public long nextRoundingValue(long value) {
-            return durationField.add(value, 1);
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            unit = DateTimeUnit.resolve(in.readByte());
-            field = unit.field();
-            durationField = field.getDurationField();
-            preTz = DateTimeZone.forID(in.readString());
-            postTz = DateTimeZone.forID(in.readString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte(unit.id());
-            out.writeString(preTz.getID());
-            out.writeString(postTz.getID());
-        }
-    }
-
-    static class UTCIntervalTimeZoneRounding extends TimeZoneRounding {
-
-        final static byte ID = 4;
-
-        private long interval;
-
-        UTCIntervalTimeZoneRounding() { // for serialization
-        }
-
-        UTCIntervalTimeZoneRounding(long interval) {
-            if (interval < 1)
-                throw new ElasticsearchIllegalArgumentException("Zero or negative time interval not supported");
-            this.interval = interval;
-        }
-
-        @Override
-        public byte id() {
-            return ID;
-        }
-
-        @Override
-        public long roundKey(long utcMillis) {
-            return Rounding.Interval.roundKey(utcMillis, interval);
-        }
-
-        @Override
-        public long valueForKey(long key) {
-            return Rounding.Interval.roundValue(key, interval);
-        }
-
-        @Override
-        public long nextRoundingValue(long value) {
-            return value + interval;
+        public long nextRoundingValue(long time) {
+            long timeLocal = time;
+            timeLocal = timeZone.convertUTCToLocal(time);
+            long next = timeLocal + interval;
+            return timeZone.convertLocalToUTC(next, true);
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             interval = in.readVLong();
+            timeZone = DateTimeZone.forID(in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(interval);
-        }
-    }
-
-
-    static class TimeIntervalTimeZoneRounding extends TimeZoneRounding {
-
-        final static byte ID = 5;
-
-        private long interval;
-        private DateTimeZone preTz;
-        private DateTimeZone postTz;
-
-        TimeIntervalTimeZoneRounding() { // for serialization
-        }
-
-        TimeIntervalTimeZoneRounding(long interval, DateTimeZone preTz, DateTimeZone postTz) {
-            if (interval < 1)
-                throw new ElasticsearchIllegalArgumentException("Zero or negative time interval not supported");
-            this.interval = interval;
-            this.preTz = preTz;
-            this.postTz = postTz;
-        }
-
-        @Override
-        public byte id() {
-            return ID;
-        }
-
-        @Override
-        public long roundKey(long utcMillis) {
-            long time = utcMillis + preTz.getOffset(utcMillis);
-            return Rounding.Interval.roundKey(time, interval);
-        }
-
-        @Override
-        public long valueForKey(long key) {
-            long time = Rounding.Interval.roundValue(key, interval);
-            // now, time is still in local, move it to UTC
-            time = time - preTz.getOffset(time);
-            // now apply post Tz
-            time = time + postTz.getOffset(time);
-            return time;
-        }
-
-        @Override
-        public long nextRoundingValue(long value) {
-            return value + interval;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            interval = in.readVLong();
-            preTz = DateTimeZone.forID(in.readString());
-            postTz = DateTimeZone.forID(in.readString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(interval);
-            out.writeString(preTz.getID());
-            out.writeString(postTz.getID());
-        }
-    }
-
-    static class DayIntervalTimeZoneRounding extends TimeZoneRounding {
-
-        final static byte ID = 6;
-
-        private long interval;
-        private DateTimeZone preTz;
-        private DateTimeZone postTz;
-
-        DayIntervalTimeZoneRounding() { // for serialization
-        }
-
-        DayIntervalTimeZoneRounding(long interval, DateTimeZone preTz, DateTimeZone postTz) {
-            if (interval < 1)
-                throw new ElasticsearchIllegalArgumentException("Zero or negative time interval not supported");
-            this.interval = interval;
-            this.preTz = preTz;
-            this.postTz = postTz;
-        }
-
-        @Override
-        public byte id() {
-            return ID;
-        }
-
-        @Override
-        public long roundKey(long utcMillis) {
-            long time = utcMillis + preTz.getOffset(utcMillis);
-            return Rounding.Interval.roundKey(time, interval);
-        }
-
-        @Override
-        public long valueForKey(long key) {
-            long time = Rounding.Interval.roundValue(key, interval);
-            // after rounding, since its day level (and above), its actually UTC!
-            // now apply post Tz
-            time = time + postTz.getOffset(time);
-            return time;
-        }
-
-        @Override
-        public long nextRoundingValue(long value) {
-            return value + interval;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            interval = in.readVLong();
-            preTz = DateTimeZone.forID(in.readString());
-            postTz = DateTimeZone.forID(in.readString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(interval);
-            out.writeString(preTz.getID());
-            out.writeString(postTz.getID());
+            out.writeString(timeZone.getID());
         }
     }
 }

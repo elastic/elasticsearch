@@ -6,9 +6,9 @@ your application to Elasticsearch 2.0.
 
 === Indices API
 
-The <<alias-retrieving, get alias api>> will, by default produce an error response 
-if a requested index does not exist. This change brings the defaults for this API in 
-line with the other Indices APIs. The <<multi-index>> options can be used on a request 
+The <<alias-retrieving, get alias api>> will, by default produce an error response
+if a requested index does not exist. This change brings the defaults for this API in
+line with the other Indices APIs. The <<multi-index>> options can be used on a request
 to change this behavior
 
 `GetIndexRequest.features()` now returns an array of Feature Enums instead of an array of String values.
@@ -109,13 +109,13 @@ Some query builders have been removed or renamed:
 
 ==== Aggregations
 
-The `date_histogram` aggregation now returns a `Histogram` object in the response, and the `DateHistogram` class has been removed. Similarly 
-the `date_range`, `ipv4_range`, and `geo_distance` aggregations all return a `Range` object in the response, and the `IPV4Range`, `DateRange`, 
-and `GeoDistance` classes have been removed. The motivation for this is to have a single response API for the Range and Histogram aggregations 
-regardless of the type of data being queried.  To support this some changes were made in the `MultiBucketAggregation` interface which applies 
+The `date_histogram` aggregation now returns a `Histogram` object in the response, and the `DateHistogram` class has been removed. Similarly
+the `date_range`, `ipv4_range`, and `geo_distance` aggregations all return a `Range` object in the response, and the `IPV4Range`, `DateRange`,
+and `GeoDistance` classes have been removed. The motivation for this is to have a single response API for the Range and Histogram aggregations
+regardless of the type of data being queried.  To support this some changes were made in the `MultiBucketAggregation` interface which applies
 to all bucket aggregations:
 
-* The `getKey()` method now returns `Object` instead of `String`. The actual object type returned depends on the type of aggregation requested 
+* The `getKey()` method now returns `Object` instead of `String`. The actual object type returned depends on the type of aggregation requested
 (e.g. the `date_histogram` will return a `DateTime` object for this method whereas a `histogram` will return a `Number`).
 * A `getKeyAsString()` method has been added to return the String representation of the key.
 * All other `getKeyAsX()` methods have been removed.
@@ -124,6 +124,11 @@ to all bucket aggregations:
 The `histogram` and the `date_histogram` aggregation now support a simplified `offset` option that replaces the previous `pre_offset` and
 `post_offset` rounding options. Instead of having to specify two separate offset shifts of the underlying buckets, the `offset` option
 moves the bucket boundaries in positive or negative direction depending on its argument.
+
+The `date_histogram` options for `pre_zone` and `post_zone` are replaced by the `time_zone` option. The behavior of `time_zone` is
+equivalent to the former `pre_zone` option. Setting `time_zone` to a value like "+01:00" now will lead to the bucket calculations
+being applied in the specified time zone but In addition to this, also the `pre_zone_adjust_large_interval` is removed because we
+now always return dates and bucket keys in UTC.
 
 === Terms filter lookup caching
 

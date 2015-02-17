@@ -420,6 +420,7 @@ public abstract class Engine implements Closeable {
 
     public abstract void recover(RecoveryHandler recoveryHandler) throws EngineException;
 
+    /** fail engine due to some error. the engine will also be closed. */
     public void failEngine(String reason, Throwable failure) {
         assert failure != null;
         if (failEngineLock.tryLock()) {

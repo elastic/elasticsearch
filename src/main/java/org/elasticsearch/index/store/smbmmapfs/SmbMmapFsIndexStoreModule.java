@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.store.fs;
+package org.elasticsearch.index.store.smbmmapfs;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.index.store.IndexStore;

@@ -453,24 +453,26 @@ When using a shared file system based on the SMB protocol (like Azure File Servi
 
 The Azure Cloud plugin provides two storage types optimized for SMB:
 
-- `org.elasticsearch.index.store.fs.SmbMmapFsIndexStoreModule`: a SMB specific implementation of the default [mmap fs](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/index-modules-store.html#mmapfs)
-- `org.elasticsearch.index.store.fs.SmbSimpleFsIndexStoreModule`: a SMB specific implementation of the default [simple fs](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/index-modules-store.html#simplefs)
+- `smb_mmap_fs`: a SMB specific implementation of the default [mmap fs](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/index-modules-store.html#mmapfs)
+- `smb_simple_fs`: a SMB specific implementation of the default [simple fs](http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/index-modules-store.html#simplefs)
 
-To use one of these specific storage types, you need to install the Azure Cloud plugin and restart the node. Then configure Elasticsearch to set
-the storage type you want.
+To use one of these specific storage types, you need to install the Azure Cloud plugin and restart the node.
+Then configure Elasticsearch to set the storage type you want.
 
-This can be configured for all indices by adding this to the config/elasticsearch.yml file:
-```
-index.store.type: org.elasticsearch.index.store.fs.SmbSimpleFsIndexStoreModule
+This can be configured for all indices by adding this to the `elasticsearch.yml` file:
+
+```yaml
+index.store.type: smb_simple_fs
 ```
 
 Note that setting will be applied for newly created indices.
 
 It can also be set on a per-index basis at index creation time:
-```
+
+```sh
 curl -XPUT localhost:9200/my_index -d '{
    "settings": {
-       "index.store.type": "org.elasticsearch.index.store.fs.SmbMmapFsIndexStoreModule"
+       "index.store.type": "smb_mmap_fs"
    }
 }'
 ```

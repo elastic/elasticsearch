@@ -29,19 +29,20 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.gateway.IndexShardGateway;
+import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.*;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.rest.RestStatus;
@@ -99,17 +100,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
         }
     }
 
-    public void recover(boolean indexShouldExist, RecoveryState recoveryState) throws IndexShardGatewayRecoveryException {
-        recover(this.indexShard, this.logger, this.mappingUpdatedAction, this.cancellableThreads,
-                indexShouldExist, recoveryState, this.waitForMappingUpdatePostRecovery);
-    }
-
-    public static void recover(IndexShard indexShard, final ESLogger logger,
-                               final MappingUpdatedAction mappingUpdatedAction,
-                               final CancellableThreads cancellableThreads,
-                               boolean indexShouldExists, RecoveryState recoveryState,
-                               final TimeValue waitForMappingUpdatePostRecovery)
-            throws IndexShardGatewayRecoveryException {
+    public void recover(boolean indexShouldExists, RecoveryState recoveryState) throws IndexShardGatewayRecoveryException {
         recoveryState.getIndex().startTime(System.currentTimeMillis());
         recoveryState.setStage(RecoveryState.Stage.INDEX);
         long version = -1;
@@ -130,8 +121,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
                         files += " (failure=" + ExceptionsHelper.detailedMessage(e1) + ")";
                     }
                     if (indexShouldExists) {
-                        throw new IndexShardGatewayRecoveryException(indexShard.shardId(),
-                                "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files, e);
+                        throw new IndexShardGatewayRecoveryException(shardId(), "shard allocated for local recovery (post api), should exist, but doesn't, current files: " + files, e);
                     }
                 }
                 if (si != null) {
@@ -157,8 +147,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
                     }
                 }
             } catch (Throwable e) {
-                throw new IndexShardGatewayRecoveryException(indexShard.shardId(),
-                        "failed to fetch index version after copying it over", e);
+                throw new IndexShardGatewayRecoveryException(shardId(), "failed to fetch index version after copying it over", e);
             }
             recoveryState.getIndex().updateVersion(version);
             recoveryState.getIndex().time(System.currentTimeMillis() - recoveryState.getIndex().startTime());
@@ -293,8 +282,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
                 }
             } catch (Throwable e) {
                 IOUtils.closeWhileHandlingException(indexShard.translog());
-                throw new IndexShardGatewayRecoveryException(indexShard.shardId(),
-                        "failed to recover shard", e);
+                throw new IndexShardGatewayRecoveryException(shardId, "failed to recover shard", e);
             } finally {
                 IOUtils.closeWhileHandlingException(in);
             }
@@ -310,11 +298,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
         }
         for (final String type : typesToUpdate) {
             final CountDownLatch latch = new CountDownLatch(1);
-            IndexService indexService = indexShard.indexService();
-            mappingUpdatedAction.updateMappingOnMaster(indexService.index().name(),
-                    indexService.mapperService().documentMapper(type),
-                    indexService.indexUUID(),
-                    new MappingUpdatedAction.MappingUpdateListener() {
+            mappingUpdatedAction.updateMappingOnMaster(indexService.index().name(), indexService.mapperService().documentMapper(type), indexService.indexUUID(), new MappingUpdatedAction.MappingUpdateListener() {
                 @Override
                 public void onMappingUpdate() {
                     latch.countDown();

@@ -707,11 +707,6 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void forceMerge(boolean flush) {
-        forceMerge(flush, 1, false, false);
-    }
-
-    @Override
     public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, final boolean upgrade) throws EngineException {
         if (optimizeMutex.compareAndSet(false, true)) {
             try (ReleasableLock _ = readLock.acquire()) {
@@ -846,24 +841,10 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public SegmentsStats segmentsStats() {
-        ensureOpen();
-        try (final Searcher searcher = acquireSearcher("segments_stats")) {
-                SegmentsStats stats = new SegmentsStats();
-                for (LeafReaderContext reader : searcher.reader().leaves()) {
-                    final SegmentReader segmentReader = segmentReader(reader.reader());
-                    stats.add(1, segmentReader.ramBytesUsed());
-                    stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPostingsReader()));
-                    stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
-                    stats.addTermVectorsMemoryInBytes(guardedRamBytesUsed(segmentReader.getTermVectorsReader()));
-                    stats.addNormsMemoryInBytes(guardedRamBytesUsed(segmentReader.getNormsReader()));
-                    stats.addDocValuesMemoryInBytes(guardedRamBytesUsed(segmentReader.getDocValuesReader()));
-                }
-                stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
-                stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
-                stats.addIndexWriterMaxMemoryInBytes((long) (indexWriter.getConfig().getRAMBufferSizeMB() * 1024 * 1024));
-                return stats;
-        }
+    protected final void writerSegmentStats(SegmentsStats stats) {
+        stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
+        stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
+        stats.addIndexWriterMaxMemoryInBytes((long) (indexWriter.getConfig().getRAMBufferSizeMB() * 1024 * 1024));
     }
 
     @Override

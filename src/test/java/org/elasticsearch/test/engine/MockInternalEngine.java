@@ -78,7 +78,7 @@ public class MockInternalEngine extends InternalEngine {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         try {
             super.close();
         } finally {

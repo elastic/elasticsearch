@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.reducers;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
@@ -105,8 +104,6 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         internalCluster().wipeIndices("idx2");
     }
 
-    @AwaitsFix(bugUrl = "waiting for derivative to support _count")
-    // NOCOMMIT
     @Test
     public void singleValuedField() throws Exception {
         SearchResponse response = client()
@@ -121,22 +118,30 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = deriv.getBuckets();
-        assertThat(buckets.size(), equalTo(2));
+        assertThat(buckets.size(), equalTo(3));
 
         DateTime key = new DateTime(2012, 1, 1, 0, 0, DateTimeZone.UTC);
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(1l));
         SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
-        assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(1d));
+        assertThat(docCountDeriv, nullValue());
 
         key = new DateTime(2012, 2, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+        docCountDeriv = bucket.getAggregations().get("deriv");
+        assertThat(docCountDeriv, notNullValue());
+        assertThat(docCountDeriv.value(), equalTo(1d));
+
+        key = new DateTime(2012, 3, 1, 0, 0, DateTimeZone.UTC);
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat((DateTime) bucket.getKey(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(3l));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
         assertThat(docCountDeriv.value(), equalTo(1d));
@@ -212,8 +217,6 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         assertThat((double) propertiesCounts[2], equalTo(15.0));
     }
 
-    @AwaitsFix(bugUrl = "waiting for derivative to support _count")
-    // NOCOMMIT
     @Test
     public void multiValuedField() throws Exception {
         SearchResponse response = client()
@@ -228,23 +231,22 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = deriv.getBuckets();
-        assertThat(buckets.size(), equalTo(3));
+        assertThat(buckets.size(), equalTo(4));
 
         DateTime key = new DateTime(2012, 1, 1, 0, 0, DateTimeZone.UTC);
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(0l));
-        assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getAggregations().asList().isEmpty(), is(true));
         SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
-        assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(2.0));
+        assertThat(docCountDeriv, nullValue());
 
         key = new DateTime(2012, 2, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(3l));
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
@@ -254,15 +256,23 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(5l));
+        assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
+        docCountDeriv = bucket.getAggregations().get("deriv");
+        assertThat(docCountDeriv, notNullValue());
+        assertThat(docCountDeriv.value(), equalTo(2.0));
+
+        key = new DateTime(2012, 4, 1, 0, 0, DateTimeZone.UTC);
+        bucket = buckets.get(3);
+        assertThat(bucket, notNullValue());
+        assertThat((DateTime) bucket.getKey(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(3l));
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
         assertThat(docCountDeriv.value(), equalTo(-2.0));
     }
 
-    @AwaitsFix(bugUrl = "waiting for derivative to support _count")
-    // NOCOMMIT
     @Test
     public void unmapped() throws Exception {
         SearchResponse response = client()
@@ -279,8 +289,6 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(deriv.getBuckets().size(), equalTo(0));
     }
 
-    @AwaitsFix(bugUrl = "waiting for derivative to support _count")
-    // NOCOMMIT
     @Test
     public void partiallyUnmapped() throws Exception {
         SearchResponse response = client()
@@ -295,23 +303,32 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(deriv, notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         List<? extends Bucket> buckets = deriv.getBuckets();
-        assertThat(buckets.size(), equalTo(2));
+        assertThat(buckets.size(), equalTo(3));
 
         DateTime key = new DateTime(2012, 1, 1, 0, 0, DateTimeZone.UTC);
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(0l));
-        assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
+        assertThat(bucket.getDocCount(), equalTo(1l));
+        assertThat(bucket.getAggregations().asList().isEmpty(), is(true));
         SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
-        assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(1.0));
+        assertThat(docCountDeriv, nullValue());
 
         key = new DateTime(2012, 2, 1, 0, 0, DateTimeZone.UTC);
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat((DateTime) bucket.getKey(), equalTo(key));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+        assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
+        docCountDeriv = bucket.getAggregations().get("deriv");
+        assertThat(docCountDeriv, notNullValue());
+        assertThat(docCountDeriv.value(), equalTo(1.0));
+
+        key = new DateTime(2012, 3, 1, 0, 0, DateTimeZone.UTC);
+        bucket = buckets.get(2);
+        assertThat(bucket, notNullValue());
+        assertThat((DateTime) bucket.getKey(), equalTo(key));
+        assertThat(bucket.getDocCount(), equalTo(3l));
         assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());

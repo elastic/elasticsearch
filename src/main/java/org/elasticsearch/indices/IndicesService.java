@@ -481,7 +481,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             // the store metadata gets wiped anyway even without the lock this is just best effort since
             // every shards deletes its content under the shard lock it owns.
             logger.debug("{} deleting index store reason [{}]", index, reason);
-            nodeEnv.deleteIndexDirectorySafe(index, 0, indexSettings);
+            if (canDeleteIndexContents(index, indexSettings)) {
+                nodeEnv.deleteIndexDirectorySafe(index, 0, indexSettings);
+            }
         } catch (LockObtainFailedException ex) {
             logger.debug("{} failed to delete index store - at least one shards is still locked", ex, index);
         } catch (Exception ex) {
@@ -502,9 +504,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      */
     public void deleteShardStore(String reason, ShardLock lock, Settings indexSettings) throws IOException {
         ShardId shardId = lock.getShardId();
-        if (canDeleteShardContent(shardId, indexSettings) == false) {
-            throw new ElasticsearchIllegalStateException("Can't delete shard " + shardId);
-        }
         logger.trace("{} deleting shard reason [{}]", shardId, reason);
         nodeEnv.deleteShardDirectoryUnderLock(lock, indexSettings);
     }
@@ -525,6 +524,26 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         }
         nodeEnv.deleteShardDirectorySafe(shardId, indexSettings);
         logger.trace("{} deleting shard reason [{}]", shardId, reason);
+    }
+
+    /**
+     * This method returns true if the current node is allowed to delete the
+     * given index. If the index uses a shared filesystem this method always
+     * returns false.
+     * @param index {@code Index} to check whether deletion is allowed
+     * @param indexSettings {@code Settings} for the given index
+     * @return true if the index can be deleted on this node
+     */
+    public boolean canDeleteIndexContents(Index index, Settings indexSettings) {
+        final Tuple<IndexService, Injector> indexServiceInjectorTuple = this.indices.get(index);
+        if (IndexMetaData.isOnSharedFilesystem(indexSettings) == false) {
+            if (indexServiceInjectorTuple == null && nodeEnv.hasNodeFile()) {
+                return true;
+            }
+        } else {
+            logger.trace("{} skipping index directory deletion due to shadow replicas", index);
+        }
+        return false;
     }
 
     /**
@@ -550,13 +569,16 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     private boolean canDeleteShardContent(ShardId shardId, @IndexSettings Settings indexSettings) {
         final Tuple<IndexService, Injector> indexServiceInjectorTuple = this.indices.get(shardId.getIndex());
-        // TODO add some protection here to prevent shard deletion if we are on a shard FS or have ShadowReplicas enabled.
-        if (indexServiceInjectorTuple != null && nodeEnv.hasNodeFile()) {
-            final IndexService indexService = indexServiceInjectorTuple.v1();
-            return indexService.hasShard(shardId.id()) == false;
-        } else if (nodeEnv.hasNodeFile()) {
-            final Path[] shardLocations = nodeEnv.shardDataPaths(shardId, indexSettings);
-            return FileSystemUtils.exists(shardLocations);
+        if (IndexMetaData.isOnSharedFilesystem(indexSettings) == false) {
+            if (indexServiceInjectorTuple != null && nodeEnv.hasNodeFile()) {
+                final IndexService indexService = indexServiceInjectorTuple.v1();
+                return indexService.hasShard(shardId.id()) == false;
+            } else if (nodeEnv.hasNodeFile()) {
+                final Path[] shardLocations = nodeEnv.shardDataPaths(shardId, indexSettings);
+                return FileSystemUtils.exists(shardLocations);
+            }
+        } else {
+            logger.trace("{} skipping shard directory deletion due to shadow replicas", shardId);
         }
         return false;
     }

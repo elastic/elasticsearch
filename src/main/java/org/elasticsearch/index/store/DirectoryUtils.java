@@ -31,10 +31,13 @@ public final class DirectoryUtils {
 
     private DirectoryUtils() {} // no instance
 
-    static final Directory getLeafDirectory(FilterDirectory dir) {
+    static final <T extends Directory> Directory getLeafDirectory(FilterDirectory dir, Class<T> targetClass) {
         Directory current = dir.getDelegate();
         while (true) {
             if ((current instanceof FilterDirectory)) {
+                if (targetClass != null && targetClass.isAssignableFrom(current.getClass())) {
+                    break;
+                }
                 current = ((FilterDirectory) current).getDelegate();
             } else {
                 break;
@@ -59,7 +62,7 @@ public final class DirectoryUtils {
     public static <T extends Directory> T getLeaf(Directory dir, Class<T> targetClass, T defaultValue) {
         Directory d = dir;
         if (dir instanceof FilterDirectory) {
-            d = getLeafDirectory((FilterDirectory) dir);
+            d = getLeafDirectory((FilterDirectory) dir, targetClass);
         }
         if (d instanceof FileSwitchDirectory) {
             T leaf = getLeaf(((FileSwitchDirectory) d).getPrimaryDir(), targetClass);

@@ -34,6 +34,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
@@ -44,7 +45,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
@@ -54,7 +54,6 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.aliases.IndexAliasesService;
-import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCacheStats;
@@ -89,9 +88,9 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
-import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.suggest.stats.ShardSuggestService;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.index.termvectors.ShardTermVectorsService;
@@ -131,7 +130,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final InternalIndicesLifecycle indicesLifecycle;
     private final Store store;
     private final MergeSchedulerProvider mergeScheduler;
-    private final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
     private final Translog translog;
     private final IndexAliasesService indexAliasesService;
     private final ShardIndexingService indexingService;
@@ -152,16 +150,17 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
-    private final EngineConfig config;
-    private final EngineFactory engineFactory;
     private long checkIndexTook = 0;
-    private volatile IndexShardState state;
 
     private TimeValue refreshInterval;
 
     private volatile ScheduledFuture refreshScheduledFuture;
     private volatile ScheduledFuture mergeScheduleFuture;
-    private volatile ShardRouting shardRouting;
+    protected volatile ShardRouting shardRouting;
+    protected volatile IndexShardState state;
+    protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
+    protected final EngineConfig config;
+    protected final EngineFactory engineFactory;
 
     @Nullable
     private RecoveryState recoveryState;
@@ -187,7 +186,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
                       ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
                       ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
-                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, AnalysisService analysisService, SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory) {
+                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory) {
         super(shardId, indexSettings);
         Preconditions.checkNotNull(store, "Store must be provided to the index shard");
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the index shard");
@@ -880,7 +879,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    private void verifyStartedOrRecovering() throws IllegalIndexShardStateException {
+    protected final void verifyStartedOrRecovering() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
         if (state != IndexShardState.STARTED && state != IndexShardState.RECOVERING && state != IndexShardState.POST_RECOVERY) {
             throw new IllegalIndexShardStateException(shardId, state, "operation only allowed when started/recovering");
@@ -894,7 +893,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    private void verifyStarted() throws IllegalIndexShardStateException {
+    protected final void verifyStarted() throws IllegalIndexShardStateException {
         IndexShardState state = this.state; // one time volatile read
         if (state != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(shardId, state);
@@ -1166,13 +1165,13 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    private void createNewEngine() {
+    protected void createNewEngine() {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new EngineClosedException(shardId);
             }
             assert this.currentEngineReference.get() == null;
-            this.currentEngineReference.set(engineFactory.newEngine(config));
+            this.currentEngineReference.set(engineFactory.newReadWriteEngine(config));
         }
     }
 }

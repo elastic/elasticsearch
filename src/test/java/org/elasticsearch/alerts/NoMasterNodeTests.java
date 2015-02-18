@@ -21,6 +21,7 @@ import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -91,6 +92,7 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
     }
 
     @Test
+    @TestLogging("alerts:TRACE")
     public void testMultipleFailures() throws Exception {
         int numberOfFailures = scaledRandomIntBetween(2, 9);
         int numberOfAlerts = scaledRandomIntBetween(numberOfFailures, 12);

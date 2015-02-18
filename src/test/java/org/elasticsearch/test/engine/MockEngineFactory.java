@@ -27,7 +27,12 @@ import org.elasticsearch.index.engine.EngineFactory;
  */
 public final class MockEngineFactory implements EngineFactory {
     @Override
-    public Engine newEngine(EngineConfig config) {
+    public Engine newReadWriteEngine(EngineConfig config) {
         return new MockInternalEngine(config);
+    }
+
+    @Override
+    public Engine newReadOnlyEngine(EngineConfig config) {
+        return new MockShadowEngine(config);
     }
 }

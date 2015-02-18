@@ -22,6 +22,7 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
@@ -113,8 +114,12 @@ public class RecoverySource extends AbstractComponent {
         }
 
         logger.trace("[{}][{}] starting recovery to {}, mark_as_relocated {}", request.shardId().index().name(), request.shardId().id(), request.targetNode(), request.markAsRelocated());
-
-        final ShardRecoveryHandler handler = new ShardRecoveryHandler(shard, request, recoverySettings, transportService, clusterService, indicesService, mappingUpdatedAction, logger);
+        final ShardRecoveryHandler handler;
+        if (IndexMetaData.isOnSharedFilesystem(shard.indexSettings())) {
+            handler = new SharedFSRecoveryHandler(shard, request, recoverySettings, transportService, clusterService, indicesService, mappingUpdatedAction, logger);
+        } else {
+            handler = new ShardRecoveryHandler(shard, request, recoverySettings, transportService, clusterService, indicesService, mappingUpdatedAction, logger);
+        }
         ongoingRecoveries.add(shard, handler);
         try {
             shard.recover(handler);

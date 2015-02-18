@@ -43,7 +43,7 @@ public class DirectoryUtilsTest extends ElasticsearchLuceneTestCase {
                 BaseDirectoryWrapper dir = newFSDirectory(file);
                 FSDirectory directory = DirectoryUtils.getLeaf(new FilterDirectory(dir) {}, FSDirectory.class, null);
                 assertThat(directory, notNullValue());
-                assertThat(directory, sameInstance(DirectoryUtils.getLeafDirectory(dir)));
+                assertThat(directory, sameInstance(DirectoryUtils.getLeafDirectory(dir, null)));
                 dir.close();
             }
 
@@ -51,7 +51,7 @@ public class DirectoryUtilsTest extends ElasticsearchLuceneTestCase {
                 BaseDirectoryWrapper dir = newFSDirectory(file);
                 FSDirectory directory = DirectoryUtils.getLeaf(dir, FSDirectory.class, null);
                 assertThat(directory, notNullValue());
-                assertThat(directory, sameInstance(DirectoryUtils.getLeafDirectory(dir)));
+                assertThat(directory, sameInstance(DirectoryUtils.getLeafDirectory(dir, null)));
                 dir.close();
             }
 
@@ -60,7 +60,7 @@ public class DirectoryUtilsTest extends ElasticsearchLuceneTestCase {
                 BaseDirectoryWrapper dir = newFSDirectory(file);
                 FSDirectory directory = DirectoryUtils.getLeaf(new FileSwitchDirectory(stringSet, dir, dir, random().nextBoolean()), FSDirectory.class, null);
                 assertThat(directory, notNullValue());
-                assertThat(directory, sameInstance(DirectoryUtils.getLeafDirectory(dir)));
+                assertThat(directory, sameInstance(DirectoryUtils.getLeafDirectory(dir, null)));
                 dir.close();
             }
 
@@ -69,7 +69,7 @@ public class DirectoryUtilsTest extends ElasticsearchLuceneTestCase {
                 BaseDirectoryWrapper dir = newFSDirectory(file);
                 FSDirectory directory = DirectoryUtils.getLeaf(new FilterDirectory(new FileSwitchDirectory(stringSet, dir, dir, random().nextBoolean())) {}, FSDirectory.class, null);
                 assertThat(directory, notNullValue());
-                assertThat(directory, sameInstance(DirectoryUtils.getLeafDirectory(dir)));
+                assertThat(directory, sameInstance(DirectoryUtils.getLeafDirectory(dir, null)));
                 dir.close();
             }
 

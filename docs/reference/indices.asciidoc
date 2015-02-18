@@ -42,6 +42,11 @@ and warmers.
 * <<indices-warmers>>
 
 [float]
+[[shadow-replicas]]
+== Replica configurations
+* <<indices-shadow-replicas>>
+
+[float]
 [[monitoring]]
 == Monitoring:
 * <<indices-stats>>
@@ -107,3 +112,4 @@ include::indices/optimize.asciidoc[]
 
 include::indices/upgrade.asciidoc[]
 
+include::indices/shadow-replicas.asciidoc[]

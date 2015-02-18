@@ -282,7 +282,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         return indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
     }
 
-    public synchronized IndexShard createShard(int sShardId) throws ElasticsearchException {
+    public synchronized IndexShard createShard(int sShardId, boolean primary) throws ElasticsearchException {
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
          * be able to serialize the execution via the cluster state in the future. for now we just
@@ -304,15 +304,17 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             indicesLifecycle.beforeIndexShardCreated(shardId, indexSettings);
 
             logger.debug("creating shard_id {}", shardId);
-
+            // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
+            final boolean canDeleteShardContent = IndexMetaData.isOnSharedFilesystem(indexSettings) == false ||
+                    (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
-            modules.add(new IndexShardModule(shardId, indexSettings));
+            modules.add(new IndexShardModule(shardId, primary, indexSettings));
             modules.add(new ShardIndexingModule());
             modules.add(new ShardSearchModule());
             modules.add(new ShardGetModule());
             modules.add(new StoreModule(indexSettings, injector.getInstance(IndexStore.class), lock,
-                    new StoreCloseListener(shardId)));
+                    new StoreCloseListener(shardId, canDeleteShardContent)));
             modules.add(new DeletionPolicyModule(indexSettings));
             modules.add(new MergePolicyModule(indexSettings));
             modules.add(new MergeSchedulerModule(indexSettings));
@@ -431,10 +433,12 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         }
     }
 
-    private void onShardClose(ShardLock lock) {
+    private void onShardClose(ShardLock lock, boolean ownsShard) {
         if (deleted.get()) { // we remove that shards content if this index has been deleted
             try {
-                indicesServices.deleteShardStore("delete index", lock, indexSettings);
+                if (ownsShard) {
+                    indicesServices.deleteShardStore("delete index", lock, indexSettings);
+                }
             } catch (IOException e) {
                 logger.warn("{} failed to delete shard content", e, lock.getShardId());
             }
@@ -443,15 +447,17 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     private class StoreCloseListener implements Store.OnClose {
         private final ShardId shardId;
+        private final boolean ownsShard;
 
-        public StoreCloseListener(ShardId shardId) {
+        public StoreCloseListener(ShardId shardId, boolean ownsShard) {
             this.shardId = shardId;
+            this.ownsShard = ownsShard;
         }
 
         @Override
         public void handle(ShardLock lock) {
             assert lock.getShardId().equals(shardId) : "shard Id mismatch, expected: "  + shardId + " but got: " + lock.getShardId();
-            onShardClose(lock);
+            onShardClose(lock, ownsShard);
         }
     }
 

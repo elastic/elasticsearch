@@ -54,8 +54,7 @@ public class SnapshotIndexCommit extends IndexCommitDelegate implements Releasab
     }
 
     /**
-     * Releases the current snapshot, returning <code>true</code> if it was
-     * actually released.
+     * Releases the current snapshot.
      */
     public void close() {
         deletionPolicy.close(getGeneration());

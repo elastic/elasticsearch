@@ -114,16 +114,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
     }
 
     protected BytesReference createAlertSource(String cron, SearchRequest conditionRequest, String conditionScript, Map<String,Object> metadata) throws IOException {
-        XContentBuilder builder;
-        if (randomBoolean()) {
-            builder = jsonBuilder();
-        } else if (randomBoolean()) {
-            builder = yamlBuilder();
-        } else if (randomBoolean()) {
-            builder = cborBuilder();
-        } else {
-            builder = smileBuilder();
-        }
+        XContentBuilder builder = jsonBuilder();
         builder.startObject();
 
         builder.startObject("schedule")

@@ -23,6 +23,7 @@ import com.google.common.collect.Sets;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -106,11 +107,11 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
         long version = -1;
         long translogId = -1;
         final Set<String> typesToUpdate = Sets.newHashSet();
+        SegmentInfos si = null;
         indexShard.store().incRef();
         try {
             try {
                 indexShard.store().failIfCorrupted();
-                SegmentInfos si = null;
                 try {
                     si = Lucene.readSegmentInfos(indexShard.store().directory());
                 } catch (Throwable e) {
@@ -156,11 +157,14 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
             try {
                 int numberOfFiles = 0;
                 long totalSizeInBytes = 0;
-                for (String name : indexShard.store().directory().listAll()) {
-                    numberOfFiles++;
-                    long length =  indexShard.store().directory().fileLength(name);
-                    totalSizeInBytes += length;
-                    recoveryState.getIndex().addFileDetail(name, length, length);
+                if (si != null) {
+                    final Directory directory = indexShard.store().directory();
+                    for (String name : Lucene.files(si)) {
+                        numberOfFiles++;
+                        long length = directory.fileLength(name);
+                        totalSizeInBytes += length;
+                        recoveryState.getIndex().addFileDetail(name, length, length);
+                    }
                 }
                 RecoveryState.Index index = recoveryState.getIndex();
                 index.totalFileCount(numberOfFiles);

@@ -25,10 +25,8 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.StopWatch;
@@ -138,10 +136,6 @@ public class RecoveryTarget extends AbstractComponent {
             logger.debug("{} ignore recovery. already in recovering process, {}", indexShard.shardId(), e.getMessage());
             return;
         }
-        startRecoveryInternal(indexShard, recoveryType, sourceNode, listener);
-    }
-
-    private void startRecoveryInternal(IndexShard indexShard, RecoveryState.Type recoveryType, DiscoveryNode sourceNode, RecoveryListener listener) {
         // create a new recovery status, and process...
         RecoveryState recoveryState = new RecoveryState(indexShard.shardId());
         recoveryState.setType(recoveryType);
@@ -150,6 +144,7 @@ public class RecoveryTarget extends AbstractComponent {
         recoveryState.setPrimary(indexShard.routingEntry().primary());
         final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, recoveryState, listener, recoverySettings.activityTimeout());
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
+
     }
 
     protected void retryRecovery(final RecoveryStatus recoveryStatus, final String reason, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
@@ -164,6 +159,7 @@ public class RecoveryTarget extends AbstractComponent {
 
     private void doRecovery(final RecoveryStatus recoveryStatus) {
         assert recoveryStatus.sourceNode() != null : "can't do a recovery without a source node";
+
         logger.trace("collecting local files for {}", recoveryStatus);
         final Map<String, StoreFileMetaData> existingFiles;
         try {

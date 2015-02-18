@@ -1,6 +1,8 @@
 [[indices-shadow-replicas]]
 == Shadow replica indices
 
+experimental[]
+
 If you would like to use a shared filesystem, you can use the shadow replicas
 settings to choose where on disk the data for an index should be kept, as well
 as how Elasticsearch should replay operations on all the replica shards of an
@@ -16,6 +18,15 @@ node.enable_custom_paths: true
 
 You can then create an index with a custom data path, where each node will use
 this path for the data:
+
+[WARNING]
+========================
+Because shadow replicas do not index the document on replica shards, it's
+possible for the replica's known mapping to be behind the index's known mapping
+if the latest cluster state has not yet been processed on the node containing
+the replica. Because of this, it is highly recommended to use pre-defined
+mappings when using shadow replicas.
+========================
 
 [source,js]
 --------------------------------------------------

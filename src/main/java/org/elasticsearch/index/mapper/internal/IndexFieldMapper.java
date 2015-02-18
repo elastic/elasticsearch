@@ -29,10 +29,15 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
@@ -85,7 +90,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
 
         @Override
         public IndexFieldMapper build(BuilderContext context) {
-            return new IndexFieldMapper(name, indexName, boost, fieldType, docValues, enabledState, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+            return new IndexFieldMapper(name, indexName, boost, fieldType, docValues, enabledState, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -116,13 +121,13 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     }
 
     protected IndexFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null, Defaults.ENABLED_STATE, null, null, null, ImmutableSettings.EMPTY);
+        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null, Defaults.ENABLED_STATE, null, ImmutableSettings.EMPTY);
     }
 
     public IndexFieldMapper(String name, String indexName, float boost, FieldType fieldType, Boolean docValues, EnabledAttributeMapper enabledState,
-                            PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                            @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, indexName, indexName, name), boost, fieldType, docValues, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings);
+                Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
         this.enabledState = enabledState;
     }
 

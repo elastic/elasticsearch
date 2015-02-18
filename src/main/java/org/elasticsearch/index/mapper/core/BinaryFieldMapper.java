@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.core;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
@@ -41,10 +42,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -95,8 +98,8 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
 
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
-            return new BinaryFieldMapper(buildNames(context), fieldType, docValues, compress, compressThreshold, postingsProvider,
-                    docValuesProvider, fieldDataSettings, multiFieldsBuilder.build(this, context), copyTo);
+            return new BinaryFieldMapper(buildNames(context), fieldType, docValues, compress, compressThreshold,
+                    fieldDataSettings, multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -132,9 +135,8 @@ public class BinaryFieldMapper extends AbstractFieldMapper<BytesReference> {
     private long compressThreshold;
 
     protected BinaryFieldMapper(Names names, FieldType fieldType, Boolean docValues, Boolean compress, long compressThreshold,
-                                PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings,
-                                MultiFields multiFields, CopyTo copyTo) {
-        super(names, 1.0f, fieldType, docValues, null, null, postingsProvider, docValuesProvider, null, null, fieldDataSettings, null, multiFields, copyTo);
+                                @Nullable Settings fieldDataSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(names, 1.0f, fieldType, docValues, null, null, null, null, fieldDataSettings, null, multiFields, copyTo);
         this.compress = compress;
         this.compressThreshold = compressThreshold;
     }

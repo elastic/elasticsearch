@@ -34,8 +34,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -144,7 +142,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             defaultFieldType.freeze();
             StringFieldMapper fieldMapper = new StringFieldMapper(buildNames(context),
                     boost, fieldType, defaultFieldType, docValues, nullValue, indexAnalyzer, searchAnalyzer, searchQuotedAnalyzer,
-                    positionOffsetGap, ignoreAbove, postingsProvider, docValuesProvider, similarity, normsLoading, 
+                    positionOffsetGap, ignoreAbove, similarity, normsLoading, 
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -208,10 +206,9 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     protected StringFieldMapper(Names names, float boost, FieldType fieldType, FieldType defaultFieldType, Boolean docValues,
                                 String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                                 NamedAnalyzer searchQuotedAnalyzer, int positionOffsetGap, int ignoreAbove,
-                                PostingsFormatProvider postingsFormat, DocValuesFormatProvider docValuesFormat,
                                 SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsFormat, docValuesFormat, 
+        super(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer,
                 similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         if (fieldType.tokenized() && fieldType.indexOptions() != IndexOptions.NONE && hasDocValues()) {
             throw new MapperParsingException("Field [" + names.fullName() + "] cannot be analyzed and have doc values");
@@ -267,6 +264,10 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
 
     public int getPositionOffsetGap() {
         return this.positionOffsetGap;
+    }
+
+    public int getIgnoreAbove() {
+        return ignoreAbove;
     }
 
     @Override

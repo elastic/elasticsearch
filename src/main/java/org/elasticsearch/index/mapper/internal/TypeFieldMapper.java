@@ -36,8 +36,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.InternalMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -90,7 +88,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
         @Override
         public TypeFieldMapper build(BuilderContext context) {
-            return new TypeFieldMapper(name, indexName, boost, fieldType, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+            return new TypeFieldMapper(name, indexName, boost, fieldType, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -109,13 +107,12 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     }
 
     protected TypeFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null, null, null, ImmutableSettings.EMPTY);
+        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null, ImmutableSettings.EMPTY);
     }
 
-    public TypeFieldMapper(String name, String indexName, float boost, FieldType fieldType, PostingsFormatProvider postingsProvider,
-                           DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+    public TypeFieldMapper(String name, String indexName, float boost, FieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, indexName, indexName, name), boost, fieldType, null, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings);
+                Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
     }
 
     @Override

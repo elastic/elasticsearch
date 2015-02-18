@@ -37,11 +37,16 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.NumericFloatAnalyzer;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.FloatFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -97,7 +102,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         @Override
         public BoostFieldMapper build(BuilderContext context) {
             return new BoostFieldMapper(name, buildIndexName(context),
-                    fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+                    fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -128,14 +133,14 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
 
     protected BoostFieldMapper(String name, String indexName, Settings indexSettings) {
         this(name, indexName, Defaults.PRECISION_STEP_32_BIT, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
-                Defaults.NULL_VALUE, null, null, null, indexSettings);
+                Defaults.NULL_VALUE, null, indexSettings);
     }
 
     protected BoostFieldMapper(String name, String indexName, int precisionStep, float boost, FieldType fieldType, Boolean docValues, Float nullValue,
-                               PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                               @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, indexName, indexName, name), precisionStep, boost, fieldType, docValues, Defaults.IGNORE_MALFORMED, Defaults.COERCE,
                 NumericFloatAnalyzer.buildNamedAnalyzer(precisionStep), NumericFloatAnalyzer.buildNamedAnalyzer(Integer.MAX_VALUE),
-                postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings, MultiFields.empty(), null);
+                null, null, fieldDataSettings, indexSettings, MultiFields.empty(), null);
         this.nullValue = nullValue;
     }
 

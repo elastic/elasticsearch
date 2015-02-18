@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.base.Objects;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -29,6 +30,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -37,9 +39,16 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 
@@ -83,7 +92,6 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
         protected String indexName;
 
         private String type;
-        protected PostingsFormatProvider postingsFormat;
         protected Settings fieldDataSettings;
 
         public Builder() {
@@ -97,11 +105,6 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             return builder;
         }
 
-        protected Builder postingsFormat(PostingsFormatProvider postingsFormat) {
-            this.postingsFormat = postingsFormat;
-            return builder;
-        }
-
         public Builder fieldDataSettings(Settings settings) {
             this.fieldDataSettings = settings;
             return builder;
@@ -112,7 +115,7 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
             if (type == null) {
                 throw new MapperParsingException("Parent mapping must contain the parent type");
             }
-            return new ParentFieldMapper(name, indexName, type, postingsFormat, fieldDataSettings, context.indexSettings());
+            return new ParentFieldMapper(name, indexName, type, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -127,9 +130,8 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
                 if (fieldName.equals("type")) {
                     builder.type(fieldNode.toString());
                     iterator.remove();
-                } else if (fieldName.equals("postings_format")) {
-                    String postingFormatName = fieldNode.toString();
-                    builder.postingsFormat(parserContext.postingFormatService().get(postingFormatName));
+                } else if (fieldName.equals("postings_format") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                    // ignore before 2.0, reject on and after 2.0
                     iterator.remove();
                 } else if (fieldName.equals("fielddata")) {
                     // Only take over `loading`, since that is the only option now that is configurable:
@@ -148,15 +150,15 @@ public class ParentFieldMapper extends AbstractFieldMapper<Uid> implements Inter
     private final String type;
     private final BytesRef typeAsBytes;
 
-    protected ParentFieldMapper(String name, String indexName, String type, PostingsFormatProvider postingsFormat, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+    protected ParentFieldMapper(String name, String indexName, String type, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, null, null, null, fieldDataSettings, indexSettings);
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
         this.type = type;
         this.typeAsBytes = type == null ? null : new BytesRef(type);
     }
 
     public ParentFieldMapper(Settings indexSettings) {
-        this(Defaults.NAME, Defaults.NAME, null, null, null, indexSettings);
+        this(Defaults.NAME, Defaults.NAME, null, null, indexSettings);
         this.fieldDataType = new FieldDataType("_parent", settingsBuilder().put(Loading.KEY, Loading.LAZY_VALUE));
     }
 

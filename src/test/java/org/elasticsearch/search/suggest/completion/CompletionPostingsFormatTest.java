@@ -20,27 +20,39 @@
 package org.elasticsearch.search.suggest.completion;
 
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.Document;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocsAndPositionsEnum;
+import org.apache.lucene.index.DocsEnum;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.suggest.InputIterator;
 import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.Lookup.LookupResult;
 import org.apache.lucene.search.suggest.analyzing.AnalyzingSuggester;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LineFileDocs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.postingsformat.Elasticsearch090PostingsFormat;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PreBuiltPostingsFormatProvider;
 import org.elasticsearch.index.mapper.FieldMapper.Names;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
@@ -52,7 +64,11 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -71,7 +87,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
 
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = currentProvider.load(input);
-        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(PostingsFormat.forName(Lucene.LATEST_POSTINGS_FORMAT));
+        PostingsFormat format = PostingsFormat.forName(Lucene.LATEST_POSTINGS_FORMAT);
         NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer());
         Lookup lookup = load.getLookup(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING), new CompletionSuggestionContext(null));
         List<LookupResult> result = lookup.lookup("ge", false, 10);
@@ -90,7 +106,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
 
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = currentProvider.load(input);
-        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
+        PostingsFormat format = new Elasticsearch090PostingsFormat();
         NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer());
         AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder analyzingSuggestHolder = load.getAnalyzingSuggestHolder(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING));
         assertThat(analyzingSuggestHolder.sepLabel, is(AnalyzingCompletionLookupProviderV1.SEP_LABEL));
@@ -108,7 +124,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
 
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = currentProvider.load(input);
-        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
+        PostingsFormat format = new Elasticsearch090PostingsFormat();
         NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer());
         AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder analyzingSuggestHolder = load.getAnalyzingSuggestHolder(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING));
         assertThat(analyzingSuggestHolder.sepLabel, is(XAnalyzingSuggester.SEP_LABEL));
@@ -215,7 +231,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
             iter = primaryIter;
         }
         reference.build(iter);
-        PostingsFormatProvider provider = new PreBuiltPostingsFormatProvider(PostingsFormat.forName(Lucene.LATEST_POSTINGS_FORMAT));
+        PostingsFormat provider = PostingsFormat.forName(Lucene.LATEST_POSTINGS_FORMAT);
 
         NamedAnalyzer namedAnalzyer = new NamedAnalyzer("foo", new StandardAnalyzer());
         final CompletionFieldMapper mapper = new CompletionFieldMapper(new Names("foo"), namedAnalzyer, namedAnalzyer, provider, null, usePayloads,
@@ -260,7 +276,8 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
         RAMDirectory dir = new RAMDirectory();
         FilterCodec filterCodec = new FilterCodec("filtered", Codec.getDefault()) {
             public PostingsFormat postingsFormat() {
-                return mapper.postingsFormatProvider().get();
+                final PostingsFormat in = super.postingsFormat();
+                return mapper.postingsFormat(in);
             }
         };
         IndexWriterConfig indexWriterConfig = new IndexWriterConfig(mapper.indexAnalyzer());
@@ -317,7 +334,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
 
         IndexInput input = dir.openInput("foo.txt", IOContext.DEFAULT);
         LookupFactory load = provider.load(input);
-        PostingsFormatProvider format = new PreBuiltPostingsFormatProvider(new Elasticsearch090PostingsFormat());
+        PostingsFormat format = new Elasticsearch090PostingsFormat();
         NamedAnalyzer analyzer = new NamedAnalyzer("foo", new StandardAnalyzer());
         assertNull(load.getLookup(new CompletionFieldMapper(new Names("foo"), analyzer, analyzer, format, null, true, true, true, Integer.MAX_VALUE, AbstractFieldMapper.MultiFields.empty(), null, ContextMapping.EMPTY_MAPPING), new CompletionSuggestionContext(null)));
         dir.close();

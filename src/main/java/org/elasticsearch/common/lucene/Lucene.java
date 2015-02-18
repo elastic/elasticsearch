@@ -19,19 +19,13 @@
 
 package org.elasticsearch.common.lucene;
 
+import com.google.common.collect.Iterables;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -70,6 +64,10 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
 
 import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTOR;
 
@@ -118,6 +116,17 @@ public class Lucene {
      */
     public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
         return SegmentInfos.readLatestCommit(directory);
+    }
+
+    /**
+     * Returns an iterable that allows to iterate over all files in this segments info
+     */
+    public static Iterable<String> files(SegmentInfos infos) throws IOException {
+        final List<Collection<String>> list = new ArrayList<>();
+        for (SegmentCommitInfo info : infos) {
+            list.add(info.files());
+        }
+        return Iterables.concat(list.toArray(new Collection[0]));
     }
 
     /**

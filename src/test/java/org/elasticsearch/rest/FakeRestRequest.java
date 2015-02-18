@@ -24,19 +24,22 @@ import org.elasticsearch.common.bytes.BytesReference;
 import java.util.HashMap;
 import java.util.Map;
 
-class FakeRestRequest extends RestRequest {
+public class FakeRestRequest extends RestRequest {
 
     private final Map<String, String> headers;
 
-    FakeRestRequest() {
+    private final Map<String, String> params;
+
+    public FakeRestRequest() {
         this(new HashMap<String, String>(), new HashMap<String, String>());
     }
 
-    FakeRestRequest(Map<String, String> headers, Map<String, String> context) {
+    public FakeRestRequest(Map<String, String> headers, Map<String, String> context) {
         this.headers = headers;
         for (Map.Entry<String, String> entry : context.entrySet()) {
             putInContext(entry.getKey(), entry.getValue());
         }
+        this.params = new HashMap<>();
     }
 
     @Override
@@ -81,21 +84,25 @@ class FakeRestRequest extends RestRequest {
 
     @Override
     public boolean hasParam(String key) {
-        return false;
+        return params.containsKey(key);
     }
 
     @Override
     public String param(String key) {
-        return null;
+        return params.get(key);
     }
 
     @Override
     public String param(String key, String defaultValue) {
-        return null;
+        String value = params.get(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        return value;
     }
 
     @Override
     public Map<String, String> params() {
-        return null;
+        return params;
     }
 }

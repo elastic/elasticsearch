@@ -76,13 +76,14 @@ public class RestClusterStateAction extends BaseRestHandler {
             clusterStateRequest.metaData(metrics.contains(ClusterState.Metric.METADATA));
             clusterStateRequest.blocks(metrics.contains(ClusterState.Metric.BLOCKS));
         }
+        settingsFilter.addFilterSettingParams(request);
 
         client.admin().cluster().state(clusterStateRequest, new RestBuilderListener<ClusterStateResponse>(channel) {
             @Override
             public RestResponse buildResponse(ClusterStateResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
                 builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
-                response.getState().settingsFilter(settingsFilter).toXContent(builder, request);
+                response.getState().toXContent(builder, request);
                 builder.endObject();
                 return new BytesRestResponse(RestStatus.OK, builder);
             }

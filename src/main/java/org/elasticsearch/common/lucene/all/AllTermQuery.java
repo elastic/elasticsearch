@@ -20,7 +20,6 @@
 package org.elasticsearch.common.lucene.all;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.DocsAndPositionsEnum;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ComplexExplanation;

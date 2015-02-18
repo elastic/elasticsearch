@@ -124,7 +124,7 @@ final class PerThreadIDAndVersionLookup {
                     }
                 }
 
-                // ... but used to be stored as payloads; in this case we must use DocsAndPositionsEnum
+                // ... but used to be stored as payloads; in this case we must use PostingsEnum
                 PostingsEnum dpe = posEnums[seg] = termsEnums[seg].postings(liveDocs[seg], posEnums[seg], PostingsEnum.PAYLOADS);
                 assert dpe != null; // terms has payloads
                 for (int d = dpe.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = dpe.nextDoc()) {

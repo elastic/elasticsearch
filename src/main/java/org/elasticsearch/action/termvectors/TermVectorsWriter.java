@@ -53,8 +53,8 @@ final class TermVectorsWriter {
     void setFields(Fields termVectorsByField, Set<String> selectedFields, EnumSet<Flag> flags, Fields topLevelFields, @Nullable AggregatedDfs dfs) throws IOException {
         int numFieldsWritten = 0;
         TermsEnum iterator = null;
-        DocsAndPositionsEnum docsAndPosEnum = null;
-        DocsEnum docsEnum = null;
+        PostingsEnum docsAndPosEnum = null;
+        PostingsEnum docsEnum = null;
         TermsEnum topLevelIterator = null;
         for (String field : termVectorsByField) {
             if ((selectedFields != null) && (!selectedFields.contains(field))) {
@@ -128,8 +128,8 @@ final class TermVectorsWriter {
         return header.bytes();
     }
 
-    private DocsEnum writeTermWithDocsOnly(TermsEnum iterator, DocsEnum docsEnum) throws IOException {
-        docsEnum = iterator.docs(null, docsEnum);
+    private PostingsEnum writeTermWithDocsOnly(TermsEnum iterator, PostingsEnum docsEnum) throws IOException {
+        docsEnum = iterator.postings(null, docsEnum);
         int nextDoc = docsEnum.nextDoc();
         assert nextDoc != DocIdSetIterator.NO_MORE_DOCS;
         writeFreq(docsEnum.freq());
@@ -138,9 +138,9 @@ final class TermVectorsWriter {
         return docsEnum;
     }
 
-    private DocsAndPositionsEnum writeTermWithDocsAndPos(TermsEnum iterator, DocsAndPositionsEnum docsAndPosEnum, boolean positions,
+    private PostingsEnum writeTermWithDocsAndPos(TermsEnum iterator, PostingsEnum docsAndPosEnum, boolean positions,
                                                          boolean offsets, boolean payloads) throws IOException {
-        docsAndPosEnum = iterator.docsAndPositions(null, docsAndPosEnum);
+        docsAndPosEnum = iterator.postings(null, docsAndPosEnum, PostingsEnum.ALL);
         // for each term (iterator next) in this field (field)
         // iterate over the docs (should only be one)
         int nextDoc = docsAndPosEnum.nextDoc();

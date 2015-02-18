@@ -19,9 +19,7 @@
 
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.DocsAndPositionsEnum;
 import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 
 import java.io.IOException;
@@ -85,54 +83,5 @@ public class PositionIterator implements Iterator<TermPosition> {
         }
         resetted = true;
         return this;
-    }
-
-    // we use this to make sure we can also iterate if there are no positions
-    private static final class EmptyDocsAndPosEnum extends DocsAndPositionsEnum {
-
-        @Override
-        public int nextPosition() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public int startOffset() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public int endOffset() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public BytesRef getPayload() throws IOException {
-            return null;
-        }
-
-        @Override
-        public int freq() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int docID() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long cost() {
-            throw new UnsupportedOperationException();
-        }
     }
 }

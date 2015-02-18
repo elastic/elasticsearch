@@ -636,9 +636,10 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             // perform the action on the replica, so skip it and
             // immediately return
             if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings())) {
-                // this doesn't replicate mappings changes, so can fail if mappings are not predefined
-                // It was successful on the replica, although we never actually executed - in the future we will
-                // ack mapping updates with the master and that will sync with replicas. For now this is just fine.
+                // this delays mapping updates on replicas because they have
+                // to wait until they get the new mapping through the cluster
+                // state, which is why we recommend pre-defined mappings for
+                // indices using shadow replicas
                 state.onReplicaSuccess();
                 return;
             }

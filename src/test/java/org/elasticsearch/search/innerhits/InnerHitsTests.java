@@ -645,4 +645,29 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
         assertThat(innerHits.getAt(0).getNestedIdentity().getChild().getOffset(), equalTo(0));
     }
 
+    @Test
+    // https://github.com/elasticsearch/elasticsearch/issues/9723
+    public void testNestedDefinedAsObject() throws Exception {
+        assertAcked(prepareCreate("articles").addMapping("article", "comments", "type=nested", "title", "type=string"));
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        requests.add(client().prepareIndex("articles", "article", "1").setSource(jsonBuilder().startObject()
+                .field("title", "quick brown fox")
+                .startObject("comments").field("message", "fox eat quick").endObject()
+                .endObject()));
+        indexRandom(true, requests);
+
+        SearchResponse response = client().prepareSearch("articles")
+                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHitBuilder()))
+                .get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits(), equalTo(1l));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).id(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getChild(), nullValue());
+    }
+
 }

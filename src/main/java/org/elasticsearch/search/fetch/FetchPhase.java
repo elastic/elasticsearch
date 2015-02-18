@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.fetch;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
@@ -27,6 +28,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
@@ -293,7 +295,16 @@ public class FetchPhase implements SearchPhase {
             List<Map<String, Object>> nestedParsedSource;
             SearchHit.NestedIdentity nested = nestedIdentity;
             do {
-                nestedParsedSource = (List<Map<String, Object>>) XContentMapValues.extractValue(nested.getField().string(), sourceAsMap);
+                Object extractedValue = XContentMapValues.extractValue(nested.getField().string(), sourceAsMap);
+                if (extractedValue instanceof List) {
+                    // nested field has an array value in the _source
+                    nestedParsedSource = (List<Map<String, Object>>) extractedValue;
+                } else if (extractedValue instanceof Map) {
+                    // nested field has an object value in the _source. This just means the nested field has just one inner object, which is valid, but uncommon.
+                    nestedParsedSource = ImmutableList.of((Map < String, Object >) extractedValue);
+                } else {
+                    throw new ElasticsearchIllegalStateException("extracted source isn't an object or an array");
+                }
                 sourceAsMap = nestedParsedSource.get(nested.getOffset());
                 nested = nested.getChild();
             } while (nested != null);

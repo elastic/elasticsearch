@@ -110,7 +110,9 @@ public class OpenLdapTests extends ElasticsearchTestCase {
         RealmConfig config = new RealmConfig("oldap-test", settings);
         LdapSessionFactory sessionFactory = new LdapSessionFactory(config, clientSSLService);
 
-        try (LdapSession ldap = sessionFactory.open("thor", SecuredStringTests.build(PASSWORD))){
+        try (LdapSession ldap = sessionFactory.open("thor", SecuredStringTests.build(PASSWORD))) {
+            // In certain cases we may have a successful bind, but a search should take longer and cause a timeout
+            ldap.groups();
             fail("The TCP connection should timeout before getting groups back");
         } catch (ShieldLdapException e) {
             assertThat(e.getCause().getMessage(), containsString("A client-side timeout was encountered while waiting"));

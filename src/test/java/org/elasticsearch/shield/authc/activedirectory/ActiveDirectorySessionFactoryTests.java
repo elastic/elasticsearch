@@ -84,6 +84,8 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
 
         try (LdapSession ldap = sessionFactory.open("ironman", SecuredStringTests.build(PASSWORD))) {
+            // In certain cases we may have a successful bind, but a search should take longer and cause a timeout
+            ldap.groups();
             fail("The TCP connection should timeout before getting groups back");
         } catch (ActiveDirectoryException e) {
             assertThat(e.getCause().getMessage(), containsString("A client-side timeout was encountered while waiting"));

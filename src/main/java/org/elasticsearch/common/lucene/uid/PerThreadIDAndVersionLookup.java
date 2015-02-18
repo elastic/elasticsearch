@@ -23,12 +23,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import org.apache.lucene.index.DocsAndPositionsEnum;
-import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -51,9 +50,9 @@ final class PerThreadIDAndVersionLookup {
 
     private final LeafReaderContext[] readerContexts;
     private final TermsEnum[] termsEnums;
-    private final DocsEnum[] docsEnums;
+    private final PostingsEnum[] docsEnums;
     // Only used for back compat, to lookup a version from payload:
-    private final DocsAndPositionsEnum[] posEnums;
+    private final PostingsEnum[] posEnums;
     private final Bits[] liveDocs;
     private final NumericDocValues[] versions;
     private final int numSegs;
@@ -66,8 +65,8 @@ final class PerThreadIDAndVersionLookup {
 
         readerContexts = leaves.toArray(new LeafReaderContext[leaves.size()]);
         termsEnums = new TermsEnum[leaves.size()];
-        docsEnums = new DocsEnum[leaves.size()];
-        posEnums = new DocsAndPositionsEnum[leaves.size()];
+        docsEnums = new PostingsEnum[leaves.size()];
+        posEnums = new PostingsEnum[leaves.size()];
         liveDocs = new Bits[leaves.size()];
         versions = new NumericDocValues[leaves.size()];
         hasPayloads = new boolean[leaves.size()];
@@ -103,10 +102,10 @@ final class PerThreadIDAndVersionLookup {
 
                 NumericDocValues segVersions = versions[seg];
                 if (segVersions != null || hasPayloads[seg] == false) {
-                    // Use NDV to retrieve the version, in which case we only need DocsEnum:
+                    // Use NDV to retrieve the version, in which case we only need PostingsEnum:
 
                     // there may be more than one matching docID, in the case of nested docs, so we want the last one:
-                    DocsEnum docs = docsEnums[seg] = termsEnums[seg].docs(liveDocs[seg], docsEnums[seg], 0);
+                    PostingsEnum docs = docsEnums[seg] = termsEnums[seg].postings(liveDocs[seg], docsEnums[seg], 0);
                     int docID = DocIdSetIterator.NO_MORE_DOCS;
                     for (int d = docs.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docs.nextDoc()) {
                         docID = d;
@@ -126,11 +125,9 @@ final class PerThreadIDAndVersionLookup {
                 }
 
                 // ... but used to be stored as payloads; in this case we must use DocsAndPositionsEnum
-                DocsAndPositionsEnum dpe = posEnums[seg] = termsEnums[seg].docsAndPositions(liveDocs[seg], posEnums[seg], DocsAndPositionsEnum.FLAG_PAYLOADS);
+                PostingsEnum dpe = posEnums[seg] = termsEnums[seg].postings(liveDocs[seg], posEnums[seg], PostingsEnum.PAYLOADS);
                 assert dpe != null; // terms has payloads
-                int docID = DocsEnum.NO_MORE_DOCS;
-                for (int d = dpe.nextDoc(); d != DocsEnum.NO_MORE_DOCS; d = dpe.nextDoc()) {
-                    docID = d;
+                for (int d = dpe.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = dpe.nextDoc()) {
                     dpe.nextPosition();
                     final BytesRef payload = dpe.getPayload();
                     if (payload != null && payload.length == 8) {

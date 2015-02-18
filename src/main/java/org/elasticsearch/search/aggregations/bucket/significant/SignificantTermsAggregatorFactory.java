@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.search.Filter;

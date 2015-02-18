@@ -20,7 +20,9 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 
@@ -257,7 +259,7 @@ final class ParentChildIntersectTermsEnum extends TermsEnum {
                 }
             }
 
-            if (states.get(lowestIndex).next() == DocsEnum.NO_MORE_DOCS) {
+            if (states.get(lowestIndex).next() == DocIdSetIterator.NO_MORE_DOCS) {
                 states.remove(lowestIndex);
             }
 

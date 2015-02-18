@@ -200,12 +200,12 @@ public class TopChildrenQuery extends Query {
                 if (!termsEnum.seekExact(Uid.createUidAsBytes(parentType, parentId))) {
                     continue;
                 }
-                DocsEnum docsEnum = termsEnum.docs(indexReader.getLiveDocs(), null, DocsEnum.FLAG_NONE);
+                PostingsEnum docsEnum = termsEnum.postings(indexReader.getLiveDocs(), null, PostingsEnum.NONE);
                 int parentDocId = docsEnum.nextDoc();
                 if (nonNestedDocs != null && !nonNestedDocs.get(parentDocId)) {
                     parentDocId = nonNestedDocs.nextSetBit(parentDocId);
                 }
-                if (parentDocId != DocsEnum.NO_MORE_DOCS) {
+                if (parentDocId != DocIdSetIterator.NO_MORE_DOCS) {
                     // we found a match, add it and break
                     IntObjectOpenHashMap<ParentDoc> readerParentDocs = parentDocsPerReader.get(indexReader.getCoreCacheKey());
                     if (readerParentDocs == null) {

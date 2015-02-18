@@ -101,7 +101,7 @@ final class TermVectorsWriter {
                     docsAndPosEnum = writeTermWithDocsAndPos(iterator, docsAndPosEnum, positions, offsets, payloads);
                 } else {
                     // if we do not have the positions stored, we need to
-                    // get the frequency from a DocsEnum.
+                    // get the frequency from a PostingsEnum.
                     docsEnum = writeTermWithDocsOnly(iterator, docsEnum);
                 }
             }

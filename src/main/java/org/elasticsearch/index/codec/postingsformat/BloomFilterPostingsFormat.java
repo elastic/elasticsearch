@@ -21,6 +21,7 @@ package org.elasticsearch.index.codec.postingsformat;
 
 import org.apache.lucene.codecs.*;
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.*;
 import org.elasticsearch.common.util.BloomFilter;
@@ -401,7 +402,7 @@ public class BloomFilterPostingsFormat extends PostingsFormat {
                     }
                     // Make sure there's at least one doc for this term:
                     postings = termsEnum.postings(null, postings, 0);
-                    if (postings.nextDoc() != DocsEnum.NO_MORE_DOCS) {
+                    if (postings.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         bloomFilter.put(term);
                     }
                 }

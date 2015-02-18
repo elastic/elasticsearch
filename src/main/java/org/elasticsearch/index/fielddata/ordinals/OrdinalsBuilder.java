@@ -19,9 +19,10 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.FilteredTermsEnum;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.*;
 import org.apache.lucene.util.packed.GrowableWriter;
 import org.apache.lucene.util.packed.PackedInts;
@@ -463,16 +464,16 @@ public final class OrdinalsBuilder implements Closeable {
      */
     public BytesRefIterator buildFromTerms(final TermsEnum termsEnum) throws IOException {
         return new BytesRefIterator() {
-            private DocsEnum docsEnum = null;
+            private PostingsEnum docsEnum = null;
 
             @Override
             public BytesRef next() throws IOException {
                 BytesRef ref;
                 if ((ref = termsEnum.next()) != null) {
-                    docsEnum = termsEnum.docs(null, docsEnum, DocsEnum.FLAG_NONE);
+                    docsEnum = termsEnum.postings(null, docsEnum, PostingsEnum.NONE);
                     nextOrdinal();
                     int docId;
-                    while ((docId = docsEnum.nextDoc()) != DocsEnum.NO_MORE_DOCS) {
+                    while ((docId = docsEnum.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
                         addDoc(docId);
                     }
                 }

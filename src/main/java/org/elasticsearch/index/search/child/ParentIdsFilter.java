@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
@@ -153,7 +153,7 @@ final class ParentIdsFilter extends Filter {
             nonNestedDocs = nonNestedDocsFilter.getDocIdSet(context).bits();
         }
 
-        DocsEnum docsEnum = null;
+        PostingsEnum docsEnum = null;
         BitSet result = null;
         int size = (int) parentIds.size();
         for (int i = 0; i < size; i++) {
@@ -161,7 +161,7 @@ final class ParentIdsFilter extends Filter {
             BytesRef uid = Uid.createUidAsBytes(parentTypeBr, idSpare, uidSpare);
             if (termsEnum.seekExact(uid)) {
                 int docId;
-                docsEnum = termsEnum.docs(acceptDocs, docsEnum, DocsEnum.FLAG_NONE);
+                docsEnum = termsEnum.postings(acceptDocs, docsEnum, PostingsEnum.NONE);
                 if (result == null) {
                     docId = docsEnum.nextDoc();
                     if (docId != DocIdSetIterator.NO_MORE_DOCS) {

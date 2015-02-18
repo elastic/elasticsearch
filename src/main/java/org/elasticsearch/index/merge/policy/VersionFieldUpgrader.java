@@ -22,15 +22,15 @@ package org.elasticsearch.index.merge.policy;
 import org.apache.lucene.codecs.DocValuesProducer;
 import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.index.DocsAndPositionsEnum;
-import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.packed.GrowableWriter;
@@ -131,11 +131,11 @@ class VersionFieldUpgrader extends FilterCodecReader {
                 final Terms terms = reader.terms(UidFieldMapper.NAME);
                 final TermsEnum uids = terms.iterator(null);
                 final GrowableWriter versions = new GrowableWriter(2, reader.maxDoc(), PackedInts.COMPACT);
-                DocsAndPositionsEnum dpe = null;
+                PostingsEnum dpe = null;
                 for (BytesRef uid = uids.next(); uid != null; uid = uids.next()) {
-                    dpe = uids.docsAndPositions(reader.getLiveDocs(), dpe, DocsAndPositionsEnum.FLAG_PAYLOADS);
+                    dpe = uids.postings(reader.getLiveDocs(), dpe, PostingsEnum.PAYLOADS);
                     assert dpe != null : "field has payloads";
-                    for (int doc = dpe.nextDoc(); doc != DocsEnum.NO_MORE_DOCS; doc = dpe.nextDoc()) {
+                    for (int doc = dpe.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dpe.nextDoc()) {
                         dpe.nextPosition();
                         final BytesRef payload = dpe.getPayload();
                         if (payload != null && payload.length == 8) {

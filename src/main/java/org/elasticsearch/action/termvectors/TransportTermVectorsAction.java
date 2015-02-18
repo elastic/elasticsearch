@@ -20,6 +20,7 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
@@ -41,6 +42,12 @@ import org.elasticsearch.transport.TransportService;
 public class TransportTermVectorsAction extends TransportShardSingleOperationAction<TermVectorsRequest, TermVectorsResponse> {
 
     private final IndicesService indicesService;
+
+    @Override
+    protected void doExecute(TermVectorsRequest request, ActionListener<TermVectorsResponse> listener) {
+        request.startTime = System.currentTimeMillis();
+        super.doExecute(request, listener);
+    }
 
     @Inject
     public TransportTermVectorsAction(Settings settings, ClusterService clusterService, TransportService transportService,
@@ -80,7 +87,9 @@ public class TransportTermVectorsAction extends TransportShardSingleOperationAct
     protected TermVectorsResponse shardOperation(TermVectorsRequest request, ShardId shardId) throws ElasticsearchException {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardId.id());
-        return indexShard.termVectorsService().getTermVectors(request, shardId.getIndex());
+        TermVectorsResponse response = indexShard.termVectorsService().getTermVectors(request, shardId.getIndex());
+        response.updateTookInMillis(request.startTime());
+        return response;
     }
 
     @Override

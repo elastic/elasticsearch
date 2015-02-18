@@ -32,6 +32,8 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -1049,5 +1051,34 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         }
 
         assertEquals(count.get(), 1);
+    }
+
+    @Test
+    public void testStoreStats() throws IOException {
+        final ShardId shardId = new ShardId(new Index("index"), 1);
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
+        Settings settings = ImmutableSettings.builder().put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, TimeValue.timeValueMinutes(0)).build();
+        Store store = new Store(shardId, settings, directoryService, randomDistributor(directoryService), new DummyShardLock(shardId));
+
+        StoreStats stats = store.stats();
+        assertEquals(stats.getSize().bytes(), 0);
+
+        Directory dir = store.directory();
+        final long length;
+        try (IndexOutput output = dir.createOutput("foo.bar", IOContext.DEFAULT)) {
+            int iters = scaledRandomIntBetween(10, 100);
+            for (int i = 0; i < iters; i++) {
+                BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
+                output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+            }
+            length = output.getFilePointer();
+        }
+
+        assertTrue(store.directory().listAll().length > 0);
+        stats = store.stats();
+        assertEquals(stats.getSizeInBytes(), length);
+
+        store.deleteContent();
+        IOUtils.close(store);
     }
 }

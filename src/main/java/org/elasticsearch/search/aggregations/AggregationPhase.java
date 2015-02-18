@@ -27,7 +27,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
@@ -114,7 +113,7 @@ public class AggregationPhase implements SearchPhase {
 
         // optimize the global collector based execution
         if (!globals.isEmpty()) {
-            XCollector collector = BucketCollector.wrap(globals);
+            BucketCollector collector = BucketCollector.wrap(globals);
             Query query = new ConstantScoreQuery(Queries.MATCH_ALL_FILTER);
             Filter searchFilter = context.searchFilter(context.types());
             if (searchFilter != null) {
@@ -122,7 +121,6 @@ public class AggregationPhase implements SearchPhase {
             }
             try {
                 context.searcher().search(query, collector);
-                collector.postCollection();
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "Failed to execute global aggregators", e);
             }
@@ -131,6 +129,7 @@ public class AggregationPhase implements SearchPhase {
         List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
         for (Aggregator aggregator : context.aggregations().aggregators()) {
             try {
+                aggregator.postCollection();
                 aggregations.add(aggregator.buildAggregation(0));
             } catch (IOException e) {
                 throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);

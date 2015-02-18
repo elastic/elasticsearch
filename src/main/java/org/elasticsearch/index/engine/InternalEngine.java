@@ -60,7 +60,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  *
@@ -80,10 +79,6 @@ public class InternalEngine extends Engine {
     private final MergePolicyProvider mergePolicyProvider;
     private final MergeSchedulerProvider mergeScheduler;
 
-    private final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
-    private final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
-    private final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
-
     private final IndexWriter indexWriter;
 
     private final SearcherFactory searcherFactory;
@@ -101,7 +96,6 @@ public class InternalEngine extends Engine {
     private final LiveVersionMap versionMap;
 
     private final Object[] dirtyLocks;
-    private final ReentrantLock failEngineLock = new ReentrantLock();
 
     private final AtomicLong translogIdGenerator = new AtomicLong();
     private final AtomicBoolean versionMapRefreshPending = new AtomicBoolean();
@@ -712,11 +706,6 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public void forceMerge(boolean flush) {
-        forceMerge(flush, 1, false, false);
-    }
-
-    @Override
     public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, final boolean upgrade) throws EngineException {
         if (optimizeMutex.compareAndSet(false, true)) {
             try (ReleasableLock _ = readLock.acquire()) {
@@ -851,24 +840,10 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public SegmentsStats segmentsStats() {
-        ensureOpen();
-        try (final Searcher searcher = acquireSearcher("segments_stats")) {
-                SegmentsStats stats = new SegmentsStats();
-                for (LeafReaderContext reader : searcher.reader().leaves()) {
-                    final SegmentReader segmentReader = segmentReader(reader.reader());
-                    stats.add(1, segmentReader.ramBytesUsed());
-                    stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPostingsReader()));
-                    stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
-                    stats.addTermVectorsMemoryInBytes(guardedRamBytesUsed(segmentReader.getTermVectorsReader()));
-                    stats.addNormsMemoryInBytes(guardedRamBytesUsed(segmentReader.getNormsReader()));
-                    stats.addDocValuesMemoryInBytes(guardedRamBytesUsed(segmentReader.getDocValuesReader()));
-                }
-                stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
-                stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
-                stats.addIndexWriterMaxMemoryInBytes((long) (indexWriter.getConfig().getRAMBufferSizeMB() * 1024 * 1024));
-                return stats;
-        }
+    protected final void writerSegmentStats(SegmentsStats stats) {
+        stats.addVersionMapMemoryInBytes(versionMap.ramBytesUsed());
+        stats.addIndexWriterMemoryInBytes(indexWriter.ramBytesUsed());
+        stats.addIndexWriterMaxMemoryInBytes((long) (indexWriter.getConfig().getRAMBufferSizeMB() * 1024 * 1024));
     }
 
     @Override
@@ -892,23 +867,13 @@ public class InternalEngine extends Engine {
         }
     }
 
-    @Override
-    public void close() throws ElasticsearchException {
-        if (isClosed.get() == false) { // don't acquire the write lock if we are already closed
-            logger.trace("close now acquire writeLock");
-            try (ReleasableLock _ = writeLock.acquire()) {
-                logger.trace("close now acquired writeLock");
-                closeNoLock("api");
-            }
-        }
-    }
 
     /**
      * Closes the engine without acquiring the write lock. This should only be
      * called while the write lock is hold or in a disaster condition ie. if the engine
      * is failed.
      */
-    private void closeNoLock(String reason) throws ElasticsearchException {
+    protected final void closeNoLock(String reason) throws ElasticsearchException {
         if (isClosed.compareAndSet(false, true)) {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
@@ -935,47 +900,6 @@ public class InternalEngine extends Engine {
                 this.mergeScheduler.removeFailureListener(mergeSchedulerFailureListener);
                 logger.debug("engine closed [{}]", reason);
             }
-        }
-    }
-
-    @Override
-    public void failEngine(String reason, Throwable failure) {
-        assert failure != null;
-        if (failEngineLock.tryLock()) {
-            store.incRef();
-            try {
-                try {
-                    // we just go and close this engine - no way to recover
-                    closeNoLock("engine failed on: [" + reason + "]");
-                    // we first mark the store as corrupted before we notify any listeners
-                    // this must happen first otherwise we might try to reallocate so quickly
-                    // on the same node that we don't see the corrupted marker file when
-                    // the shard is initializing
-                    if (Lucene.isCorruptionException(failure)) {
-                        try {
-                            store.markStoreCorrupted(ExceptionsHelper.unwrapCorruption(failure));
-                        } catch (IOException e) {
-                            logger.warn("Couldn't marks store corrupted", e);
-                        }
-                    }
-                } finally {
-                    if (failedEngine != null) {
-                        logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", reason, failure);
-                        return;
-                    }
-                    logger.warn("failed engine [{}]", failure, reason);
-                    // we must set a failure exception, generate one if not supplied
-                    failedEngine = failure;
-                    failedEngineListener.onFailedEngine(shardId, reason, failure);
-                }
-            } catch (Throwable t) {
-                // don't bubble up these exceptions up
-                logger.warn("failEngine threw exception", t);
-            } finally {
-                store.decRef();
-            }
-        } else {
-            logger.debug("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason, failure);
         }
     }
 

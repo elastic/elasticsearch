@@ -402,8 +402,8 @@ public class RangeQueryBuilder extends BaseQueryBuilder implements MultiTermQuer
     /**
      * In case of date field, we can adjust the from/to fields using a timezone
      */
-    public RangeQueryBuilder timeZone(String preZone) {
-        this.timeZone = preZone;
+    public RangeQueryBuilder timeZone(String timezone) {
+        this.timeZone = timezone;
         return this;
     }
 

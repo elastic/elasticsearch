@@ -21,6 +21,7 @@ package org.elasticsearch.search.controller;
 
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.elasticsearch.action.search.SearchRequest;
@@ -199,65 +200,51 @@ public class SearchPhaseController extends AbstractComponent {
         Arrays.sort(sortedResults, QUERY_RESULT_ORDERING);
         QuerySearchResultProvider firstResult = sortedResults[0].value;
 
-        TopDocs mergedTopDocs;
+        int topN = firstResult.queryResult().size();
+        if (firstResult.includeFetch()) {
+            // if we did both query and fetch on the same go, we have fetched all the docs from each shards already, use them...
+            // this is also important since we shortcut and fetch only docs from "from" and up to "size"
+            topN *= sortedResults.length;
+        }
+
+        int from = firstResult.queryResult().from();
+        if (ignoreFrom) {
+            from = 0;
+        }
+
+        final TopDocs mergedTopDocs;
         if (firstResult.queryResult().topDocs() instanceof TopFieldDocs) {
             TopFieldDocs firstTopDocs = (TopFieldDocs) firstResult.queryResult().topDocs();
-            Sort sort = new Sort(firstTopDocs.fields);
+            final Sort sort = new Sort(firstTopDocs.fields);
 
-            int topN = firstResult.queryResult().size();
-            // Need to use the length of the resultsArr array, since the slots will be based on the position in the resultsArr array
-            TopFieldDocs[] shardTopDocs = new TopFieldDocs[resultsArr.length()];
-            if (firstResult.includeFetch()) {
-                // if we did both query and fetch on the same go, we have fetched all the docs from each shards already, use them...
-                // this is also important since we shortcut and fetch only docs from "from" and up to "size"
-                topN *= sortedResults.length;
-            }
+            final TopFieldDocs[] shardTopDocs = new TopFieldDocs[resultsArr.length()];
             for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : sortedResults) {
-                // TODO: topdocs.merge is this safe?  first one was a TopFieldDocs so they all should be?
-                TopFieldDocs topDocs = (TopFieldDocs) sortedResult.value.queryResult().topDocs();
+                TopDocs topDocs = sortedResult.value.queryResult().topDocs();
                 // the 'index' field is the position in the resultsArr atomic array
-                shardTopDocs[sortedResult.index] = topDocs;
-            }
-            int from = firstResult.queryResult().from();
-            if (ignoreFrom) {
-                from = 0;
+                shardTopDocs[sortedResult.index] = (TopFieldDocs) topDocs;
             }
             // TopDocs#merge can't deal with null shard TopDocs
-            for (int i = 0; i < shardTopDocs.length; i++) {
+            for (int i = 0; i < shardTopDocs.length; ++i) {
                 if (shardTopDocs[i] == null) {
-                    // TODO: topdocs.merge but what if first one was null?
-                    shardTopDocs[i] = new TopFieldDocs(0, Lucene.EMPTY_SCORE_DOCS, firstTopDocs.fields, 0.0f);
+                    shardTopDocs[i] = new TopFieldDocs(0, new FieldDoc[0], sort.getSort(), Float.NaN);
                 }
             }
             mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
-
         } else {
-            int topN = firstResult.queryResult().size();
-            // Need to use the length of the resultsArr array, since the slots will be based on the position in the resultsArr array
-            TopDocs[] shardTopDocs = new TopDocs[resultsArr.length()];
-            if (firstResult.includeFetch()) {
-                // if we did both query and fetch on the same go, we have fetched all the docs from each shards already, use them...
-                // this is also important since we shortcut and fetch only docs from "from" and up to "size"
-                topN *= sortedResults.length;
-            }
+            final TopDocs[] shardTopDocs = new TopDocs[resultsArr.length()];
             for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : sortedResults) {
                 TopDocs topDocs = sortedResult.value.queryResult().topDocs();
                 // the 'index' field is the position in the resultsArr atomic array
                 shardTopDocs[sortedResult.index] = topDocs;
             }
-            int from = firstResult.queryResult().from();
-            if (ignoreFrom) {
-                from = 0;
-            }
             // TopDocs#merge can't deal with null shard TopDocs
-            for (int i = 0; i < shardTopDocs.length; i++) {
+            for (int i = 0; i < shardTopDocs.length; ++i) {
                 if (shardTopDocs[i] == null) {
                     shardTopDocs[i] = Lucene.EMPTY_TOP_DOCS;
                 }
             }
             mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
         }
-
         return mergedTopDocs.scoreDocs;
     }
 

@@ -42,7 +42,7 @@ import java.util.concurrent.ConcurrentMap;
 public class MockShadowEngine extends ShadowEngine {
 
     private final MockInternalEngine.MockContext mockContext;
-    public static final ConcurrentMap<MockInternalEngine.AssertingSearcher, RuntimeException> INFLIGHT_ENGINE_SEARCHERS = new ConcurrentHashMap<>();
+    public static final ConcurrentMap<AssertingSearcher, RuntimeException> INFLIGHT_ENGINE_SEARCHERS = new ConcurrentHashMap<>();
 
     public MockShadowEngine(EngineConfig config) {
         super(config);
@@ -64,7 +64,7 @@ public class MockShadowEngine extends ShadowEngine {
         } finally {
             if (logger.isTraceEnabled()) {
                 // log debug if we have pending searchers
-                for (Map.Entry<MockInternalEngine.AssertingSearcher, RuntimeException> entry : INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
+                for (Map.Entry<AssertingSearcher, RuntimeException> entry : INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
                     logger.trace("Unreleased Searchers instance for shard [{}]", entry.getValue(), entry.getKey().shardId());
                 }
             }
@@ -88,8 +88,9 @@ public class MockShadowEngine extends ShadowEngine {
         // on release otherwise the reader will be closed too early. - good
         // news, stuff will fail all over the place if we don't get this
         // right here
-        return new MockInternalEngine.AssertingSearcher(assertingIndexSearcher,
-                super.newSearcher(source, searcher, manager), shardId, logger);
+        return new AssertingSearcher(assertingIndexSearcher,
+                super.newSearcher(source, searcher, manager), shardId,
+                INFLIGHT_ENGINE_SEARCHERS, logger);
     }
 
     private DirectoryReader wrapReader(DirectoryReader reader) {

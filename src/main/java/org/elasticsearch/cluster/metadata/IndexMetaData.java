@@ -155,6 +155,8 @@ public class IndexMetaData {
 
     public static final String SETTING_NUMBER_OF_SHARDS = "index.number_of_shards";
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
+    public static final String SETTING_SHADOW_REPLICAS = "index.shadow_replicas";
+    public static final String SETTING_SHARED_FILESYSTEM = "index.shared_filesystem";
     public static final String SETTING_AUTO_EXPAND_REPLICAS = "index.auto_expand_replicas";
     public static final String SETTING_READ_ONLY = "index.blocks.read_only";
     public static final String SETTING_BLOCKS_READ = "index.blocks.read";
@@ -727,4 +729,25 @@ public class IndexMetaData {
             }
         }
     }
+
+    /**
+     * Returns <code>true</code> iff the given settings indicate that the index
+     * associated with these settings allocates it's shards on a shared
+     * filesystem. Otherwise <code>false</code>. The default setting for this
+     * is the returned value from
+     * {@link #isIndexUsingShadowReplicas(org.elasticsearch.common.settings.Settings)}.
+     */
+    public static boolean isOnSharedFilesystem(Settings settings) {
+        return settings.getAsBoolean(SETTING_SHARED_FILESYSTEM, isIndexUsingShadowReplicas(settings));
+    }
+
+    /**
+     * Returns <code>true</code> iff the given settings indicate that the index associated
+     * with these settings uses shadow replicas. Otherwise <code>false</code>. The default
+     * setting for this is <code>false</code>.
+     */
+    public static boolean isIndexUsingShadowReplicas(Settings settings) {
+        return settings.getAsBoolean(SETTING_SHADOW_REPLICAS, false);
+    }
+
 }

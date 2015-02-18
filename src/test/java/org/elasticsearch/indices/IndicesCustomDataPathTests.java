@@ -143,23 +143,4 @@ public class IndicesCustomDataPathTests extends ElasticsearchIntegrationTest {
         assertAcked(client().admin().indices().prepareDelete(INDEX));
         assertPathHasBeenCleared(path);
     }
-
-    private void assertPathHasBeenCleared(String path) throws Exception {
-        int count = 0;
-        StringBuilder sb = new StringBuilder();
-        sb.append("[");
-        if (Files.exists(Paths.get(path))) {
-            try (DirectoryStream<Path> stream = Files.newDirectoryStream(Paths.get(path))) {
-                for (Path file : stream) {
-                    if (Files.isRegularFile(file)) {
-                        count++;
-                        sb.append(file.toAbsolutePath().toString());
-                        sb.append("\n");
-                    }
-                }
-            }
-        }
-        sb.append("]");
-        assertThat(count + " files exist that should have been cleaned:\n" + sb.toString(), count, equalTo(0));
-    }
 }

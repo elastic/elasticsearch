@@ -23,28 +23,23 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.List;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -328,5 +323,43 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         assertAcked(client().admin().indices().prepareDelete(IDX));
 
         assertPathHasBeenCleared(dataPath);
+    }
+
+    @Test
+    public void testShadowReplicasUsingFieldData() throws Exception {
+        Settings nodeSettings = ImmutableSettings.builder()
+                .put("node.add_id_to_custom_path", false)
+                .put("node.enable_custom_paths", true)
+                .build();
+
+        internalCluster().startNodesAsync(3, nodeSettings).get();
+        Path dataPath = newTempDirPath();
+        String IDX = "test";
+
+        Settings idxSettings = ImmutableSettings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+                .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
+                .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
+                .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
+                .build();
+
+        prepareCreate(IDX).setSettings(idxSettings).addMapping("doc", "foo", "type=string,index=not_analyzed").get();
+        ensureGreen(IDX);
+
+        client().prepareIndex(IDX, "doc", "1").setSource("foo", "foo").get();
+        client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
+        client().prepareIndex(IDX, "doc", "3").setSource("foo", "baz").get();
+        client().prepareIndex(IDX, "doc", "4").setSource("foo", "eggplant").get();
+        flushAndRefresh(IDX);
+
+        SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).addFieldDataField("foo").addSort("foo", SortOrder.ASC).get();
+        assertHitCount(resp, 4);
+        assertOrderedSearchHits(resp, "2", "3", "4", "1");
+        SearchHit[] hits = resp.getHits().hits();
+        assertThat(hits[0].field("foo").getValue().toString(), equalTo("bar"));
+        assertThat(hits[1].field("foo").getValue().toString(), equalTo("baz"));
+        assertThat(hits[2].field("foo").getValue().toString(), equalTo("eggplant"));
+        assertThat(hits[3].field("foo").getValue().toString(), equalTo("foo"));
     }
 }

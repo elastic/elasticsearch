@@ -3,3 +3,4 @@ shield:
   - "cn=shield,ou=marvel,o=superheros"
 avenger:
   - "cn=avengers,ou=marvel,o=superheros"
+  - "cn=Horatio Hornblower,ou=people,o=sevenSeas"

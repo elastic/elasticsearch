@@ -19,7 +19,6 @@ import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.annotations.Network;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -68,7 +67,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
                     containsString("Philanthropists"),
                     containsString("Avengers"),
                     containsString("SHIELD"),
-                    containsString("Users"),
+                    containsString("CN=Users,CN=Builtin"),
                     containsString("Domain Users"),
                     containsString("Supers")));
         }
@@ -102,7 +101,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
         String[] users = new String[]{"cap", "hawkeye", "hulk", "ironman", "thor", "blackwidow", };
         for(String user: users) {
             try (LdapSession ldap = sessionFactory.session(user, SecuredStringTests.build(PASSWORD))) {
-                assertThat("group avenger test for user "+user, ldap.groups(), hasItem(Matchers.containsString("Avengers")));
+                assertThat("group avenger test for user "+user, ldap.groups(), hasItem(containsString("Avengers")));
             }
         }
     }
@@ -122,7 +121,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
                     containsString("SHIELD"),
                     containsString("Geniuses"),
                     containsString("Philanthropists"),
-                    containsString("Users"),
+                    containsString("CN=Users,CN=Builtin"),
                     containsString("Domain Users"),
                     containsString("Supers")));
         }
@@ -143,7 +142,7 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
                     containsString("SHIELD"),
                     containsString("Geniuses"),
                     containsString("Philanthropists"),
-                    containsString("Users"),
+                    containsString("CN=Users,CN=Builtin"),
                     containsString("Domain Users"),
                     containsString("Supers")));
         }
@@ -168,29 +167,38 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
     }
 
     @Test @SuppressWarnings("unchecked")
-    public void testAuthenticate_UserPrincipalName() {
+    public void testAuthenticateWithUserPrincipalName() {
         Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.ONE_LEVEL, false);
         RealmConfig config = new RealmConfig("ad-test", settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
 
         //Login with the UserPrincipalName
-        String userDN;
+        String userDN = "CN=Erik Selvig,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         try (LdapSession ldap = sessionFactory.session("erik.selvig", SecuredStringTests.build(PASSWORD))) {
             List<String> groups = ldap.groups();
-            userDN = ldap.authenticatedUserDn();
+            assertThat(ldap.userDn(), is(userDN));
             assertThat(groups, containsInAnyOrder(
                     containsString("Geniuses"),
-                    containsString("Users"),
+                    containsString("CN=Users,CN=Builtin"),
                     containsString("Domain Users")));
         }
-        //Same user but login with sAMAccountName
+    }
+
+    @Test
+    public void testAuthenticateWithSAMAccountName() {
+        Settings settings = buildAdSettings(AD_LDAP_URL, AD_DOMAIN, "CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com", LdapSearchScope.ONE_LEVEL, false);
+        RealmConfig config = new RealmConfig("ad-test", settings);
+        ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, clientSSLService);
+
+        //login with sAMAccountName
+        String userDN = "CN=Erik Selvig,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com";
         try (LdapSession ldap = sessionFactory.session("selvig", SecuredStringTests.build(PASSWORD))) {
-            assertThat(ldap.authenticatedUserDn(), is(userDN));
+            assertThat(ldap.userDn(), is(userDN));
 
             List<String> groups = ldap.groups();
             assertThat(groups, containsInAnyOrder(
                     containsString("Geniuses"),
-                    containsString("Users"),
+                    containsString("CN=Users,CN=Builtin"),
                     containsString("Domain Users")));
         }
     }
@@ -208,9 +216,9 @@ public class ActiveDirectorySessionFactoryTests extends ElasticsearchTestCase {
         try (LdapSession ldap = sessionFactory.session("erik.selvig", SecuredStringTests.build(PASSWORD))) {
             List<String> groups = ldap.groups();
             assertThat(groups, containsInAnyOrder(
-                    containsString("Geniuses"),
-                    containsString("Domain Users"),
-                    containsString("Users")));
+                    containsString("CN=Geniuses"),
+                    containsString("CN=Domain Users"),
+                    containsString("CN=Users,CN=Builtin")));
         }
     }
 

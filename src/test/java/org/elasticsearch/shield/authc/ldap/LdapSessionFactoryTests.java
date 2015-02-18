@@ -99,7 +99,7 @@ public class LdapSessionFactoryTests extends LdapTest {
         SecuredString userPass = SecuredStringTests.build("pass");
 
         try (LdapSession ldap = sessionFactory.session(user, userPass)) {
-            String dn = ldap.authenticatedUserDn();
+            String dn = ldap.userDn();
             assertThat(dn, containsString(user));
         }
     }
@@ -136,7 +136,7 @@ public class LdapSessionFactoryTests extends LdapTest {
 
         try (LdapSession ldap = ldapFac.session(user, userPass)) {
             List<String> groups = ldap.groups();
-            assertThat(groups, containsInAnyOrder("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
+            assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }
     }
 
@@ -151,7 +151,7 @@ public class LdapSessionFactoryTests extends LdapTest {
         String user = "Horatio Hornblower";
         try (LdapSession ldap = ldapFac.session(user, SecuredStringTests.build("pass"))) {
             List<String> groups = ldap.groups();
-            assertThat(groups, containsInAnyOrder("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
+            assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }
     }
 
@@ -169,7 +169,7 @@ public class LdapSessionFactoryTests extends LdapTest {
         try (LdapSession ldap = ldapFac.session(user, userPass)) {
             List<String> groups = ldap.groups();
             assertThat(groups.size(), is(1));
-            assertThat(groups, containsInAnyOrder("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
+            assertThat(groups, contains("cn=HMS Lydia,ou=crews,ou=groups,o=sevenSeas"));
         }
     }
 }

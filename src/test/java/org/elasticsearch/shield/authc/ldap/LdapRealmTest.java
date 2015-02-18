@@ -15,7 +15,7 @@ import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.shield.authc.ldap.support.GroupToRoleMapper;
+import org.elasticsearch.shield.authc.ldap.support.LdapRoleMapper;
 import org.elasticsearch.shield.authc.ldap.support.LdapTest;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -71,7 +71,7 @@ public class LdapRealmTest extends LdapTest {
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService));
 
         User user = ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
-        assertThat( user, notNullValue());
+        assertThat(user, notNullValue());
         assertThat(user.roles(), arrayContaining("HMS Victory"));
     }
 
@@ -104,7 +104,7 @@ public class LdapRealmTest extends LdapTest {
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, buildGroupAsRoleMapper(resourceWatcherService));
-        ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
+        ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
         ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
 
         //verify one and only one session -> caching is working
@@ -121,7 +121,7 @@ public class LdapRealmTest extends LdapTest {
         RealmConfig config = new RealmConfig("test-ldap-realm", settings);
 
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
-        GroupToRoleMapper roleMapper = buildGroupAsRoleMapper(resourceWatcherService);
+        LdapRoleMapper roleMapper = buildGroupAsRoleMapper(resourceWatcherService);
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, roleMapper);
         ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
@@ -212,5 +212,23 @@ public class LdapRealmTest extends LdapTest {
         } catch (ShieldSettingsException e) {
             assertThat(e.getMessage(), containsString("settings were found for both user search and user template"));
         }
+    }
+
+    @Test
+    public void testLdapRealmMapsUserDNToRole() throws Exception {
+        String groupSearchBase = "o=sevenSeas";
+        String userTemplate = VALID_USER_TEMPLATE;
+        Settings settings = ImmutableSettings.builder()
+                .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
+                .put(LdapRoleMapper.ROLE_MAPPING_FILE_SETTING, getResource("support/role_mapping.yml").getCanonicalPath())
+                .build();
+        RealmConfig config = new RealmConfig("test-ldap-realm-userdn", settings);
+
+        LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
+        LdapRealm ldap = new LdapRealm(config, ldapFactory, new LdapRoleMapper(LdapRealm.TYPE, config, resourceWatcherService, null));
+
+        User user = ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", SecuredStringTests.build(PASSWORD)));
+        assertThat(user, notNullValue());
+        assertThat(user.roles(), arrayContaining("avenger"));
     }
 }

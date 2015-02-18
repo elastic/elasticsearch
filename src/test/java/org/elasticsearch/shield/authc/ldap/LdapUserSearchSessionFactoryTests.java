@@ -68,7 +68,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         SecuredString userPass = SecuredStringTests.build("pass");
 
         try (LdapSession ldap = sessionFactory.session(user, userPass)) {
-            String dn = ldap.authenticatedUserDn();
+            String dn = ldap.userDn();
             assertThat(dn, containsString(user));
         } finally {
             sessionFactory.shutdown();
@@ -123,7 +123,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         SecuredString userPass = SecuredStringTests.build("pass");
 
         try (LdapSession ldap = sessionFactory.session(user, userPass)) {
-            String dn = ldap.authenticatedUserDn();
+            String dn = ldap.userDn();
             assertThat(dn, containsString(user));
         } finally {
             sessionFactory.shutdown();
@@ -178,7 +178,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         SecuredString userPass = SecuredStringTests.build("pass");
 
         try (LdapSession ldap = sessionFactory.session(user, userPass)) {
-            String dn = ldap.authenticatedUserDn();
+            String dn = ldap.userDn();
             assertThat(dn, containsString(user));
         } finally {
             sessionFactory.shutdown();
@@ -230,7 +230,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         SecuredString userPass = SecuredStringTests.build("pass");
 
         try (LdapSession ldap = sessionFactory.session(user, userPass)) {
-            String dn = ldap.authenticatedUserDn();
+            String dn = ldap.userDn();
             assertThat(dn, containsString("William Bush"));
         } finally {
             sessionFactory.shutdown();
@@ -281,7 +281,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         try {
             for (String user : users) {
                 LdapSession ldap = sessionFactory.session(user, SecuredStringTests.build(OpenLdapTests.PASSWORD));
-                assertThat(ldap.authenticatedUserDn(), is(equalTo(MessageFormat.format("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com", user))));
+                assertThat(ldap.userDn(), is(equalTo(MessageFormat.format("uid={0},ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com", user))));
                 assertThat(ldap.groups(), hasItem(containsString("Avengers")));
                 ldap.close();
             }

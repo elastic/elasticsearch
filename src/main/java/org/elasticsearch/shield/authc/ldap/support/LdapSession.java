@@ -20,7 +20,7 @@ public class LdapSession implements Closeable {
 
     protected final ESLogger logger;
     protected final LDAPInterface ldap;
-    protected final String bindDn;
+    protected final String userDn;
     protected final GroupsResolver groupsResolver;
     protected final TimeValue timeout;
 
@@ -32,10 +32,10 @@ public class LdapSession implements Closeable {
      * outside of and be reused across all connections. We can't keep a static logger in this class
      * since we want the logger to be contextual (i.e. aware of the settings and its environment).
      */
-    public LdapSession(ESLogger logger, LDAPInterface connection, String boundName, GroupsResolver groupsResolver, TimeValue timeout) {
+    public LdapSession(ESLogger logger, LDAPInterface connection, String userDn, GroupsResolver groupsResolver, TimeValue timeout) {
         this.logger = logger;
         this.ldap = connection;
-        this.bindDn = boundName;
+        this.userDn = userDn;
         this.groupsResolver = groupsResolver;
         this.timeout = timeout;
     }
@@ -54,15 +54,15 @@ public class LdapSession implements Closeable {
     /**
      * @return the fully distinguished name of the user bound to this connection
      */
-    public String authenticatedUserDn() {
-        return bindDn;
+    public String userDn() {
+        return userDn;
     }
 
     /**
      * @return List of fully distinguished group names
      */
     public List<String> groups() {
-        return groupsResolver.resolve(ldap, bindDn, timeout, logger);
+        return groupsResolver.resolve(ldap, userDn, timeout, logger);
     }
 
     public static interface GroupsResolver {

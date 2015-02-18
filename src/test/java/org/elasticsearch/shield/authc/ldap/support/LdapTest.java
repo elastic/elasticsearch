@@ -65,12 +65,12 @@ public abstract class LdapTest extends ElasticsearchTestCase {
                 .put(HOSTNAME_VERIFICATION_SETTING, hostnameVerification).build();
     }
 
-    protected GroupToRoleMapper buildGroupAsRoleMapper(ResourceWatcherService resourceWatcherService) {
+    protected LdapRoleMapper buildGroupAsRoleMapper(ResourceWatcherService resourceWatcherService) {
         Settings settings = ImmutableSettings.builder()
-                .put(GroupToRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
+                .put(LdapRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
                 .build();
         RealmConfig config = new RealmConfig("ldap1", settings);
 
-        return new GroupToRoleMapper(LdapRealm.TYPE, config, resourceWatcherService, null);
+        return new LdapRoleMapper(LdapRealm.TYPE, config, resourceWatcherService, null);
     }
 }

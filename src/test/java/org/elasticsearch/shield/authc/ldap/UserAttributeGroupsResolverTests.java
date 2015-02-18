@@ -78,7 +78,7 @@ public class UserAttributeGroupsResolverTests extends ElasticsearchTestCase {
                 .build();
         UserAttributeGroupsResolver resolver = new UserAttributeGroupsResolver(settings);
         List<String> groups = resolver.resolve(ldapConnection, BRUCE_BANNER_DN, TimeValue.timeValueSeconds(20), NoOpLogger.INSTANCE);
-        assertThat(groups, hasItem(containsString("Avengers")));  //seeAlso only has Avengers
+        assertThat(groups, hasItems(containsString("Avengers")));  //seeAlso only has Avengers
     }
 
     @Test

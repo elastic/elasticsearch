@@ -22,10 +22,10 @@ import java.util.Set;
 public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
 
     protected final SessionFactory sessionFactory;
-    protected final GroupToRoleMapper roleMapper;
+    protected final LdapRoleMapper roleMapper;
 
     protected AbstractLdapRealm(String type, RealmConfig config,
-                                SessionFactory sessionFactory, GroupToRoleMapper roleMapper) {
+                                SessionFactory sessionFactory, LdapRoleMapper roleMapper) {
         super(type, config);
         this.sessionFactory = sessionFactory;
         this.roleMapper = roleMapper;
@@ -41,7 +41,7 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
     protected User doAuthenticate(UsernamePasswordToken token) {
         try (LdapSession session = sessionFactory.session(token.principal(), token.credentials())) {
             List<String> groupDNs = session.groups();
-            Set<String> roles = roleMapper.mapRoles(groupDNs);
+            Set<String> roles = roleMapper.resolveRoles(session.userDn(), groupDNs);
             return new User.Simple(token.principal(), roles.toArray(new String[roles.size()]));
         } catch (Throwable e) {
             if (logger.isDebugEnabled()) {

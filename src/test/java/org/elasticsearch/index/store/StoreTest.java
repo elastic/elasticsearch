@@ -1228,15 +1228,13 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         assertEquals(stats.getSize().bytes(), 0);
 
         Directory dir = store.directory();
-        long length = 0;
+        final long length;
         try (IndexOutput output = dir.createOutput("foo.bar", IOContext.DEFAULT)) {
             int iters = scaledRandomIntBetween(10, 100);
             for (int i = 0; i < iters; i++) {
                 BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
                 output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
             }
-            stats = store.stats();
-            assertEquals(stats.getSize().bytes(), 0);
             length = output.getFilePointer();
         }
 

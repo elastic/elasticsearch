@@ -43,11 +43,11 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTOR;
 
@@ -110,6 +110,57 @@ public class Lucene {
         final SegmentInfos sis = new SegmentInfos();
         sis.read(directory, commit.getSegmentsFileName());
         return sis;
+    }
+
+    /**
+     * Reads the segments infos from the given segments file name, failing if it fails to load
+     */
+    private static SegmentInfos readSegmentInfos(String segmentsFileName, Directory directory) throws IOException {
+        final SegmentInfos sis = new SegmentInfos();
+        sis.read(directory, segmentsFileName);
+        return sis;
+    }
+
+    /**
+     * This method removes all files from the given directory that are not referenced by the given segments file.
+     * This method will open an IndexWriter and relies on index file deleter to remove all unreferenced files. Segment files
+     * that are newer than the given segments file are removed forcefully to prevent problems with IndexWriter opening a potentially
+     * broken commit point / leftover.
+     * <b>Note:</b> this method will fail if there is another IndexWriter open on the given directory. This method will also acquire
+     * a write lock from the directory while pruning unused files.
+     */
+    public static SegmentInfos pruneUnreferencedFiles(String segmentsFileName, Directory directory) throws IOException {
+        final SegmentInfos si = readSegmentInfos(segmentsFileName, directory);
+        try {
+            directory.deleteFile(IndexFileNames.SEGMENTS_GEN);
+        } catch (IOException ex) {
+            // ignore - best effort
+        }
+        while (true) {
+            /**
+             * we could also use a deletion policy here but in the case of snapshot and restore
+             * sometimes we restore an index and override files that were referenced by a "future"
+             * commit. If such a commit is opened by the IW it would likely throw a corrupted index exception
+             * since checksums don's match anymore. that's why we prune the name here directly.
+             * We also want the caller to know if we were not able to remove a segments_N file.
+             *
+             */
+            String lastSegmentsFile = SegmentInfos.getLastCommitSegmentsFileName(directory);
+            if (lastSegmentsFile == null) {
+                throw new IllegalStateException("no commit found in the directory");
+            }
+            if (lastSegmentsFile.equals(si.getSegmentsFileName())) {
+                break;
+            }
+            directory.deleteFile(lastSegmentsFile);
+        }
+        final CommitPoint cp = new CommitPoint(si, directory);
+        final IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig(Version.LATEST, Lucene.STANDARD_ANALYZER)
+                .setIndexCommit(cp)
+                .setMergePolicy(NoMergePolicy.INSTANCE)
+                .setOpenMode(IndexWriterConfig.OpenMode.APPEND));
+        iw.rollback(); // do nothing and close this will kick of IndexFileDeleter which will remove all pending files
+        return si;
     }
 
     public static void checkSegmentInfoIntegrity(final Directory directory) throws IOException {
@@ -585,6 +636,69 @@ public class Lucene {
                 }
             }
             return defaultValue;
+        }
+    }
+
+    private static final class CommitPoint extends IndexCommit {
+        private String segmentsFileName;
+        private final Collection<String> files;
+        private final Directory dir;
+        private final long generation;
+        private final Map<String,String> userData;
+        private final int segmentCount;
+
+        private CommitPoint(SegmentInfos infos, Directory dir) throws IOException {
+            segmentsFileName = infos.getSegmentsFileName();
+            this.dir = dir;
+            userData = infos.getUserData();
+            files = Collections.unmodifiableCollection(infos.files(dir, true));
+            generation = infos.getGeneration();
+            segmentCount = infos.size();
+        }
+
+        @Override
+        public String toString() {
+            return "DirectoryReader.ReaderCommit(" + segmentsFileName + ")";
+        }
+
+        @Override
+        public int getSegmentCount() {
+            return segmentCount;
+        }
+
+        @Override
+        public String getSegmentsFileName() {
+            return segmentsFileName;
+        }
+
+        @Override
+        public Collection<String> getFileNames() {
+            return files;
+        }
+
+        @Override
+        public Directory getDirectory() {
+            return dir;
+        }
+
+        @Override
+        public long getGeneration() {
+            return generation;
+        }
+
+        @Override
+        public boolean isDeleted() {
+            return false;
+        }
+
+        @Override
+        public Map<String,String> getUserData() {
+            return userData;
+        }
+
+        @Override
+        public void delete() {
+            throw new UnsupportedOperationException("This IndexCommit does not support deletions");
         }
     }
 }

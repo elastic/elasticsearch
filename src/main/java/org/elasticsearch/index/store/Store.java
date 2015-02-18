@@ -771,6 +771,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
         MetadataSnapshot(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
             metadata = buildMetadata(commit, directory, logger);
+            assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
         }
 
         private static final boolean useLuceneChecksum(Version version, boolean hasLegacyChecksum) {
@@ -1065,6 +1066,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                 builder.put(meta.name(), meta);
             }
             this.metadata = builder.build();
+            assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
         }
 
         @Override
@@ -1080,6 +1082,29 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
          */
         public boolean contains(String existingFile) {
             return metadata.containsKey(existingFile);
+        }
+
+        /**
+         * Returns the segments file that this metadata snapshot represents or null if the snapshot is empty.
+         */
+        public StoreFileMetaData getSegmentsFile() {
+            for (StoreFileMetaData file : this) {
+                if (file.name().startsWith(IndexFileNames.SEGMENTS)) {
+                    return file;
+                }
+            }
+            assert metadata.isEmpty();
+            return null;
+        }
+
+        private final int numSegmentFiles() { // only for asserts
+            int count = 0;
+            for (StoreFileMetaData file : this) {
+                if (file.name().startsWith(IndexFileNames.SEGMENTS)) {
+                    count++;
+                }
+            }
+            return count;
         }
     }
 

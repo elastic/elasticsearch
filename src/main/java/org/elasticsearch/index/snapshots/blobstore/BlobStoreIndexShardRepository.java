@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -788,32 +789,19 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                 } catch (IOException ex) {
                     throw new IndexShardRestoreFailedException(shardId, "Failed to recover index", ex);
                 }
+                final StoreFileMetaData restoredSegmentsFile = sourceMetaData.getSegmentsFile();
+                if (recoveryTargetMetadata == null) {
+                    throw new IndexShardRestoreFailedException(shardId, "Snapshot has no segments file");
+                }
+                assert restoredSegmentsFile != null;
                 // read the snapshot data persisted
-                long version = -1;
+                final SegmentInfos segmentCommitInfos;
                 try {
-                    if (Lucene.indexExists(store.directory())) {
-                        version = Lucene.readSegmentInfos(store.directory()).getVersion();
-                    }
+                    segmentCommitInfos = Lucene.pruneUnreferencedFiles(restoredSegmentsFile.name(), store.directory());
                 } catch (IOException e) {
                     throw new IndexShardRestoreFailedException(shardId, "Failed to fetch index version after copying it over", e);
                 }
-                recoveryState.getIndex().updateVersion(version);
-
-                /// now, go over and clean files that are in the store, but were not in the snapshot
-                try {
-                    for (String storeFile : store.directory().listAll()) {
-                        if (!Store.isChecksum(storeFile) && !snapshot.containPhysicalIndexFile(storeFile)) {
-                            try {
-                                store.logDeleteFile("restore", storeFile);
-                                store.directory().deleteFile(storeFile);
-                            } catch (IOException e) {
-                                // ignore
-                            }
-                        }
-                    }
-                } catch (IOException e) {
-                    // ignore
-                }
+                recoveryState.getIndex().updateVersion(segmentCommitInfos.getVersion());
             } finally {
                 store.decRef();
             }

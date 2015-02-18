@@ -48,6 +48,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Random;
 
@@ -136,7 +137,9 @@ public class MockFSDirectoryService extends FsDirectoryService {
                 CheckIndex.Status status = checkIndex.checkIndex();
                 if (!status.clean) {
                     AbstractRandomizedTest.checkIndexFailed = true;
-                    logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                    logger.warn("check index [failure] index files={}\n{}",
+                                Arrays.toString(dir.listAll()),
+                                new String(os.bytes().toBytes(), Charsets.UTF_8));
                     throw new IndexShardException(shardId, "index check failure");
                 } else {
                     if (logger.isDebugEnabled()) {

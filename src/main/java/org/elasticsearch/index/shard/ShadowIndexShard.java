@@ -18,13 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
@@ -37,8 +31,8 @@ import org.elasticsearch.index.cache.filter.ShardFilterCache;
 import org.elasticsearch.index.cache.query.ShardQueryCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
+import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.ShadowEngine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
 import org.elasticsearch.index.get.ShardGetService;
@@ -60,13 +54,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
-import org.elasticsearch.indices.cluster.IndicesClusterStateService;
-import org.elasticsearch.indices.recovery.RecoveryFailedException;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
-
-import java.util.concurrent.CountDownLatch;
 
 /**
  * ShadowIndexShard extends {@link IndexShard} to add file synchronization
@@ -76,9 +64,30 @@ import java.util.concurrent.CountDownLatch;
  */
 public class ShadowIndexShard extends IndexShard {
 
+    private final Object mutex = new Object();
+
     @Inject
-    public ShadowIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler, Translog translog, ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService, ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService, ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache, @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory, RecoveryTarget recoveryTarget, ClusterService clusterService) {
-        super(shardId, indexSettings, indexSettingsService, indicesLifecycle, store, mergeScheduler, translog, threadPool, mapperService, queryParserService, indexCache, indexAliasesService, indexingService, getService, searchService, shardWarmerService, shardFilterCache, shardFieldData, percolatorQueriesRegistry, shardPercolateService, codecService, termVectorsService, indexFieldDataService, indexService, shardSuggestService, shardQueryCache, shardBitsetFilterCache, warmer, deletionPolicy, similarityService, mergePolicyProvider, factory);
+    public ShadowIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
+                            IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler,
+                            Translog translog, ThreadPool threadPool, MapperService mapperService,
+                            IndexQueryParserService queryParserService, IndexCache indexCache,
+                            IndexAliasesService indexAliasesService, ShardIndexingService indexingService,
+                            ShardGetService getService, ShardSearchService searchService,
+                            ShardIndexWarmerService shardWarmerService, ShardFilterCache shardFilterCache,
+                            ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry,
+                            ShardPercolateService shardPercolateService, CodecService codecService,
+                            ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService,
+                            IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache,
+                            ShardBitsetFilterCache shardBitsetFilterCache, @Nullable IndicesWarmer warmer,
+                            SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService,
+                            MergePolicyProvider mergePolicyProvider, EngineFactory factory) {
+        super(shardId, indexSettings, indexSettingsService, indicesLifecycle, store, mergeScheduler,
+                translog, threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
+                indexingService, getService, searchService, shardWarmerService, shardFilterCache,
+                shardFieldData, percolatorQueriesRegistry, shardPercolateService, codecService,
+                termVectorsService, indexFieldDataService, indexService, shardSuggestService,
+                shardQueryCache, shardBitsetFilterCache, warmer, deletionPolicy, similarityService,
+                mergePolicyProvider, factory);
     }
 
     /**
@@ -99,5 +108,18 @@ public class ShadowIndexShard extends IndexShard {
                     new ElasticsearchIllegalStateException("can't promote shadow replica to primary"));
         }
         return this;
+    }
+
+    @Override
+    protected void createNewEngine() {
+        synchronized (mutex) {
+            if (state == IndexShardState.CLOSED) {
+                throw new EngineClosedException(shardId);
+            }
+            assert this.currentEngineReference.get() == null;
+            assert this.shardRouting.primary() == false;
+            // Use the read-only engine for shadow replicas
+            this.currentEngineReference.set(engineFactory.newReadOnlyEngine(config));
+        }
     }
 }

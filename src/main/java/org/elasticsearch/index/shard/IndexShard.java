@@ -130,7 +130,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final InternalIndicesLifecycle indicesLifecycle;
     private final Store store;
     private final MergeSchedulerProvider mergeScheduler;
-    private final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
     private final Translog translog;
     private final IndexAliasesService indexAliasesService;
     private final ShardIndexingService indexingService;
@@ -151,16 +150,17 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
-    private final EngineConfig config;
-    private final EngineFactory engineFactory;
     private long checkIndexTook = 0;
-    private volatile IndexShardState state;
 
     private TimeValue refreshInterval;
 
     private volatile ScheduledFuture refreshScheduledFuture;
     private volatile ScheduledFuture mergeScheduleFuture;
     protected volatile ShardRouting shardRouting;
+    protected volatile IndexShardState state;
+    protected final AtomicReference<Engine> currentEngineReference = new AtomicReference<>();
+    protected final EngineConfig config;
+    protected final EngineFactory engineFactory;
 
     @Nullable
     private RecoveryState recoveryState;
@@ -1141,19 +1141,13 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    private void createNewEngine() {
+    protected void createNewEngine() {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new EngineClosedException(shardId);
             }
             assert this.currentEngineReference.get() == null;
-            // Use the read-only engine for shadow replicas
-            if (IndexMetaData.isIndexUsingShadowReplicas(this.indexSettings) &&
-                    this.shardRouting.primary() == false) {
-                this.currentEngineReference.set(engineFactory.newReadOnlyEngine(config));
-            } else {
-                this.currentEngineReference.set(engineFactory.newReadWriteEngine(config));
-            }
+            this.currentEngineReference.set(engineFactory.newReadWriteEngine(config));
         }
     }
 }

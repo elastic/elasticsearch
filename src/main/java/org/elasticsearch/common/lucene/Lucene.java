@@ -634,6 +634,22 @@ public class Lucene {
             public int nextDoc() throws IOException {
                 throw new ElasticsearchIllegalStateException(message);
             }
+            @Override
+            public int nextPosition() throws IOException {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+            @Override
+            public int startOffset() throws IOException {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+            @Override
+            public int endOffset() throws IOException {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+            @Override
+            public BytesRef getPayload() throws IOException {
+                throw new ElasticsearchIllegalStateException(message);
+            }
         };
     }
 }

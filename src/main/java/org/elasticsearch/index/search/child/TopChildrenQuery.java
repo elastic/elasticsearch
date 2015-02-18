@@ -20,6 +20,7 @@ package org.elasticsearch.index.search.child;
 
 import com.carrotsearch.hppc.IntObjectOpenHashMap;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.*;
@@ -115,7 +116,7 @@ public class TopChildrenQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs = new ObjectObjectOpenHashMap<>();
         SearchContext searchContext = SearchContext.current();
 
@@ -160,7 +161,7 @@ public class TopChildrenQuery extends Query {
             }
         }
 
-        ParentWeight parentWeight =  new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentDocs);
+        ParentWeight parentWeight =  new ParentWeight(this, rewrittenChildQuery.createWeight(searcher, needsScores), parentDocs);
         searchContext.addReleasable(parentWeight, Lifetime.COLLECTION);
         return parentWeight;
     }
@@ -297,13 +298,10 @@ public class TopChildrenQuery extends Query {
         private final Weight queryWeight;
         private final ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs;
 
-        public ParentWeight(Weight queryWeight, ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs) throws IOException {
+        public ParentWeight(Query query, Weight queryWeight, ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs) throws IOException {
+            super(query);
             this.queryWeight = queryWeight;
             this.parentDocs = parentDocs;
-        }
-
-        public Query getQuery() {
-            return TopChildrenQuery.this;
         }
 
         @Override
@@ -323,7 +321,7 @@ public class TopChildrenQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs, boolean needsScores) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             ParentDoc[] readerParentDocs = parentDocs.get(context.reader().getCoreCacheKey());
             // We ignore the needsScores parameter here because there isn't really anything that we
             // can improve by ignoring scores. Actually this query does not really make sense
@@ -416,6 +414,26 @@ public class TopChildrenQuery extends Query {
         @Override
         public final long cost() {
             return docs.length;
+        }
+
+        @Override
+        public int nextPosition() throws IOException {
+            return -1;
+        }
+
+        @Override
+        public int startOffset() throws IOException {
+            return -1;
+        }
+
+        @Override
+        public int endOffset() throws IOException {
+            return -1;
+        }
+
+        @Override
+        public BytesRef getPayload() throws IOException {
+            return null;
         }
     }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
@@ -240,6 +241,11 @@ public class QueryParseContext {
                     }
                     filter = indexQueryParser.indexCache.filter().cache(filter, cacheKey, cachePolicy);
                     return filter.getDocIdSet(atomicReaderContext, bits);
+                }
+
+                @Override
+                public String toString(String field) {
+                    return "AnonymousResolvableFilter"; // TODO: not sure what is going on here
                 }
             };
         } else {

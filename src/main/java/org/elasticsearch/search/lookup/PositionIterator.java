@@ -20,6 +20,7 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.DocsAndPositionsEnum;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 
@@ -27,8 +28,6 @@ import java.io.IOException;
 import java.util.Iterator;
 
 public class PositionIterator implements Iterator<TermPosition> {
-    
-    private static final DocsAndPositionsEnum EMPTY = new EmptyDocsAndPosEnum();
     
     private boolean resetted = false;
 
@@ -41,7 +40,7 @@ public class PositionIterator implements Iterator<TermPosition> {
 
     protected final TermPosition termPosition = new TermPosition();
 
-    private DocsAndPositionsEnum docsAndPos;
+    private PostingsEnum docsAndPos;
 
     public PositionIterator(IndexFieldTerm indexFieldTerm) {
         this.indexFieldTerm = indexFieldTerm;
@@ -76,11 +75,7 @@ public class PositionIterator implements Iterator<TermPosition> {
         resetted = false;
         currentPos = 0;
         freq = indexFieldTerm.tf();
-        if (indexFieldTerm.docsEnum instanceof DocsAndPositionsEnum) {
-            docsAndPos = (DocsAndPositionsEnum) indexFieldTerm.docsEnum;
-        } else {
-            docsAndPos = EMPTY;
-        }
+        docsAndPos = indexFieldTerm.postings;
     }
 
     public Iterator<TermPosition> reset() {

@@ -140,7 +140,7 @@ public class ScriptFilterParser implements FilterParser {
         }
 
         @Override
-        public String toString() {
+        public String toString(String field) {
             StringBuilder buffer = new StringBuilder();
             buffer.append("ScriptFilter(");
             buffer.append(script);

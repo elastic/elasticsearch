@@ -31,6 +31,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Numbers;
@@ -106,12 +107,12 @@ final class PerThreadIDAndVersionLookup {
 
                     // there may be more than one matching docID, in the case of nested docs, so we want the last one:
                     DocsEnum docs = docsEnums[seg] = termsEnums[seg].docs(liveDocs[seg], docsEnums[seg], 0);
-                    int docID = DocsEnum.NO_MORE_DOCS;
-                    for (int d = docs.nextDoc(); d != DocsEnum.NO_MORE_DOCS; d = docs.nextDoc()) {
+                    int docID = DocIdSetIterator.NO_MORE_DOCS;
+                    for (int d = docs.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docs.nextDoc()) {
                         docID = d;
                     }
 
-                    if (docID != DocsEnum.NO_MORE_DOCS) {
+                    if (docID != DocIdSetIterator.NO_MORE_DOCS) {
                         if (segVersions != null) {
                             return new DocIdAndVersion(docID, segVersions.get(docID), readerContexts[seg]);
                         } else {

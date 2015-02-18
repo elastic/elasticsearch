@@ -320,7 +320,7 @@ public class XBooleanFilter extends Filter implements Iterable<FilterClause> {
      * Prints a user-readable version of this Filter.
      */
     @Override
-    public String toString() {
+    public String toString(String field) {
         final StringBuilder buffer = new StringBuilder("BooleanFilter(");
         final int minLen = buffer.length();
         for (final FilterClause c : clauses) {

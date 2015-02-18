@@ -192,4 +192,9 @@ final class ParentIdsFilter extends Filter {
         }
         return result == null ? null : new BitDocIdSet(result);
     }
+
+    @Override
+    public String toString(String field) {
+        return "parentsFilter(type=" + parentTypeBr.utf8ToString() + ")";
+    }
 }

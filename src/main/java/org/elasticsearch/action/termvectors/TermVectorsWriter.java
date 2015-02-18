@@ -20,6 +20,7 @@ package org.elasticsearch.action.termvectors;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.CollectionStatistics;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.termvectors.TermVectorsRequest.Flag;
@@ -130,10 +131,10 @@ final class TermVectorsWriter {
     private DocsEnum writeTermWithDocsOnly(TermsEnum iterator, DocsEnum docsEnum) throws IOException {
         docsEnum = iterator.docs(null, docsEnum);
         int nextDoc = docsEnum.nextDoc();
-        assert nextDoc != DocsEnum.NO_MORE_DOCS;
+        assert nextDoc != DocIdSetIterator.NO_MORE_DOCS;
         writeFreq(docsEnum.freq());
         nextDoc = docsEnum.nextDoc();
-        assert nextDoc == DocsEnum.NO_MORE_DOCS;
+        assert nextDoc == DocIdSetIterator.NO_MORE_DOCS;
         return docsEnum;
     }
 
@@ -143,7 +144,7 @@ final class TermVectorsWriter {
         // for each term (iterator next) in this field (field)
         // iterate over the docs (should only be one)
         int nextDoc = docsAndPosEnum.nextDoc();
-        assert nextDoc != DocsEnum.NO_MORE_DOCS;
+        assert nextDoc != DocIdSetIterator.NO_MORE_DOCS;
         final int freq = docsAndPosEnum.freq();
         writeFreq(freq);
         for (int j = 0; j < freq; j++) {
@@ -159,7 +160,7 @@ final class TermVectorsWriter {
             }
         }
         nextDoc = docsAndPosEnum.nextDoc();
-        assert nextDoc == DocsEnum.NO_MORE_DOCS;
+        assert nextDoc == DocIdSetIterator.NO_MORE_DOCS;
         return docsAndPosEnum;
     }
 

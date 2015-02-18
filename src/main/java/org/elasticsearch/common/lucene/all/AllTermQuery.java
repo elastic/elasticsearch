@@ -21,6 +21,7 @@ package org.elasticsearch.common.lucene.all;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.DocsAndPositionsEnum;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
@@ -51,7 +52,9 @@ public class AllTermQuery extends SpanTermQuery {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+        // TODO: needsScores
+        // we should be able to just return a regular SpanTermWeight, at most here if needsScores == false?
         return new AllTermWeight(this, searcher);
     }
 
@@ -62,7 +65,7 @@ public class AllTermQuery extends SpanTermQuery {
         }
 
         @Override
-        public AllTermSpanScorer scorer(LeafReaderContext context, Bits acceptDocs, boolean needsScores) throws IOException {
+        public AllTermSpanScorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             if (this.stats == null) {
                 return null;
             }
@@ -71,7 +74,7 @@ public class AllTermQuery extends SpanTermQuery {
         }
 
         protected class AllTermSpanScorer extends SpanScorer {
-            protected DocsAndPositionsEnum positions;
+            protected PostingsEnum positions;
             protected float payloadScore;
             protected int payloadsSeen;
 
@@ -146,7 +149,7 @@ public class AllTermQuery extends SpanTermQuery {
         
         @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException{
-            AllTermSpanScorer scorer = scorer(context, context.reader().getLiveDocs(), true);
+            AllTermSpanScorer scorer = scorer(context, context.reader().getLiveDocs());
             if (scorer != null) {
               int newDoc = scorer.advance(doc);
               if (newDoc == doc) {

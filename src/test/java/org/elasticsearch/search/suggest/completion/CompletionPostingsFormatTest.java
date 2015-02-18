@@ -376,14 +376,9 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
                                 }
 
                                 @Override
-                                public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) throws IOException {
-                                    throw new UnsupportedOperationException();
-                                }
-
-                                @Override
-                                public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) throws IOException {
+                                public PostingsEnum postings(Bits liveDocs, PostingsEnum reuse, int flags) throws IOException {
                                     final TermPosAndPayload data = current;
-                                    return new DocsAndPositionsEnum() {
+                                    return new PostingsEnum() {
                                         boolean done = false;
                                         @Override
                                         public int nextPosition() throws IOException {

@@ -33,8 +33,8 @@ import java.util.Iterator;
 public class IndexFieldTerm implements Iterable<TermPosition> {
 
     // The posting list for this term. Is null if the term or field does not
-    // exist. Can be DocsEnum or DocsAndPositionsEnum.
-    DocsEnum docsEnum;
+    // exist.
+    PostingsEnum postings;
 
     // Stores if positions, offsets and payloads are requested.
     private final int flags;
@@ -50,7 +50,7 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
 
     private final TermStatistics termStats;
 
-    static private EmptyScorer EMPTY_DOCS_ENUM = new EmptyScorer(null);
+    static private EmptyScorer EMPTY_SCORER = new EmptyScorer(null);
 
     // get the document frequency of the term
     public long df() throws IOException {
@@ -67,22 +67,23 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
     // and reader
     void setNextReader(LeafReader reader) {
         try {
-            // Get the posting list for a specific term. Depending on the flags,
-            // this
-            // will either get a DocsEnum or a DocsAndPositionsEnum if
-            // available.
+            // Get the posting list for a specific term.
 
             // get lucene frequency flag
             int luceneFrequencyFlag = getLuceneFrequencyFlag(flags);
             if (shouldRetrieveFrequenciesOnly()) {
-                docsEnum = getOnlyDocsEnum(luceneFrequencyFlag, reader);
+                postings = getPostings(luceneFrequencyFlag, reader);
             } else {
                 int lucenePositionsFlags = getLucenePositionsFlags(flags);
-                docsEnum = getDocsAndPosEnum(lucenePositionsFlags, reader);
-                if (docsEnum == null) {// no pos available
-                    docsEnum = getOnlyDocsEnum(luceneFrequencyFlag, reader);
+                postings = getPostings(lucenePositionsFlags, reader);
+                if (postings == null) {// no pos available
+                    postings = getPostings(luceneFrequencyFlag, reader);
                 }
             }
+            if (postings == null) {
+                postings = EMPTY_SCORER;
+            }
+
         } catch (IOException e) {
             throw new ElasticsearchException("Unable to get posting list for field " + fieldName + " and term " + term, e);
         }
@@ -94,69 +95,45 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
     }
 
     private int getLuceneFrequencyFlag(int flags) {
-        return (flags & IndexLookup.FLAG_FREQUENCIES) > 0 ? DocsEnum.FLAG_FREQS : DocsEnum.FLAG_NONE;
+        return (flags & IndexLookup.FLAG_FREQUENCIES) > 0 ? PostingsEnum.FREQS : PostingsEnum.NONE;
     }
 
     private int getLucenePositionsFlags(int flags) {
-        int lucenePositionsFlags = (flags & IndexLookup.FLAG_PAYLOADS) > 0 ? DocsAndPositionsEnum.FLAG_PAYLOADS : 0x0;
-        lucenePositionsFlags |= (flags & IndexLookup.FLAG_OFFSETS) > 0 ? DocsAndPositionsEnum.FLAG_OFFSETS : 0x0;
+        int lucenePositionsFlags = PostingsEnum.POSITIONS;
+        lucenePositionsFlags |= (flags & IndexLookup.FLAG_PAYLOADS) > 0 ? PostingsEnum.PAYLOADS : 0x0;
+        lucenePositionsFlags |= (flags & IndexLookup.FLAG_OFFSETS) > 0 ? PostingsEnum.OFFSETS : 0x0;
         return lucenePositionsFlags;
     }
 
-    // get the DocsAndPositionsEnum from the reader.
-    private DocsEnum getDocsAndPosEnum(int luceneFlags, LeafReader reader) throws IOException {
+    private PostingsEnum getPostings(int luceneFlags, LeafReader reader) throws IOException {
         assert identifier.field() != null;
         assert identifier.bytes() != null;
         final Fields fields = reader.fields();
-        DocsEnum newDocsEnum = null;
-        if (fields != null) {
-            final Terms terms = fields.terms(identifier.field());
-            if (terms != null) {
-                if (terms.hasPositions()) {
-                    final TermsEnum termsEnum = terms.iterator(null);
-                    if (termsEnum.seekExact(identifier.bytes())) {
-                        newDocsEnum = termsEnum.docsAndPositions(reader.getLiveDocs(),
-                                docsEnum instanceof DocsAndPositionsEnum ? (DocsAndPositionsEnum) docsEnum : null, luceneFlags);
-                    }
-                }
-            }
-        }
-        return newDocsEnum;
-    }
-
-    // get the DocsEnum from the reader.
-    private DocsEnum getOnlyDocsEnum(int luceneFlags, LeafReader reader) throws IOException {
-        assert identifier.field() != null;
-        assert identifier.bytes() != null;
-        final Fields fields = reader.fields();
-        DocsEnum newDocsEnum = null;
+        PostingsEnum newPostings = null;
         if (fields != null) {
             final Terms terms = fields.terms(identifier.field());
             if (terms != null) {
                 TermsEnum termsEnum = terms.iterator(null);
                 if (termsEnum.seekExact(identifier.bytes())) {
-                    newDocsEnum = termsEnum.docs(reader.getLiveDocs(), docsEnum, luceneFlags);
+                    newPostings = termsEnum.postings(reader.getLiveDocs(), postings, luceneFlags);
                 }
             }
         }
-        if (newDocsEnum == null) {
-            newDocsEnum = EMPTY_DOCS_ENUM;
-        }
-        return newDocsEnum;
+        return newPostings;
     }
 
     private int freq = 0;
 
     public void setNextDoc(int docId) {
-        assert (docsEnum != null);
+        assert (postings != null);
         try {
             // we try to advance to the current document.
-            int currentDocPos = docsEnum.docID();
+            int currentDocPos = postings.docID();
             if (currentDocPos < docId) {
-                currentDocPos = docsEnum.advance(docId);
+                currentDocPos = postings.advance(docId);
             }
             if (currentDocPos == docId) {
-                freq = docsEnum.freq();
+                freq = postings.freq();
             } else {
                 freq = 0;
             }

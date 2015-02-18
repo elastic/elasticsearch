@@ -58,7 +58,7 @@ public class MatchNoDocsFilter extends Filter {
     }
 
     @Override
-    public String toString() {
+    public String toString(String field) {
         return "MatchNoDocsFilter";
     }
 }

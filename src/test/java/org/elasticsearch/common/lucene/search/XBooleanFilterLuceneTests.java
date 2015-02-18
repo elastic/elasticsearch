@@ -112,6 +112,11 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
             public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) {
                 return new BitDocIdSet(new SparseFixedBitSet(context.reader().maxDoc()));
             }
+
+            @Override
+            public String toString(String field) {
+                return "empty";
+            }
         };
     }
 
@@ -120,6 +125,11 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
             @Override
             public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) {
                 return null;
+            }
+
+            @Override
+            public String toString(String field) {
+                return "nulldis";
             }
         };
     }
@@ -144,6 +154,11 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
                         return 0;
                     }
                 };
+            }
+
+            @Override
+            public String toString(String field) {
+                return "nulldisi";
             }
         };
     }

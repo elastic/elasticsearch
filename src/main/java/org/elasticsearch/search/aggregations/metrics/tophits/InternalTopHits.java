@@ -90,42 +90,86 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
         return searchHits;
     }
 
+    private TopFieldDocs asTopFieldDocs(TopDocs topDocs) {
+        if (topDocs instanceof TopFieldDocs) {
+            return (TopFieldDocs) topDocs;
+        } else {
+            // TODO: fix whoever is doing this!
+            assert topDocs.scoreDocs.length == 0;
+            return new TopFieldDocs(0, Lucene.EMPTY_SCORE_DOCS, null, 0.0f);
+        }
+    }
+
     @Override
     public InternalAggregation reduce(ReduceContext reduceContext) {
         List<InternalAggregation> aggregations = reduceContext.aggregations();
-        TopDocs[] shardDocs = new TopDocs[aggregations.size()];
         InternalSearchHits[] shardHits = new InternalSearchHits[aggregations.size()];
+
+        // Find non-empty TopDocs:
         TopDocs topDocs = this.topDocs;
-        for (int i = 0; i < shardDocs.length; i++) {
-            InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
-            shardDocs[i] = topHitsAgg.topDocs;
-            shardHits[i] = topHitsAgg.searchHits;
-            if (topDocs.scoreDocs.length == 0) {
-                topDocs = topHitsAgg.topDocs;
+        if (topDocs.scoreDocs.length == 0) {
+            for(InternalAggregation agg : aggregations) {
+                InternalTopHits hits = (InternalTopHits) agg;
+                if (hits.topDocs.scoreDocs.length > 0) {
+                    topDocs = hits.topDocs;
+                    break;
+                }
             }
-        }
-        final Sort sort;
-        if (topDocs instanceof TopFieldDocs) {
-            sort = new Sort(((TopFieldDocs) topDocs).fields);
-        } else {
-            sort = null;
         }
 
-        try {
-            int[] tracker = new int[shardHits.length];
-            TopDocs reducedTopDocs = TopDocs.merge(sort, from, size, shardDocs);
-            InternalSearchHit[] hits = new InternalSearchHit[reducedTopDocs.scoreDocs.length];
-            for (int i = 0; i < reducedTopDocs.scoreDocs.length; i++) {
-                ScoreDoc scoreDoc = reducedTopDocs.scoreDocs[i];
-                int position;
-                do {
-                    position = tracker[scoreDoc.shardIndex]++;
-                } while (shardDocs[scoreDoc.shardIndex].scoreDocs[position] != scoreDoc);
-                hits[i] = (InternalSearchHit) shardHits[scoreDoc.shardIndex].getAt(position);
+        TopDocs reducedTopDocs;
+        if (topDocs instanceof TopFieldDocs) {
+            Sort sort = new Sort(((TopFieldDocs) topDocs).fields);
+
+            TopFieldDocs[] shardDocs = new TopFieldDocs[aggregations.size()];
+            for (int i = 0; i < shardDocs.length; i++) {
+                InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
+                // TODO: topdocs.merge is this really safe?  our topDocs is a TopFieldDocs...
+                shardDocs[i] = asTopFieldDocs(topHitsAgg.topDocs);
+                shardHits[i] = topHitsAgg.searchHits;
             }
-            return new InternalTopHits(name, new InternalSearchHits(hits, reducedTopDocs.totalHits, reducedTopDocs.getMaxScore()));
-        } catch (IOException e) {
-            throw ExceptionsHelper.convertToElastic(e);
+
+            try {
+                reducedTopDocs = TopDocs.merge(sort, from, size, shardDocs);
+                int[] tracker = new int[shardHits.length];
+                InternalSearchHit[] hits = new InternalSearchHit[reducedTopDocs.scoreDocs.length];
+                for (int i = 0; i < reducedTopDocs.scoreDocs.length; i++) {
+                    ScoreDoc scoreDoc = reducedTopDocs.scoreDocs[i];
+                    int position;
+                    do {
+                        position = tracker[scoreDoc.shardIndex]++;
+                    } while (shardDocs[scoreDoc.shardIndex].scoreDocs[position] != scoreDoc);
+                    hits[i] = (InternalSearchHit) shardHits[scoreDoc.shardIndex].getAt(position);
+                }
+                return new InternalTopHits(name, new InternalSearchHits(hits, reducedTopDocs.totalHits, reducedTopDocs.getMaxScore()));
+            } catch (IOException e) {
+                throw ExceptionsHelper.convertToElastic(e);
+            }
+        } else {
+
+            TopDocs[] shardDocs = new TopDocs[aggregations.size()];
+            for (int i = 0; i < shardDocs.length; i++) {
+                InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
+                shardDocs[i] = topHitsAgg.topDocs;
+                shardHits[i] = topHitsAgg.searchHits;
+            }
+
+            try {
+                reducedTopDocs = TopDocs.merge(from, size, shardDocs);
+                int[] tracker = new int[shardHits.length];
+                InternalSearchHit[] hits = new InternalSearchHit[reducedTopDocs.scoreDocs.length];
+                for (int i = 0; i < reducedTopDocs.scoreDocs.length; i++) {
+                    ScoreDoc scoreDoc = reducedTopDocs.scoreDocs[i];
+                    int position;
+                    do {
+                        position = tracker[scoreDoc.shardIndex]++;
+                    } while (shardDocs[scoreDoc.shardIndex].scoreDocs[position] != scoreDoc);
+                    hits[i] = (InternalSearchHit) shardHits[scoreDoc.shardIndex].getAt(position);
+                }
+                return new InternalTopHits(name, new InternalSearchHits(hits, reducedTopDocs.totalHits, reducedTopDocs.getMaxScore()));
+            } catch (IOException e) {
+                throw ExceptionsHelper.convertToElastic(e);
+            }
         }
     }
 

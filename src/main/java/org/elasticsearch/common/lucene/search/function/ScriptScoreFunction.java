@@ -22,6 +22,7 @@ package org.elasticsearch.common.lucene.search.function;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ExplainableSearchScript;
 import org.elasticsearch.script.SearchScript;
@@ -62,6 +63,26 @@ public class ScriptScoreFunction extends ScoreFunction {
         @Override
         public int advance(int target) throws IOException {
             throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int nextPosition() throws IOException {
+            return -1;
+        }
+
+        @Override
+        public int startOffset() throws IOException {
+            return -1;
+        }
+
+        @Override
+        public int endOffset() throws IOException {
+            return -1;
+        }
+
+        @Override
+        public BytesRef getPayload() throws IOException {
+            return null;
         }
 
         @Override

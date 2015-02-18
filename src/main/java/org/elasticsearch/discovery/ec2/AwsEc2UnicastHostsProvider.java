@@ -153,7 +153,7 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
                         address = instance.getPublicDnsName();
                         break;
                     case PUBLIC_IP:
-                        address = instance.getPublicDnsName();
+                        address = instance.getPublicIpAddress();
                         break;
                 }
                 if (address != null) {

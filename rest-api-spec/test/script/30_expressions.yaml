@@ -1,0 +1,15 @@
+---
+"Expressions scripting test":
+
+  - do:
+      index:
+        index:  test123
+        type:   test
+        id:     1
+        body:   { age: 23 }
+
+  - do:
+      indices.refresh: {}
+
+  - do: { search: { body: { script_fields : { my_field : { lang: expression, script: 'doc["age"].value + 19' } } } } }
+  - match:  { hits.hits.0.fields.my_field: [ 42.0 ] }

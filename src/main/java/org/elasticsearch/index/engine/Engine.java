@@ -59,6 +59,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  *
@@ -72,6 +73,10 @@ public abstract class Engine implements Closeable {
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
     protected final FailedEngineListener failedEngineListener;
     protected final SnapshotDeletionPolicy deletionPolicy;
+    protected final ReentrantLock failEngineLock = new ReentrantLock();
+    protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
+    protected final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
+    protected final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
 
     protected volatile Throwable failedEngine = null;
 
@@ -278,7 +283,30 @@ public abstract class Engine implements Closeable {
     /**
      * Global stats on segments.
      */
-    public abstract SegmentsStats segmentsStats();
+    public final SegmentsStats segmentsStats() {
+        ensureOpen();
+        try (final Searcher searcher = acquireSearcher("segments_stats")) {
+            SegmentsStats stats = new SegmentsStats();
+            for (LeafReaderContext reader : searcher.reader().leaves()) {
+                final SegmentReader segmentReader = segmentReader(reader.reader());
+                stats.add(1, segmentReader.ramBytesUsed());
+                stats.addTermsMemoryInBytes(guardedRamBytesUsed(segmentReader.getPostingsReader()));
+                stats.addStoredFieldsMemoryInBytes(guardedRamBytesUsed(segmentReader.getFieldsReader()));
+                stats.addTermVectorsMemoryInBytes(guardedRamBytesUsed(segmentReader.getTermVectorsReader()));
+                stats.addNormsMemoryInBytes(guardedRamBytesUsed(segmentReader.getNormsReader()));
+                stats.addDocValuesMemoryInBytes(guardedRamBytesUsed(segmentReader.getDocValuesReader()));
+            }
+            writerSegmentStats(stats);
+            return stats;
+        }
+    }
+
+    protected void writerSegmentStats(SegmentsStats stats) {
+        // by default we don't have a writer here... subclasses can override this
+        stats.addVersionMapMemoryInBytes(0);
+        stats.addIndexWriterMemoryInBytes(0);
+        stats.addIndexWriterMaxMemoryInBytes(0);
+    }
 
     protected Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean verbose) {
         ensureOpen();
@@ -400,7 +428,9 @@ public abstract class Engine implements Closeable {
     /**
      * Optimizes to 1 segment
      */
-    abstract void forceMerge(boolean flush);
+    public void forceMerge(boolean flush) {
+        forceMerge(flush, 1, false, false);
+    }
 
     /**
      * Triggers a forced merge on this engine
@@ -416,7 +446,45 @@ public abstract class Engine implements Closeable {
     public abstract void recover(RecoveryHandler recoveryHandler) throws EngineException;
 
     /** fail engine due to some error. the engine will also be closed. */
-    public abstract void failEngine(String reason, Throwable failure);
+    public void failEngine(String reason, Throwable failure) {
+        assert failure != null;
+        if (failEngineLock.tryLock()) {
+            store.incRef();
+            try {
+                try {
+                    // we just go and close this engine - no way to recover
+                    closeNoLock("engine failed on: [" + reason + "]");
+                    // we first mark the store as corrupted before we notify any listeners
+                    // this must happen first otherwise we might try to reallocate so quickly
+                    // on the same node that we don't see the corrupted marker file when
+                    // the shard is initializing
+                    if (Lucene.isCorruptionException(failure)) {
+                        try {
+                            store.markStoreCorrupted(ExceptionsHelper.unwrapCorruption(failure));
+                        } catch (IOException e) {
+                            logger.warn("Couldn't marks store corrupted", e);
+                        }
+                    }
+                } finally {
+                    if (failedEngine != null) {
+                        logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", reason, failure);
+                        return;
+                    }
+                    logger.warn("failed engine [{}]", failure, reason);
+                    // we must set a failure exception, generate one if not supplied
+                    failedEngine = failure;
+                    failedEngineListener.onFailedEngine(shardId, reason, failure);
+                }
+            } catch (Throwable t) {
+                // don't bubble up these exceptions up
+                logger.warn("failEngine threw exception", t);
+            } finally {
+                store.decRef();
+            }
+        } else {
+            logger.debug("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason, failure);
+        }
+    }
 
     /** Check whether the engine should be failed */
     protected boolean maybeFailEngine(String source, Throwable t) {
@@ -963,4 +1031,38 @@ public abstract class Engine implements Closeable {
     }
 
     protected abstract SearcherManager getSearcherManager();
+
+    protected abstract void closeNoLock(String reason) throws ElasticsearchException;
+
+    public void flushAndClose() throws IOException {
+        if (isClosed.get() == false) {
+            logger.trace("flushAndClose now acquire writeLock");
+            try (ReleasableLock _ = writeLock.acquire()) {
+                logger.trace("flushAndClose now acquired writeLock");
+                try {
+                    logger.debug("flushing shard on close - this might take some time to sync files to disk");
+                    try {
+                        flush(); // TODO we might force a flush in the future since we have the write lock already even though recoveries are running.
+                    } catch (FlushNotAllowedEngineException ex) {
+                        logger.debug("flush not allowed during flushAndClose - skipping");
+                    } catch (EngineClosedException ex) {
+                        logger.debug("engine already closed - skipping flushAndClose");
+                    }
+                } finally {
+                    close(); // double close is not a problem
+                }
+            }
+        }
+    }
+
+    @Override
+    public void close() throws IOException {
+        if (isClosed.get() == false) { // don't acquire the write lock if we are already closed
+            logger.debug("close now acquiring writeLock");
+            try (ReleasableLock _ = writeLock.acquire()) {
+                logger.debug("close acquired writeLock");
+                closeNoLock("api");
+            }
+        }
+    }
 }

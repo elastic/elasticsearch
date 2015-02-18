@@ -32,7 +32,6 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
-import org.elasticsearch.common.lucene.search.XCollector;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -181,16 +180,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 }
             } else {
                 super.search(leaves, weight, collector);
-            }
-
-            if (currentState == Stage.MAIN_QUERY) {
-                if (queryCollectors != null && !queryCollectors.isEmpty()) {
-                    for (Collector queryCollector : queryCollectors.values()) {
-                        if (queryCollector instanceof XCollector) {
-                            ((XCollector) queryCollector).postCollection();
-                        }
-                    }
-                }
             }
         } finally {
             searchContext.clearReleasables(Lifetime.COLLECTION);

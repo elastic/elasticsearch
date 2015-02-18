@@ -19,7 +19,6 @@
 package org.elasticsearch.common.rounding;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -239,12 +238,8 @@ public abstract class Rounding implements Streamable {
             byte id = in.readByte();
             switch (id) {
                 case Interval.ID: rounding = new Interval(); break;
-                case TimeZoneRounding.TimeTimeZoneRoundingFloor.ID: rounding = new TimeZoneRounding.TimeTimeZoneRoundingFloor(); break;
-                case TimeZoneRounding.UTCTimeZoneRoundingFloor.ID: rounding = new TimeZoneRounding.UTCTimeZoneRoundingFloor(); break;
-                case TimeZoneRounding.DayTimeZoneRoundingFloor.ID: rounding = new TimeZoneRounding.DayTimeZoneRoundingFloor(); break;
-                case TimeZoneRounding.UTCIntervalTimeZoneRounding.ID: rounding = new TimeZoneRounding.UTCIntervalTimeZoneRounding(); break;
-                case TimeZoneRounding.TimeIntervalTimeZoneRounding.ID: rounding = new TimeZoneRounding.TimeIntervalTimeZoneRounding(); break;
-                case TimeZoneRounding.DayIntervalTimeZoneRounding.ID: rounding = new TimeZoneRounding.DayIntervalTimeZoneRounding(); break;
+                case TimeZoneRounding.TimeUnitRounding.ID: rounding = new TimeZoneRounding.TimeUnitRounding(); break;
+                case TimeZoneRounding.TimeIntervalRounding.ID: rounding = new TimeZoneRounding.TimeIntervalRounding(); break;
                 case TimeZoneRounding.FactorRounding.ID: rounding = new FactorRounding(); break;
                 case OffsetRounding.ID: rounding = new OffsetRounding(); break;
                 default: throw new ElasticsearchException("unknown rounding id [" + id + "]");

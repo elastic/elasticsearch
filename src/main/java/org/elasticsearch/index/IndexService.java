@@ -388,7 +388,8 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             // and close the shard so no operations are allowed to it
             if (indexShard != null) {
                 try {
-                    indexShard.close(reason);
+                    final boolean flushEngine = deleted.get() == false && closed.get(); // only flush we are we closed (closed index or shutdown) and if we are not deleted
+                    indexShard.close(reason, flushEngine);
                 } catch (Throwable e) {
                     logger.debug("[{}] failed to close index shard", e, shardId);
                     // ignore

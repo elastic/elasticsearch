@@ -23,7 +23,7 @@ package org.elasticsearch.search.aggregations;
 import com.google.common.collect.Iterables;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.lucene.search.XCollector;
+import org.apache.lucene.search.Collector;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,18 +32,7 @@ import java.util.List;
 /**
  * A Collector that can collect data in separate buckets.
  */
-public abstract class BucketCollector implements XCollector {
-    
-    /**
-     * Used to gather a summary from a bucket
-     */
-    public interface BucketAnalysisCollector{
-        /**
-         * Used to ask {@link BucketCollector}s for their analysis of the content collected in a bucket
-         * @param analysis an object that represents the summary of a bucket as an {@link Aggregation}
-         */
-        void add(Aggregation aggregation);
-    }
+public abstract class BucketCollector implements Collector {
 
     public final static BucketCollector NO_OP_COLLECTOR = new BucketCollector() {
 
@@ -120,7 +109,9 @@ public abstract class BucketCollector implements XCollector {
      */
     public abstract void preCollection() throws IOException;
 
-    @Override
+    /**
+     * Post-collection callback.
+     */
     public abstract void postCollection() throws IOException;
 
 }

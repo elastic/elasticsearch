@@ -356,7 +356,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         client().prepareDeleteByQuery("test").setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(docToDelete))).execute().actionGet();
         flush();
         refresh();
-        assertDocumentCount("test", total-1);
+        assertDocumentCount("test", total - 1);
 
         for (int i = 0; i < total; i++) {
             assertThat(client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet().isExists(), equalTo(i != docToDelete));
@@ -1165,6 +1165,142 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getHits()[1].sortValues()[0].toString(), equalTo("2"));
         assertThat(searchResponse.getHits().getHits()[2].getId(), equalTo("3"));
         assertThat(searchResponse.getHits().getHits()[2].sortValues()[0].toString(), equalTo("3"));
+    }
+
+    @Test
+    // https://github.com/elasticsearch/elasticsearch/issues/9305
+    public void testNestedSortingWithNestedFilterAsFilter() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type", jsonBuilder().startObject().startObject("properties")
+                .startObject("officelocation").field("type", "string").endObject()
+                .startObject("users")
+                    .field("type", "nested")
+                    .startObject("properties")
+                        .startObject("first").field("type", "string").endObject()
+                        .startObject("last").field("type", "string").endObject()
+                        .startObject("workstations")
+                            .field("type", "nested")
+                            .startObject("properties")
+                                .startObject("stationid").field("type", "string").endObject()
+                                .startObject("phoneid").field("type", "string").endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject().endObject()));
+
+        client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject()
+                .field("officelocation", "gendale")
+                .startArray("users")
+                    .startObject()
+                        .field("first", "fname1")
+                        .field("last", "lname1")
+                        .startArray("workstations")
+                            .startObject()
+                                .field("stationid", "s1")
+                                .field("phoneid", "p1")
+                            .endObject()
+                            .startObject()
+                                .field("stationid", "s2")
+                                .field("phoneid", "p2")
+                            .endObject()
+                        .endArray()
+                    .endObject()
+                    .startObject()
+                        .field("first", "fname2")
+                        .field("last", "lname2")
+                        .startArray("workstations")
+                            .startObject()
+                                .field("stationid", "s3")
+                                .field("phoneid", "p3")
+                            .endObject()
+                            .startObject()
+                                .field("stationid", "s4")
+                                .field("phoneid", "p4")
+                            .endObject()
+                        .endArray()
+                    .endObject()
+                    .startObject()
+                        .field("first", "fname3")
+                        .field("last", "lname3")
+                        .startArray("workstations")
+                            .startObject()
+                                .field("stationid", "s5")
+                                .field("phoneid", "p5")
+                            .endObject()
+                            .startObject()
+                                .field("stationid", "s6")
+                                .field("phoneid", "p6")
+                            .endObject()
+                        .endArray()
+                    .endObject()
+                .endArray()
+                .endObject()).get();
+
+        client().prepareIndex("test", "type", "2").setSource(jsonBuilder().startObject()
+                .field("officelocation", "gendale")
+                .startArray("users")
+                    .startObject()
+                    .field("first", "fname4")
+                    .field("last", "lname4")
+                    .startArray("workstations")
+                        .startObject()
+                            .field("stationid", "s1")
+                            .field("phoneid", "p1")
+                        .endObject()
+                        .startObject()
+                            .field("stationid", "s2")
+                            .field("phoneid", "p2")
+                        .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("first", "fname5")
+                    .field("last", "lname5")
+                    .startArray("workstations")
+                        .startObject()
+                            .field("stationid", "s3")
+                            .field("phoneid", "p3")
+                        .endObject()
+                        .startObject()
+                            .field("stationid", "s4")
+                            .field("phoneid", "p4")
+                        .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("first", "fname1")
+                    .field("last", "lname1")
+                    .startArray("workstations")
+                        .startObject()
+                            .field("stationid", "s5")
+                            .field("phoneid", "p5")
+                        .endObject()
+                        .startObject()
+                            .field("stationid", "s6")
+                            .field("phoneid", "p6")
+                        .endObject()
+                    .endArray()
+                    .endObject()
+                .endArray()
+                .endObject()).get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .addSort(SortBuilders.fieldSort("users.first")
+                        .order(SortOrder.ASC))
+                .addSort(SortBuilders.fieldSort("users.first")
+                        .order(SortOrder.ASC)
+                        .setNestedPath("users")
+                        .setNestedFilter(nestedFilter("users.workstations", termFilter("users.workstations.stationid", "s5"))))
+                .get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 2);
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(0).sortValues()[0].toString(), equalTo("fname1"));
+        assertThat(searchResponse.getHits().getAt(0).sortValues()[1].toString(), equalTo("fname1"));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("fname1"));
+        assertThat(searchResponse.getHits().getAt(1).sortValues()[1].toString(), equalTo("fname3"));
     }
 
     @Test

@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.single.shard.TransportShardSingleOperati
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -81,7 +82,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
                 indexMeta != null && // and we have the index
                 IndexMetaData.isIndexUsingShadowReplicas(indexMeta.settings())) { // and the index uses shadow replicas
             // set the preference for the request to use "_primary" automatically
-            request.request().preference("_primary");
+            request.request().preference(Preference.PRIMARY.type());
         }
         // update the routing (request#index here is possibly an alias)
         request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));

@@ -72,7 +72,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @Slow
     public void testRestartNodePercolator1() throws Exception {
         internalCluster().startNode();
-        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string").addMapping(PercolatorService.TYPE_NAME, "color", "type=string"));
 
         logger.info("--> register a query");
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")

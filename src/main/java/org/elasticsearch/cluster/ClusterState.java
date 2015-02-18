@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
-import org.elasticsearch.cluster.routing.allocation.AllocationExplanation;
+
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -44,7 +44,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -133,8 +132,6 @@ public class ClusterState implements ToXContent {
 
     // built on demand
     private volatile RoutingNodes routingNodes;
-
-    private SettingsFilter settingsFilter;
 
     private volatile ClusterStateStatus status;
 
@@ -232,11 +229,6 @@ public class ClusterState implements ToXContent {
         }
         routingNodes = routingTable.routingNodes(this);
         return routingNodes;
-    }
-
-    public ClusterState settingsFilter(SettingsFilter settingsFilter) {
-        this.settingsFilter = settingsFilter;
-        return this;
     }
 
     public String prettyPrint() {
@@ -385,9 +377,6 @@ public class ClusterState implements ToXContent {
 
                 builder.startObject("settings");
                 Settings settings = templateMetaData.settings();
-                if (settingsFilter != null) {
-                    settings = settingsFilter.filterSettings(settings);
-                }
                 settings.toXContent(builder, params);
                 builder.endObject();
 
@@ -418,9 +407,6 @@ public class ClusterState implements ToXContent {
 
                 builder.startObject("settings");
                 Settings settings = indexMetaData.settings();
-                if (settingsFilter != null) {
-                    settings = settingsFilter.filterSettings(settings);
-                }
                 settings.toXContent(builder, params);
                 builder.endObject();
 

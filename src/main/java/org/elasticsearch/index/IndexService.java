@@ -305,7 +305,8 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
             logger.debug("creating shard_id {}", shardId);
             // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
-            final boolean ownsShard = IndexMetaData.usesSharedFilesystem(indexSettings) == false || (primary && IndexMetaData.usesSharedFilesystem(indexSettings));
+            final boolean canDeleteShardContent = IndexMetaData.usesSharedFilesystem(indexSettings) == false ||
+                    (primary && IndexMetaData.usesSharedFilesystem(indexSettings));
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
             modules.add(new IndexShardModule(shardId, primary, indexSettings));
@@ -313,7 +314,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             modules.add(new ShardSearchModule());
             modules.add(new ShardGetModule());
             modules.add(new StoreModule(indexSettings, injector.getInstance(IndexStore.class), lock,
-                    new StoreCloseListener(shardId, ownsShard)));
+                    new StoreCloseListener(shardId, canDeleteShardContent)));
             modules.add(new DeletionPolicyModule(indexSettings));
             modules.add(new MergePolicyModule(indexSettings));
             modules.add(new MergeSchedulerModule(indexSettings));

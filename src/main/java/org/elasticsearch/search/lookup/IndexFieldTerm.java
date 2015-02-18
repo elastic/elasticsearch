@@ -21,6 +21,7 @@ package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.EmptyScorer;
 
@@ -69,17 +70,64 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
         try {
             // Get the posting list for a specific term.
 
-            // get lucene frequency flag
-            int luceneFrequencyFlag = getLuceneFrequencyFlag(flags);
-            if (shouldRetrieveFrequenciesOnly()) {
-                postings = getPostings(luceneFrequencyFlag, reader);
-            } else {
-                int lucenePositionsFlags = getLucenePositionsFlags(flags);
-                postings = getPostings(lucenePositionsFlags, reader);
-                if (postings == null) {// no pos available
-                    postings = getPostings(luceneFrequencyFlag, reader);
+            if (!shouldRetrieveFrequenciesOnly()) {
+                postings = getPostings(getLucenePositionsFlags(flags), reader);
+            }
+            
+            if (postings == null) {
+                postings = getPostings(getLuceneFrequencyFlag(flags), reader);
+                if (postings != null) {
+                    final PostingsEnum p = postings;
+                    postings = new PostingsEnum() {
+
+                        @Override
+                        public int freq() throws IOException {
+                            return p.freq();
+                        }
+
+                        @Override
+                        public int nextPosition() throws IOException {
+                            return -1;
+                        }
+
+                        @Override
+                        public int startOffset() throws IOException {
+                            return -1;
+                        }
+
+                        @Override
+                        public int endOffset() throws IOException {
+                            return -1;
+                        }
+
+                        @Override
+                        public BytesRef getPayload() throws IOException {
+                            return null;
+                        }
+
+                        @Override
+                        public int docID() {
+                            return p.docID();
+                        }
+
+                        @Override
+                        public int nextDoc() throws IOException {
+                            return p.nextDoc();
+                        }
+
+                        @Override
+                        public int advance(int target) throws IOException {
+                            return p.advance(target);
+                        }
+
+                        @Override
+                        public long cost() {
+                            return p.cost();
+                        }
+                    };
                 }
             }
+
             if (postings == null) {
                 postings = EMPTY_SCORER;
             }

@@ -38,7 +38,7 @@ public class PositionIterator implements Iterator<TermPosition> {
 
     protected final TermPosition termPosition = new TermPosition();
 
-    private PostingsEnum docsAndPos;
+    private PostingsEnum postings;
 
     public PositionIterator(IndexFieldTerm indexFieldTerm) {
         this.indexFieldTerm = indexFieldTerm;
@@ -58,10 +58,10 @@ public class PositionIterator implements Iterator<TermPosition> {
     @Override
     public TermPosition next() {
         try {
-            termPosition.position = docsAndPos.nextPosition();
-            termPosition.startOffset = docsAndPos.startOffset();
-            termPosition.endOffset = docsAndPos.endOffset();
-            termPosition.payload = docsAndPos.getPayload();
+            termPosition.position = postings.nextPosition();
+            termPosition.startOffset = postings.startOffset();
+            termPosition.endOffset = postings.endOffset();
+            termPosition.payload = postings.getPayload();
         } catch (IOException ex) {
             throw new ElasticsearchException("can not advance iterator", ex);
         }
@@ -73,7 +73,7 @@ public class PositionIterator implements Iterator<TermPosition> {
         resetted = false;
         currentPos = 0;
         freq = indexFieldTerm.tf();
-        docsAndPos = indexFieldTerm.postings;
+        postings = indexFieldTerm.postings;
     }
 
     public Iterator<TermPosition> reset() {

@@ -141,8 +141,8 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
         refresh();
 
         SearchResponse response = client().prepareSearch("test")
-                .addField("content_type")
-                .addField("name")
+                .addField("file.content_type")
+                .addField("file.name")
                 .execute().get();
         String contentType = response.getHits().getAt(0).getFields().get("file.content_type").getValue();
         String name = response.getHits().getAt(0).getFields().get("file.name").getValue();

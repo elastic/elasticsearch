@@ -75,14 +75,22 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         // replay the translog, this is what this tests
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
+
+        // Check that we can get doc 1 and 2, because we are doing realtime
+        // gets and getting from the primary
+        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setRealtime(true).setFields("foo").get();
+        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setRealtime(true).setFields("foo").get();
+        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
+        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+
         flushAndRefresh(IDX);
         client().prepareIndex(IDX, "doc", "3").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "4").setSource("foo", "bar").get();
         refresh();
 
-        // Check that we can get doc 1 and 2
-        GetResponse gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
-        GetResponse gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
+        // Check that we can get doc 1 and 2 without realtime
+        gResp1 = client().prepareGet(IDX, "doc", "1").setRealtime(false).setFields("foo").get();
+        gResp2 = client().prepareGet(IDX, "doc", "2").setRealtime(false).setFields("foo").get();
         assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
         assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
 

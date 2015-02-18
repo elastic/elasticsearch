@@ -56,6 +56,11 @@ filesystem where the shadow replica resides (after an Elasticsearch "flush"), a
 regular refresh (governed by the `index.refresh_interval`) can be used to make
 the new data searchable.
 
+NOTE: Since documents are only indexed on the primary shard, realtime GET
+requests could fail to return a document if executed on the replica shard,
+therefore, GET API requests automatically have the `?preference=_primary` flag
+set if there is no preference flag already set.
+
 In order to ensure the data is being synchronized in a fast enough manner, you
 may need to tune the flush threshold for the index to a desired number. A flush
 is needed to fsync segment files to disk, so they will be visible to all other

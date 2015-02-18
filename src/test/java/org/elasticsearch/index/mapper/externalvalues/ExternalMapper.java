@@ -155,7 +155,7 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
                           String generatedValue, String mapperName,
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
                           GeoShapeFieldMapper shapeMapper, Mapper stringMapper, MultiFields multiFields, CopyTo copyTo) {
-        super(names, 1.0f, Defaults.FIELD_TYPE, false, null, null, null, null, null, null, null, ImmutableSettings.EMPTY,
+        super(names, 1.0f, Defaults.FIELD_TYPE, false, null, null, null, null, null, ImmutableSettings.EMPTY,
                 multiFields, copyTo);
         this.generatedValue = generatedValue;
         this.mapperName = mapperName;

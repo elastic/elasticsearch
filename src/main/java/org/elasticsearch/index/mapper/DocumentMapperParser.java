@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -36,9 +37,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.core.ByteFieldMapper;
@@ -79,8 +77,6 @@ import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -94,8 +90,6 @@ public class DocumentMapperParser extends AbstractIndexComponent {
 
     final AnalysisService analysisService;
     private static final ESLogger logger = Loggers.getLogger(DocumentMapperParser.class);
-    private final PostingsFormatService postingsFormatService;
-    private final DocValuesFormatService docValuesFormatService;
     private final SimilarityLookupService similarityLookupService;
     private final ScriptService scriptService;
 
@@ -108,12 +102,9 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     private volatile ImmutableMap<String, Mapper.TypeParser> rootTypeParsers;
 
     public DocumentMapperParser(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService,
-                                PostingsFormatService postingsFormatService, DocValuesFormatService docValuesFormatService,
                                 SimilarityLookupService similarityLookupService, ScriptService scriptService) {
         super(index, indexSettings);
         this.analysisService = analysisService;
-        this.postingsFormatService = postingsFormatService;
-        this.docValuesFormatService = docValuesFormatService;
         this.similarityLookupService = similarityLookupService;
         this.scriptService = scriptService;
         MapBuilder<String, Mapper.TypeParser> typeParsersBuilder = new MapBuilder<String, Mapper.TypeParser>()
@@ -178,7 +169,7 @@ public class DocumentMapperParser extends AbstractIndexComponent {
     }
 
     public Mapper.TypeParser.ParserContext parserContext() {
-        return new Mapper.TypeParser.ParserContext(postingsFormatService, docValuesFormatService, analysisService, similarityLookupService, typeParsers, indexVersionCreated);
+        return new Mapper.TypeParser.ParserContext(analysisService, similarityLookupService, typeParsers, indexVersionCreated);
     }
 
     public DocumentMapper parse(String source) throws MapperParsingException {

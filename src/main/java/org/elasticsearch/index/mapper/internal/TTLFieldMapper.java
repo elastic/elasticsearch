@@ -30,9 +30,14 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AlreadyExpiredException;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
@@ -90,7 +95,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
         @Override
         public TTLFieldMapper build(BuilderContext context) {
-            return new TTLFieldMapper(fieldType, enabledState, defaultTTL, ignoreMalformed(context),coerce(context), postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+            return new TTLFieldMapper(fieldType, enabledState, defaultTTL, ignoreMalformed(context),coerce(context), fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -123,15 +128,14 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     private long defaultTTL;
 
     public TTLFieldMapper(Settings indexSettings) {
-        this(new FieldType(Defaults.TTL_FIELD_TYPE), Defaults.ENABLED_STATE, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED, Defaults.COERCE, null, null, null, indexSettings);
+        this(new FieldType(Defaults.TTL_FIELD_TYPE), Defaults.ENABLED_STATE, Defaults.DEFAULT, Defaults.IGNORE_MALFORMED, Defaults.COERCE, null, indexSettings);
     }
 
     protected TTLFieldMapper(FieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL, Explicit<Boolean> ignoreMalformed,
-                Explicit<Boolean> coerce, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
-                @Nullable Settings fieldDataSettings, Settings indexSettings) {
+                Explicit<Boolean> coerce, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP_64_BIT,
                 Defaults.BOOST, fieldType, null, Defaults.NULL_VALUE, ignoreMalformed, coerce,
-                postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings, MultiFields.empty(), null);
+                null, null, fieldDataSettings, indexSettings, MultiFields.empty(), null);
         this.enabledState = enabled;
         this.defaultTTL = defaultTTL;
     }

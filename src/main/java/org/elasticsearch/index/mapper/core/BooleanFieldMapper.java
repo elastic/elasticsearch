@@ -33,10 +33,12 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
@@ -98,8 +100,8 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
 
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
-            return new BooleanFieldMapper(buildNames(context), boost, fieldType, nullValue, postingsProvider, 
-                    docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
+            return new BooleanFieldMapper(buildNames(context), boost, fieldType, nullValue,
+                    similarity, normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -126,10 +128,10 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
 
     private Boolean nullValue;
 
-    protected BooleanFieldMapper(Names names, float boost, FieldType fieldType, Boolean nullValue, PostingsFormatProvider postingsProvider,
-                                 DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity, Loading normsLoading,
+    protected BooleanFieldMapper(Names names, float boost, FieldType fieldType, Boolean nullValue,
+                                 SimilarityProvider similarity, Loading normsLoading,
                                  @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(names, boost, fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(names, boost, fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
     }
 

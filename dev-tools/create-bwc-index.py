@@ -183,6 +183,18 @@ def generate_index(client, version):
         'path': 'myrouting'
       } 
     }
+    mappings['custom_formats'] = {
+      'properties': {
+        'string_with_custom_postings': {
+          'type': 'string',
+          'postings_format': 'Lucene41'
+        },
+        'long_with_custom_doc_values': {
+          'type': 'long',
+          'doc_values_format': 'Lucene42'
+        }
+      }
+    }
 
 
   client.indices.create(index='test', body={

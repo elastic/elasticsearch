@@ -23,12 +23,14 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 
@@ -73,7 +75,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
         @Override
         public SizeFieldMapper build(BuilderContext context) {
-            return new SizeFieldMapper(enabledState, fieldType, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+            return new SizeFieldMapper(enabledState, fieldType, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -100,13 +102,12 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     private EnabledAttributeMapper enabledState;
 
     public SizeFieldMapper(Settings indexSettings) {
-        this(Defaults.ENABLED_STATE, new FieldType(Defaults.SIZE_FIELD_TYPE), null, null, null, indexSettings);
+        this(Defaults.ENABLED_STATE, new FieldType(Defaults.SIZE_FIELD_TYPE), null, indexSettings);
     }
 
-    public SizeFieldMapper(EnabledAttributeMapper enabled, FieldType fieldType, PostingsFormatProvider postingsProvider,
-                           DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+    public SizeFieldMapper(EnabledAttributeMapper enabled, FieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(Defaults.NAME), Defaults.PRECISION_STEP_32_BIT, Defaults.BOOST, fieldType, null, Defaults.NULL_VALUE,
-                Defaults.IGNORE_MALFORMED,  Defaults.COERCE, postingsProvider, docValuesProvider, null, null, fieldDataSettings, 
+                Defaults.IGNORE_MALFORMED,  Defaults.COERCE, null, null, fieldDataSettings, 
                 indexSettings, MultiFields.empty(), null);
         this.enabledState = enabled;
     }

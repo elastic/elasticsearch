@@ -237,3 +237,15 @@ curl -XGET 'localhost:9200/index/type/_search'
 }
 ---------------
 
+=== Codecs
+
+It is no longer possible to specify per-field postings and doc values formats
+in the mappings. This setting will be ignored on indices created before
+elasticsearch 2.0 and will cause mapping parsing to fail on indices created on
+or after 2.0. For old indices, this means that new segments will be written
+with the default postings and doc values formats of the current codec.
+
+It is still possible to change the whole codec by using the `index.codec`
+setting. Please however note that using a non-default codec is discouraged as
+it could prevent future versions of Elasticsearch from being able to read the
+index.

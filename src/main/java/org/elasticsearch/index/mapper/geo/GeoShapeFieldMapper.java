@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper.geo;
 
 import com.spatial4j.core.shape.Shape;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -36,8 +37,6 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -161,8 +160,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
                 throw new ElasticsearchIllegalArgumentException("Unknown prefix tree type [" + tree + "]");
             }
 
-            return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, orientation, fieldType, postingsProvider,
-                    docValuesProvider, multiFieldsBuilder.build(this, context), copyTo);
+            return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, orientation, fieldType,
+                    multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -215,9 +214,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     private Orientation shapeOrientation;
 
     public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree tree, String defaultStrategyName, double distanceErrorPct,
-                               Orientation shapeOrientation, FieldType fieldType, PostingsFormatProvider postingsProvider,
-                               DocValuesFormatProvider docValuesProvider, MultiFields multiFields, CopyTo copyTo) {
-        super(names, 1, fieldType, null, null, null, postingsProvider, docValuesProvider, null, null, null, null, multiFields, copyTo);
+                               Orientation shapeOrientation, FieldType fieldType, MultiFields multiFields, CopyTo copyTo) {
+        super(names, 1, fieldType, null, null, null, null, null, null, null, multiFields, copyTo);
         this.recursiveStrategy = new RecursivePrefixTreeStrategy(tree, names.indexName());
         this.recursiveStrategy.setDistErrPct(distanceErrorPct);
         this.termStrategy = new TermQueryPrefixTreeStrategy(tree, names.indexName());

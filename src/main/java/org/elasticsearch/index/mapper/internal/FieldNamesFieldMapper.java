@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.collect.UnmodifiableIterator;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
@@ -33,10 +34,12 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
@@ -100,7 +103,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
             if ((context.indexCreatedVersion() == null || context.indexCreatedVersion().before(Version.V_1_3_0)) && !indexIsExplicit) {
                 fieldType.setIndexOptions(IndexOptions.NONE);
             }
-            return new FieldNamesFieldMapper(name, indexName, boost, fieldType, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+            return new FieldNamesFieldMapper(name, indexName, boost, fieldType, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -128,13 +131,12 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
     }
 
     protected FieldNamesFieldMapper(String name, String indexName, Settings indexSettings) {
-        this(name, indexName, Defaults.BOOST, new FieldType(defaultFieldType(indexSettings)), null, null, null, indexSettings);
+        this(name, indexName, Defaults.BOOST, new FieldType(defaultFieldType(indexSettings)), null, indexSettings);
     }
 
-    public FieldNamesFieldMapper(String name, String indexName, float boost, FieldType fieldType, PostingsFormatProvider postingsProvider,
-                           DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+    public FieldNamesFieldMapper(String name, String indexName, float boost, FieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, indexName, indexName, name), boost, fieldType, null, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings);
+                Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
         this.defaultFieldType = defaultFieldType(indexSettings);
     }
 

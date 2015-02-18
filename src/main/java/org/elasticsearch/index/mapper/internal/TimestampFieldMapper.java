@@ -32,10 +32,13 @@ import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
@@ -132,7 +135,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
             }
             return new TimestampFieldMapper(fieldType, docValues, enabledState, path, dateTimeFormatter, defaultTimestamp,
                     ignoreMissing,
-                    ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, normsLoading, fieldDataSettings, context.indexSettings());
+                    ignoreMalformed(context), coerce(context), normsLoading, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -202,19 +205,18 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
 
     public TimestampFieldMapper(Settings indexSettings) {
         this(new FieldType(defaultFieldType(indexSettings)), null, Defaults.ENABLED, Defaults.PATH, Defaults.DATE_TIME_FORMATTER, Defaults.DEFAULT_TIMESTAMP,
-             null, Defaults.IGNORE_MALFORMED, Defaults.COERCE, null, null, null, null, indexSettings);
+             null, Defaults.IGNORE_MALFORMED, Defaults.COERCE, null, null, indexSettings);
     }
 
     protected TimestampFieldMapper(FieldType fieldType, Boolean docValues, EnabledAttributeMapper enabledState, String path,
                                    FormatDateTimeFormatter dateTimeFormatter, String defaultTimestamp,
                                    Boolean ignoreMissing,
-                                   Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, PostingsFormatProvider postingsProvider,
-                                   DocValuesFormatProvider docValuesProvider, Loading normsLoading,
+                                   Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, Loading normsLoading,
                                    @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), dateTimeFormatter,
                 Defaults.PRECISION_STEP_64_BIT, Defaults.BOOST, fieldType, docValues,
                 Defaults.NULL_VALUE, TimeUnit.MILLISECONDS /*always milliseconds*/,
-                ignoreMalformed, coerce, postingsProvider, docValuesProvider, null, normsLoading, fieldDataSettings, 
+                ignoreMalformed, coerce, null, normsLoading, fieldDataSettings, 
                 indexSettings, MultiFields.empty(), null);
         this.enabledState = enabledState;
         this.path = path;
@@ -339,18 +341,6 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
         } else if (includeDefaults) {
             builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
-        }
-
-        if (docValuesFormat != null) {
-            if (includeDefaults || !docValuesFormat.name().equals(defaultDocValuesFormat())) {
-                builder.field(DOC_VALUES_FORMAT, docValuesFormat.name());
-            }
-        } else if (includeDefaults) {
-            String format = defaultDocValuesFormat();
-            if (format == null) {
-                format = DocValuesFormatService.DEFAULT_FORMAT;
-            }
-            builder.field(DOC_VALUES_FORMAT, format);
         }
 
         builder.endObject();

@@ -24,7 +24,6 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.engine.ShadowEngineFactory;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 
 /**
@@ -35,9 +34,7 @@ import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 public class IndexShardModule extends AbstractModule {
 
     public static final String ENGINE_FACTORY = "index.engine.factory";
-    public static final String SHADOW_ENGINE_FACTORY = "index.shadow_engine.factory";
     private static final Class<? extends EngineFactory> DEFAULT_ENGINE_FACTORY_CLASS = InternalEngineFactory.class;
-    private static final Class<? extends EngineFactory> SHADOW_ENGINE_FACTORY_CLASS = ShadowEngineFactory.class;
 
     private static final String ENGINE_PREFIX = "org.elasticsearch.index.engine.";
     private static final String ENGINE_SUFFIX = "EngineFactory";
@@ -66,13 +63,7 @@ public class IndexShardModule extends AbstractModule {
             bind(IndexShard.class).asEagerSingleton();
         }
 
-        Class<? extends EngineFactory> engineFactory = DEFAULT_ENGINE_FACTORY_CLASS;
-        String factorySetting = ENGINE_FACTORY;
-        if (useShadowEngine()) {
-            engineFactory = SHADOW_ENGINE_FACTORY_CLASS;
-            factorySetting = SHADOW_ENGINE_FACTORY;
-        }
-        bind(EngineFactory.class).to(settings.getAsClass(factorySetting, engineFactory, ENGINE_PREFIX, ENGINE_SUFFIX));
+        bind(EngineFactory.class).to(settings.getAsClass(ENGINE_FACTORY, DEFAULT_ENGINE_FACTORY_CLASS, ENGINE_PREFIX, ENGINE_SUFFIX));
         bind(ShardIndexWarmerService.class).asEagerSingleton();
     }
 

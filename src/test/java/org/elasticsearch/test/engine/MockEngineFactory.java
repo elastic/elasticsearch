@@ -21,13 +21,19 @@ package org.elasticsearch.test.engine;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.ShadowEngine;
 
 /**
  *
  */
 public final class MockEngineFactory implements EngineFactory {
     @Override
-    public Engine newEngine(EngineConfig config) {
+    public Engine newReadWriteEngine(EngineConfig config) {
         return new MockInternalEngine(config);
+    }
+
+    @Override
+    public Engine newReadOnlyEngine(EngineConfig config) {
+        return new ShadowEngine(config);
     }
 }

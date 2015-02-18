@@ -51,7 +51,7 @@ public class IndexShardModule extends AbstractModule {
 
     /** Return true if a shadow engine should be used */
     protected boolean useShadowEngine() {
-        return primary == false && settings.getAsBoolean(IndexMetaData.SETTING_SHADOW_REPLICAS, false);
+        return primary == false && IndexMetaData.isIndexUsingShadowReplicas(settings);
     }
 
     @Override

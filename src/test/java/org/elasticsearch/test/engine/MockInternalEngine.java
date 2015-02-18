@@ -26,6 +26,7 @@ import org.apache.lucene.search.AssertingIndexSearcher;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SearcherManager;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
@@ -105,7 +106,7 @@ public class MockInternalEngine extends InternalEngine {
         // pass the original searcher to the super.newSearcher() method to make sure this is the searcher that will
         // be released later on. If we wrap an index reader here must not pass the wrapped version to the manager
         // on release otherwise the reader will be closed too early. - good news, stuff will fail all over the place if we don't get this right here
-        return new AssertingSearcher(assertingIndexSearcher, super.newSearcher(source, searcher, manager), shardId);
+        return new AssertingSearcher(assertingIndexSearcher, super.newSearcher(source, searcher, manager), shardId, logger);
     }
 
     private DirectoryReader wrapReader(DirectoryReader reader) {
@@ -132,19 +133,21 @@ public class MockInternalEngine extends InternalEngine {
         return reader;
     }
 
-    public final class AssertingSearcher extends Searcher {
+    public static final class AssertingSearcher extends Searcher {
         private final Searcher wrappedSearcher;
         private final ShardId shardId;
         private final IndexSearcher indexSearcher;
         private RuntimeException firstReleaseStack;
         private final Object lock = new Object();
         private final int initialRefCount;
+        private final ESLogger logger;
 
-        public AssertingSearcher(IndexSearcher indexSearcher, Searcher wrappedSearcher, ShardId shardId) {
+        public AssertingSearcher(IndexSearcher indexSearcher, Searcher wrappedSearcher, ShardId shardId, ESLogger logger) {
             super(wrappedSearcher.source(), indexSearcher);
             // we only use the given index searcher here instead of the IS of the wrapped searcher. the IS might be a wrapped searcher
             // with a wrapped reader.
             this.wrappedSearcher = wrappedSearcher;
+            this.logger = logger;
             this.shardId = shardId;
             initialRefCount = wrappedSearcher.reader().getRefCount();
             this.indexSearcher = indexSearcher;

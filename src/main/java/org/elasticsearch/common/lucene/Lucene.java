@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.lucene;
 
+import com.google.common.collect.Iterables;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
@@ -44,6 +45,9 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 
 import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTOR;
 
@@ -86,6 +90,17 @@ public class Lucene {
         final SegmentInfos sis = new SegmentInfos();
         sis.read(directory);
         return sis;
+    }
+
+    /**
+     * Returns an iterable that allows to iterate over all files in this segments info
+     */
+    public static Iterable<String> files(SegmentInfos infos) throws IOException {
+        final List<Collection<String>> list = new ArrayList<>();
+        for (SegmentCommitInfo info : infos) {
+            list.add(info.files());
+        }
+        return Iterables.concat(list.toArray(new Collection[0]));
     }
 
     /**

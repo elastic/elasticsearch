@@ -320,6 +320,24 @@ Google normalized distance  as described in "The Google Similarity Distance", Ci
 
 `gnd` also accepts the `background_is_superset` parameter. 
 
+
+===== Percentage
+A simple calculation of the number of documents in the foreground sample with a term divided by the number of documents in the background with the term.
+By default this produces a score greater than zero and less than one.
+
+The benefit of this heuristic is that the scoring logic is simple to explain to anyone familiar with a "per capita" statistic. However, for fields with high cardinality there is a tendency for this heuristic to select the rarest terms such as typos that occur only once because they score 1/1 = 100%.
+
+It would be hard for a seasoned boxer to win a championship if the prize was awarded purely on the basis of percentage of fights won - by these rules a newcomer with only one fight under his belt would be impossible to beat.
+Multiple observations are typically required to reinforce a view so it is recommended in these cases to set both `min_doc_count` and `shard_min_doc_count` to a higher value such as 10 in order to filter out the low-frequency terms that otherwise take precedence.
+	
+[source,js]
+--------------------------------------------------
+
+	 "percentage": {
+	 }
+--------------------------------------------------
+
+
 ===== Which one is best?
 
 

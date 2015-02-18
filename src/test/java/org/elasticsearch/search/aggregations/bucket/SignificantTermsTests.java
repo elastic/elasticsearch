@@ -33,6 +33,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSq
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.PercentageScore;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -269,6 +270,23 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
                         .minDocCount(2))
                 .execute()
                 .actionGet();
+        assertSearchResponse(response);
+        SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
+        checkExpectedStringTermsFound(topTerms);
+    }
+
+    @Test
+    public void textAnalysisPercentageScore() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("test")
+                .setSearchType(SearchType.QUERY_AND_FETCH)
+                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setFrom(0)
+                .setSize(60)
+                .setExplain(true)
+                .addAggregation(
+                        new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint())
+                                .significanceHeuristic(new PercentageScore.PercentageScoreBuilder()).minDocCount(2)).execute().actionGet();
         assertSearchResponse(response);
         SignificantTerms topTerms = response.getAggregations().get("mySignificantTerms");
         checkExpectedStringTermsFound(topTerms);

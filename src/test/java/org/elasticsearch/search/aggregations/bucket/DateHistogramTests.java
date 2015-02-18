@@ -1063,7 +1063,7 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
                         .field("date")
                         .timeZone("-02:00")
                         .interval(DateHistogramInterval.DAY)
-                        .format("yyyy-MM-dd:HH-mm-ss"))
+                        .format("yyyy-MM-dd:HH-mm-ssZZ"))
                 .execute().actionGet();
 
         assertThat(response.getHits().getTotalHits(), equalTo(5l));
@@ -1074,12 +1074,12 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
 
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsString(), equalTo("2014-03-10:00-00-00"));
+        assertThat(bucket.getKeyAsString(), equalTo("2014-03-10:00-00-00-02:00"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKeyAsString(), equalTo("2014-03-11:00-00-00"));
+        assertThat(bucket.getKeyAsString(), equalTo("2014-03-11:00-00-00-02:00"));
         assertThat(bucket.getDocCount(), equalTo(3l));
     }
 

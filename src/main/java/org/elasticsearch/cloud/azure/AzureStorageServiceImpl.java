@@ -150,7 +150,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
         // Container name must be lower case.
         CloudBlobContainer blob_container = client.getContainerReference(container);
         if (blob_container.exists()) {
-            logger.trace("blob found. removing.", container, blob);
+            logger.trace("container [{}]: blob [{}] found. removing.", container, blob);
             CloudBlockBlob azureBlob = blob_container.getBlockBlobReference(blob);
             azureBlob.delete();
         }

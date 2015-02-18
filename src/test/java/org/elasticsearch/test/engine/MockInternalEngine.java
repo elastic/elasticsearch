@@ -39,11 +39,13 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MockInternalEngine extends InternalEngine {
     public static final String WRAP_READER_RATIO = "index.engine.mock.random.wrap_reader_ratio";
     public static final String READER_WRAPPER_TYPE = "index.engine.mock.random.wrapper";
     public static final String FLUSH_ON_CLOSE_RATIO = "index.engine.mock.flush_on_close.ratio";
+    private final AtomicBoolean closing = new AtomicBoolean(false);
 
     public static class MockContext {
         public final Random random;
@@ -83,8 +85,12 @@ public class MockInternalEngine extends InternalEngine {
     @Override
     public void close() throws IOException {
         try {
-            if (mockContext.flushOnClose > mockContext.random.nextDouble()) {
-                super.flushAndClose();
+            if (closing.compareAndSet(false, true)) { // only do the random thing if we are the first call to this since super.flushOnClose() calls #close() again and then we might end up with a stackoverflow.
+                if (mockContext.flushOnClose > mockContext.random.nextDouble()) {
+                    super.flushAndClose();
+                } else {
+                    super.close();
+                }
             } else {
                 super.close();
             }
@@ -100,10 +106,14 @@ public class MockInternalEngine extends InternalEngine {
 
     @Override
     public void flushAndClose() throws IOException {
-        if (mockContext.flushOnClose > mockContext.random.nextDouble()) {
-            super.flushAndClose();
+        if (closing.compareAndSet(false, true)) { // only do the random thing if we are the first call to this since super.flushOnClose() calls #close() again and then we might end up with a stackoverflow.
+            if (mockContext.flushOnClose > mockContext.random.nextDouble()) {
+                super.flushAndClose();
+            } else {
+                super.close();
+            }
         } else {
-            super.close();
+            super.flushAndClose();
         }
     }
 

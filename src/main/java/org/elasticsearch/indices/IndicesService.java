@@ -536,7 +536,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      */
     public boolean canDeleteIndexContents(Index index, Settings indexSettings) {
         final Tuple<IndexService, Injector> indexServiceInjectorTuple = this.indices.get(index);
-        if (IndexMetaData.usesSharedFilesystem(indexSettings) == false) {
+        if (IndexMetaData.isOnSharedFilesystem(indexSettings) == false) {
             if (indexServiceInjectorTuple == null && nodeEnv.hasNodeFile()) {
                 return true;
             }
@@ -569,7 +569,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     private boolean canDeleteShardContent(ShardId shardId, @IndexSettings Settings indexSettings) {
         final Tuple<IndexService, Injector> indexServiceInjectorTuple = this.indices.get(shardId.getIndex());
-        if (IndexMetaData.usesSharedFilesystem(indexSettings) == false) {
+        if (IndexMetaData.isOnSharedFilesystem(indexSettings) == false) {
             if (indexServiceInjectorTuple != null && nodeEnv.hasNodeFile()) {
                 final IndexService indexService = indexServiceInjectorTuple.v1();
                 return indexService.hasShard(shardId.id()) == false;

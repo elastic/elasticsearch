@@ -788,11 +788,13 @@ public class IndexMetaData {
     }
 
     /**
-     * Returns <code>true</code> iff the given settings indicate that the index associated
-     * with these settings allocates it's shards on a shared filesystem. Otherwise <code>false</code>. The default
-     * setting for this is the returned value from {@link #isIndexUsingShadowReplicas(org.elasticsearch.common.settings.Settings)}.
+     * Returns <code>true</code> iff the given settings indicate that the index
+     * associated with these settings allocates it's shards on a shared
+     * filesystem. Otherwise <code>false</code>. The default setting for this
+     * is the returned value from
+     * {@link #isIndexUsingShadowReplicas(org.elasticsearch.common.settings.Settings)}.
      */
-    public static boolean usesSharedFilesystem(Settings settings) {
+    public static boolean isOnSharedFilesystem(Settings settings) {
         return settings.getAsBoolean(SETTING_SHARED_FILESYSTEM, isIndexUsingShadowReplicas(settings));
     }
 

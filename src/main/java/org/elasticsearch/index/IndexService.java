@@ -305,8 +305,8 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
             logger.debug("creating shard_id {}", shardId);
             // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
-            final boolean canDeleteShardContent = IndexMetaData.usesSharedFilesystem(indexSettings) == false ||
-                    (primary && IndexMetaData.usesSharedFilesystem(indexSettings));
+            final boolean canDeleteShardContent = IndexMetaData.isOnSharedFilesystem(indexSettings) == false ||
+                    (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
             modules.add(new IndexShardModule(shardId, primary, indexSettings));

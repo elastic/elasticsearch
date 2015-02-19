@@ -19,6 +19,7 @@
 package org.elasticsearch.plugins;
 
 import com.google.common.base.Predicate;
+
 import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -50,6 +51,9 @@ import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFileAttributes;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.io.FileSystemUtilsTests.assertFileContent;
@@ -124,7 +128,15 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
             assertDirectoryExists(pluginConfigDir);
             Path toolFile = pluginBinDir.resolve("tool");
             assertFileExists(toolFile);
-            assertThat(Files.isExecutable(toolFile), is(true));
+            
+            // check that the file is marked executable, without actually checking that we can execute it.
+            PosixFileAttributeView view = Files.getFileAttributeView(toolFile, PosixFileAttributeView.class);
+            // the view might be null, on e.g. windows, there is nothing to check there!
+            if (view != null) {
+                PosixFileAttributes attributes = view.readAttributes();
+                assertTrue("unexpected permissions: " + attributes.permissions(), 
+                           attributes.permissions().contains(PosixFilePermission.OWNER_EXECUTE));
+            }
         } finally {
             // we need to clean up the copied dirs
             IOUtils.rm(pluginBinDir, pluginConfigDir);

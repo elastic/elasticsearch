@@ -28,7 +28,6 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.routing.DjbHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
@@ -778,7 +777,7 @@ public class InternalEngine extends Engine {
             recoveryHandler.phase1(phase1Snapshot);
         } catch (Throwable e) {
             maybeFailEngine("recovery phase 1", e);
-            Releasables.closeWhileHandlingException(onGoingRecoveries, phase1Snapshot);
+            Releasables.closeWhileHandlingException(phase1Snapshot, onGoingRecoveries);
             throw new RecoveryEngineException(shardId, 1, "Execution failed", wrapIfClosed(e));
         }
 
@@ -787,14 +786,14 @@ public class InternalEngine extends Engine {
             phase2Snapshot = translog.snapshot();
         } catch (Throwable e) {
             maybeFailEngine("snapshot recovery", e);
-            Releasables.closeWhileHandlingException(onGoingRecoveries, phase1Snapshot);
+            Releasables.closeWhileHandlingException(phase1Snapshot, onGoingRecoveries);
             throw new RecoveryEngineException(shardId, 2, "Snapshot failed", wrapIfClosed(e));
         }
         try {
             recoveryHandler.phase2(phase2Snapshot);
         } catch (Throwable e) {
             maybeFailEngine("recovery phase 2", e);
-            Releasables.closeWhileHandlingException(onGoingRecoveries, phase1Snapshot, phase2Snapshot);
+            Releasables.closeWhileHandlingException(phase1Snapshot, phase2Snapshot, onGoingRecoveries);
             throw new RecoveryEngineException(shardId, 2, "Execution failed", wrapIfClosed(e));
         }
 
@@ -810,8 +809,8 @@ public class InternalEngine extends Engine {
             maybeFailEngine("recovery phase 3", e);
             throw new RecoveryEngineException(shardId, 3, "Execution failed", wrapIfClosed(e));
         } finally {
-            Releasables.close(success, onGoingRecoveries, writeLock, phase1Snapshot,
-                    phase2Snapshot, phase3Snapshot); // hmm why can't we use try-with here?
+            Releasables.close(success, phase1Snapshot, phase2Snapshot, phase3Snapshot,
+                    onGoingRecoveries, writeLock); // hmm why can't we use try-with here?
         }
     }
 

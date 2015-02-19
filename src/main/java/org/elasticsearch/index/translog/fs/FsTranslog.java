@@ -43,12 +43,7 @@ import org.elasticsearch.index.translog.TranslogStreams;
 
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.OpenOption;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.*;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ThreadLocalRandom;
@@ -200,8 +195,9 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override
-    public void clearUnreferenced() {
+    public int clearUnreferenced() {
         rwl.writeLock().lock();
+        int deleted = 0;
         try {
             for (Path location : locations) {
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(location, TRANSLOG_FILE_PREFIX + "[0-9]*")) {
@@ -210,6 +206,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                             try {
                                 logger.trace("delete unreferenced translog file: " + file);
                                 Files.delete(file);
+                                deleted++;
                             } catch (Exception ex) {
                                 logger.debug("failed to delete " + file, ex);
                             }
@@ -222,6 +219,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         } finally {
             rwl.writeLock().unlock();
         }
+        return deleted;
     }
 
     @Override

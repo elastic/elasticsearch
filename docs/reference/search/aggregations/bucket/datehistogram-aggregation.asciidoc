@@ -51,8 +51,7 @@ By default, times are stored as UTC milliseconds since the epoch. Thus, all comp
 done on UTC. It is possible to provide a time zone value, which will cause all computations to take the relevant zone
 into account. The time returned for each bucket/entry is milliseconds since the epoch of the provided time zone.
 
-deprecated[1.5.0, `pre_zone`, `post_zone` and `pre_zone_adjust_large_interval` are deprecated]
-deprecated[1.5.0, Using `time_zone` is the preferred way of specifying time zones now]
+deprecated[1.5.0, `pre_zone`, `post_zone` are replaced by `time_zone`]
 
 The parameters are `pre_zone` (pre rounding based on interval) and `post_zone` (post rounding based on interval). The
 `time_zone` parameter simply sets the `pre_zone` parameter. By default, those are set to `UTC`.
@@ -68,6 +67,8 @@ results in `2012-03-31T20:00:00`, but, we want to return it in UTC (`post_zone` 
 UTC: `2012-04-01T04:00:00Z`. Note, we are consistent in the results, returning the rounded value in UTC.
 
 `post_zone` simply takes the result, and adds the relevant offset.
+
+deprecated[1.5.0, `pre_zone_adjust_large_interval` will be removed]
 
 Sometimes, we want to apply the same conversion to UTC we did above for hour also for day (and up) intervals. We can
 set `pre_zone_adjust_large_interval` to `true`, which will apply the same conversion done for hour interval in the

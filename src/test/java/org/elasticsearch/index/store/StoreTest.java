@@ -665,8 +665,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             output.close();
         }
         DistributorDirectory distributorDirectory = DirectoryUtils.getLeaf(store.directory(), DistributorDirectory.class);
-        assertNotNull(distributorDirectory);
-        if (distributorDirectory.getDirectory("foo.bar") != distributorDirectory.getDirectory("bar.foo")) {
+        if (distributorDirectory != null && distributorDirectory.getDirectory("foo.bar") != distributorDirectory.getDirectory("bar.foo")) {
             try {
                 store.renameFile("foo.bar", "bar.foo");
                 fail("target file already exists in a different directory");

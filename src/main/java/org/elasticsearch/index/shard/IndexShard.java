@@ -1187,13 +1187,25 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    protected void createNewEngine() {
+    private void createNewEngine() {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new EngineClosedException(shardId);
             }
             assert this.currentEngineReference.get() == null;
-            this.currentEngineReference.set(engineFactory.newReadWriteEngine(config));
+            this.currentEngineReference.set(newEngine());
         }
+    }
+
+    protected Engine newEngine() {
+        return engineFactory.newReadWriteEngine(config);
+    }
+
+
+    /**
+     * Returns <code>true</code> iff this shard allows primary promotion, otherwise <code>false</code>
+     */
+    public boolean allowsPrimaryPromotion() {
+        return true;
     }
 }

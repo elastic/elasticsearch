@@ -126,7 +126,7 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
             } else if (region.equals("sa-east") || region.equals("sa-east-1")) {
                 endpoint = "ec2.sa-east-1.amazonaws.com";
             } else if (region.equals("cn-north") || region.equals("cn-north-1")) {
-                endpoint = "ec2.cn-north-1.amazonaws.com";
+                endpoint = "ec2.cn-north-1.amazonaws.com.cn";
             } else {
                 throw new ElasticsearchIllegalArgumentException("No automatic endpoint could be derived from region [" + region + "]");
             }

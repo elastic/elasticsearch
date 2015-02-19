@@ -159,42 +159,26 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
     }
 
     private static String getEndpoint(String region) {
-        if ("us-east".equals(region)) {
+        if ("us-east".equals(region) || "us-east-1".equals(region)) {
             return "s3.amazonaws.com";
-        } else if ("us-east-1".equals(region)) {
-            return "s3.amazonaws.com";
-        } else if ("us-west".equals(region)) {
-            return "s3-us-west-1.amazonaws.com";
-        } else if ("us-west-1".equals(region)) {
+        } else if ("us-west".equals(region) || "us-west-1".equals(region)) {
             return "s3-us-west-1.amazonaws.com";
         } else if ("us-west-2".equals(region)) {
             return "s3-us-west-2.amazonaws.com";
-        } else if ("ap-southeast".equals(region)) {
-            return "s3-ap-southeast-1.amazonaws.com";
-        } else if ("ap-southeast-1".equals(region)) {
+        } else if ("ap-southeast".equals(region) || "ap-southeast-1".equals(region)) {
             return "s3-ap-southeast-1.amazonaws.com";
         } else if ("ap-southeast-2".equals(region)) {
             return "s3-ap-southeast-2.amazonaws.com";
-        } else if ("ap-northeast".equals(region)) {
+        } else if ("ap-northeast".equals(region) || "ap-northeast-1".equals(region)) {
             return "s3-ap-northeast-1.amazonaws.com";
-        } else if ("ap-northeast-1".equals(region)) {
-            return "s3-ap-northeast-1.amazonaws.com";
-        } else if ("eu-west".equals(region)) {
+        } else if ("eu-west".equals(region) || "eu-west-1".equals(region)) {
             return "s3-eu-west-1.amazonaws.com";
-        } else if ("eu-west-1".equals(region)) {
-            return "s3-eu-west-1.amazonaws.com";
-        } else if ("eu-central".equals(region)) {
+        } else if ("eu-central".equals(region) || "eu-central-1".equals(region)) {
             return "s3.eu-central-1.amazonaws.com";
-        } else if ("eu-central-1".equals(region)) {
-            return "s3.eu-central-1.amazonaws.com";
-        } else if ("sa-east".equals(region)) {
+        } else if ("sa-east".equals(region) || "sa-east-1".equals(region)) {
             return "s3-sa-east-1.amazonaws.com";
-        } else if ("sa-east-1".equals(region)) {
-            return "s3-sa-east-1.amazonaws.com";
-        } else if ("cn-north".equals(region)) {
-            return "s3-cn-north-1.amazonaws.com";
-        } else if ("cn-north-1".equals(region)) {
-            return "s3-cn-north-1.amazonaws.com";
+        } else if ("cn-north".equals(region) || "cn-north-1".equals(region)) {
+            return "s3.cn-north-1.amazonaws.com.cn";
         } else {
             throw new ElasticsearchIllegalArgumentException("No automatic endpoint could be derived from region [" + region + "]");
         }

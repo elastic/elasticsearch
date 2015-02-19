@@ -25,6 +25,7 @@ import org.apache.lucene.document.NumericDocValuesField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.InternalMapper;
@@ -66,7 +67,7 @@ public class VersionFieldMapper extends AbstractFieldMapper<Long> implements Int
 
         @Override
         public VersionFieldMapper build(BuilderContext context) {
-            return new VersionFieldMapper();
+            return new VersionFieldMapper(context.indexSettings());
         }
     }
 
@@ -94,8 +95,8 @@ public class VersionFieldMapper extends AbstractFieldMapper<Long> implements Int
         }
     };
 
-    public VersionFieldMapper() {
-        super(new Names(NAME, NAME, NAME, NAME), Defaults.BOOST, Defaults.FIELD_TYPE, null, null, null, null, null, null, ImmutableSettings.EMPTY);
+    public VersionFieldMapper(Settings indexSettings) {
+        super(new Names(NAME, NAME, NAME, NAME), Defaults.BOOST, Defaults.FIELD_TYPE, null, null, null, null, null, null, indexSettings);
     }
 
     @Override

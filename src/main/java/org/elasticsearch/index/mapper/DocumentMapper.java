@@ -185,19 +185,19 @@ public class DocumentMapper implements ToXContent {
             this.rootObjectMapper = builder.build(builderContext);
 
             // UID first so it will be the first stored field to load (so will benefit from "fields: []" early termination
-            this.rootMappers.put(UidFieldMapper.class, new UidFieldMapper());
+            this.rootMappers.put(UidFieldMapper.class, new UidFieldMapper(indexSettings));
             this.rootMappers.put(IdFieldMapper.class, new IdFieldMapper(indexSettings));
             this.rootMappers.put(RoutingFieldMapper.class, new RoutingFieldMapper(indexSettings));
             // add default mappers, order is important (for example analyzer should come before the rest to set context.analyzer)
             this.rootMappers.put(SizeFieldMapper.class, new SizeFieldMapper(indexSettings));
-            this.rootMappers.put(IndexFieldMapper.class, new IndexFieldMapper());
+            this.rootMappers.put(IndexFieldMapper.class, new IndexFieldMapper(indexSettings));
             this.rootMappers.put(SourceFieldMapper.class, new SourceFieldMapper(indexSettings));
-            this.rootMappers.put(TypeFieldMapper.class, new TypeFieldMapper());
-            this.rootMappers.put(AllFieldMapper.class, new AllFieldMapper());
+            this.rootMappers.put(TypeFieldMapper.class, new TypeFieldMapper(indexSettings));
+            this.rootMappers.put(AllFieldMapper.class, new AllFieldMapper(indexSettings));
             this.rootMappers.put(BoostFieldMapper.class, new BoostFieldMapper(indexSettings));
             this.rootMappers.put(TimestampFieldMapper.class, new TimestampFieldMapper(indexSettings));
             this.rootMappers.put(TTLFieldMapper.class, new TTLFieldMapper(indexSettings));
-            this.rootMappers.put(VersionFieldMapper.class, new VersionFieldMapper());
+            this.rootMappers.put(VersionFieldMapper.class, new VersionFieldMapper(indexSettings));
             this.rootMappers.put(ParentFieldMapper.class, new ParentFieldMapper(indexSettings));
             // _field_names last so that it can see all other fields
             this.rootMappers.put(FieldNamesFieldMapper.class, new FieldNamesFieldMapper(indexSettings));

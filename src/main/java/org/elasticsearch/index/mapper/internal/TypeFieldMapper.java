@@ -66,7 +66,6 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = TypeFieldMapper.NAME;
-        public static final String INDEX_NAME = TypeFieldMapper.NAME;
 
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
@@ -83,7 +82,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
         public Builder() {
             super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
-            indexName = Defaults.INDEX_NAME;
+            indexName = Defaults.NAME;
         }
 
         @Override
@@ -101,13 +100,8 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
         }
     }
 
-
-    public TypeFieldMapper() {
-        this(Defaults.NAME, Defaults.INDEX_NAME);
-    }
-
-    protected TypeFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null, ImmutableSettings.EMPTY);
+    public TypeFieldMapper(Settings indexSettings) {
+        this(Defaults.NAME, Defaults.NAME, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null, indexSettings);
     }
 
     public TypeFieldMapper(String name, String indexName, float boost, FieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {

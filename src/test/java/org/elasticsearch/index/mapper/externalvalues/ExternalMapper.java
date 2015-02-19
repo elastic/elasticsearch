@@ -25,10 +25,18 @@ import org.apache.lucene.document.FieldType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMapperListener;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ObjectMapperListener;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
@@ -109,7 +117,7 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
             context.path().pathType(origPathType);
 
             return new ExternalMapper(buildNames(context), generatedValue, mapperName, binMapper, boolMapper, pointMapper, shapeMapper, stringMapper,
-                    multiFieldsBuilder.build(this, context), copyTo);
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -154,8 +162,8 @@ public class ExternalMapper extends AbstractFieldMapper<Object> {
     public ExternalMapper(FieldMapper.Names names,
                           String generatedValue, String mapperName,
                           BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
-                          GeoShapeFieldMapper shapeMapper, Mapper stringMapper, MultiFields multiFields, CopyTo copyTo) {
-        super(names, 1.0f, Defaults.FIELD_TYPE, false, null, null, null, null, null, ImmutableSettings.EMPTY,
+                          GeoShapeFieldMapper shapeMapper, Mapper stringMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(names, 1.0f, Defaults.FIELD_TYPE, false, null, null, null, null, null, indexSettings,
                 multiFields, copyTo);
         this.generatedValue = generatedValue;
         this.mapperName = mapperName;

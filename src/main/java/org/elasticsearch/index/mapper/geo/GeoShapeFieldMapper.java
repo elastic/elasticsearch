@@ -19,7 +19,6 @@
 package org.elasticsearch.index.mapper.geo;
 
 import com.spatial4j.core.shape.Shape;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -35,6 +34,7 @@ import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder.Orientation;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -161,7 +161,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
             }
 
             return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, orientation, fieldType,
-                    multiFieldsBuilder.build(this, context), copyTo);
+                    context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -214,8 +214,8 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     private Orientation shapeOrientation;
 
     public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree tree, String defaultStrategyName, double distanceErrorPct,
-                               Orientation shapeOrientation, FieldType fieldType, MultiFields multiFields, CopyTo copyTo) {
-        super(names, 1, fieldType, null, null, null, null, null, null, null, multiFields, copyTo);
+                               Orientation shapeOrientation, FieldType fieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        super(names, 1, fieldType, null, null, null, null, null, null, indexSettings, multiFields, copyTo);
         this.recursiveStrategy = new RecursivePrefixTreeStrategy(tree, names.indexName());
         this.recursiveStrategy.setDistErrPct(distanceErrorPct);
         this.termStrategy = new TermQueryPrefixTreeStrategy(tree, names.indexName());

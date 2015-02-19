@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper.core;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -34,6 +33,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -151,7 +151,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         @Override
         public CompletionFieldMapper build(Mapper.BuilderContext context) {
             return new CompletionFieldMapper(buildNames(context), indexAnalyzer, searchAnalyzer, null, similarity, payloads,
-                    preserveSeparators, preservePositionIncrements, maxInputLength, multiFieldsBuilder.build(this, context), copyTo, this.contextMapping);
+                    preserveSeparators, preservePositionIncrements, maxInputLength, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, this.contextMapping);
         }
 
     }
@@ -239,8 +239,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     // Custom postings formats are deprecated but we still accept a postings format here to be able to test backward compatibility
     // with older postings formats such as Elasticsearch090
     public CompletionFieldMapper(Names names, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, PostingsFormat wrappedPostingsFormat, SimilarityProvider similarity, boolean payloads,
-                                 boolean preserveSeparators, boolean preservePositionIncrements, int maxInputLength, MultiFields multiFields, CopyTo copyTo, SortedMap<String, ContextMapping> contextMappings) {
-        super(names, 1.0f, Defaults.FIELD_TYPE, null, indexAnalyzer, searchAnalyzer, similarity, null, null, null, multiFields, copyTo);
+                                 boolean preserveSeparators, boolean preservePositionIncrements, int maxInputLength, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, SortedMap<String, ContextMapping> contextMappings) {
+        super(names, 1.0f, Defaults.FIELD_TYPE, null, indexAnalyzer, searchAnalyzer, similarity, null, null, indexSettings, multiFields, copyTo);
         analyzingSuggestLookupProvider = new AnalyzingCompletionLookupProvider(preserveSeparators, false, preservePositionIncrements, payloads);
         if (wrappedPostingsFormat == null) {
             // delayed until postingsFormat() is called

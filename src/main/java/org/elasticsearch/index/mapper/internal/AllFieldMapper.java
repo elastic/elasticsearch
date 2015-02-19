@@ -151,8 +151,8 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     // special SpanTermQuery to look at payloads
     private volatile boolean autoBoost;
 
-    public AllFieldMapper() {
-        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null, null, ImmutableSettings.EMPTY);
+    public AllFieldMapper(Settings indexSettings) {
+        this(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED, false, null, null, null, indexSettings);
     }
 
     protected AllFieldMapper(String name, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,

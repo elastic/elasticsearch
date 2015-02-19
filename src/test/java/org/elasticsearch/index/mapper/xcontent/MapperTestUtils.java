@@ -32,8 +32,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
@@ -58,8 +56,7 @@ public class MapperTestUtils {
         NoneCircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         return new MapperService(index, indexSettings, new Environment(), newAnalysisService(), new IndexFieldDataService(index, ImmutableSettings.Builder.EMPTY_SETTINGS,
                 new IndicesFieldDataCache(ImmutableSettings.Builder.EMPTY_SETTINGS, new IndicesFieldDataCacheListener(circuitBreakerService), testingThreadPool),
-                circuitBreakerService),
-                new PostingsFormatService(index), new DocValuesFormatService(index), newSimilarityLookupService(), null);
+                circuitBreakerService), newSimilarityLookupService(), null);
     }
 
     public static AnalysisService newAnalysisService() {
@@ -92,6 +89,6 @@ public class MapperTestUtils {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(settings)
                 .build();
-        return new DocumentMapperParser(new Index("test"), forcedSettings, MapperTestUtils.newAnalysisService(forcedSettings), null, null, null, null);
+        return new DocumentMapperParser(new Index("test"), forcedSettings, MapperTestUtils.newAnalysisService(forcedSettings), null, null);
     }
 }

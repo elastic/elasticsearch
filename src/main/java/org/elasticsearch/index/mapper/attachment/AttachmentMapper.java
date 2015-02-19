@@ -19,18 +19,6 @@
 
 package org.elasticsearch.index.mapper.attachment;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.dateField;
-import static org.elasticsearch.index.mapper.MapperBuilders.integerField;
-import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
-import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika;
-
-import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.tika.language.LanguageIdentifier;
@@ -42,16 +30,18 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.FieldMapperListener;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeContext;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.ObjectMapperListener;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+
+import java.io.IOException;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.index.mapper.MapperBuilders.*;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
+import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika;
 
 /**
  * <pre>
@@ -365,7 +355,7 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
                             Mapper dateMapper, Mapper titleMapper, Mapper nameMapper, Mapper authorMapper,
                             Mapper keywordsMapper, Mapper contentTypeMapper, Mapper contentLengthMapper,
                             Mapper languageMapper, MultiFields multiFields, CopyTo copyTo) {
-        super(names, 1.0f, AbstractFieldMapper.Defaults.FIELD_TYPE, false, null, null, null, null, null, null, null,
+        super(names, 1.0f, AbstractFieldMapper.Defaults.FIELD_TYPE, false, null, null, null, null, null,
                 ImmutableSettings.EMPTY, multiFields, copyTo);
         this.pathType = pathType;
         this.defaultIndexedChars = defaultIndexedChars;

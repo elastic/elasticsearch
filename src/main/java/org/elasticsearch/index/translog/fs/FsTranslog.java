@@ -200,12 +200,13 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override
-    public void clearUnreferenced() {
+    public int clearUnreferenced() {
         rwl.writeLock().lock();
+        int deleted = 0;
         try {
             // current can be null if this is a shadow replica
             if (current == null) {
-                return;
+                return 0;
             }
             for (File location : locations) {
                 File[] files = location.listFiles();
@@ -220,6 +221,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                         try {
                             logger.trace("clearing unreferenced translog {}", file);
                             file.delete();
+                            deleted++;
                         } catch (Exception e) {
                             // ignore
                         }
@@ -229,6 +231,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         } finally {
             rwl.writeLock().unlock();
         }
+        return deleted;
     }
 
     @Override

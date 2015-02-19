@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.engine;
 
-import com.google.common.base.Predicate;
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
@@ -37,7 +36,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MockDirectoryWrapper;
-import org.elasticsearch.ExceptionsHelper;
+import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
@@ -59,7 +58,6 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
@@ -84,16 +82,14 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
-import static org.elasticsearch.test.ElasticsearchTestCase.awaitBusy;
 import static org.elasticsearch.test.ElasticsearchTestCase.terminate;
 import static org.hamcrest.Matchers.*;
 
@@ -102,6 +98,8 @@ import static org.hamcrest.Matchers.*;
  */
 public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
+    public static final String TRANSLOG_PRIMARY_LOCATION = "work/fs-translog/primary";
+    public static final String TRANSLOG_REPLICA_LOCATION = "work/fs-translog/replica";
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
     protected ThreadPool threadPool;
@@ -122,6 +120,9 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        // clean up shared directory
+        XIOUtils.rm(Paths.get(TRANSLOG_PRIMARY_LOCATION));
+        XIOUtils.rm(Paths.get(TRANSLOG_REPLICA_LOCATION));
         CodecService codecService = new CodecService(shardId.index());
         indexConcurrency = randomIntBetween(1, 20);
         String name = Codec.getDefault().getName();
@@ -149,10 +150,10 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         engine = createEngine(store, translog);
         LiveIndexWriterConfig currentIndexWriterConfig = ((InternalEngine)engine).getCurrentIndexWriterConfig();
 
-        assertEquals(((InternalEngine)engine).config().getCodec().getName(), codecService.codec(codecName).getName());
+        assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
         assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
         if (randomBoolean()) {
-            ((InternalEngine)engine).config().setEnableGcDeletes(false);
+            engine.config().setEnableGcDeletes(false);
         }
         replicaTranslog = createTranslogReplica();
         replicaEngine = createEngine(storeReplica, replicaTranslog);
@@ -222,11 +223,11 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     }
 
     protected Translog createTranslog() {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog/primary"));
+        return new FsTranslog(shardId, EMPTY_SETTINGS, new File(TRANSLOG_PRIMARY_LOCATION));
     }
 
     protected Translog createTranslogReplica() {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog/replica"));
+        return new FsTranslog(shardId, EMPTY_SETTINGS, new File(TRANSLOG_REPLICA_LOCATION));
     }
 
     protected IndexDeletionPolicy createIndexDeletionPolicy() {
@@ -733,8 +734,13 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         });
         // post recovery should flush the translog
         MatcherAssert.assertThat(translog.snapshot(), TranslogSizeMatcher.translogSize(0));
+        // and we should not leak files
+        assertThat("there are unreferenced translog files left", translog.clearUnreferenced(), equalTo(0));
 
         engine.flush();
+
+        assertThat("there are unreferenced translog files left, post flush", translog.clearUnreferenced(), equalTo(0));
+
         engine.close();
     }
 
@@ -1319,9 +1325,6 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     @Test
     public void testEnableGcDeletes() throws Exception {
 
-        Store store = createStore();
-        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        Engine engine = new InternalEngine(config(indexSettingsService, store, createTranslog(), createMergeScheduler()));
         engine.config().setEnableGcDeletes(false);
 
         // Add document

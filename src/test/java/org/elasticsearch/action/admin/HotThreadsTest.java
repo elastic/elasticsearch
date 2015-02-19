@@ -163,4 +163,17 @@ public class HotThreadsTest extends ElasticsearchIntegrationTest {
         // The filtered stacks should be smaller than unfiltered ones:
         assertThat(totSizeIgnoreIdle, lessThan(totSizeAll));
     }
+
+    public void testTimestampAndParams() throws ExecutionException, InterruptedException {
+
+        NodesHotThreadsResponse response = client().admin().cluster().prepareNodesHotThreads().execute().get();
+
+        for (NodeHotThreads node : response.getNodesMap().values()) {
+            String result = node.getHotThreads();
+            assertTrue(result.indexOf("Hot threads at") != -1);
+            assertTrue(result.indexOf("interval=500ms") != -1);
+            assertTrue(result.indexOf("busiestThreads=3") != -1);
+            assertTrue(result.indexOf("ignoreIdleThreads=true") != -1);
+        }
+    }
 }

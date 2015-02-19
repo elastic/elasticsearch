@@ -208,7 +208,9 @@ public class Version implements Serializable {
     public static final int V_1_3_8_ID = 1030899;
     public static final Version V_1_3_8 = new Version(V_1_3_8_ID, false, org.apache.lucene.util.Version.LUCENE_4_9);
     public static final int V_1_3_9_ID = /*00*/1030999;
-    public static final Version V_1_3_9 = new Version(V_1_3_9_ID, true, org.apache.lucene.util.Version.LUCENE_4_9);
+    public static final Version V_1_3_9 = new Version(V_1_3_9_ID, false, org.apache.lucene.util.Version.LUCENE_4_9);
+    public static final int V_1_3_10_ID = /*00*/1031099;
+    public static final Version V_1_3_10 = new Version(V_1_3_10_ID, true, org.apache.lucene.util.Version.LUCENE_4_9);
     public static final int V_1_4_0_Beta1_ID = 1040001;
     public static final Version V_1_4_0_Beta1 = new Version(V_1_4_0_Beta1_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_1);
     public static final int V_1_4_0_ID = 1040099;
@@ -221,9 +223,11 @@ public class Version implements Serializable {
     public static final Version V_1_4_3 = new Version(V_1_4_3_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_3);
     public static final int V_1_4_4_ID = 1040499;
     public static final Version V_1_4_4 = new Version(V_1_4_4_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_3);
+    public static final int V_1_4_5_ID = 1040599;
+    public static final Version V_1_4_5 = new Version(V_1_4_5_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_3);
 
 
-    public static final Version CURRENT = V_1_4_4;
+    public static final Version CURRENT = V_1_4_5;
 
     static {
         assert CURRENT.luceneVersion.equals(Lucene.VERSION) : "Version must be upgraded to [" + Lucene.VERSION + "] is still set to [" + CURRENT.luceneVersion + "]";
@@ -235,6 +239,8 @@ public class Version implements Serializable {
 
     public static Version fromId(int id) {
         switch (id) {
+            case V_1_4_5_ID:
+                return V_1_4_5;
             case V_1_4_4_ID:
                 return V_1_4_4;
             case V_1_4_3_ID:
@@ -247,6 +253,8 @@ public class Version implements Serializable {
                 return V_1_4_0;
             case V_1_4_0_Beta1_ID:
                 return V_1_4_0_Beta1;
+            case V_1_3_10_ID:
+                return V_1_3_10;
             case V_1_3_9_ID:
                 return V_1_3_9;
             case V_1_3_8_ID:

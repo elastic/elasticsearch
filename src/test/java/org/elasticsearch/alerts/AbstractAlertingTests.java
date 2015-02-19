@@ -18,10 +18,10 @@ import org.elasticsearch.alerts.actions.email.service.Profile;
 import org.elasticsearch.alerts.actions.webhook.HttpClient;
 import org.elasticsearch.alerts.actions.webhook.WebhookAction;
 import org.elasticsearch.alerts.client.AlertsClient;
-import org.elasticsearch.alerts.condition.search.ScriptSearchCondition;
-import org.elasticsearch.alerts.condition.search.SearchCondition;
+import org.elasticsearch.alerts.condition.script.ScriptCondition;
 import org.elasticsearch.alerts.history.FiredAlert;
 import org.elasticsearch.alerts.history.HistoryStore;
+import org.elasticsearch.alerts.input.search.SearchInput;
 import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
 import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
@@ -117,32 +117,46 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
     protected BytesReference createAlertSource(String cron, SearchRequest conditionRequest, String conditionScript, Map<String,Object> metadata) throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
+        {
+            builder.startObject("schedule")
+                    .field("cron", cron)
+                    .endObject();
 
-        builder.startObject("schedule")
-                .field("cron", cron)
-                .endObject();
+            if (metadata != null) {
+                builder.field("meta", metadata);
+            }
 
-        if (metadata != null) {
-            builder.field("meta", metadata);
+            builder.startObject("input");
+            {
+                builder.startObject("search");
+                builder.field("request");
+                AlertUtils.writeSearchRequest(conditionRequest, builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
+            }
+            builder.endObject();
+
+            builder.startObject("condition");
+            {
+                builder.startObject("script");
+                builder.field("script", conditionScript);
+                builder.endObject();
+            }
+            builder.endObject();
+
+
+            builder.startArray("actions");
+            {
+                builder.startObject();
+                {
+                    builder.startObject("index");
+                    builder.field("index", "my-index");
+                    builder.field("type", "trail");
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endArray();
         }
-
-        builder.startObject("condition");
-        builder.startObject("script");
-        builder.field("request");
-        AlertUtils.writeSearchRequest(conditionRequest, builder, ToXContent.EMPTY_PARAMS);
-        builder.field("script", conditionScript);
-        builder.endObject();
-        builder.endObject();
-
-        builder.startArray("actions");
-        builder.startObject();
-        builder.startObject("index");
-        builder.field("index", "my-index");
-        builder.field("type", "trail");
-        builder.endObject();
-        builder.endObject();
-        builder.endArray();
-
         builder.endObject();
 
         return builder.bytes();
@@ -151,7 +165,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
     public static SearchRequest createConditionSearchRequest(String... indices) {
         SearchRequest request = new SearchRequest(indices);
         request.indicesOptions(AlertUtils.DEFAULT_INDICES_OPTIONS);
-        request.searchType(SearchCondition.DEFAULT_SEARCH_TYPE);
+        request.searchType(SearchInput.DEFAULT_SEARCH_TYPE);
         return request;
     }
 
@@ -159,7 +173,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         SearchRequest conditionRequest = createConditionSearchRequest("my-condition-index").source(searchSource().query(matchAllQuery()));
         SearchRequest transformRequest = createConditionSearchRequest("my-payload-index").source(searchSource().query(matchAllQuery()));
         transformRequest.searchType(SearchTransform.DEFAULT_SEARCH_TYPE);
-        conditionRequest.searchType(SearchCondition.DEFAULT_SEARCH_TYPE);
+        conditionRequest.searchType(SearchInput.DEFAULT_SEARCH_TYPE);
 
         List<Action> actions = new ArrayList<>();
 
@@ -190,13 +204,10 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         return new Alert(
                 alertName,
                 new CronSchedule("0/5 * * * * ? *"),
-                new ScriptSearchCondition(logger, scriptService(), ClientProxy.of(client()),
-                        conditionRequest,"return true", ScriptService.ScriptType.INLINE, "groovy"),
-                new SearchTransform(logger, scriptService(), ClientProxy.of(client()), transformRequest),
-                new TimeValue(0),
-                new Actions(actions),
-                metadata,
-                new Alert.Status()
+                new SearchInput(logger, scriptService(), ClientProxy.of(client()),
+                        conditionRequest),
+                new ScriptCondition(logger, scriptService(), "return true", ScriptService.ScriptType.INLINE, "groovy"),
+                new SearchTransform(logger, scriptService(), ClientProxy.of(client()), transformRequest), new Actions(actions), metadata, new Alert.Status(), new TimeValue(0)
         );
     }
 
@@ -266,7 +277,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
                         .get();
                 assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(minimumExpectedAlertActionsWithActionPerformed));
                 if (assertConditionMet) {
-                    assertThat((Integer) XContentMapValues.extractValue("alert_execution.condition_result.script.payload.hits.total", searchResponse.getHits().getAt(0).sourceAsMap()), greaterThanOrEqualTo(1));
+                    assertThat((Integer) XContentMapValues.extractValue("alert_execution.input_result.search.payload.hits.total", searchResponse.getHits().getAt(0).sourceAsMap()), greaterThanOrEqualTo(1));
                 }
             }
         });

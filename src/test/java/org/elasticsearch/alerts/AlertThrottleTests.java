@@ -15,9 +15,10 @@ import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.Actions;
 import org.elasticsearch.alerts.actions.index.IndexAction;
 import org.elasticsearch.alerts.client.AlertsClient;
-import org.elasticsearch.alerts.condition.search.ScriptSearchCondition;
+import org.elasticsearch.alerts.condition.script.ScriptCondition;
 import org.elasticsearch.alerts.history.FiredAlert;
 import org.elasticsearch.alerts.history.HistoryStore;
+import org.elasticsearch.alerts.input.search.SearchInput;
 import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.transform.SearchTransform;
@@ -64,15 +65,12 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         actions.add(new IndexAction(logger, ClientProxy.of(client()), "action-index", "action-type"));
 
         Alert alert = new Alert(
-                "test-serialization",
+                "test-ack-throttle",
                 new CronSchedule("0/5 * * * * ? *"),
-                new ScriptSearchCondition(logger, scriptService(), ClientProxy.of(client()),
-                        request, "hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"),
-                new SearchTransform(logger, scriptService(), ClientProxy.of(client()), request),
-                new TimeValue(0),
-                new Actions(actions),
-                null,
-                new Alert.Status()
+                new SearchInput(logger, scriptService(), ClientProxy.of(client()),
+                        request),
+                new ScriptCondition(logger, scriptService(), "hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"),
+                new SearchTransform(logger, scriptService(), ClientProxy.of(client()), request), new Actions(actions), null, new Alert.Status(), new TimeValue(0)
         );
 
 
@@ -149,13 +147,10 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         Alert alert = new Alert(
                 "test-time-throttle",
                 new CronSchedule("0/5 * * * * ? *"),
-                new ScriptSearchCondition(logger, scriptService(), ClientProxy.of(client()),
-                        request, "hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"),
+                new SearchInput(logger, scriptService(), ClientProxy.of(client()),  request),
+                new ScriptCondition(logger, scriptService(), "hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"),
                 new SearchTransform(logger, scriptService(), ClientProxy.of(client()), request),
-                new TimeValue(10, TimeUnit.SECONDS),
-                new Actions(actions),
-                null,
-                new Alert.Status()
+                new Actions(actions), null, new Alert.Status(), new TimeValue(10, TimeUnit.SECONDS)
         );
 
 
@@ -196,7 +191,6 @@ public class AlertThrottleTests extends AbstractAlertingTests {
                 .get();
         assertThat(countResponse.getCount(), greaterThanOrEqualTo(2L));
         assertThat(countResponse.getCount(), lessThanOrEqualTo(4L));
-
 
 
         CountResponse countOfThrottledActions = client()

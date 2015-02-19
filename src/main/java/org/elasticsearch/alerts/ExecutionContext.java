@@ -6,9 +6,10 @@
 package org.elasticsearch.alerts;
 
 import org.elasticsearch.alerts.actions.Action;
+import org.elasticsearch.alerts.condition.Condition;
+import org.elasticsearch.alerts.input.Input;
 import org.elasticsearch.alerts.throttle.Throttler;
 import org.elasticsearch.alerts.transform.Transform;
-import org.elasticsearch.alerts.condition.Condition;
 import org.elasticsearch.common.joda.time.DateTime;
 
 import java.util.HashMap;
@@ -24,6 +25,7 @@ public class ExecutionContext {
     private final DateTime fireTime;
     private final DateTime scheduledTime;
 
+    private Input.Result inputResult;
     private Condition.Result conditionResult;
     private Throttler.Result throttleResult;
     private Transform.Result transformResult;
@@ -58,10 +60,18 @@ public class ExecutionContext {
         return payload;
     }
 
+    public void onInputResult(Input.Result inputResult) {
+        this.inputResult = inputResult;
+        this.payload = inputResult.payload();
+    }
+
+    public Input.Result inputResult() {
+        return inputResult;
+    }
+
     public void onConditionResult(Condition.Result conditionResult) {
-        this.conditionResult = conditionResult;
-        this.payload = conditionResult.payload();
         alert.status().onCheck(conditionResult.met(), fireTime);
+        this.conditionResult = conditionResult;
     }
 
     public Condition.Result conditionResult() {

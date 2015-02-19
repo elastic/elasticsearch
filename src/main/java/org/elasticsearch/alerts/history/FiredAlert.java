@@ -6,7 +6,6 @@
 package org.elasticsearch.alerts.history;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertExecution;
 import org.elasticsearch.alerts.AlertsException;
@@ -14,6 +13,8 @@ import org.elasticsearch.alerts.AlertsSettingsException;
 import org.elasticsearch.alerts.actions.ActionRegistry;
 import org.elasticsearch.alerts.condition.Condition;
 import org.elasticsearch.alerts.condition.ConditionRegistry;
+import org.elasticsearch.alerts.input.Input;
+import org.elasticsearch.alerts.input.InputRegistry;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -37,6 +38,7 @@ public class FiredAlert implements ToXContent {
     private String name;
     private DateTime fireTime;
     private DateTime scheduledTime;
+    private Input input;
     private Condition condition;
     private State state;
     private AlertExecution execution;
@@ -58,6 +60,7 @@ public class FiredAlert implements ToXContent {
         this.fireTime = fireTime;
         this.scheduledTime = scheduledTime;
         this.condition = alert.condition();
+        this.input = alert.input();
         this.state = State.AWAITS_EXECUTION;
         this.metadata = alert.metadata();
         this.version = 1;
@@ -78,6 +81,8 @@ public class FiredAlert implements ToXContent {
     public DateTime fireTime() {
         return fireTime;
     }
+
+    public Input input() { return input; }
 
     public Condition condition() {
         return condition;
@@ -206,12 +211,15 @@ public class FiredAlert implements ToXContent {
 
         private final ConditionRegistry conditionRegistry;
         private final ActionRegistry actionRegistry;
+        private final InputRegistry inputRegistry;
 
         @Inject
-        public Parser(Settings settings, ConditionRegistry conditionRegistry, ActionRegistry actionRegistry) {
+        public Parser(Settings settings, ConditionRegistry conditionRegistry, ActionRegistry actionRegistry,
+                      InputRegistry inputRegistry) {
             super(settings);
             this.conditionRegistry = conditionRegistry;
             this.actionRegistry = actionRegistry;
+            this.inputRegistry = inputRegistry;
         }
 
         public FiredAlert parse(BytesReference source, String historyId, long version) {
@@ -234,12 +242,15 @@ public class FiredAlert implements ToXContent {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (Alert.Parser.CONDITION_FIELD.match(currentFieldName)) {
+                    if (Alert.Parser.INPUT_FIELD.match(currentFieldName)) {
+                        alert.input = inputRegistry.parse(parser);
+                    } else if (Alert.Parser.CONDITION_FIELD.match(currentFieldName)) {
                         alert.condition = conditionRegistry.parse(parser);
                     } else if (METADATA_FIELD.match(currentFieldName)) {
                         alert.metadata = parser.map();
                     } else if (ALERT_EXECUTION_FIELD.match(currentFieldName)) {
-                        alert.execution = AlertExecution.Parser.parse(parser, conditionRegistry, actionRegistry);
+                        alert.execution = AlertExecution.Parser.parse(parser, conditionRegistry, actionRegistry,
+                                inputRegistry);
                     } else {
                         throw new AlertsException("unable to parse fired alert. unexpected field [" + currentFieldName + "]");
                     }

@@ -5,8 +5,9 @@
  */
 package org.elasticsearch.alerts.condition;
 
-import org.elasticsearch.alerts.condition.search.ScriptSearchCondition;
-import org.elasticsearch.alerts.condition.simple.SimpleCondition;
+import org.elasticsearch.alerts.condition.script.ScriptCondition;
+import org.elasticsearch.alerts.condition.simple.AlwaysFalseCondition;
+import org.elasticsearch.alerts.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 
@@ -28,10 +29,12 @@ public class ConditionModule extends AbstractModule {
     protected void configure() {
 
         MapBinder<String, Condition.Parser> parsersBinder = MapBinder.newMapBinder(binder(), String.class, Condition.Parser.class);
-        bind(ScriptSearchCondition.Parser.class).asEagerSingleton();
-        parsersBinder.addBinding(ScriptSearchCondition.TYPE).to(ScriptSearchCondition.Parser.class);
-        bind(SimpleCondition.Parser.class).asEagerSingleton();
-        parsersBinder.addBinding(SimpleCondition.TYPE).to(SimpleCondition.Parser.class);
+        bind(ScriptCondition.Parser.class).asEagerSingleton();
+        parsersBinder.addBinding(ScriptCondition.TYPE).to(ScriptCondition.Parser.class);
+        bind(AlwaysFalseCondition.Parser.class).asEagerSingleton();
+        parsersBinder.addBinding(AlwaysFalseCondition.TYPE).to(AlwaysFalseCondition.Parser.class);
+        bind(AlwaysTrueCondition.Parser.class).asEagerSingleton();
+        parsersBinder.addBinding(AlwaysTrueCondition.TYPE).to(AlwaysTrueCondition.Parser.class);
 
         for (Map.Entry<String, Class<? extends Condition.Parser>> entry : parsers.entrySet()) {
             bind(entry.getValue()).asEagerSingleton();

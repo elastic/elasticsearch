@@ -11,9 +11,10 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.Actions;
-import org.elasticsearch.alerts.condition.search.ScriptSearchCondition;
+import org.elasticsearch.alerts.condition.script.ScriptCondition;
 import org.elasticsearch.alerts.history.FiredAlert;
 import org.elasticsearch.alerts.history.HistoryStore;
+import org.elasticsearch.alerts.input.search.SearchInput;
 import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.transform.SearchTransform;
@@ -25,7 +26,6 @@ import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -78,14 +78,12 @@ public class BootStrapTest extends AbstractAlertingTests {
         SearchRequest searchRequest = createConditionSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         Alert alert = new Alert(
                 "test-serialization",
-                new CronSchedule("0/5 * * * * ? 2035"),
-                new ScriptSearchCondition(logger, scriptService(), ClientProxy.of(client()),
-                        searchRequest, "return true", ScriptService.ScriptType.INLINE, "groovy"),
+                new CronSchedule("0/5 * * * * ? 2035"), //Set this into the future so we don't get any extra runs
+                new SearchInput(logger, scriptService(), ClientProxy.of(client()), searchRequest),
+                new ScriptCondition(logger, scriptService(), "return true", ScriptService.ScriptType.INLINE, "groovy"),
                 new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
-                new TimeValue(0),
-                new Actions(new ArrayList<Action>()),
-                null,
-                new Alert.Status()
+                new Actions(new ArrayList<Action>()), null, new Alert.Status(), new TimeValue(0)
+
         );
 
         XContentBuilder builder = jsonBuilder().value(alert);
@@ -139,13 +137,14 @@ public class BootStrapTest extends AbstractAlertingTests {
                 Alert alert = new Alert(
                         "action-test-"+ i + " " + j,
                         new CronSchedule("0/5 * * * * ? 2035"), //Set a cron schedule far into the future so this alert is never scheduled
-                        new ScriptSearchCondition(logger, scriptService(), ClientProxy.of(client()),
-                                searchRequest, "return true", ScriptService.ScriptType.INLINE, "groovy"),
+                        new SearchInput(logger, scriptService(), ClientProxy.of(client()),
+                                searchRequest),
+                        new ScriptCondition(logger, scriptService(), "return true", ScriptService.ScriptType.INLINE, "groovy"),
                         new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
-                        new TimeValue(0),
                         new Actions(new ArrayList<Action>()),
                         null,
-                        new Alert.Status()
+                        new Alert.Status(),
+                        new TimeValue(0)
                 );
                 XContentBuilder jsonBuilder = jsonBuilder();
                 alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
@@ -154,9 +153,13 @@ public class BootStrapTest extends AbstractAlertingTests {
                 assertTrue(putAlertResponse.indexResponse().isCreated());
 
                 FiredAlert firedAlert = new FiredAlert(alert, historyIndexDate, historyIndexDate);
+
+                XContentBuilder jsonBuilder2 = jsonBuilder();
+                firedAlert.toXContent(jsonBuilder2, ToXContent.EMPTY_PARAMS);
+
                 IndexResponse indexResponse = client().prepareIndex(actionHistoryIndex, HistoryStore.ALERT_HISTORY_TYPE, firedAlert.id())
                         .setConsistencyLevel(WriteConsistencyLevel.ALL)
-                        .setSource(XContentFactory.jsonBuilder().value(firedAlert))
+                        .setSource(jsonBuilder2.bytes())
                         .get();
                 assertTrue(indexResponse.isCreated());
             }

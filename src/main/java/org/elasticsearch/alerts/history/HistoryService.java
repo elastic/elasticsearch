@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.alerts.*;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.condition.Condition;
+import org.elasticsearch.alerts.input.Input;
 import org.elasticsearch.alerts.scheduler.Scheduler;
 import org.elasticsearch.alerts.support.Callback;
 import org.elasticsearch.alerts.throttle.Throttler;
@@ -252,6 +253,9 @@ public class HistoryService extends AbstractComponent {
          */
 
         AlertExecution execute(ExecutionContext ctx) throws IOException {
+
+            Input.Result inputResult = alert.input().execute(ctx);
+            ctx.onInputResult(inputResult);
             Condition.Result conditionResult = alert.condition().execute(ctx);
             ctx.onConditionResult(conditionResult);
 
@@ -260,7 +264,7 @@ public class HistoryService extends AbstractComponent {
                 ctx.onThrottleResult(throttleResult);
 
                 if (!throttleResult.throttle()) {
-                    Transform.Result result = alert.transform().apply(ctx, conditionResult.payload());
+                    Transform.Result result = alert.transform().apply(ctx, inputResult.payload());
                     ctx.onTransformResult(result);
                     for (Action action : alert.actions()) {
                         Action.Result actionResult = action.execute(ctx, result.payload());

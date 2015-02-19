@@ -8,7 +8,9 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.alerts.actions.ActionModule;
 import org.elasticsearch.alerts.client.AlertsClientModule;
+import org.elasticsearch.alerts.condition.ConditionModule;
 import org.elasticsearch.alerts.history.HistoryModule;
+import org.elasticsearch.alerts.input.InputModule;
 import org.elasticsearch.alerts.rest.AlertsRestModule;
 import org.elasticsearch.alerts.scheduler.SchedulerModule;
 import org.elasticsearch.alerts.support.TemplateUtils;
@@ -16,7 +18,6 @@ import org.elasticsearch.alerts.support.init.InitializingModule;
 import org.elasticsearch.alerts.support.template.TemplateModule;
 import org.elasticsearch.alerts.transform.TransformModule;
 import org.elasticsearch.alerts.transport.AlertsTransportModule;
-import org.elasticsearch.alerts.condition.ConditionModule;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
@@ -36,6 +37,7 @@ public class AlertsModule extends AbstractModule implements SpawnModules {
                 new SchedulerModule(),
                 new AlertsTransportModule(),
                 new ConditionModule(),
+                new InputModule(),
                 new ActionModule(),
                 new HistoryModule());
     }

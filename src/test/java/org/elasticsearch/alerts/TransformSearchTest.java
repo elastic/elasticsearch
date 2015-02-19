@@ -10,7 +10,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.Actions;
 import org.elasticsearch.alerts.actions.index.IndexAction;
-import org.elasticsearch.alerts.condition.search.ScriptSearchCondition;
+import org.elasticsearch.alerts.condition.script.ScriptCondition;
+import org.elasticsearch.alerts.input.search.SearchInput;
 import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.transform.SearchTransform;
@@ -58,13 +59,11 @@ public class TransformSearchTest extends AbstractAlertingTests {
         Alert alert = new Alert(
                 "test-serialization",
                 new CronSchedule("0/5 * * * * ? *"),
-                new ScriptSearchCondition(logger, scriptService(), ClientProxy.of(client()),
-                        conditionRequest,"return true", ScriptService.ScriptType.INLINE, "groovy"),
+                new SearchInput(logger, scriptService(), ClientProxy.of(client()),
+                        conditionRequest),
+                new ScriptCondition(logger, scriptService(), "return true", ScriptService.ScriptType.INLINE, "groovy"),
                 new SearchTransform(logger, scriptService(), ClientProxy.of(client()), transformRequest),
-                new TimeValue(0),
-                new Actions(actions),
-                metadata,
-                new Alert.Status()
+                new Actions(actions), metadata, new Alert.Status(), new TimeValue(0)
         );
 
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();

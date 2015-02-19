@@ -6,11 +6,9 @@
 package org.elasticsearch.alerts.condition;
 
 import org.elasticsearch.alerts.ExecutionContext;
-import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -19,6 +17,8 @@ import java.io.IOException;
  *
  */
 public abstract class Condition<R extends Condition.Result> implements ToXContent {
+
+    protected static final ParseField MET_FIELD = new ParseField("met");
 
     protected final ESLogger logger;
 
@@ -60,39 +60,19 @@ public abstract class Condition<R extends Condition.Result> implements ToXConten
 
     public abstract static class Result implements ToXContent {
 
-        public static final ParseField MET_FIELD = new ParseField("met");
-        public static final ParseField PAYLOAD_FIELD = new ParseField("payload");
-
         private final String type;
         private final boolean met;
-        private final Payload payload;
 
-        public Result(String type, boolean met, Payload payload) {
+        public Result(String type, boolean met) {
             this.type = type;
             this.met = met;
-            this.payload = payload;
         }
 
         public String type() {
             return type;
         }
 
-        public boolean met() {
-            return met;
-        }
+        public boolean met() { return met; }
 
-        public Payload payload() {
-            return payload;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject()
-            .field(MET_FIELD.getPreferredName(), met)
-            .field(PAYLOAD_FIELD.getPreferredName(), payload);
-            return toXContentBody(builder, params).endObject();
-        }
-
-        protected abstract XContentBuilder toXContentBody(XContentBuilder builder, Params params) throws IOException;
     }
 }

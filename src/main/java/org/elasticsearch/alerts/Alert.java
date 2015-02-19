@@ -8,14 +8,16 @@ package org.elasticsearch.alerts;
 import org.elasticsearch.alerts.actions.ActionRegistry;
 import org.elasticsearch.alerts.actions.Actions;
 import org.elasticsearch.alerts.scheduler.Scheduler;
+import org.elasticsearch.alerts.condition.Condition;
+import org.elasticsearch.alerts.condition.ConditionRegistry;
+import org.elasticsearch.alerts.input.Input;
+import org.elasticsearch.alerts.input.InputRegistry;
 import org.elasticsearch.alerts.scheduler.schedule.Schedule;
 import org.elasticsearch.alerts.scheduler.schedule.ScheduleRegistry;
 import org.elasticsearch.alerts.throttle.AlertThrottler;
 import org.elasticsearch.alerts.throttle.Throttler;
 import org.elasticsearch.alerts.transform.Transform;
 import org.elasticsearch.alerts.transform.TransformRegistry;
-import org.elasticsearch.alerts.condition.Condition;
-import org.elasticsearch.alerts.condition.ConditionRegistry;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -42,6 +44,7 @@ public class Alert implements Scheduler.Job, ToXContent {
 
     private final String name;
     private final Schedule schedule;
+    private final Input input;
     private final Condition condition;
     private final Actions actions;
     private final Throttler throttler;
@@ -54,9 +57,10 @@ public class Alert implements Scheduler.Job, ToXContent {
     @Nullable
     private final Transform transform;
 
-    public Alert(String name, Schedule schedule, Condition condition, Transform transform, TimeValue throttlePeriod, Actions actions, Map<String, Object> metadata, Status status) {
+    public Alert(String name, Schedule schedule, Input input, Condition condition, Transform transform, Actions actions, Map<String, Object> metadata, Status status, TimeValue throttlePeriod) {
         this.name = name;
         this.schedule = schedule;
+        this.input = input;
         this.condition = condition;
         this.actions = actions;
         this.status = status != null ? status : new Status();
@@ -74,6 +78,8 @@ public class Alert implements Scheduler.Job, ToXContent {
     public Schedule schedule() {
         return schedule;
     }
+
+    public Input input() { return input;}
 
     public Condition condition() {
         return condition;
@@ -134,6 +140,7 @@ public class Alert implements Scheduler.Job, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Parser.SCHEDULE_FIELD.getPreferredName()).startObject().field(schedule.type(), schedule).endObject();
+        builder.field(Parser.INPUT_FIELD.getPreferredName()).startObject().field(input.type(), input).endObject();
         builder.field(Parser.CONDITION_FIELD.getPreferredName()).startObject().field(condition.type(), condition).endObject();
         if (transform != Transform.NOOP) {
             builder.field(Parser.TRANSFORM_FIELD.getPreferredName()).startObject().field(transform.type(), transform).endObject();
@@ -153,6 +160,7 @@ public class Alert implements Scheduler.Job, ToXContent {
     public static class Parser extends AbstractComponent {
 
         public static final ParseField SCHEDULE_FIELD = new ParseField("schedule");
+        public static final ParseField INPUT_FIELD = new ParseField("input");
         public static final ParseField CONDITION_FIELD = new ParseField("condition");
         public static final ParseField ACTIONS_FIELD = new ParseField("actions");
         public static final ParseField TRANSFORM_FIELD = new ParseField("transform");
@@ -164,16 +172,19 @@ public class Alert implements Scheduler.Job, ToXContent {
         private final ScheduleRegistry scheduleRegistry;
         private final TransformRegistry transformRegistry;
         private final ActionRegistry actionRegistry;
+        private final InputRegistry inputRegistry;
 
         @Inject
         public Parser(Settings settings, ConditionRegistry conditionRegistry, ScheduleRegistry scheduleRegistry,
-                      TransformRegistry transformRegistry, ActionRegistry actionRegistry) {
+                      TransformRegistry transformRegistry, ActionRegistry actionRegistry,
+                      InputRegistry inputRegistry) {
 
             super(settings);
             this.conditionRegistry = conditionRegistry;
             this.scheduleRegistry = scheduleRegistry;
             this.transformRegistry = transformRegistry;
             this.actionRegistry = actionRegistry;
+            this.inputRegistry = inputRegistry;
         }
 
         public Alert parse(String name, boolean includeStatus, BytesReference source) {
@@ -189,6 +200,7 @@ public class Alert implements Scheduler.Job, ToXContent {
 
         public Alert parse(String name, boolean includeStatus, XContentParser parser) throws IOException {
             Schedule schedule = null;
+            Input input = null;
             Condition condition = null;
             Actions actions = null;
             Transform transform = null;
@@ -206,6 +218,8 @@ public class Alert implements Scheduler.Job, ToXContent {
                 } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) && currentFieldName !=null ) {
                     if (SCHEDULE_FIELD.match(currentFieldName)) {
                         schedule = scheduleRegistry.parse(parser);
+                    } else if (INPUT_FIELD.match(currentFieldName)) {
+                        input = inputRegistry.parse(parser);
                     } else if (CONDITION_FIELD.match(currentFieldName)) {
                         condition = conditionRegistry.parse(parser);
                     } else if (ACTIONS_FIELD.match(currentFieldName)) {
@@ -230,6 +244,9 @@ public class Alert implements Scheduler.Job, ToXContent {
             if (schedule == null) {
                 throw new AlertsSettingsException("could not parse alert [" + name + "]. missing alert schedule");
             }
+            if (input == null) {
+                throw new AlertsSettingsException("could not parse alert [" + name + "]. missing alert input");
+            }
             if (condition == null) {
                 throw new AlertsSettingsException("could not parse alert [" + name + "]. missing alert condition");
             }
@@ -237,7 +254,7 @@ public class Alert implements Scheduler.Job, ToXContent {
                 throw new AlertsSettingsException("could not parse alert [" + name + "]. missing alert actions");
             }
 
-            return new Alert(name, schedule, condition, transform, throttlePeriod, actions, metatdata, status);
+            return new Alert(name, schedule, input, condition, transform, actions, metatdata, status, throttlePeriod);
         }
 
     }

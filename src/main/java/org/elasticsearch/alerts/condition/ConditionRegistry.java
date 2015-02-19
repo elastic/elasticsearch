@@ -49,6 +49,13 @@ public class ConditionRegistry {
         return condition;
     }
 
+    /**
+     * Reads the contents of parser to create the correct Condition.Result
+     *
+     * @param parser    The parser containing the condition result definition
+     * @return          A new condition result instance from the parser
+     * @throws IOException
+     */
     public Condition.Result parseResult(XContentParser parser) throws IOException {
         String type = null;
         XContentParser.Token token;

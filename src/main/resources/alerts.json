@@ -16,6 +16,16 @@
           "enabled" : false,
           "dynamic" : true
         },
+        "input": {
+          "type": "object",
+          "enabled" : false,
+          "dynamic" : true
+        },
+        "condition": {
+          "type": "object",
+          "enabled" : false,
+          "dynamic" : true
+        },
         "status": {
           "type": "object",
           "enabled" : false,
@@ -24,17 +34,12 @@
         "throttle_period": {
           "type": "string"
         },
-        "condition": {
-          "type": "object",
-          "enabled" : false,
-          "dynamic" : true
-        },
-        "actions": {
+        "transform": {
           "type" : "object",
           "enabled" : false,
           "dynamic" : true
         },
-        "transform": {
+        "actions": {
           "type" : "object",
           "enabled" : false,
           "dynamic" : true

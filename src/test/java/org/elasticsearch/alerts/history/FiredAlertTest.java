@@ -8,11 +8,12 @@ package org.elasticsearch.alerts.history;
 import org.elasticsearch.alerts.*;
 import org.elasticsearch.alerts.actions.email.EmailAction;
 import org.elasticsearch.alerts.actions.webhook.WebhookAction;
-import org.elasticsearch.alerts.throttle.Throttler;
 import org.elasticsearch.alerts.condition.Condition;
-import org.elasticsearch.alerts.condition.search.ScriptSearchCondition;
-import org.elasticsearch.alerts.condition.search.SearchCondition;
-import org.elasticsearch.alerts.condition.simple.SimpleCondition;
+import org.elasticsearch.alerts.condition.simple.AlwaysFalseCondition;
+import org.elasticsearch.alerts.condition.simple.AlwaysTrueCondition;
+import org.elasticsearch.alerts.input.Input;
+import org.elasticsearch.alerts.input.simple.SimpleInput;
+import org.elasticsearch.alerts.throttle.Throttler;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -47,8 +48,10 @@ public class FiredAlertTest extends AbstractAlertingTests {
         ExecutionContext ctx = new ExecutionContext(firedAlert.id(), alert, new DateTime(), new DateTime());
         ctx.onActionResult(new EmailAction.Result.Failure("failed to send because blah"));
         ctx.onActionResult(new WebhookAction.Result.Executed(300, "http://localhost:8000/alertfoo", "{'awesome' : 'us'}"));
-        Condition.Result conditionResult = new SimpleCondition.Result(new Payload.Simple());
+        Input.Result inputResult = new SimpleInput.Result(SimpleInput.TYPE, new Payload.Simple());
+        Condition.Result conditionResult = AlwaysTrueCondition.RESULT;
         ctx.onThrottleResult(Throttler.NO_THROTTLE.throttle(ctx));
+        ctx.onInputResult(inputResult);
         ctx.onConditionResult(conditionResult);
         firedAlert.update(new AlertExecution(ctx));
 
@@ -67,8 +70,10 @@ public class FiredAlertTest extends AbstractAlertingTests {
         ExecutionContext ctx = new ExecutionContext(firedAlert.id(), alert, new DateTime(), new DateTime());
         ctx.onActionResult(new EmailAction.Result.Failure("failed to send because blah"));
         ctx.onActionResult(new WebhookAction.Result.Executed(300, "http://localhost:8000/alertfoo", "{'awesome' : 'us'}"));
-        Condition.Result conditionResult = new SearchCondition.Result(ScriptSearchCondition.TYPE, true, createConditionSearchRequest(), new Payload.Simple());
+        Input.Result inputResult = new SimpleInput.Result(SimpleInput.TYPE, new Payload.Simple());
+        Condition.Result conditionResult = AlwaysFalseCondition.RESULT;
         ctx.onThrottleResult(Throttler.NO_THROTTLE.throttle(ctx));
+        ctx.onInputResult(inputResult);
         ctx.onConditionResult(conditionResult);
         firedAlert.update(new AlertExecution(ctx));
 

@@ -520,6 +520,16 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return nodesToShards.values().toArray(new RoutingNode[nodesToShards.size()]);
     }
 
+    public void reinitShadowPrimary(MutableShardRouting candidate) {
+        if (candidate.relocating()) {
+            cancelRelocation(candidate);
+        }
+        candidate.reinitializeShard();
+        inactivePrimaryCount++;
+        inactiveShardCount++;
+
+    }
+
     public final static class UnassignedShards implements Iterable<MutableShardRouting>  {
 
         private final List<MutableShardRouting> unassigned;

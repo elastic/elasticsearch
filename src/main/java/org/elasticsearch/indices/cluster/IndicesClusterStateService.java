@@ -47,7 +47,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.aliases.IndexAlias;
@@ -70,7 +69,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.ExceptionsHelper.detailedMessage;
@@ -95,7 +93,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     // a list of shards that failed during recovery
     // we keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update
     private final ConcurrentMap<ShardId, FailedShard> failedShards = ConcurrentCollections.newConcurrentMap();
-    private final NodeEnvironment nodeEnvironment;
 
     static class FailedShard {
         public final long version;
@@ -111,15 +108,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     private final FailedEngineHandler failedEngineHandler = new FailedEngineHandler();
 
     private final boolean sendRefreshMapping;
-    private final AtomicLong recoveryIdGenerator = new AtomicLong();
 
     @Inject
     public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
                                       ThreadPool threadPool, RecoveryTarget recoveryTarget,
                                       ShardStateAction shardStateAction,
                                       NodeIndexDeletedAction nodeIndexDeletedAction,
-                                      NodeMappingRefreshAction nodeMappingRefreshAction,
-                                      NodeEnvironment nodeEnvironment) {
+                                      NodeMappingRefreshAction nodeMappingRefreshAction) {
         super(settings);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
@@ -130,7 +125,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
 
         this.sendRefreshMapping = componentSettings.getAsBoolean("send_refresh_mapping", true);
-        this.nodeEnvironment = nodeEnvironment;
     }
 
     @Override
@@ -584,9 +578,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     }
                 }
                 if (shardHasBeenRemoved == false && !shardRouting.equals(indexShard.routingEntry())) {
-                    // if we happen to remove the shardRouting by id above we don't need to jump in here!
-                    indexShard.routingEntry(shardRouting);
-                    indexService.shardInjectorSafe(shardId).getInstance(IndexShardGatewayService.class).routingStateChanged();
+                    if (shardRouting.primary() && indexShard.routingEntry().primary() == false && shardRouting.initializing() && indexShard.allowsPrimaryPromotion() == false) {
+                        logger.debug("{} reinitialize shard on primary promotion", indexShard.shardId());
+                        indexService.removeShard(shardId, "promoted to primary");
+                    } else {
+                        // if we happen to remove the shardRouting by id above we don't need to jump in here!
+                        indexShard.routingEntry(shardRouting);
+                        indexService.shardInjectorSafe(shardId).getInstance(IndexShardGatewayService.class).routingStateChanged();
+                    }
                 }
             }
 

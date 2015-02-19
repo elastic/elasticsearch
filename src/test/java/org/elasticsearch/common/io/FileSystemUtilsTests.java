@@ -44,9 +44,9 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
     @Before
     public void copySourceFilesToTarget() throws IOException {
-        File globalTempDir = globalTempDir();
-        src = new File(globalTempDir, "iocopyappend-src");
-        dst = new File(globalTempDir, "iocopyappend-dst");
+        File tempDir = newTempDir();
+        src = new File(tempDir, "iocopyappend-src");
+        dst = new File(tempDir, "iocopyappend-dst");
         FileSystemUtils.mkdirs(src);
         FileSystemUtils.mkdirs(dst);
 
@@ -89,7 +89,7 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
     @Test
     public void testMoveOverExistingFileAndIgnore() throws IOException {
-        File dest = globalTempDir();
+        File dest = newTempDir();
 
         FileSystemUtils.moveFilesWithoutOverwriting(new File(src, "v1"), dest, null);
         assertFileContent(dest, "file1.txt", "version1");

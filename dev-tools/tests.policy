@@ -70,16 +70,15 @@ grant {
   // needed by groovy scripting
   permission java.lang.RuntimePermission "getProtectionDomain";
 
-  permission java.lang.RuntimePermission "getFileSystemAttributes";
-  permission java.lang.RuntimePermission "readFileDescriptor";
-  permission java.lang.RuntimePermission "writeFileDescriptor";
   permission java.lang.RuntimePermission "loadLibrary.*";
   permission java.lang.RuntimePermission "accessClassInPackage.*";
   permission java.lang.RuntimePermission "defineClassInPackage.*";
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.RuntimePermission "getStackTrace";
+
+  // needed by RandomizedRunner
   permission java.lang.RuntimePermission "setDefaultUncaughtExceptionHandler";
-  permission java.lang.RuntimePermission "preferences";
+
   permission java.lang.RuntimePermission "usePolicy";
 
   // needed by JMX instead of getFileSystemAttributes, seems like a bug...

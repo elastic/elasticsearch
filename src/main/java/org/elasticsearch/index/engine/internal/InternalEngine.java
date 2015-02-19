@@ -1147,7 +1147,8 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             recoveryHandler.phase1(phase1Snapshot);
         } catch (Throwable e) {
             maybeFailEngine(e, "recovery phase 1");
-            Releasables.closeWhileHandlingException(onGoingRecoveries, phase1Snapshot);
+            // close the snapshot first to release the reference to the translog file, so a flush post recovery can delete it
+            Releasables.closeWhileHandlingException(phase1Snapshot, onGoingRecoveries);
             throw new RecoveryEngineException(shardId, 1, "Execution failed", wrapIfClosed(e));
         }
 
@@ -1156,14 +1157,16 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             phase2Snapshot = translog.snapshot();
         } catch (Throwable e) {
             maybeFailEngine(e, "snapshot recovery");
-            Releasables.closeWhileHandlingException(onGoingRecoveries, phase1Snapshot);
+            // close the snapshot first to release the reference to the translog file, so a flush post recovery can delete it
+            Releasables.closeWhileHandlingException(phase1Snapshot, onGoingRecoveries);
             throw new RecoveryEngineException(shardId, 2, "Snapshot failed", wrapIfClosed(e));
         }
         try {
             recoveryHandler.phase2(phase2Snapshot);
         } catch (Throwable e) {
             maybeFailEngine(e, "recovery phase 2");
-            Releasables.closeWhileHandlingException(onGoingRecoveries, phase1Snapshot, phase2Snapshot);
+            // close the snapshots first to release the reference to the translog file, so a flush post recovery can delete it
+            Releasables.closeWhileHandlingException(phase1Snapshot, phase2Snapshot, onGoingRecoveries);
             throw new RecoveryEngineException(shardId, 2, "Execution failed", wrapIfClosed(e));
         }
 
@@ -1178,8 +1181,9 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             maybeFailEngine(e, "recovery phase 3");
             throw new RecoveryEngineException(shardId, 3, "Execution failed", wrapIfClosed(e));
         } finally {
-            Releasables.close(success, onGoingRecoveries, writeLock, phase1Snapshot,
-                    phase2Snapshot, phase3Snapshot); // hmm why can't we use try-with here?
+            // close the snapshots first to release the reference to the translog file, so a flush post recovery can delete it
+            Releasables.close(success, phase1Snapshot, phase2Snapshot, phase3Snapshot,
+                    onGoingRecoveries, writeLock); // hmm why can't we use try-with here?
         }
     }
 

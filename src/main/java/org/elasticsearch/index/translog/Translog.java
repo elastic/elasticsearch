@@ -118,9 +118,11 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
     Snapshot snapshot(Snapshot snapshot);
 
     /**
-     * Clears unreferenced transaclogs.
+     * Clears unreferenced transaction logs.
+     *
+     * @return the number of clean up files
      */
-    void clearUnreferenced();
+    int clearUnreferenced();
 
     /**
      * Sync's the translog.

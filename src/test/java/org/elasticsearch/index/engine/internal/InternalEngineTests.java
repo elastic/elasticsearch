@@ -41,6 +41,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -100,6 +101,8 @@ import static org.hamcrest.Matchers.*;
  */
 public class InternalEngineTests extends ElasticsearchTestCase {
 
+    public static final String TRANSLOG_PRIMARY_LOCATION = "work/fs-translog/primary";
+    public static final String TRANSLOG_REPLICA_LOCATION = "work/fs-translog/replica";
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
     protected ThreadPool threadPool;
@@ -122,6 +125,9 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        // clean up shared directory
+        FileSystemUtils.deleteRecursively(new File(TRANSLOG_PRIMARY_LOCATION));
+        FileSystemUtils.deleteRecursively(new File(TRANSLOG_REPLICA_LOCATION));
         defaultSettings = ImmutableSettings.builder()
                 .put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, getRandom().nextBoolean())
                 .put(InternalEngine.INDEX_CHECKSUM_ON_MERGE, getRandom().nextBoolean())
@@ -190,11 +196,11 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     }
 
     protected Translog createTranslog() {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog/primary"));
+        return new FsTranslog(shardId, EMPTY_SETTINGS, new File(TRANSLOG_PRIMARY_LOCATION));
     }
 
     protected Translog createTranslogReplica() {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, new File("work/fs-translog/replica"));
+        return new FsTranslog(shardId, EMPTY_SETTINGS, new File(TRANSLOG_REPLICA_LOCATION));
     }
 
     protected IndexDeletionPolicy createIndexDeletionPolicy() {
@@ -349,7 +355,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             }
         };
         thread.start();
-        while(startPending.get()) {
+        while (startPending.get()) {
             try {
                 engine.acquireSearcher("foobar").close();
                 break;
@@ -443,7 +449,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             assertThat(segment.getMergeId(), nullValue());
         }
         waitForMerge.get().countDown();
-        
+
         if (flush) {
             awaitBusy(new Predicate<Object>() {
                 @Override
@@ -656,21 +662,21 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         searchResult.close();
     }
-    
+
     @Test
     public void testFailEngineOnCorruption() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
         engine.flush(new Engine.Flush());
         final boolean failEngine = defaultSettings.getAsBoolean(InternalEngine.INDEX_FAIL_ON_CORRUPTION, true);
-        final int failInPhase = randomIntBetween(1,3);
+        final int failInPhase = randomIntBetween(1, 3);
         try {
             engine.recover(new Engine.RecoveryHandler() {
                 @Override
                 public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
-                   if (failInPhase == 1) {
-                       throw new RuntimeException("bar", new CorruptIndexException("Foo"));
-                   }
+                    if (failInPhase == 1) {
+                        throw new RuntimeException("bar", new CorruptIndexException("Foo"));
+                    }
                 }
 
                 @Override
@@ -757,8 +763,11 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         });
         // post recovery should flush the translog
         MatcherAssert.assertThat(translog.snapshot(), TranslogSizeMatcher.translogSize(0));
+        // and we should not leak files
+        assertThat("there are unreferenced translog files left", translog.clearUnreferenced(), equalTo(0));
 
         engine.flush(new Engine.Flush());
+        assertThat("there are unreferenced translog files left, post flush", translog.clearUnreferenced(), equalTo(0));
         engine.close();
     }
 
@@ -1251,7 +1260,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         protected void append(LoggingEvent event) {
             if (event.getLevel() == Level.TRACE && event.getMessage().toString().contains("[index][1] ")) {
                 if (event.getLoggerName().endsWith("lucene.iw") &&
-                    event.getMessage().toString().contains("IW: apply all deletes during flush")) {
+                        event.getMessage().toString().contains("IW: apply all deletes during flush")) {
                     sawIndexWriterMessage = true;
                 }
                 if (event.getLoggerName().endsWith("lucene.iw.ifd")) {
@@ -1286,13 +1295,13 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             // First, with DEBUG, which should NOT log IndexWriter output:
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
             engine.create(new Engine.Create(null, newUid("1"), doc));
-            engine.flush(new Engine.Flush());        
+            engine.flush(new Engine.Flush());
             assertFalse(mockAppender.sawIndexWriterMessage);
 
             // Again, with TRACE, which should log IndexWriter output:
             rootLogger.setLevel(Level.TRACE);
             engine.create(new Engine.Create(null, newUid("2"), doc));
-            engine.flush(new Engine.Flush());        
+            engine.flush(new Engine.Flush());
             assertTrue(mockAppender.sawIndexWriterMessage);
 
         } finally {
@@ -1320,14 +1329,14 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             // First, with DEBUG, which should NOT log IndexWriter output:
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
             engine.create(new Engine.Create(null, newUid("1"), doc));
-            engine.flush(new Engine.Flush());        
+            engine.flush(new Engine.Flush());
             assertFalse(mockAppender.sawIndexWriterMessage);
             assertFalse(mockAppender.sawIndexWriterIFDMessage);
 
             // Again, with TRACE, which should only log IndexWriter IFD output:
             iwIFDLogger.setLevel(Level.TRACE);
             engine.create(new Engine.Create(null, newUid("2"), doc));
-            engine.flush(new Engine.Flush());        
+            engine.flush(new Engine.Flush());
             assertFalse(mockAppender.sawIndexWriterMessage);
             assertTrue(mockAppender.sawIndexWriterIFDMessage);
 
@@ -1348,11 +1357,11 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
         Store store = createStore();
         Engine engine = new InternalEngine(shardId, settings, threadPool,
-                                           engineSettingsService,
-                                           new ShardIndexingService(shardId, settings,
-                                                                    new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, engineSettingsService)),
-                                           null, store, createSnapshotDeletionPolicy(), createTranslog(), createMergePolicy(), createMergeScheduler(),
-                                           new AnalysisService(shardId.index(), engineSettingsService.getSettings()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
+                engineSettingsService,
+                new ShardIndexingService(shardId, settings,
+                        new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, engineSettingsService)),
+                null, store, createSnapshotDeletionPolicy(), createTranslog(), createMergePolicy(), createMergeScheduler(),
+                new AnalysisService(shardId.index(), engineSettingsService.getSettings()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
         engine.start();
         engine.enableGcDeletes(false);
 
@@ -1365,7 +1374,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
         // Delete document we just added:
         engine.delete(new Engine.Delete("test", "1", newUid("1"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
-        
+
         // Get should not find the document
         Engine.GetResult getResult = engine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(false));
@@ -1393,7 +1402,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         }
 
         // Get should still not find the document
-        getResult = engine.get(new Engine.Get(true, newUid("1")));        
+        getResult = engine.get(new Engine.Get(true, newUid("1")));
         assertThat(getResult.exists(), equalTo(false));
 
         // Try to index uid=2 with a too-old version, should fail:

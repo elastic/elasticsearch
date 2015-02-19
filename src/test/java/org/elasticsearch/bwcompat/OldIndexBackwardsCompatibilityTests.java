@@ -95,11 +95,13 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         "index-1.3.6.zip",
         "index-1.3.7.zip",
         "index-1.3.8.zip",
+        "index-1.3.9.zip",
         "index-1.4.0.Beta1.zip",
         "index-1.4.0.zip",
         "index-1.4.1.zip",
         "index-1.4.2.zip",
-        "index-1.4.3.zip"
+        "index-1.4.3.zip",
+        "index-1.4.4.zip"
     );
     
     public void testAllVersionsTested() throws Exception {

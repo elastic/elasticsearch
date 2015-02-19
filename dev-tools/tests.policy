@@ -23,10 +23,10 @@
 
 grant {
   // permissions for file access, write access only to sandbox:
-  permission java.io.FilePermission "<<ALL FILES>>", "read,execute";
-  permission java.io.FilePermission "${junit4.childvm.cwd}", "read,execute,write";
-  permission java.io.FilePermission "${junit4.childvm.cwd}${/}-", "read,execute,write,delete";
-  permission java.io.FilePermission "${junit4.tempDir}${/}*", "read,execute,write,delete";
+  permission java.io.FilePermission "<<ALL FILES>>", "read";
+  permission java.io.FilePermission "${junit4.childvm.cwd}", "read,write";
+  permission java.io.FilePermission "${junit4.childvm.cwd}${/}-", "read,write,delete";
+  permission java.io.FilePermission "${junit4.tempDir}${/}*", "read,write,delete";
   permission java.nio.file.LinkPermission "symbolic";
   permission groovy.security.GroovyCodeSourcePermission "/groovy/script";
 

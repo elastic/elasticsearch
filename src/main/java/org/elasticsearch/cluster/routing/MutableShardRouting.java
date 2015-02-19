@@ -99,16 +99,12 @@ public class MutableShardRouting extends ImmutableShardRouting {
     }
 
     /**
-     * Set the shards state to <code>UNASSIGNED</code>.
-     * //TODO document the state
+     * Moves the shard from started to initializing and bumps the version
      */
-    void deassignNode() {
+    void reinitializeShard() {
+        assert state == ShardRoutingState.STARTED;
         version++;
-        assert state != ShardRoutingState.UNASSIGNED;
-
-        state = ShardRoutingState.UNASSIGNED;
-        this.currentNodeId = null;
-        this.relocatingNodeId = null;
+        state = ShardRoutingState.INITIALIZING;
     }
 
     /**

@@ -32,6 +32,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.nio.file.Path;
@@ -167,6 +169,15 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         assertTrue(gResp2.toString(), gResp2.isExists());
         assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
         assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
+
+        client().prepareIndex(IDX, "doc", "1").setSource("foo", "foobar").get();
+        client().prepareIndex(IDX, "doc", "2").setSource("foo", "foobar").get();
+        gResp1 = client().prepareGet(IDX, "doc", "1").setFields("foo").get();
+        gResp2 = client().prepareGet(IDX, "doc", "2").setFields("foo").get();
+        assertTrue(gResp1.isExists());
+        assertTrue(gResp2.toString(), gResp2.isExists());
+        assertThat(gResp1.getField("foo").getValue().toString(), equalTo("foobar"));
+        assertThat(gResp2.getField("foo").getValue().toString(), equalTo("foobar"));
     }
 
     @Test

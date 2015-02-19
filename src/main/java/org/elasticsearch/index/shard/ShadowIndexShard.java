@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.cache.fixedbitset.ShardFixedBitSetFilterCache;
 import org.elasticsearch.index.cache.query.ShardQueryCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -63,7 +65,7 @@ import org.elasticsearch.threadpool.ThreadPool;
  * promoted to a primary causes the shard to fail, kicking off a re-allocation
  * of the primary shard.
  */
-public class ShadowIndexShard extends IndexShard {
+public final class ShadowIndexShard extends IndexShard {
 
     private final Object mutex = new Object();
 
@@ -97,28 +99,19 @@ public class ShadowIndexShard extends IndexShard {
      */
     @Override
     public IndexShard routingEntry(ShardRouting newRouting) {
-        ShardRouting shardRouting = this.routingEntry();
-        super.routingEntry(newRouting);
-        // check for a shadow replica that now needs to be transformed into
-        // a normal primary today we simply fail it to force reallocation
-        if (shardRouting != null && shardRouting.primary() == false && // currently a replica
-                newRouting.primary() == true) {// becoming a primary
-            failShard("can't promote shadow replica to primary",
-                    new ElasticsearchIllegalStateException("can't promote shadow replica to primary"));
+        if (newRouting.primary() == true) {// becoming a primary
+            throw new ElasticsearchIllegalStateException("can't promote shard to primary");
         }
-        return this;
+        return super.routingEntry(newRouting);
     }
 
     @Override
-    protected void createNewEngine() {
-        synchronized (mutex) {
-            if (state == IndexShardState.CLOSED) {
-                throw new EngineClosedException(shardId);
-            }
-            assert this.currentEngineReference.get() == null;
-            assert this.shardRouting.primary() == false;
-            // Use the read-only engine for shadow replicas
-            this.currentEngineReference.set(engineFactory.newReadOnlyEngine(config));
-        }
+    protected Engine newEngine() {
+        assert this.shardRouting.primary() == false;
+        return engineFactory.newReadOnlyEngine(config);
+    }
+
+    public boolean allowsPrimaryPromotion() {
+        return false;
     }
 }

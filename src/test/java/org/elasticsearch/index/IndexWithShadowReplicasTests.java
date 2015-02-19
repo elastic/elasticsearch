@@ -54,6 +54,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         Settings nodeSettings = ImmutableSettings.builder()
                 .put("node.add_id_to_custom_path", false)
                 .put("node.enable_custom_paths", true)
+                .put("gateway.type", "local") // don't delete things!
                 .build();
 
         internalCluster().startNodesAsync(3, nodeSettings).get();
@@ -119,6 +120,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         Settings nodeSettings = ImmutableSettings.builder()
                 .put("node.add_id_to_custom_path", false)
                 .put("node.enable_custom_paths", true)
+                .put("gateway.type", "local") // don't delete things!
                 .build();
 
         String node1 = internalCluster().startNode(nodeSettings);
@@ -172,6 +174,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         Settings nodeSettings = ImmutableSettings.builder()
                 .put("node.add_id_to_custom_path", false)
                 .put("node.enable_custom_paths", true)
+                .put("gateway.type", "local") // don't delete things!
                 .build();
 
         String node1 = internalCluster().startNode(nodeSettings);
@@ -236,6 +239,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         Settings nodeSettings = ImmutableSettings.builder()
                 .put("node.add_id_to_custom_path", false)
                 .put("node.enable_custom_paths", true)
+                .put("gateway.type", "local") // don't delete things!
                 .build();
 
         int nodeCount = randomIntBetween(2, 5);
@@ -281,6 +285,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         Settings nodeSettings = ImmutableSettings.builder()
                 .put("node.add_id_to_custom_path", false)
                 .put("node.enable_custom_paths", true)
+                .put("gateway.type", "local") // don't delete things!
                 .build();
 
         internalCluster().startNodesAsync(2, nodeSettings).get();
@@ -338,6 +343,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         Settings nodeSettings = ImmutableSettings.builder()
                 .put("node.add_id_to_custom_path", false)
                 .put("node.enable_custom_paths", true)
+                .put("gateway.type", "local") // don't delete things!
                 .build();
 
         internalCluster().startNodesAsync(3, nodeSettings).get();

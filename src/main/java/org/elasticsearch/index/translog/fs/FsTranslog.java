@@ -203,6 +203,10 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     public void clearUnreferenced() {
         rwl.writeLock().lock();
         try {
+            // current can be null if this is a shadow replica
+            if (current == null) {
+                return;
+            }
             for (File location : locations) {
                 File[] files = location.listFiles();
                 if (files != null) {

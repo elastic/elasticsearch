@@ -122,7 +122,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         this.directory = new StoreDirectory(directoryService.newFromDistributor(distributor));
 
         distributorDirectory = DirectoryUtils.getLeaf(directory, DistributorDirectory.class);
-        assert distributorDirectory != null;
         this.shardLock = shardLock;
         this.onClose = onClose;
         final TimeValue refreshInterval = indexSettings.getAsTime(INDEX_STORE_STATS_REFRESH_INTERVAL, TimeValue.timeValueSeconds(10));
@@ -304,7 +303,14 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
 
     public void renameFile(String from, String to) throws IOException {
         ensureOpen();
-        distributorDirectory.renameFile(directoryService, from, to);
+        // distributorDirectory could be null if not using a
+        // DirectoryDistributor, so use the directory service and the regular
+        // directory to rename the file if so
+        if (distributorDirectory != null) {
+            distributorDirectory.renameFile(directoryService, from, to);
+        } else {
+            directoryService.renameFile(directory, from, to);
+        }
     }
 
     /**

@@ -56,7 +56,6 @@ import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
@@ -795,15 +794,6 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
             fail("exception expected");
         } catch (EngineClosedException ex) {
             // all is well
-        }
-    }
-
-    @Test
-    public void testExtractShardId() {
-        try (Engine.Searcher test = replicaEngine.acquireSearcher("test")) {
-            ShardId shardId = ShardUtils.extractShardId(test.reader());
-            assertNotNull(shardId);
-            assertEquals(shardId, replicaEngine.config().getShardId());
         }
     }
 

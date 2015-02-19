@@ -557,13 +557,6 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     public static Path newTempDirPath(LifecycleScope scope) {
         return newTempDir(scope).toPath();
     }
-    
-    /**
-     * Returns 'global' temp dir (seems like a bad idea)
-     */
-    public static Path globalTempDirPath() {
-        return globalTempDir().toPath();
-    }
 
     /**
      * Returns a random number of temporary paths.

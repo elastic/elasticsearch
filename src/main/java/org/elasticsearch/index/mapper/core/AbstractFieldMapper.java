@@ -314,6 +314,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues, NamedAnalyzer indexAnalyzer,
                                   NamedAnalyzer searchAnalyzer, SimilarityProvider similarity,
                                   Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        assert indexSettings != null;
         this.names = names;
         this.boost = boost;
         this.fieldType = fieldType;
@@ -347,9 +348,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
         this.multiFields = multiFields;
         this.copyTo = copyTo;
-        // the short circuit check to EMPTY here is necessary because some built in fields pass EMPTY for simplified ctors
-        this.writePre20Metadata = indexSettings != null && indexSettings.equals(ImmutableSettings.EMPTY) == false && 
-                                  Version.indexCreated(indexSettings).before(Version.V_2_0_0);
+        this.writePre20Metadata = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
     }
 
     @Nullable

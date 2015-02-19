@@ -59,7 +59,6 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = IndexFieldMapper.NAME;
-        public static final String INDEX_NAME = IndexFieldMapper.NAME;
 
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
@@ -80,7 +79,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
 
         public Builder() {
             super(Defaults.NAME, new FieldType(Defaults.FIELD_TYPE));
-            indexName = Defaults.INDEX_NAME;
+            indexName = Defaults.NAME;
         }
 
         public Builder enabled(EnabledAttributeMapper enabledState) {
@@ -116,12 +115,8 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
 
     private EnabledAttributeMapper enabledState;
 
-    public IndexFieldMapper() {
-        this(Defaults.NAME, Defaults.INDEX_NAME);
-    }
-
-    protected IndexFieldMapper(String name, String indexName) {
-        this(name, indexName, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null, Defaults.ENABLED_STATE, null, ImmutableSettings.EMPTY);
+    public IndexFieldMapper(Settings indexSettings) {
+        this(Defaults.NAME, Defaults.NAME, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null, Defaults.ENABLED_STATE, null, indexSettings);
     }
 
     public IndexFieldMapper(String name, String indexName, float boost, FieldType fieldType, Boolean docValues, EnabledAttributeMapper enabledState,

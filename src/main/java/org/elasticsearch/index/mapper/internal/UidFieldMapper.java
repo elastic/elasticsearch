@@ -101,12 +101,8 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         }
     }
 
-    public UidFieldMapper() {
-        this(Defaults.NAME);
-    }
-
-    protected UidFieldMapper(String name) {
-        this(name, name, null, null, ImmutableSettings.EMPTY);
+    public UidFieldMapper(Settings indexSettings) {
+        this(Defaults.NAME, Defaults.NAME, null, null, indexSettings);
     }
 
     protected UidFieldMapper(String name, String indexName, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings) {

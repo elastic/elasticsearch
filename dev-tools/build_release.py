@@ -61,9 +61,7 @@ Once it's done it will print all the remaining steps.
 """
 env = os.environ
 
-PLUGINS = [('license', 'elasticsearch/license/latest'),
-           ('marvel', 'elasticsearch/marvel/latest'),
-           ('bigdesk', 'lukas-vlcek/bigdesk'),
+PLUGINS = [('bigdesk', 'lukas-vlcek/bigdesk'),
            ('paramedic', 'karmi/elasticsearch-paramedic'),
            ('segmentspy', 'polyfractal/elasticsearch-segmentspy'),
            ('inquisitor', 'polyfractal/elasticsearch-inquisitor'),

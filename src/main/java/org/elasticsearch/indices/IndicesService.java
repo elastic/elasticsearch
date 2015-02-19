@@ -535,7 +535,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @return true if the index can be deleted on this node
      */
     public boolean canDeleteIndexContents(Index index, Settings indexSettings) {
-        final Tuple<IndexService, Injector> indexServiceInjectorTuple = this.indices.get(index);
+        final Tuple<IndexService, Injector> indexServiceInjectorTuple = this.indices.get(index.name());
         if (IndexMetaData.isOnSharedFilesystem(indexSettings) == false) {
             if (indexServiceInjectorTuple == null && nodeEnv.hasNodeFile()) {
                 return true;

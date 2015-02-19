@@ -26,6 +26,13 @@ field name for `_score` to sort by score.
 The sort values for each document returned are also returned as part of
 the response.
 
+==== Sort Order
+
+The `order` option can have the following values:
+[horizontal]
+`asc`:: (Default) Sort in ascending order
+`desc`:: Sort in descending order
+
 ==== Sort mode option
 
 Elasticsearch supports sorting by array or multi-valued fields. The `mode` option

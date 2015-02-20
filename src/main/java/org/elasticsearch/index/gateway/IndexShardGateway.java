@@ -220,7 +220,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
                             in.readInt(); // ignored opSize
                         }
                         operation = stream.read(in);
-                    } catch (EOFException e) {
+                    } catch (TruncatedTranslogException|EOFException e) {
                         // ignore, not properly written the last op
                         logger.trace("ignoring translog EOF exception, the last operation was not properly written", e);
                         break;

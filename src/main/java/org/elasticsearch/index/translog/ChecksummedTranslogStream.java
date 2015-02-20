@@ -65,6 +65,8 @@ public class ChecksummedTranslogStream implements TranslogStream {
             Translog.Operation.Type type = Translog.Operation.Type.fromId(in.readByte());
             operation = TranslogStreams.newOperationFromType(type);
             operation.readFrom(in);
+        } catch (EOFException e) {
+            throw new TruncatedTranslogException("reached premature end of file, translog is truncated", e);
         } catch (AssertionError|Exception e) {
             throw new TranslogCorruptedException("translog corruption while reading from stream", e);
         }

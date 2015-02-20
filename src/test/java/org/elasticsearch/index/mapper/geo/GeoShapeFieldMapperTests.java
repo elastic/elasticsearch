@@ -173,8 +173,34 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
 
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));
-            /* 70m is more precise so it wins */
+            // 70m is more precise so it wins
             assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.quadTreeLevelsForPrecision(70d))); 
+        }
+
+        {
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                    .startObject("properties").startObject("location")
+                    .field("type", "geo_shape")
+                    .field("tree", "quadtree")
+                    .field("tree_levels", "26")
+                    .field("precision", "70m")
+                    .endObject().endObject()
+                    .endObject().endObject().string();
+
+
+            DocumentMapper defaultMapper = parser.parse(mapping);
+            FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+            assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+            GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
+            PrefixTreeStrategy strategy = geoShapeFieldMapper.defaultStrategy();
+
+            // distance_error_pct was not specified so we expect the mapper to take the highest precision between "precision" and
+            // "tree_levels" setting distErrPct to 0 to guarantee desired precision
+            assertThat(strategy.getDistErrPct(), equalTo(0.0));
+            assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));
+            // 70m is less precise so it loses
+            assertThat(strategy.getGrid().getMaxLevels(), equalTo(26));
         }
         
         {
@@ -197,7 +223,7 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
 
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
-            /* 70m is more precise so it wins */
+            // 70m is more precise so it wins
             assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(70d))); 
         }
         

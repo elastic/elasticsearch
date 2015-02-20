@@ -155,15 +155,28 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
 
     @Test
     public void testAmbiguousHoursAfterDSTSwitch() {
-        Rounding tzRounding;
-
-        tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).preZone(DateTimeZone.forID("Asia/Jerusalem")).build();
+        Rounding tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).preZone(DateTimeZone.forID("Asia/Jerusalem")).build();
         // Both timestamps "2014-10-25T22:30:00Z" and "2014-10-25T23:30:00Z" are "2014-10-26T01:30:00" in local time because
         // of DST switch between them. This test checks that they are both returned to their correct UTC time after rounding.
         assertThat(tzRounding.round(time("2014-10-25T22:30:00", DateTimeZone.UTC)), equalTo(time("2014-10-25T22:00:00", DateTimeZone.UTC)));
         assertThat(tzRounding.round(time("2014-10-25T23:30:00", DateTimeZone.UTC)), equalTo(time("2014-10-25T23:00:00", DateTimeZone.UTC)));
     }
 
+    @Test
+    public void testNextRoundingValueCornerCase8209() {
+        Rounding tzRounding = TimeZoneRounding.builder(DateTimeUnit.MONTH_OF_YEAR).preZone(DateTimeZone.forID("+01:00")).
+                preZoneAdjustLargeInterval(true).build();
+        long roundedValue = tzRounding.round(time("2014-01-01T00:00:00Z", DateTimeZone.UTC));
+        assertThat(roundedValue, equalTo(time("2013-12-31T23:00:00.000Z", DateTimeZone.UTC)));
+        roundedValue = tzRounding.nextRoundingValue(roundedValue);
+        assertThat(roundedValue, equalTo(time("2014-01-31T23:00:00.000Z", DateTimeZone.UTC)));
+        roundedValue = tzRounding.nextRoundingValue(roundedValue);
+        assertThat(roundedValue, equalTo(time("2014-02-28T23:00:00.000Z", DateTimeZone.UTC)));
+        roundedValue = tzRounding.nextRoundingValue(roundedValue);
+        assertThat(roundedValue, equalTo(time("2014-03-31T23:00:00.000Z", DateTimeZone.UTC)));
+        roundedValue = tzRounding.nextRoundingValue(roundedValue);
+        assertThat(roundedValue, equalTo(time("2014-04-30T23:00:00.000Z", DateTimeZone.UTC)));
+    }
 
     private long utc(String time) {
         return time(time, DateTimeZone.UTC);

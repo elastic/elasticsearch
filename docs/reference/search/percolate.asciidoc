@@ -127,7 +127,7 @@ percolate documents by specific queries.
 }
 --------------------------------------------------
 
-On top of this also a mapping type can be associated with the this query. This allows to control how certain queries
+On top of this also a mapping type can be associated with this query. This allows to control how certain queries
 like range queries, shape filters and other query & filters that rely on mapping settings get constructed. This is
 important since the percolate queries are indexed into the `.percolator` type, and the queries / filters that rely on
 mapping settings would yield unexpected behaviour. Note by default field names do get resolved in a smart manner,
@@ -202,7 +202,7 @@ curl -XGET 'localhost:9200/twitter/tweet/_percolate' -d '{
 --------------------------------------------------
 
 .Additional supported query string options
-* `routing` - In the case the percolate queries are partitioned by a custom routing value, that routing option make sure
+* `routing` - In case the percolate queries are partitioned by a custom routing value, that routing option makes sure
 that the percolate request only gets executed on the shard where the routing value is partitioned to. This means that
 the percolate request only gets executed on one shard instead of all shards. Multiple values can be specified as a
 comma separated string, in that case the request can be be executed on more than one shard.
@@ -240,7 +240,7 @@ documentation on how to define highlights. The `size` option is required for hig
 === Dedicated percolator index
 
 Percolate queries can be added to any index. Instead of adding percolate queries to the index the data resides in,
-these queries can also be added to an dedicated index. The advantage of this is that this dedicated percolator index
+these queries can also be added to a dedicated index. The advantage of this is that this dedicated percolator index
 can have its own index settings (For example the number of primary and replicas shards). If you choose to have a dedicated
 percolate index, you need to make sure that the mappings from the normal index are also available on the percolate index.
 Otherwise percolate queries can be parsed incorrectly.
@@ -457,7 +457,7 @@ parsed into a Lucene query and is kept in memory until that percolator document 
 At percolate time the document specified in the request gets parsed into a Lucene document and is stored in a in-memory
 Lucene index. This in-memory index can just hold this one document and it is optimized for that. Then all the queries
 that are registered to the index that the percolate request is targeted for are going to be executed on this single document
-in-memory index. This happens on each shard the percolate request need to execute.
+in-memory index. This happens on each shard the percolate request needs to execute.
 
 By using `routing`, `filter` or `query` features the amount of queries that need to be executed can be reduced and thus
 the time the percolate api needs to run can be decreased.

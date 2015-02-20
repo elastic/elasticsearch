@@ -26,6 +26,8 @@ import org.junit.Test;
 
 import java.io.EOFException;
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -143,5 +145,27 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
                     e.getMessage().contains("translog stream is corrupted"), equalTo(true));
         }
 
+    }
+
+    @Test
+    public void testTruncatedTranslog() throws Exception {
+        try {
+            File translogFile = getResource("/org/elasticsearch/index/translog/translog-v1-truncated.binary");
+            assertThat("test file should exist", Files.exists(translogFile.toPath()), equalTo(true));
+            TranslogStream stream = TranslogStreams.translogStreamFor(translogFile);
+            try (StreamInput in = stream.openInput(translogFile)) {
+                while (true) {
+                    try {
+                        stream.read(in);
+                    } catch (EOFException e) {
+                        break;
+                    }
+                }
+            }
+            fail("should have thrown an exception about the body being truncated");
+        } catch (TruncatedTranslogException e) {
+            assertThat("translog truncated: " + e.getMessage(),
+                    e.getMessage().contains("reached premature end of file, translog is truncated"), equalTo(true));
+        }
     }
 }

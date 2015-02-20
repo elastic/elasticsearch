@@ -169,8 +169,10 @@ public abstract class TimeZoneRounding extends Rounding {
         @Override
         public long nextRoundingValue(long time) {
             long currentWithoutPostZone = postTz.convertLocalToUTC(time, true);
-            long nextWithoutPostZone = durationField.add(currentWithoutPostZone, 1);
-            return postTz.convertUTCToLocal(nextWithoutPostZone);
+            // we also need to correct for preTz because rounding takes place in local time zone
+            long local = preTz.convertUTCToLocal(currentWithoutPostZone);
+            long nextLocal = durationField.add(local, 1);
+            return postTz.convertUTCToLocal(preTz.convertLocalToUTC((nextLocal), true));
         }
 
         @Override

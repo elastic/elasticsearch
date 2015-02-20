@@ -1303,6 +1303,31 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getBuckets().get(2).getDocCount(), equalTo(1L));
     }
 
+    public void testIssue8209() throws InterruptedException, ExecutionException {
+        assertAcked(client().admin().indices().prepareCreate("test8209").addMapping("type", "d", "type=date").get());
+        indexRandom(true,
+                client().prepareIndex("test8209", "type").setSource("d", "2014-01-01T0:00:00Z"),
+                client().prepareIndex("test8209", "type").setSource("d", "2014-04-01T0:00:00Z"),
+                client().prepareIndex("test8209", "type").setSource("d", "2014-04-30T0:00:00Z"));
+        ensureSearchable("test8209");
+        SearchResponse response = client().prepareSearch("test8209")
+                .addAggregation(dateHistogram("histo").field("d").interval(DateHistogram.Interval.MONTH).preZone("+01:00")
+                .minDocCount(0)
+                .preZoneAdjustLargeInterval(true))
+                .execute().actionGet();
+        assertSearchResponse(response);
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo.getBuckets().size(), equalTo(4));
+        assertThat(histo.getBuckets().get(0).getKey(), equalTo("2013-12-31T23:00:00.000Z"));
+        assertThat(histo.getBuckets().get(0).getDocCount(), equalTo(1L));
+        assertThat(histo.getBuckets().get(1).getKey(), equalTo("2014-01-31T23:00:00.000Z"));
+        assertThat(histo.getBuckets().get(1).getDocCount(), equalTo(0L));
+        assertThat(histo.getBuckets().get(2).getKey(), equalTo("2014-02-28T23:00:00.000Z"));
+        assertThat(histo.getBuckets().get(2).getDocCount(), equalTo(0L));
+        assertThat(histo.getBuckets().get(3).getKey(), equalTo("2014-03-31T23:00:00.000Z"));
+        assertThat(histo.getBuckets().get(3).getDocCount(), equalTo(2L));
+    }
+
     /**
      * see issue #9634, negative interval in date_histogram should raise exception
      */

@@ -32,7 +32,7 @@
     </scm>
 
     <properties>
-        <poi.version>3.10.1</poi.version>
+        <!-- If we need to define any specific property -->
     </properties>
 
     <dependencies>
@@ -51,38 +51,6 @@
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
-        </dependency>
-
-        <!-- Apache POI -->
-        <dependency>
-            <groupId>org.apache.poi</groupId>
-            <artifactId>poi</artifactId>
-            <version>${poi.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.poi</groupId>
-            <artifactId>poi-ooxml</artifactId>
-            <version>${poi.version}</version>
-            <exclusions>
-                <exclusion>
-                    <groupId>stax</groupId>
-                    <artifactId>stax-api</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>xml-apis</groupId>
-                    <artifactId>xml-apis</artifactId>
-                </exclusion>
-            </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.poi</groupId>
-            <artifactId>poi-ooxml-schemas</artifactId>
-            <version>${poi.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.poi</groupId>
-            <artifactId>poi-scratchpad</artifactId>
-            <version>${poi.version}</version>
         </dependency>
 
         <!-- Tika -->

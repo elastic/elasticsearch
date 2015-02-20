@@ -25,7 +25,7 @@
 	</logger>
 
     <logger name="org.elasticsearch.index.mapper">
-        <level value="debug" />
+        <level value="trace" />
     </logger>
 
     <root>

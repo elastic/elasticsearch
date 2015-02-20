@@ -49,7 +49,7 @@ curl -XGET 'localhost:9200/twitter/tweet/_search?scroll=1m' -d '
 '
 --------------------------------------------------
 
-The result from the above request includes a `scroll_id`, which should
+The result from the above request includes a `_scroll_id`, which should
 be passed to the `scroll` API in order to retrieve the next batch of
 results.
 
@@ -63,14 +63,14 @@ curl -XGET <1> 'localhost:9200/_search/scroll?scroll=1m' <2> <3> \
     are specified in the original `search` request instead.
 <3> The `scroll` parameter tells Elasticsearch to keep the search context open
     for another `1m`.
-<4> The `scroll_id` can be passed in the request body or in the
-    query string as `?scroll_id=....`
+<4> The `_scroll_id` can be passed in the request body or in the
+    query string as `?_scroll_id=....`
 
 Each call to the `scroll` API returns the next batch of results until there
 are no more results left to return, ie the `hits` array is empty.
 
 IMPORTANT: The initial search request and each subsequent scroll request
-returns a new `scroll_id` -- only the most recent `scroll_id` should be
+returns a new `_scroll_id` -- only the most recent `_scroll_id` should be
 used.
 
 NOTE: If the request specifies aggregations, only the initial search response
@@ -167,7 +167,7 @@ clear a search context manually with the `clear-scroll` API:
 curl -XDELETE localhost:9200/_search/scroll \
      -d 'c2Nhbjs2OzM0NDg1ODpzRlBLc0FXNlNyNm5JWUc1' <1>
 ---------------------------------------
-<1> The `scroll_id` can be passed in the request body or in the query string.
+<1> The `_scroll_id` can be passed in the request body or in the query string.
 
 Multiple scroll IDs can be passed as comma separated values:
 

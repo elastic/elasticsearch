@@ -409,6 +409,8 @@ public class DefaultCollector<W> implements SegmentLookup.Collector<W> {
                     } else {
                         addDocValues(fieldInfo.getDocValuesType(), field);
                     }
+                } else {
+                    throw new IllegalArgumentException(field + " does not exist");
                 }
             }
         }

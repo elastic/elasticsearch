@@ -298,7 +298,6 @@ public class NRTLookupTest extends LuceneTestCase {
                 }
             }
         }
-
     }
 
     private class CompletionProvider {

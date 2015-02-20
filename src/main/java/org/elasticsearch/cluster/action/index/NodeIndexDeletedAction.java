@@ -74,7 +74,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         listeners.remove(listener);
     }
 
-    public void nodeIndexDeleted(final ClusterState clusterState, final String index, final String nodeId) throws ElasticsearchException {
+    public void nodeIndexDeleted(final ClusterState clusterState, final String index, final Settings indexSettings, final String nodeId) throws ElasticsearchException {
         final DiscoveryNodes nodes = clusterState.nodes();
         if (nodes.localNodeMaster()) {
             threadPool.generic().execute(new AbstractRunnable() {
@@ -91,7 +91,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
                         logger.trace("[{}] not acking store deletion (not a data node)");
                         return;
                     }
-                    lockIndexAndAck(index, nodes, nodeId, clusterState);
+                    lockIndexAndAck(index, nodes, nodeId, clusterState, indexSettings);
 
                 }
             });
@@ -110,19 +110,19 @@ public class NodeIndexDeletedAction extends AbstractComponent {
 
                 @Override
                 protected void doRun() throws Exception {
-                    lockIndexAndAck(index, nodes, nodeId, clusterState);
+                    lockIndexAndAck(index, nodes, nodeId, clusterState, indexSettings);
                 }
             });
         }
     }
 
-    private void lockIndexAndAck(String index, DiscoveryNodes nodes, String nodeId, ClusterState clusterState) throws IOException {
+    private void lockIndexAndAck(String index, DiscoveryNodes nodes, String nodeId, ClusterState clusterState, Settings indexSettings) throws IOException {
         try {
             // we are waiting until we can lock the index / all shards on the node and then we ack the delete of the store to the
             // master. If we can't acquire the locks here immediately there might be a shard of this index still holding on to the lock
             // due to a "currently canceled recovery" or so. The shard will delete itself BEFORE the lock is released so it's guaranteed to be
             // deleted by the time we get the lock
-            indicesService.processPendingDeletes(new Index(index), new TimeValue(30, TimeUnit.MINUTES));
+            indicesService.processPendingDeletes(new Index(index), indexSettings, new TimeValue(30, TimeUnit.MINUTES));
             if (nodes.localNodeMaster()) {
                 innerNodeIndexStoreDeleted(index, nodeId);
             } else {

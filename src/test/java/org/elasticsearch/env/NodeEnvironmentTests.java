@@ -121,7 +121,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
 
         List<ShardLock> locks = env.lockAllForIndex(new Index("foo"), settings, randomIntBetween(0, 10));
         try {
-            env.shardLock(new ShardId("foo", randomIntBetween(0, 1)));
+            env.shardLock(new ShardId("foo", 0));
             fail("shard is locked");
         } catch (LockObtainFailedException ex) {
             // expected

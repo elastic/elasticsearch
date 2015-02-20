@@ -72,6 +72,7 @@ public class ShadowEngine extends Engine {
                 throw e;
             } finally {
                 if (success == false) {
+                    IOUtils.closeWhileHandlingException(this.searcherManager);
                     store.decRef();
                 }
             }

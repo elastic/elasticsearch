@@ -50,6 +50,7 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -92,13 +93,8 @@ import org.elasticsearch.plugins.PluginsService;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -122,6 +118,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final ClusterService clusterService;
 
     private volatile Map<String, Tuple<IndexService, Injector>> indices = ImmutableMap.of();
+    private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
 
     private final OldShardsStats oldShardsStats = new OldShardsStats();
 
@@ -603,5 +600,103 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         builder.put(settings);
         builder.put(metaData.getSettings());
         return builder.build();
+    }
+
+    /**
+     * Adds a pending delete for the given index.
+     */
+    public void addPendingDelete(Index index, ShardId shardId, Settings settings) {
+        synchronized (pendingDeletes) {
+            List<PendingDelete> list = pendingDeletes.get(index);
+            if (list == null) {
+                list = new ArrayList<>();
+                pendingDeletes.put(index, list);
+            }
+            list.add(new PendingDelete(shardId, settings));
+        }
+    }
+
+    private static final class PendingDelete {
+        final ShardId shardId;
+        final Settings settings;
+
+        public PendingDelete(ShardId shardId, Settings settings) {
+            this.shardId = shardId;
+            this.settings = settings;
+        }
+
+        @Override
+        public String toString() {
+            return shardId.toString();
+        }
+    }
+
+    /**
+     * Processes all pending deletes for the given index. This method will acquire all locks for the given index and will
+     * process all pending deletes for this index. Pending deletes might occur if the OS doesn't allow deletion of files because
+     * they are used by a different process ie. on Windows where files might still be open by a virus scanner. On a shared
+     * filesystem a replica might not have been closed when the primary is deleted causing problems on delete calls so we
+     * schedule there deletes later.
+     * @param index the index to process the pending deletes for
+     * @param timeout the timeout used for processing pending deletes
+     */
+    public void processPendingDeletes(Index index, TimeValue timeout) throws IOException {
+        final long startTime = System.currentTimeMillis();
+        final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, timeout.millis());
+        try {
+            Map<ShardId, ShardLock> locks = new HashMap<>();
+            for (ShardLock lock : shardLocks) {
+                locks.put(lock.getShardId(), lock);
+            }
+            final List<PendingDelete> remove;
+            synchronized (pendingDeletes) {
+                 remove = pendingDeletes.remove(index);
+            }
+            final long maxSleepTimeMs = 10 * 1000; // ensure we retry after 10 sec
+            long sleepTime = 10;
+            do {
+                if (remove == null || remove.isEmpty()) {
+                    break;
+                }
+                Iterator<PendingDelete> iterator = remove.iterator();
+                while (iterator.hasNext()) {
+                    PendingDelete delete = iterator.next();
+                    ShardLock shardLock = locks.get(delete.shardId);
+                    if (shardLock != null) {
+                        try {
+                            deleteShardStore("pending delete", shardLock, delete.settings);
+                        } catch (IOException ex) {
+                            logger.debug("{} retry pending delete", shardLock.getShardId(), ex);
+                        }
+                    } else {
+                        logger.warn("{} no shard lock for pending delete", delete.shardId);
+                    }
+                    iterator.remove();
+                }
+                if (remove.isEmpty() == false) {
+                    logger.warn("{} still pending deletes present for shards {} - retrying", index, remove.toString());
+                    try {
+                        Thread.sleep(sleepTime);
+                        sleepTime = Math.min(maxSleepTimeMs, sleepTime * 2); // increase the sleep time gradually
+                        logger.debug("{} schedule pending delete retry after {} ms", index, sleepTime);
+                    } catch (InterruptedException e) {
+                        Thread.interrupted();
+                        return;
+                    }
+                }
+            } while ((System.currentTimeMillis() - startTime) < timeout.millis());
+        } finally {
+            IOUtils.close(shardLocks);
+        }
+    }
+
+    int numPendingDeletes(Index index) {
+        synchronized (pendingDeletes) {
+            List<PendingDelete> deleteList = pendingDeletes.get(index);
+            if (deleteList == null) {
+                return 0;
+            }
+            return deleteList.size();
+        }
     }
 }

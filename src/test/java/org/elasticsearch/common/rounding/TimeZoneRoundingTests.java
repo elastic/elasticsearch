@@ -123,6 +123,48 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
         assertThat(tzRounding.round(time("2014-11-02T06:01:01", DateTimeZone.forID("America/Chicago"))), equalTo(time("2014-11-02T06:00:00", DateTimeZone.forID("America/Chicago"))));
     }
 
+    @Test
+    public void testPreZoneAdjustLargeInterval() {
+        Rounding tzRounding;
+
+        // Day interval
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.DAY_OF_MONTH).preZone(DateTimeZone.forID("Asia/Jerusalem")).preZoneAdjustLargeInterval(true).build();
+        assertThat(tzRounding.round(time("2014-11-11T17:00:00", DateTimeZone.forID("Asia/Jerusalem"))), equalTo(time("2014-11-11T00:00:00", DateTimeZone.forID("Asia/Jerusalem"))));
+        // DST on
+        assertThat(tzRounding.round(time("2014-08-11T17:00:00", DateTimeZone.forID("Asia/Jerusalem"))), equalTo(time("2014-08-11T00:00:00", DateTimeZone.forID("Asia/Jerusalem"))));
+        // Day of switching DST on -> off
+        assertThat(tzRounding.round(time("2014-10-26T17:00:00", DateTimeZone.forID("Asia/Jerusalem"))), equalTo(time("2014-10-26T00:00:00", DateTimeZone.forID("Asia/Jerusalem"))));
+        // Day of switching DST off -> on
+        assertThat(tzRounding.round(time("2015-03-27T17:00:00", DateTimeZone.forID("Asia/Jerusalem"))), equalTo(time("2015-03-27T00:00:00", DateTimeZone.forID("Asia/Jerusalem"))));
+
+        // Month interval
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.MONTH_OF_YEAR).preZone(DateTimeZone.forID("Asia/Jerusalem")).preZoneAdjustLargeInterval(true).build();
+        assertThat(tzRounding.round(time("2014-11-11T17:00:00", DateTimeZone.forID("Asia/Jerusalem"))), equalTo(time("2014-11-01T00:00:00", DateTimeZone.forID("Asia/Jerusalem"))));
+        // DST on
+        assertThat(tzRounding.round(time("2014-10-10T17:00:00", DateTimeZone.forID("Asia/Jerusalem"))), equalTo(time("2014-10-01T00:00:00", DateTimeZone.forID("Asia/Jerusalem"))));
+
+        // Year interval
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.YEAR_OF_CENTURY).preZone(DateTimeZone.forID("Asia/Jerusalem")).preZoneAdjustLargeInterval(true).build();
+        assertThat(tzRounding.round(time("2014-11-11T17:00:00", DateTimeZone.forID("Asia/Jerusalem"))), equalTo(time("2014-01-01T00:00:00", DateTimeZone.forID("Asia/Jerusalem"))));
+
+        // Two timestamps in same year and different timezone offset ("Double buckets" issue - #9491)
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.YEAR_OF_CENTURY).preZone(DateTimeZone.forID("Asia/Jerusalem")).preZoneAdjustLargeInterval(true).build();
+        assertThat(tzRounding.round(time("2014-11-11T17:00:00", DateTimeZone.forID("Asia/Jerusalem"))),
+                equalTo(tzRounding.round(time("2014-08-11T17:00:00", DateTimeZone.forID("Asia/Jerusalem")))));
+    }
+
+    @Test
+    public void testAmbiguousHoursAfterDSTSwitch() {
+        Rounding tzRounding;
+
+        tzRounding = TimeZoneRounding.builder(DateTimeUnit.HOUR_OF_DAY).preZone(DateTimeZone.forID("Asia/Jerusalem")).build();
+        // Both timestamps "2014-10-25T22:30:00Z" and "2014-10-25T23:30:00Z" are "2014-10-26T01:30:00" in local time because
+        // of DST switch between them. This test checks that they are both returned to their correct UTC time after rounding.
+        assertThat(tzRounding.round(time("2014-10-25T22:30:00", DateTimeZone.UTC)), equalTo(time("2014-10-25T22:00:00", DateTimeZone.UTC)));
+        assertThat(tzRounding.round(time("2014-10-25T23:30:00", DateTimeZone.UTC)), equalTo(time("2014-10-25T23:00:00", DateTimeZone.UTC)));
+    }
+
+
     private long utc(String time) {
         return time(time, DateTimeZone.UTC);
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -37,6 +38,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.script.NativeSignificanceScoreScriptNoParams;
 import org.elasticsearch.search.aggregations.bucket.script.NativeSignificanceScoreScriptWithParams;
+import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
@@ -485,6 +487,37 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         for (Terms.Bucket classBucket : ((Terms) response.getAggregations().get("class")).getBuckets()) {
             for (SignificantTerms.Bucket bucket : ((SignificantTerms) classBucket.getAggregations().get("mySignificantTerms")).getBuckets()) {
                 assertThat(bucket.getSignificanceScore(), is((double) bucket.getSubsetDf() + bucket.getSubsetSize() + bucket.getSupersetDf() + bucket.getSupersetSize()));
+            }
+        }
+    }
+
+    @Test
+    public void testNoNumberFormatExceptionWithDefaultScriptingEngine() throws ExecutionException, InterruptedException, IOException {
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.number_of_shards", 1)));
+        index("test", "doc", "1", "{\"field\":\"a\"}");
+        index("test", "doc", "11", "{\"field\":\"a\"}");
+        index("test", "doc", "2", "{\"field\":\"b\"}");
+        index("test", "doc", "22", "{\"field\":\"b\"}");
+        index("test", "doc", "3", "{\"field\":\"a b\"}");
+        index("test", "doc", "33", "{\"field\":\"a b\"}");
+        ScriptHeuristic.ScriptHeuristicBuilder scriptHeuristicBuilder = new ScriptHeuristic.ScriptHeuristicBuilder();
+        scriptHeuristicBuilder.setScript("_subset_freq/(_superset_freq - _subset_freq + 1)");
+        ensureYellow();
+        refresh();
+        SearchResponse response = client().prepareSearch("test")
+                .addAggregation(new TermsBuilder("letters").field("field").subAggregation(new SignificantTermsBuilder("mySignificantTerms")
+                        .field("field")
+                        .executionHint(randomExecutionHint())
+                        .significanceHeuristic(scriptHeuristicBuilder)
+                        .minDocCount(1).shardSize(2).size(2)))
+                .execute()
+                .actionGet();
+        assertSearchResponse(response);
+        assertThat(((Terms) response.getAggregations().get("letters")).getBuckets().size(), equalTo(2));
+        for (Terms.Bucket classBucket : ((Terms) response.getAggregations().get("letters")).getBuckets()) {
+            assertThat(((SignificantStringTerms) classBucket.getAggregations().get("mySignificantTerms")).getBuckets().size(), equalTo(2));
+            for (SignificantTerms.Bucket bucket : ((SignificantTerms) classBucket.getAggregations().get("mySignificantTerms")).getBuckets()) {
+                assertThat(bucket.getSignificanceScore(), closeTo((double)bucket.getSubsetDf() /(bucket.getSupersetDf() - bucket.getSubsetDf()+ 1), 1.e-6));
             }
         }
     }

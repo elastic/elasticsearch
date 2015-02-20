@@ -172,7 +172,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             try {
                 searchScript = scriptService.executable(scriptLang, script, scriptType, params);
             } catch (Exception e) {
-                throw new ElasticsearchParseException("The script [" + script + "] could not be loaded");
+                throw new ElasticsearchParseException("The script [" + script + "] could not be loaded", e);
             }
             return new ScriptHeuristic(searchScript, scriptLang, script, scriptType, params);
         }
@@ -246,6 +246,11 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         @Override
         public double doubleValue() {
             return (double)value;
+        }
+
+        @Override
+        public String toString() {
+            return Long.toString(value);
         }
     }
 }

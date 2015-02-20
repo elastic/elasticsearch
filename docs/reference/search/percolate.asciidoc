@@ -241,7 +241,7 @@ documentation on how to define highlights. The `size` option is required for hig
 === Dedicated percolator index
 
 Percolate queries can be added to any index. Instead of adding percolate queries to the index the data resides in,
-these queries can also be added to an dedicated index. The advantage of this is that this dedicated percolator index
+these queries can also be added to a dedicated index. The advantage of this is that this dedicated percolator index
 can have its own index settings (For example the number of primary and replicas shards). If you choose to have a dedicated
 percolate index, you need to make sure that the mappings from the normal index are also available on the percolate index.
 Otherwise percolate queries can be parsed incorrectly.

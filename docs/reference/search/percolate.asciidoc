@@ -128,7 +128,7 @@ percolate documents by specific queries.
 }
 --------------------------------------------------
 
-On top of this also a mapping type can be associated with the this query. This allows to control how certain queries
+On top of this also a mapping type can be associated with this query. This allows to control how certain queries
 like range queries, shape filters and other query & filters that rely on mapping settings get constructed. This is
 important since the percolate queries are indexed into the `.percolator` type, and the queries / filters that rely on
 mapping settings would yield unexpected behaviour. Note by default field names do get resolved in a smart manner,

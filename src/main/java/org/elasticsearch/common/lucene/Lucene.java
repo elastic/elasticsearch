@@ -20,6 +20,7 @@
 package org.elasticsearch.common.lucene;
 
 import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
@@ -97,6 +98,7 @@ public class Lucene {
      */
     public static Iterable<String> files(SegmentInfos infos) throws IOException {
         final List<Collection<String>> list = new ArrayList<>();
+        list.add(Collections.singleton(infos.getSegmentsFileName()));
         for (SegmentCommitInfo info : infos) {
             list.add(info.files());
         }

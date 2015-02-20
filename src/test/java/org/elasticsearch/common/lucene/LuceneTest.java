@@ -17,6 +17,7 @@
  * under the License.
  */
 package org.elasticsearch.common.lucene;
+import com.google.common.collect.Iterables;
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -30,6 +31,9 @@ import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+
 /**
  * 
  */
@@ -98,6 +102,55 @@ public class LuceneTest extends ElasticsearchLuceneTestCase {
             assertFalse("unexpected file: " + file, file.equals("segments_3") || file.startsWith("_2"));
         }
         open.close();
+        dir.close();
+
+    }
+
+    public void testFiles() throws IOException {
+        MockDirectoryWrapper dir = newMockDirectory();
+        dir.setEnableVirusScanner(false);
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        iwc.setMaxBufferedDocs(2);
+        iwc.setUseCompoundFile(true);
+        IndexWriter writer = new IndexWriter(dir, iwc);
+        Document doc = new Document();
+        doc.add(new TextField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+        writer.commit();
+        Set<String> files = new HashSet<>();
+        for (String f : Lucene.files(Lucene.readSegmentInfos(dir))) {
+            files.add(f);
+        }
+
+        assertTrue(files.toString(), files.contains("segments_1"));
+        assertTrue(files.toString(), files.contains("_0.cfs"));
+        assertTrue(files.toString(), files.contains("_0.cfe"));
+        assertTrue(files.toString(), files.contains("_0.si"));
+
+        doc = new Document();
+        doc.add(new TextField("id", "2", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+
+        doc = new Document();
+        doc.add(new TextField("id", "3", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+        writer.commit();
+
+        files.clear();
+        for (String f : Lucene.files(Lucene.readSegmentInfos(dir))) {
+            files.add(f);
+        }
+        assertFalse(files.toString(), files.contains("segments_1"));
+        assertTrue(files.toString(), files.contains("segments_2"));
+        assertTrue(files.toString(), files.contains("_0.cfs"));
+        assertTrue(files.toString(), files.contains("_0.cfe"));
+        assertTrue(files.toString(), files.contains("_0.si"));
+
+        assertTrue(files.toString(), files.contains("_1.cfs"));
+        assertTrue(files.toString(), files.contains("_1.cfe"));
+        assertTrue(files.toString(), files.contains("_1.si"));
+        writer.close();
         dir.close();
 
     }

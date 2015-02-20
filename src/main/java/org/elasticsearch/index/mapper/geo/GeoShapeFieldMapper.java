@@ -114,6 +114,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         private int treeLevels = 0;
         private double precisionInMeters = -1;
         private double distanceErrorPct = Defaults.DISTANCE_ERROR_PCT;
+        private boolean distErrPctDefined;
         private Orientation orientation = Defaults.ORIENTATION;
 
         private SpatialPrefixTree prefixTree;
@@ -173,23 +174,27 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
             return new GeoShapeFieldMapper(names, prefixTree, strategyName, distanceErrorPct, orientation, fieldType,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
-    }
 
-    private static final int getLevels(int treeLevels, double precisionInMeters, int defaultLevels, boolean geoHash) {
-        if (treeLevels > 0 || precisionInMeters >= 0) {
-            return Math.max(treeLevels, precisionInMeters >= 0 ? (geoHash ? GeoUtils.geoHashLevelsForPrecision(precisionInMeters)
-                    : GeoUtils.quadTreeLevelsForPrecision(precisionInMeters)) : 0);
+        private final int getLevels(int treeLevels, double precisionInMeters, int defaultLevels, boolean geoHash) {
+            if (treeLevels > 0 || precisionInMeters >= 0) {
+                // if the user specified a precision but not a distance error percent then zero out the distance err pct
+                // this is done to guarantee precision specified by the user without doing something unexpected under the covers
+                if (!distErrPctDefined) distanceErrorPct = 0;
+                return Math.max(treeLevels, precisionInMeters >= 0 ? (geoHash ? GeoUtils.geoHashLevelsForPrecision(precisionInMeters)
+                        : GeoUtils.quadTreeLevelsForPrecision(precisionInMeters)) : 0);
+            }
+            return defaultLevels;
         }
-        return defaultLevels;
     }
-
 
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = geoShapeField(name);
-
+            // if index was created before 1.6, this conditional should be true (this forces any index created on/or after 1.6 to use 0 for
+            // the default distanceErrorPct parameter).
+            builder.distErrPctDefined = parserContext.indexVersionCreated().before(Version.V_1_6_0);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -205,6 +210,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
                     iterator.remove();
                 } else if (Names.DISTANCE_ERROR_PCT.equals(fieldName)) {
                     builder.distanceErrorPct(Double.parseDouble(fieldNode.toString()));
+                    builder.distErrPctDefined = true;
                     iterator.remove();
                 } else if (Names.ORIENTATION.equals(fieldName)) {
                     builder.orientation(ShapeBuilder.orientationFromString(fieldNode.toString()));
@@ -282,40 +288,38 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
             return;
         }
         final GeoShapeFieldMapper fieldMergeWith = (GeoShapeFieldMapper) mergeWith;
-        if (!mergeContext.mergeFlags().simulate()) {
-            final PrefixTreeStrategy mergeWithStrategy = fieldMergeWith.defaultStrategy;
+        final PrefixTreeStrategy mergeWithStrategy = fieldMergeWith.defaultStrategy;
 
-            // prevent user from changing strategies
-            if (!(this.defaultStrategy.getClass().equals(mergeWithStrategy.getClass()))) {
-                mergeContext.addConflict("mapper [" + names.fullName() + "] has different strategy");
-            }
-
-            final SpatialPrefixTree grid = this.defaultStrategy.getGrid();
-            final SpatialPrefixTree mergeGrid = mergeWithStrategy.getGrid();
-
-            // prevent user from changing trees (changes encoding)
-            if (!grid.getClass().equals(mergeGrid.getClass())) {
-                mergeContext.addConflict("mapper [" + names.fullName() + "] has different tree");
-            }
-
-            // TODO we should allow this, but at the moment levels is used to build bookkeeping variables
-            // in lucene's SpatialPrefixTree implementations, need a patch to correct that first
-            if (grid.getMaxLevels() != mergeGrid.getMaxLevels()) {
-                mergeContext.addConflict("mapper [" + names.fullName() + "] has different tree_levels or precision");
-            }
-
-            // bail if there were merge conflicts
-            if (mergeContext.hasConflicts()) {
-                return;
-            }
-
-            // change distance error percent
-            this.defaultStrategy.setDistErrPct(mergeWithStrategy.getDistErrPct());
-
-            // change orientation - this is allowed because existing dateline spanning shapes
-            // have already been unwound and segmented
-            this.shapeOrientation = fieldMergeWith.shapeOrientation;
+        // prevent user from changing strategies
+        if (!(this.defaultStrategy.getClass().equals(mergeWithStrategy.getClass()))) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different strategy");
         }
+
+        final SpatialPrefixTree grid = this.defaultStrategy.getGrid();
+        final SpatialPrefixTree mergeGrid = mergeWithStrategy.getGrid();
+
+        // prevent user from changing trees (changes encoding)
+        if (!grid.getClass().equals(mergeGrid.getClass())) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different tree");
+        }
+
+        // TODO we should allow this, but at the moment levels is used to build bookkeeping variables
+        // in lucene's SpatialPrefixTree implementations, need a patch to correct that first
+        if (grid.getMaxLevels() != mergeGrid.getMaxLevels()) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different tree_levels or precision");
+        }
+
+        // bail if there were merge conflicts
+        if (mergeContext.hasConflicts() || mergeContext.mergeFlags().simulate()) {
+            return;
+        }
+
+        // change distance error percent
+        this.defaultStrategy.setDistErrPct(mergeWithStrategy.getDistErrPct());
+
+        // change orientation - this is allowed because existing dateline spanning shapes
+        // have already been unwound and segmented
+        this.shapeOrientation = fieldMergeWith.shapeOrientation;
     }
 
     @Override

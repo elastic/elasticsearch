@@ -29,10 +29,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -52,16 +54,16 @@ public class NodeIndexDeletedAction extends AbstractComponent {
     private final ThreadPool threadPool;
     private final TransportService transportService;
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
-    private final NodeEnvironment nodeEnv;
+    private final IndicesService indicesService;
 
     @Inject
-    public NodeIndexDeletedAction(Settings settings, ThreadPool threadPool, TransportService transportService, NodeEnvironment nodeEnv) {
+    public NodeIndexDeletedAction(Settings settings, ThreadPool threadPool, TransportService transportService, NodeEnvironment nodeEnv, IndicesService indicesService) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
         transportService.registerHandler(INDEX_DELETED_ACTION_NAME, new NodeIndexDeletedTransportHandler());
         transportService.registerHandler(INDEX_STORE_DELETED_ACTION_NAME, new NodeIndexStoreDeletedTransportHandler());
-        this.nodeEnv = nodeEnv;
+        this.indicesService = indicesService;
     }
 
     public void add(Listener listener) {
@@ -120,16 +122,12 @@ public class NodeIndexDeletedAction extends AbstractComponent {
             // master. If we can't acquire the locks here immediately there might be a shard of this index still holding on to the lock
             // due to a "currently canceled recovery" or so. The shard will delete itself BEFORE the lock is released so it's guaranteed to be
             // deleted by the time we get the lock
-            final List<ShardLock> locks = nodeEnv.lockAllForIndex(new Index(index), TimeUnit.MINUTES.toMillis(30));
-            try {
-                if (nodes.localNodeMaster()) {
-                    innerNodeIndexStoreDeleted(index, nodeId);
-                } else {
-                    transportService.sendRequest(clusterState.nodes().masterNode(),
-                            INDEX_STORE_DELETED_ACTION_NAME, new NodeIndexStoreDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
-                }
-            } finally {
-                IOUtils.close(locks); // release them again
+            indicesService.processPendingDeletes(new Index(index), new TimeValue(30, TimeUnit.MINUTES));
+            if (nodes.localNodeMaster()) {
+                innerNodeIndexStoreDeleted(index, nodeId);
+            } else {
+                transportService.sendRequest(clusterState.nodes().masterNode(),
+                        INDEX_STORE_DELETED_ACTION_NAME, new NodeIndexStoreDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
             }
         } catch (LockObtainFailedException exc) {
             logger.warn("[{}] failed to lock all shards for index - timed out after 30 seconds", index);

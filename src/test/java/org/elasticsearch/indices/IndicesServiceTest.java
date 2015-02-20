@@ -18,20 +18,25 @@
  */
 package org.elasticsearch.indices;
 
+import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.local.state.meta.LocalGatewayMetaState;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -116,5 +121,47 @@ public class IndicesServiceTest extends ElasticsearchSingleNodeTest {
         }
         assertAcked(client().admin().indices().prepareOpen("test"));
         ensureGreen("test");
+    }
+
+    public void testPendingTasks() throws IOException {
+        IndicesService indicesService = getIndicesService();
+        IndexService test = createIndex("test");
+        NodeEnvironment nodeEnc = getInstanceFromNode(NodeEnvironment.class);
+
+        assertTrue(test.hasShard(0));
+        Path[] paths = nodeEnc.shardDataPaths(new ShardId(test.index(), 0), test.getIndexSettings());
+        try {
+            indicesService.processPendingDeletes(test.index(), new TimeValue(0, TimeUnit.MILLISECONDS));
+            fail("can't get lock");
+        } catch (LockObtainFailedException ex) {
+
+        }
+        for (Path p : paths) {
+            assertTrue(Files.exists(p));
+        }
+        indicesService.addPendingDelete(test.index(), new ShardId(test.index(), 0), test.getIndexSettings());
+        assertAcked(client().admin().indices().prepareClose("test"));
+        for (Path p : paths) {
+            assertTrue(Files.exists(p));
+        }
+        assertEquals(indicesService.numPendingDeletes(test.index()), 1);
+        // shard lock released... we can now delete
+        indicesService.processPendingDeletes(test.index(), new TimeValue(0, TimeUnit.MILLISECONDS));
+        assertEquals(indicesService.numPendingDeletes(test.index()), 0);
+        for (Path p : paths) {
+            assertFalse(Files.exists(p));
+        }
+
+        if (randomBoolean()) {
+            indicesService.addPendingDelete(test.index(), new ShardId(test.index(), 0), test.getIndexSettings());
+            indicesService.addPendingDelete(test.index(), new ShardId(test.index(), 1), test.getIndexSettings());
+            indicesService.addPendingDelete(new Index("bogus"), new ShardId("bogus", 1), test.getIndexSettings());
+            assertEquals(indicesService.numPendingDeletes(test.index()), 2);
+            // shard lock released... we can now delete
+            indicesService.processPendingDeletes(test.index(), new TimeValue(0, TimeUnit.MILLISECONDS));
+            assertEquals(indicesService.numPendingDeletes(test.index()), 0);
+        }
+        assertAcked(client().admin().indices().prepareOpen("test"));
+
     }
 }

@@ -70,6 +70,18 @@ cloud:
         proxy_port: 8083
 ```
 
+You can also set different proxies for `ec2` and `s3`:
+
+```
+cloud:
+    aws:
+        s3:
+            proxy_host: proxy1.company.com
+            proxy_port: 8083
+        ec2:
+            proxy_host: proxy2.company.com
+            proxy_port: 8083
+```
 
 ### Region
 

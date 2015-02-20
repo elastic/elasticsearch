@@ -585,6 +585,11 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         public Filter resolve() {
             return innerRangeFilter(fieldData, lowerTerm, upperTerm, includeLower, includeUpper, timeZone, forcedDateParser);
         }
+
+        @Override
+        public String toString(String field) {
+            return "late(lower=" + lowerTerm + ",upper=" + upperTerm + ")";
+        }
     }
 
     public final class LateParsingQuery extends NoCacheQuery {

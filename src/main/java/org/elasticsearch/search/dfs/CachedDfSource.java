@@ -96,30 +96,4 @@ public class CachedDfSource extends IndexSearcher {
     protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         throw new UnsupportedOperationException();
     }
-
-    @Override
-    protected TopDocs search(Weight weight, ScoreDoc after, int nDocs) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    protected TopDocs search(List<LeafReaderContext> leaves, Weight weight, ScoreDoc after, int nDocs) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    protected TopFieldDocs search(Weight weight, int nDocs, Sort sort, boolean doDocScores, boolean doMaxScore) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    protected TopFieldDocs search(Weight weight, FieldDoc after, int nDocs, Sort sort, boolean fillFields, boolean doDocScores, boolean doMaxScore) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    protected TopFieldDocs search(List<LeafReaderContext> leaves, Weight weight, FieldDoc after, int nDocs, Sort sort, boolean fillFields, boolean doDocScores, boolean doMaxScore) throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
 }

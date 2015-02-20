@@ -19,7 +19,9 @@
 package org.elasticsearch.index.search.child;
 
 import com.carrotsearch.hppc.FloatArrayList;
+
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 
@@ -96,5 +98,25 @@ class MockScorer extends Scorer {
     @Override
     public long cost() {
         return 0;
+    }
+
+    @Override
+    public int nextPosition() throws IOException {
+        return -1;
+    }
+
+    @Override
+    public int startOffset() throws IOException {
+        return -1;
+    }
+
+    @Override
+    public int endOffset() throws IOException {
+        return -1;
+    }
+
+    @Override
+    public BytesRef getPayload() throws IOException {
+        return null;
     }
 }

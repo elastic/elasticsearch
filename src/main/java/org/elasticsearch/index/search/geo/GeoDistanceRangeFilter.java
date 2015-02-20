@@ -149,7 +149,7 @@ public class GeoDistanceRangeFilter extends Filter {
     }
 
     @Override
-    public String toString() {
+    public String toString(String field) {
         return "GeoDistanceRangeFilter(" + indexFieldData.getFieldNames().indexName() + ", " + geoDistance + ", [" + inclusiveLowerPoint + " - " + inclusiveUpperPoint + "], " + lat + ", " + lon + ")";
     }
 

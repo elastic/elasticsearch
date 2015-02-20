@@ -67,7 +67,7 @@ public class NotFilter extends Filter {
     }
 
     @Override
-    public String toString() {
+    public String toString(String field) {
         return "NotFilter(" + filter + ")";
     }
 

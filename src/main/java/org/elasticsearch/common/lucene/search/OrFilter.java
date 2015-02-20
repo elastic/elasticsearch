@@ -91,7 +91,7 @@ public class OrFilter extends Filter {
     }
 
     @Override
-    public String toString() {
+    public String toString(String field) {
         StringBuilder builder = new StringBuilder();
         for (Filter filter : filters) {
             if (builder.length() > 0) {

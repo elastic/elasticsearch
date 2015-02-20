@@ -90,21 +90,20 @@ public class FunctionScoreQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
-        Weight subQueryWeight = subQuery.createWeight(searcher);
-        return new CustomBoostFactorWeight(subQueryWeight);
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+        // TODO: needsScores
+        // if we don't need scores, just return the underlying weight?
+        Weight subQueryWeight = subQuery.createWeight(searcher, needsScores);
+        return new CustomBoostFactorWeight(this, subQueryWeight);
     }
 
     class CustomBoostFactorWeight extends Weight {
 
         final Weight subQueryWeight;
 
-        public CustomBoostFactorWeight(Weight subQueryWeight) throws IOException {
+        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight) throws IOException {
+            super(parent);
             this.subQueryWeight = subQueryWeight;
-        }
-
-        public Query getQuery() {
-            return FunctionScoreQuery.this;
         }
 
         @Override
@@ -120,11 +119,8 @@ public class FunctionScoreQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs, boolean needsScores) throws IOException {
-            // we ignore scoreDocsInOrder parameter, because we need to score in
-            // order if documents are scored with a script. The
-            // ShardLookup depends on in order scoring.
-            Scorer subQueryScorer = subQueryWeight.scorer(context, acceptDocs, needsScores);
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+            Scorer subQueryScorer = subQueryWeight.scorer(context, acceptDocs);
             if (subQueryScorer == null) {
                 return null;
             }

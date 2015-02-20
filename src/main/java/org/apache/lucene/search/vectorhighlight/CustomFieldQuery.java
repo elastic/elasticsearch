@@ -77,12 +77,7 @@ public class CustomFieldQuery extends FieldQuery {
         if (sourceQuery instanceof SpanTermQuery) {
             super.flatten(new TermQuery(((SpanTermQuery) sourceQuery).getTerm()), reader, flatQueries);
         } else if (sourceQuery instanceof ConstantScoreQuery) {
-            ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) sourceQuery;
-            if (constantScoreQuery.getFilter() != null) {
-                flatten(constantScoreQuery.getFilter(), reader, flatQueries);
-            } else {
-                flatten(constantScoreQuery.getQuery(), reader, flatQueries);
-            }
+            flatten(((ConstantScoreQuery) sourceQuery).getQuery(), reader, flatQueries);
         } else if (sourceQuery instanceof FunctionScoreQuery) {
             flatten(((FunctionScoreQuery) sourceQuery).getSubQuery(), reader, flatQueries);
         } else if (sourceQuery instanceof FilteredQuery) {
@@ -146,7 +141,9 @@ public class CustomFieldQuery extends FieldQuery {
             return;
         }
         if (sourceFilter instanceof TermFilter) {
-            flatten(new TermQuery(((TermFilter) sourceFilter).getTerm()), reader, flatQueries);
+            // TermFilter is just a deprecated wrapper over QWF
+            TermQuery actualQuery = (TermQuery) ((TermFilter) sourceFilter).getQuery();
+            flatten(new TermQuery(actualQuery.getTerm()), reader, flatQueries);
         } else if (sourceFilter instanceof MultiTermQueryWrapperFilter) {
             if (multiTermQueryWrapperFilterQueryField != null) {
                 try {

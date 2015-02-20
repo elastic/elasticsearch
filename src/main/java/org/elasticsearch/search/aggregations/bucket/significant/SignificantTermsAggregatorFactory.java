@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
@@ -219,7 +219,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         try {
             if (numberOfAggregatorsCreated == 1) {
                 // Setup a termsEnum for sole use by one aggregator
-                termsEnum = new FilterableTermsEnum(reader, indexedFieldName, DocsEnum.FLAG_NONE, filter);
+                termsEnum = new FilterableTermsEnum(reader, indexedFieldName, PostingsEnum.NONE, filter);
             } else {
                 // When we have > 1 agg we have possibility of duplicate term frequency lookups 
                 // and so use a TermsEnum that caches results of all term lookups

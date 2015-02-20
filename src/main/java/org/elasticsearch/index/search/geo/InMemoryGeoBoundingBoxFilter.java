@@ -72,7 +72,7 @@ public class InMemoryGeoBoundingBoxFilter extends Filter {
     }
 
     @Override
-    public String toString() {
+    public String toString(String field) {
         return "GeoBoundingBoxFilter(" + indexFieldData.getFieldNames().indexName() + ", " + topLeft + ", " + bottomRight + ")";
     }
 

@@ -20,8 +20,9 @@
 package org.elasticsearch.action.termvectors;
 
 import com.google.common.collect.Iterators;
-import org.apache.lucene.index.DocsAndPositionsEnum;
+
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.ArrayUtil;
@@ -215,7 +216,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
         builder.startObject(spare.toString());
         buildTermStatistics(builder, termIter);
         // finally write the term vectors
-        DocsAndPositionsEnum posEnum = termIter.docsAndPositions(null, null);
+        PostingsEnum posEnum = termIter.postings(null, null, PostingsEnum.ALL);
         int termFreq = posEnum.freq();
         builder.field(FieldStrings.TERM_FREQ, termFreq);
         initMemory(curTerms, termFreq);
@@ -260,7 +261,7 @@ public class TermVectorsResponse extends ActionResponse implements ToXContent {
         builder.endArray();
     }
 
-    private void initValues(Terms curTerms, DocsAndPositionsEnum posEnum, int termFreq) throws IOException {
+    private void initValues(Terms curTerms, PostingsEnum posEnum, int termFreq) throws IOException {
         for (int j = 0; j < termFreq; j++) {
             int nextPos = posEnum.nextPosition();
             if (curTerms.hasPositions()) {

@@ -13,3 +13,7 @@ java.io.PrintWriter#<init>(java.lang.String,java.lang.String)
 java.util.Formatter#<init>(java.lang.String,java.lang.String,java.util.Locale)
 java.io.RandomAccessFile
 java.nio.file.Path#toFile()
+
+@defaultMessage Don't use deprecated lucene apis
+org.apache.lucene.index.DocsEnum
+org.apache.lucene.index.DocsAndPositionsEnum

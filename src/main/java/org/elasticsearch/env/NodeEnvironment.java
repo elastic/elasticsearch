@@ -234,7 +234,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
     public void deleteIndexDirectorySafe(Index index, long lockTimeoutMS, @IndexSettings Settings indexSettings) throws IOException {
         // This is to ensure someone doesn't use ImmutableSettings.EMPTY
         assert indexSettings != ImmutableSettings.EMPTY;
-        final List<ShardLock> locks = lockAllForIndex(index, lockTimeoutMS);
+        final List<ShardLock> locks = lockAllForIndex(index, indexSettings, lockTimeoutMS);
         try {
             final Path[] indexPaths = indexPaths(index);
             logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
@@ -259,16 +259,19 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
      * @return the {@link ShardLock} instances for this index.
      * @throws IOException if an IOException occurs.
      */
-    public List<ShardLock> lockAllForIndex(Index index, long lockTimeoutMS) throws IOException {
-        Set<ShardId> allShardIds = findAllShardIds(index);
-        logger.trace("locking all shards for index {} - [{}]", index, allShardIds);
-        List<ShardLock> allLocks = new ArrayList<>(allShardIds.size());
+    public List<ShardLock> lockAllForIndex(Index index, @IndexSettings Settings settings, long lockTimeoutMS) throws IOException {
+        final Integer numShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
+        if (numShards == null || numShards <= 0) {
+            throw new IllegalArgumentException("settings must contain a non-null > 0 number of shards");
+        }
+        logger.trace("locking all shards for index {} - [{}]", index, numShards);
+        List<ShardLock> allLocks = new ArrayList<>(numShards);
         boolean success = false;
         long startTime = System.currentTimeMillis();
         try {
-            for (ShardId shardId : allShardIds) {
+            for (int i = 0; i < numShards; i++) {
                 long timeoutLeft = Math.max(0, lockTimeoutMS - (System.currentTimeMillis() - startTime));
-                allLocks.add(shardLock(shardId, timeoutLeft));
+                allLocks.add(shardLock(new ShardId(index, i), timeoutLeft));
             }
             success = true;
         } finally {

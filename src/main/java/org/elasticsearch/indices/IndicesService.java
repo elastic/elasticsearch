@@ -639,9 +639,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param index the index to process the pending deletes for
      * @param timeout the timeout used for processing pending deletes
      */
-    public void processPendingDeletes(Index index, TimeValue timeout) throws IOException {
+    public void processPendingDeletes(Index index, @IndexSettings Settings indexSettings, TimeValue timeout) throws IOException {
         final long startTime = System.currentTimeMillis();
-        final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, timeout.millis());
+        final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, timeout.millis());
         try {
             Map<ShardId, ShardLock> locks = new HashMap<>();
             for (ShardLock lock : shardLocks) {

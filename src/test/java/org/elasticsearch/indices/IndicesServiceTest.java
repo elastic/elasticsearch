@@ -131,7 +131,7 @@ public class IndicesServiceTest extends ElasticsearchSingleNodeTest {
         assertTrue(test.hasShard(0));
         Path[] paths = nodeEnc.shardDataPaths(new ShardId(test.index(), 0), test.getIndexSettings());
         try {
-            indicesService.processPendingDeletes(test.index(), new TimeValue(0, TimeUnit.MILLISECONDS));
+            indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
             fail("can't get lock");
         } catch (LockObtainFailedException ex) {
 
@@ -146,7 +146,7 @@ public class IndicesServiceTest extends ElasticsearchSingleNodeTest {
         }
         assertEquals(indicesService.numPendingDeletes(test.index()), 1);
         // shard lock released... we can now delete
-        indicesService.processPendingDeletes(test.index(), new TimeValue(0, TimeUnit.MILLISECONDS));
+        indicesService.processPendingDeletes(test.index(),  test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
         assertEquals(indicesService.numPendingDeletes(test.index()), 0);
         for (Path p : paths) {
             assertFalse(Files.exists(p));
@@ -158,7 +158,7 @@ public class IndicesServiceTest extends ElasticsearchSingleNodeTest {
             indicesService.addPendingDelete(new Index("bogus"), new ShardId("bogus", 1), test.getIndexSettings());
             assertEquals(indicesService.numPendingDeletes(test.index()), 2);
             // shard lock released... we can now delete
-            indicesService.processPendingDeletes(test.index(), new TimeValue(0, TimeUnit.MILLISECONDS));
+            indicesService.processPendingDeletes(test.index(),  test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
             assertEquals(indicesService.numPendingDeletes(test.index()), 0);
         }
         assertAcked(client().admin().indices().prepareOpen("test"));

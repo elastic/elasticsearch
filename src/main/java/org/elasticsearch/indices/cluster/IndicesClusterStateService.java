@@ -238,15 +238,19 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             if (logger.isDebugEnabled()) {
                 logger.debug("[{}] cleaning index, no longer part of the metadata", index);
             }
-            if (indicesService.hasIndex(index)) {
+            final Settings indexSettings;
+            final IndexService idxService = indicesService.indexService(index);
+            if (idxService != null) {
+                indexSettings = idxService.getIndexSettings();
                 deleteIndex(index, "index no longer part of the metadata");
             } else {
-                IndexMetaData metaData = previousState.metaData().index(index);
+                final IndexMetaData metaData = previousState.metaData().index(index);
                 assert metaData != null;
+                indexSettings = metaData.settings();
                 indicesService.deleteClosedIndex("closed index no longer part of the metadata", metaData);
             }
             try {
-                nodeIndexDeletedAction.nodeIndexDeleted(event.state(), index, localNodeId);
+                nodeIndexDeletedAction.nodeIndexDeleted(event.state(), index, indexSettings, localNodeId);
             } catch (Throwable e) {
                 logger.debug("failed to send to master index {} deleted event", e, index);
             }

@@ -20,6 +20,7 @@
 package org.elasticsearch.common.jna;
 
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.jna.Kernel32Library.ConsoleCtrlHandler;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
@@ -31,6 +32,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9802")
 public class Kernel32LibraryTests extends ElasticsearchTestCase {
 
     /**

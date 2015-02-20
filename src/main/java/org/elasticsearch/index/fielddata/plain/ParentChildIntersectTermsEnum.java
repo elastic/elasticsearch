@@ -20,7 +20,9 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 
@@ -63,16 +65,16 @@ final class ParentChildIntersectTermsEnum extends TermsEnum {
     }
 
     @Override
-    public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) throws IOException {
+    public PostingsEnum postings(Bits liveDocs, PostingsEnum reuse, int flags) throws IOException {
         int size = stateSlots.size();
         assert size > 0;
         if (size == 1) {
             // Can't use 'reuse' since we don't know to which previous TermsEnum it belonged to.
-            return states.get(stateSlots.get(0)).termsEnum.docs(liveDocs, null, flags);
+            return states.get(stateSlots.get(0)).termsEnum.postings(liveDocs, null, flags);
         } else {
-            List<DocsEnum> docsEnums = new ArrayList<>(stateSlots.size());
+            List<PostingsEnum> docsEnums = new ArrayList<>(stateSlots.size());
             for (int i = 0; i < stateSlots.size(); i++) {
-                docsEnums.add(states.get(stateSlots.get(i)).termsEnum.docs(liveDocs, null, flags));
+                docsEnums.add(states.get(stateSlots.get(i)).termsEnum.postings(liveDocs, null, flags));
             }
             return new CompoundDocsEnum(docsEnums);
         }
@@ -213,14 +215,14 @@ final class ParentChildIntersectTermsEnum extends TermsEnum {
         }
     }
 
-    class CompoundDocsEnum extends DocsEnum {
+    class CompoundDocsEnum extends PostingsEnum {
 
         final List<State> states;
         int current = -1;
 
-        CompoundDocsEnum(List<DocsEnum> docsEnums) {
+        CompoundDocsEnum(List<PostingsEnum> docsEnums) {
             this.states = new ArrayList<>(docsEnums.size());
-            for (DocsEnum docsEnum : docsEnums) {
+            for (PostingsEnum docsEnum : docsEnums) {
                 states.add(new State(docsEnum));
             }
         }
@@ -257,7 +259,7 @@ final class ParentChildIntersectTermsEnum extends TermsEnum {
                 }
             }
 
-            if (states.get(lowestIndex).next() == DocsEnum.NO_MORE_DOCS) {
+            if (states.get(lowestIndex).next() == DocIdSetIterator.NO_MORE_DOCS) {
                 states.remove(lowestIndex);
             }
 
@@ -274,12 +276,32 @@ final class ParentChildIntersectTermsEnum extends TermsEnum {
             throw new UnsupportedOperationException();
         }
 
+        @Override
+        public int endOffset() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BytesRef getPayload() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int nextPosition() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public int startOffset() throws IOException {
+            throw new UnsupportedOperationException();
+        }
+
         class State {
 
-            final DocsEnum docsEnum;
+            final PostingsEnum docsEnum;
             int current = -1;
 
-            State(DocsEnum docsEnum) {
+            State(PostingsEnum docsEnum) {
                 this.docsEnum = docsEnum;
             }
 
@@ -310,11 +332,6 @@ final class ParentChildIntersectTermsEnum extends TermsEnum {
 
     @Override
     public long totalTermFreq() throws IOException {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) throws IOException {
         throw new UnsupportedOperationException();
     }
 }

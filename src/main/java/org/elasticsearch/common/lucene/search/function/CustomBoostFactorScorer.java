@@ -21,6 +21,7 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 
@@ -80,6 +81,28 @@ abstract class CustomBoostFactorScorer extends Scorer {
     public long cost() {
         return scorer.cost();
     }
+
+    @Override
+    public int nextPosition() throws IOException {
+        return scorer.nextPosition();
+    }
+
+    @Override
+    public int startOffset() throws IOException {
+        return scorer.startOffset();
+    }
+
+    @Override
+    public int endOffset() throws IOException {
+        return scorer.endOffset();
+    }
+
+    @Override
+    public BytesRef getPayload() throws IOException {
+        return scorer.getPayload();
+    }
+
+
 
     public interface NextDoc {
         public int advance(int target) throws IOException;

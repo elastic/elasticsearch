@@ -120,9 +120,11 @@ public class FiltersFunctionScoreQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
-        Weight subQueryWeight = subQuery.createWeight(searcher);
-        return new CustomBoostFactorWeight(subQueryWeight, filterFunctions.length);
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+        // TODO: needsScores
+        // if we dont need scores, just return the underlying Weight?
+        Weight subQueryWeight = subQuery.createWeight(searcher, needsScores);
+        return new CustomBoostFactorWeight(this, subQueryWeight, filterFunctions.length);
     }
 
     class CustomBoostFactorWeight extends Weight {
@@ -130,13 +132,10 @@ public class FiltersFunctionScoreQuery extends Query {
         final Weight subQueryWeight;
         final Bits[] docSets;
 
-        public CustomBoostFactorWeight(Weight subQueryWeight, int filterFunctionLength) throws IOException {
+        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight, int filterFunctionLength) throws IOException {
+            super(parent);
             this.subQueryWeight = subQueryWeight;
             this.docSets = new Bits[filterFunctionLength];
-        }
-
-        public Query getQuery() {
-            return FiltersFunctionScoreQuery.this;
         }
 
         @Override
@@ -152,11 +151,11 @@ public class FiltersFunctionScoreQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs, boolean needsScores) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             // we ignore scoreDocsInOrder parameter, because we need to score in
             // order if documents are scored with a script. The
             // ShardLookup depends on in order scoring.
-            Scorer subQueryScorer = subQueryWeight.scorer(context, acceptDocs, needsScores);
+            Scorer subQueryScorer = subQueryWeight.scorer(context, acceptDocs);
             if (subQueryScorer == null) {
                 return null;
             }

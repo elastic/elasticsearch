@@ -21,6 +21,7 @@ package org.elasticsearch.search.controller;
 
 import com.carrotsearch.hppc.IntArrayList;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.elasticsearch.action.search.SearchRequest;
@@ -199,38 +200,51 @@ public class SearchPhaseController extends AbstractComponent {
         Arrays.sort(sortedResults, QUERY_RESULT_ORDERING);
         QuerySearchResultProvider firstResult = sortedResults[0].value;
 
-        final Sort sort;
-        if (firstResult.queryResult().topDocs() instanceof TopFieldDocs) {
-            TopFieldDocs firstTopDocs = (TopFieldDocs) firstResult.queryResult().topDocs();
-            sort = new Sort(firstTopDocs.fields);
-        } else {
-            sort = null;
-        }
-
         int topN = firstResult.queryResult().size();
-        // Need to use the length of the resultsArr array, since the slots will be based on the position in the resultsArr array
-        TopDocs[] shardTopDocs = new TopDocs[resultsArr.length()];
         if (firstResult.includeFetch()) {
             // if we did both query and fetch on the same go, we have fetched all the docs from each shards already, use them...
             // this is also important since we shortcut and fetch only docs from "from" and up to "size"
             topN *= sortedResults.length;
         }
-        for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : sortedResults) {
-            TopDocs topDocs = sortedResult.value.queryResult().topDocs();
-            // the 'index' field is the position in the resultsArr atomic array
-            shardTopDocs[sortedResult.index] = topDocs;
-        }
+
         int from = firstResult.queryResult().from();
         if (ignoreFrom) {
             from = 0;
         }
-        // TopDocs#merge can't deal with null shard TopDocs
-        for (int i = 0; i < shardTopDocs.length; i++) {
-            if (shardTopDocs[i] == null) {
-                shardTopDocs[i] = Lucene.EMPTY_TOP_DOCS;
+
+        final TopDocs mergedTopDocs;
+        if (firstResult.queryResult().topDocs() instanceof TopFieldDocs) {
+            TopFieldDocs firstTopDocs = (TopFieldDocs) firstResult.queryResult().topDocs();
+            final Sort sort = new Sort(firstTopDocs.fields);
+
+            final TopFieldDocs[] shardTopDocs = new TopFieldDocs[resultsArr.length()];
+            for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : sortedResults) {
+                TopDocs topDocs = sortedResult.value.queryResult().topDocs();
+                // the 'index' field is the position in the resultsArr atomic array
+                shardTopDocs[sortedResult.index] = (TopFieldDocs) topDocs;
             }
+            // TopDocs#merge can't deal with null shard TopDocs
+            for (int i = 0; i < shardTopDocs.length; ++i) {
+                if (shardTopDocs[i] == null) {
+                    shardTopDocs[i] = new TopFieldDocs(0, new FieldDoc[0], sort.getSort(), Float.NaN);
+                }
+            }
+            mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
+        } else {
+            final TopDocs[] shardTopDocs = new TopDocs[resultsArr.length()];
+            for (AtomicArray.Entry<? extends QuerySearchResultProvider> sortedResult : sortedResults) {
+                TopDocs topDocs = sortedResult.value.queryResult().topDocs();
+                // the 'index' field is the position in the resultsArr atomic array
+                shardTopDocs[sortedResult.index] = topDocs;
+            }
+            // TopDocs#merge can't deal with null shard TopDocs
+            for (int i = 0; i < shardTopDocs.length; ++i) {
+                if (shardTopDocs[i] == null) {
+                    shardTopDocs[i] = Lucene.EMPTY_TOP_DOCS;
+                }
+            }
+            mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
         }
-        TopDocs mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
         return mergedTopDocs.scoreDocs;
     }
 

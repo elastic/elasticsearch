@@ -212,11 +212,11 @@ public class ParentConstantScoreQueryTests extends AbstractChildTests {
                 if (terms != null) {
                     NavigableSet<String> childIds = parentValueToChildDocIds.lget();
                     TermsEnum termsEnum = terms.iterator(null);
-                    DocsEnum docsEnum = null;
+                    PostingsEnum docsEnum = null;
                     for (String id : childIds) {
                         TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(Uid.createUidAsBytes("child", id));
                         if (seekStatus == TermsEnum.SeekStatus.FOUND) {
-                            docsEnum = termsEnum.docs(slowLeafReader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
+                            docsEnum = termsEnum.postings(slowLeafReader.getLiveDocs(), docsEnum, PostingsEnum.NONE);
                             expectedResult.set(docsEnum.nextDoc());
                         } else if (seekStatus == TermsEnum.SeekStatus.END) {
                             break;

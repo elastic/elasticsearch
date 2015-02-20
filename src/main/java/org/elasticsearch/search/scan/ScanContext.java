@@ -167,6 +167,11 @@ public class ScanContext {
             }
             return BitsFilteredDocIdSet.wrap(new AllDocIdSet(context.reader().maxDoc()), acceptedDocs);
         }
+
+        @Override
+        public String toString(String field) {
+            return "ScanFilter";
+        }
     }
 
     static class ReaderState {

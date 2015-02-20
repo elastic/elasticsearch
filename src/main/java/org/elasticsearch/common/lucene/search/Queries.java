@@ -76,7 +76,7 @@ public class Queries {
     public static boolean isConstantMatchAllQuery(Query query) {
         if (query instanceof ConstantScoreQuery) {
             ConstantScoreQuery scoreQuery = (ConstantScoreQuery) query;
-            if (scoreQuery.getFilter() instanceof MatchAllDocsFilter) {
+            if (scoreQuery.getQuery() instanceof MatchAllDocsFilter || scoreQuery.getQuery() instanceof MatchAllDocsQuery) {
                 return true;
             }
         }

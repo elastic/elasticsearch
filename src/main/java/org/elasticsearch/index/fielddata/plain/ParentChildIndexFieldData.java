@@ -23,14 +23,15 @@ import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableSortedSet;
 
-import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.MultiDocValues.OrdinalMap;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
@@ -135,7 +136,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         ObjectObjectOpenHashMap<String, TypeBuilder> typeBuilders = ObjectObjectOpenHashMap.newInstance();
         try {
             try {
-                DocsEnum docsEnum = null;
+                PostingsEnum docsEnum = null;
                 for (BytesRef term = estimatedTermsEnum.next(); term != null; term = estimatedTermsEnum.next()) {
                     // Usually this would be estimatedTermsEnum, but the
                     // abstract TermsEnum class does not support the .type()
@@ -152,8 +153,8 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
                     final long termOrd = typeBuilder.builder.nextOrdinal();
                     assert termOrd == typeBuilder.termOrdToBytesOffset.size();
                     typeBuilder.termOrdToBytesOffset.add(typeBuilder.bytes.copyUsingLengthPrefix(id));
-                    docsEnum = estimatedTermsEnum.docs(null, docsEnum, DocsEnum.FLAG_NONE);
-                    for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                    docsEnum = estimatedTermsEnum.postings(null, docsEnum, PostingsEnum.NONE);
+                    for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                         typeBuilder.builder.addDoc(docId);
                     }
                 }

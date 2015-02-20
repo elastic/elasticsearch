@@ -325,10 +325,6 @@ public class Lucene {
     }
 
     public static TopDocs readTopDocs(StreamInput in) throws IOException {
-        if (!in.readBoolean()) {
-            // no docs
-            return null;
-        }
         if (in.readBoolean()) {
             int totalHits = in.readVInt();
             float maxScore = in.readFloat();
@@ -395,11 +391,7 @@ public class Lucene {
     }
 
     public static void writeTopDocs(StreamOutput out, TopDocs topDocs, int from) throws IOException {
-        if (topDocs.scoreDocs.length - from < 0) {
-            out.writeBoolean(false);
-            return;
-        }
-        out.writeBoolean(true);
+        from = Math.min(from, topDocs.scoreDocs.length);
         if (topDocs instanceof TopFieldDocs) {
             out.writeBoolean(true);
             TopFieldDocs topFieldDocs = (TopFieldDocs) topDocs;
@@ -424,11 +416,8 @@ public class Lucene {
             }
 
             out.writeVInt(topDocs.scoreDocs.length - from);
-            int index = 0;
-            for (ScoreDoc doc : topFieldDocs.scoreDocs) {
-                if (index++ < from) {
-                    continue;
-                }
+            for (int i = from; i < topFieldDocs.scoreDocs.length; ++i) {
+                ScoreDoc doc = topFieldDocs.scoreDocs[i];
                 writeFieldDoc(out, (FieldDoc) doc);
             }
         } else {
@@ -437,11 +426,8 @@ public class Lucene {
             out.writeFloat(topDocs.getMaxScore());
 
             out.writeVInt(topDocs.scoreDocs.length - from);
-            int index = 0;
-            for (ScoreDoc doc : topDocs.scoreDocs) {
-                if (index++ < from) {
-                    continue;
-                }
+            for (int i = from; i < topDocs.scoreDocs.length; ++i) {
+                ScoreDoc doc = topDocs.scoreDocs[i];
                 writeScoreDoc(out, doc);
             }
         }
@@ -684,6 +670,22 @@ public class Lucene {
             }
             @Override
             public int nextDoc() throws IOException {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+            @Override
+            public int nextPosition() throws IOException {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+            @Override
+            public int startOffset() throws IOException {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+            @Override
+            public int endOffset() throws IOException {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+            @Override
+            public BytesRef getPayload() throws IOException {
                 throw new ElasticsearchIllegalStateException(message);
             }
         };

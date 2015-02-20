@@ -60,7 +60,7 @@ public class MatchAllDocsFilter extends Filter {
     }
 
     @Override
-    public String toString() {
+    public String toString(String field) {
         return "*:*";
     }
 }

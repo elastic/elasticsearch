@@ -205,7 +205,8 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
             return BitsFilteredDocIdSet.wrap(DocIdSets.isEmpty(ret) ? null : ret, acceptDocs);
         }
 
-        public String toString() {
+        @Override
+        public String toString(String field) {
             return "cache(" + filter + ")";
         }
 

@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -136,9 +137,9 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool(getClass().getName());
         store = createStore();
-        store.deleteContent();
         storeReplica = createStore();
-        storeReplica.deleteContent();
+        Lucene.cleanLuceneIndex(store.directory());
+        Lucene.cleanLuceneIndex(storeReplica.directory());
         translog = createTranslog();
         engine = createEngine(store, translog);
         LiveIndexWriterConfig currentIndexWriterConfig = ((InternalEngine)engine).getCurrentIndexWriterConfig();

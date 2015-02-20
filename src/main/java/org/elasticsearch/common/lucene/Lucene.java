@@ -138,23 +138,25 @@ public class Lucene {
         } catch (IOException ex) {
             // ignore - best effort
         }
-        while (true) {
+        int foundSegmentFiles = 0;
+        for (final String file : directory.listAll()) {
             /**
              * we could also use a deletion policy here but in the case of snapshot and restore
              * sometimes we restore an index and override files that were referenced by a "future"
              * commit. If such a commit is opened by the IW it would likely throw a corrupted index exception
              * since checksums don's match anymore. that's why we prune the name here directly.
              * We also want the caller to know if we were not able to remove a segments_N file.
-             *
              */
-            String lastSegmentsFile = SegmentInfos.getLastCommitSegmentsFileName(directory);
-            if (lastSegmentsFile == null) {
-                throw new IllegalStateException("no commit found in the directory");
+            if (file.startsWith(IndexFileNames.SEGMENTS)) {
+                foundSegmentFiles++;
+                if (file.equals(si.getSegmentsFileName()) == false) {
+                    directory.deleteFile(file); // remove all segment_N files except of the one we wanna keep
+                }
             }
-            if (lastSegmentsFile.equals(si.getSegmentsFileName())) {
-                break;
-            }
-            directory.deleteFile(lastSegmentsFile);
+        }
+        assert SegmentInfos.getLastCommitSegmentsFileName(directory).equals(segmentsFileName);
+        if (foundSegmentFiles == 0) {
+            throw new IllegalStateException("no commit found in the directory");
         }
         final CommitPoint cp = new CommitPoint(si, directory);
         final IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig(Version.LATEST, Lucene.STANDARD_ANALYZER)

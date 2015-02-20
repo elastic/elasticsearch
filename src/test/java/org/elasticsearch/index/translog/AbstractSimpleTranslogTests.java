@@ -35,6 +35,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.EOFException;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.file.DirectoryStream;
@@ -437,6 +438,54 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         }
         assertThat("at least one corruption was caused and caught", corruptionsCaught.get(), greaterThanOrEqualTo(1));
     }
+
+    @Test
+    public void testTruncatedTranslogs() throws Exception {
+        List<Translog.Location> locations = newArrayList();
+
+        int translogOperations = randomIntBetween(10, 100);
+        for (int op = 0; op < translogOperations; op++) {
+            String ascii = randomAsciiOfLengthBetween(1, 50);
+            locations.add(translog.add(new Translog.Create("test", "" + op, ascii.getBytes("UTF-8"))));
+        }
+        translog.sync();
+
+        truncateTranslogs(translogFileDirectory());
+
+        AtomicInteger truncations = new AtomicInteger(0);
+        for (Translog.Location location : locations) {
+            try {
+                translog.read(location);
+            } catch (ElasticsearchException e) {
+                if (e.getCause() instanceof EOFException) {
+                    truncations.incrementAndGet();
+                } else {
+                    throw e;
+                }
+            }
+        }
+        assertThat("at least one truncation was caused and caught", truncations.get(), greaterThanOrEqualTo(1));
+    }
+
+    /**
+     * Randomly truncate some bytes in the translog files
+     */
+    private void truncateTranslogs(String directory) throws Exception {
+        File[] files = new File(directory).listFiles();
+        if (files != null) {
+            for (File file : files) {
+                if (file.getName().startsWith("translog-")) {
+                    RandomAccessFile f = new RandomAccessFile(file, "rw");
+                    long prevSize = f.length();
+                    long newSize = prevSize - randomIntBetween(1, (int) prevSize / 2);
+                    logger.info("--> truncating {}, prev: {}, now: {}", file, prevSize, newSize);
+                    f.setLength(newSize);
+                    f.close();
+                }
+            }
+        }
+    }
+
 
     /**
      * Randomly overwrite some bytes in the translog files

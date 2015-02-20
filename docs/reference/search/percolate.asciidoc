@@ -203,7 +203,7 @@ curl -XGET 'localhost:9200/twitter/tweet/_percolate' -d '{
 --------------------------------------------------
 
 .Additional supported query string options
-* `routing` - In the case the percolate queries are partitioned by a custom routing value, that routing option make sure
+* `routing` - In case the percolate queries are partitioned by a custom routing value, that routing option make sure
 that the percolate request only gets executed on the shard where the routing value is partitioned to. This means that
 the percolate request only gets executed on one shard instead of all shards. Multiple values can be specified as a
 comma separated string, in that case the request can be be executed on more than one shard.

@@ -35,7 +35,6 @@ import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
-import org.joda.time.tz.DateTimeZoneBuilder;
 import org.junit.After;
 import org.junit.Test;
 
@@ -1281,6 +1280,30 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo.getBuckets().size(), equalTo(1));
         assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("2014-01-01T00:00:00.000+02:00"));
+    }
+
+    public void testIssue8209() throws InterruptedException, ExecutionException {
+        assertAcked(client().admin().indices().prepareCreate("test8209").addMapping("type", "d", "type=date").get());
+        indexRandom(true,
+                client().prepareIndex("test8209", "type").setSource("d", "2014-01-01T0:00:00Z"),
+                client().prepareIndex("test8209", "type").setSource("d", "2014-04-01T0:00:00Z"),
+                client().prepareIndex("test8209", "type").setSource("d", "2014-04-30T0:00:00Z"));
+        ensureSearchable("test8209");
+        SearchResponse response = client().prepareSearch("test8209")
+                .addAggregation(dateHistogram("histo").field("d").interval(DateHistogramInterval.MONTH).timeZone("CET")
+                .minDocCount(0))
+                .execute().actionGet();
+        assertSearchResponse(response);
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo.getBuckets().size(), equalTo(4));
+        assertThat(histo.getBuckets().get(0).getKeyAsString(), equalTo("2014-01-01T00:00:00.000+01:00"));
+        assertThat(histo.getBuckets().get(0).getDocCount(), equalTo(1L));
+        assertThat(histo.getBuckets().get(1).getKeyAsString(), equalTo("2014-02-01T00:00:00.000+01:00"));
+        assertThat(histo.getBuckets().get(1).getDocCount(), equalTo(0L));
+        assertThat(histo.getBuckets().get(2).getKeyAsString(), equalTo("2014-03-01T00:00:00.000+01:00"));
+        assertThat(histo.getBuckets().get(2).getDocCount(), equalTo(0L));
+        assertThat(histo.getBuckets().get(3).getKeyAsString(), equalTo("2014-04-01T00:00:00.000+02:00"));
+        assertThat(histo.getBuckets().get(3).getDocCount(), equalTo(2L));
     }
 
     /**

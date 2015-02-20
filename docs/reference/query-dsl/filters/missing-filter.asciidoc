@@ -1,7 +1,7 @@
 [[query-dsl-missing-filter]]
 === Missing Filter
 
-Returns documents that have no non-`null` values in the original field:
+Returns documents that only have `null` values in the original field:
 
 [source,js]
 --------------------------------------------------
@@ -12,7 +12,7 @@ Returns documents that have no non-`null` values in the original field:
         }
     }
 }
---------------------------------------------------
+--------------------------------------------------n
 
 For instance, the following docs would match the above filter:
 

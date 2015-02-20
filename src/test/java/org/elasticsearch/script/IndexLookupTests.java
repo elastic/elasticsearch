@@ -45,7 +45,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
-@AwaitsFix(bugUrl="https://github.com/elasticsearch/elasticsearch/pull/9746")
+@AwaitsFix(bugUrl="https://issues.apache.org/jira/browse/LUCENE-6271")
 public class IndexLookupTests extends ElasticsearchIntegrationTest {
 
     String includeAllFlag = "_FREQUENCIES | _OFFSETS | _PAYLOADS | _POSITIONS | _CACHE";
@@ -404,10 +404,10 @@ public class IndexLookupTests extends ElasticsearchIntegrationTest {
     public void testAllExceptPosAndOffset() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("float_payload_field").field("type", "string").field("index_options", "offsets").field("term_vector", "no")
-                .field("analyzer", "payload_float").endObject().startObject("string_payload_field").field("type", "string")
-                .field("index_options", "offsets").field("term_vector", "no").field("analyzer", "payload_string").endObject()
+            .field("analyzer", "payload_float").endObject().startObject("string_payload_field").field("type", "string")
+            .field("index_options", "offsets").field("term_vector", "no").field("analyzer", "payload_string").endObject()
                 .startObject("int_payload_field").field("type", "string").field("index_options", "offsets")
-                .field("analyzer", "payload_int").endObject().endObject().endObject().endObject();
+            .field("analyzer", "payload_int").endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
                 ImmutableSettings.settingsBuilder()
                         .put(indexSettings())

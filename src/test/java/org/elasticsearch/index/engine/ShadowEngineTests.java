@@ -127,9 +127,9 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
         threadPool = new ThreadPool(getClass().getName());
         dirPath = newTempDir(LifecycleScope.TEST).toPath();
         store = createStore(dirPath);
-        store.deleteContent();
         storeReplica = createStore(dirPath);
-        storeReplica.deleteContent();
+        Lucene.cleanLuceneIndex(store.directory());
+        Lucene.cleanLuceneIndex(storeReplica.directory());
         translog = createTranslog();
         primaryEngine = createInternalEngine(store, translog);
         LiveIndexWriterConfig currentIndexWriterConfig = ((InternalEngine)primaryEngine).getCurrentIndexWriterConfig();

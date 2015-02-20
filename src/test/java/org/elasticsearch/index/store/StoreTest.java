@@ -28,6 +28,7 @@ import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.*;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -840,7 +841,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     }
 
     public void assertDeleteContent(Store store, DirectoryService service) throws IOException {
-        store.deleteContent();
+        deleteContent(store.directory());
         assertThat(Arrays.toString(store.directory().listAll()), store.directory().listAll().length, equalTo(0));
         assertThat(store.stats().sizeInBytes(), equalTo(0l));
         for (Directory dir : service.build()) {
@@ -1061,7 +1062,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             assertThat(newCommitDiff.missing.size(), equalTo(4)); // an entire segment must be missing (single doc segment got dropped)  plus the commit is different
         }
 
-        store.deleteContent();
+        deleteContent(store.directory());
         IOUtils.close(store);
     }
 
@@ -1165,14 +1166,14 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             assertEquals("we wrote one checksum but it's gone now? - checksums are supposed to be kept", numChecksums, 1);
         }
 
-        store.deleteContent();
+        deleteContent(store.directory());
         IOUtils.close(store);
     }
 
     @Test
     public void testCleanUpWithLegacyChecksums() throws IOException {
         Map<String, StoreFileMetaData> metaDataMap = new HashMap<>();
-        metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[] {1})));
+        metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[]{1})));
         metaDataMap.put("_0_1.del", new StoreFileMetaData("_0_1.del", 42, "foobarbaz", null, new BytesRef()));
         Store.MetadataSnapshot snapshot = new Store.MetadataSnapshot(metaDataMap);
 
@@ -1188,7 +1189,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         }
 
         store.verifyAfterCleanup(snapshot, snapshot);
-        store.deleteContent();
+        deleteContent(store.directory());
         IOUtils.close(store);
     }
 
@@ -1241,7 +1242,23 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         stats = store.stats();
         assertEquals(stats.getSizeInBytes(), length);
 
-        store.deleteContent();
+        deleteContent(store.directory());
         IOUtils.close(store);
+    }
+
+
+    public static void deleteContent(Directory directory) throws IOException {
+        final String[] files = directory.listAll();
+        final List<IOException> exceptions = new ArrayList<>();
+        for (String file : files) {
+            try {
+                directory.deleteFile(file);
+            } catch (NoSuchFileException | FileNotFoundException e) {
+                // ignore
+            } catch (IOException e) {
+                exceptions.add(e);
+            }
+        }
+        ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 }

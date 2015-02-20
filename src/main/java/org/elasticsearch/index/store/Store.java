@@ -255,7 +255,10 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         metadataLock.writeLock().lock();
         // we make sure that nobody fetches the metadata while we do this rename operation here to ensure we don't
         // get exceptions if files are still open.
-        try {
+        try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
+            if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
+                throw new LockObtainFailedException("Index locked for write: " + writeLock);
+            }
             for (Map.Entry<String, String> entry : entries) {
                 String tempFile = entry.getKey();
                 String origFile = entry.getValue();
@@ -275,25 +278,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             metadataLock.writeLock().unlock();
         }
 
-    }
-
-    /**
-     * Deletes the content of a shard store. Be careful calling this!.
-     */
-    public void deleteContent() throws IOException {
-        ensureOpen();
-        final String[] files = directory.listAll();
-        final List<IOException> exceptions = new ArrayList<>();
-        for (String file : files) {
-            try {
-                directory.deleteFile(file);
-            } catch (NoSuchFileException | FileNotFoundException e) {
-                // ignore
-            } catch (IOException e) {
-                exceptions.add(e);
-            }
-        }
-        ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
     public StoreStats stats() throws IOException {
@@ -581,18 +565,28 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     public void cleanup(String reason, Set<String> filesToClean) throws IOException {
         failIfCorrupted();
         metadataLock.writeLock().lock();
-        try {
-            final Directory dir = directory();
+        try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
+            if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
+                throw new LockObtainFailedException("Index locked for write: " + writeLock);
+            }
+            final StoreDirectory dir = directory;
             for (String existingFile : dir.listAll()) {
-                // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
-                if (!filesToClean.contains(existingFile) && !Store.isChecksum(existingFile)) {
-                    try {
-                        logDeleteFile(reason, existingFile);
-                        dir.deleteFile(existingFile);
-                    } catch (Exception ex) {
-                        logger.debug("failed to delete file [{}]", ex, existingFile);
-                        // ignore, we don't really care, will get deleted later on
+                if (existingFile.equals(IndexWriter.WRITE_LOCK_NAME) || Store.isChecksum(existingFile) || filesToClean.contains(existingFile)) {
+                    continue; // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
+                }
+                try {
+                    logDeleteFile(reason, existingFile);
+                    dir.deleteFile(existingFile);
+                    // FNF should not happen since we hold a write lock?
+                } catch (IOException ex) {
+                    if (existingFile.startsWith(IndexFileNames.SEGMENTS)
+                        || existingFile.equals(IndexFileNames.SEGMENTS_GEN)) {
+                        // TODO do we need to also fail this if we can't delete the pending commit file?
+                        // if one of those files can't be deleted we better fail the cleanup otherwise we might leave an old commit point around?
+                        throw new ElasticsearchIllegalStateException("Can't delete " + existingFile + " - cleanup failed", ex);
                     }
+                    logger.debug("failed to delete file [{}]", ex, existingFile);
+                    // ignore, we don't really care, will get deleted later on
                 }
             }
         } finally {

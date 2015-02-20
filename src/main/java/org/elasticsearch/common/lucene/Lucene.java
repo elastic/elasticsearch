@@ -20,15 +20,12 @@
 package org.elasticsearch.common.lucene;
 
 import com.google.common.collect.Iterables;
-import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.Version;
@@ -44,9 +41,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.nio.file.NoSuchFileException;
 import java.text.ParseException;
 import java.util.*;
 
@@ -129,34 +124,35 @@ public class Lucene {
      * that are newer than the given segments file are removed forcefully to prevent problems with IndexWriter opening a potentially
      * broken commit point / leftover.
      * <b>Note:</b> this method will fail if there is another IndexWriter open on the given directory. This method will also acquire
-     * a write lock from the directory while pruning unused files.
+     * a write lock from the directory while pruning unused files. This method expects an existing index in the given directory that has
+     * the given segments file.
      */
     public static SegmentInfos pruneUnreferencedFiles(String segmentsFileName, Directory directory) throws IOException {
         final SegmentInfos si = readSegmentInfos(segmentsFileName, directory);
-        try {
-            directory.deleteFile(IndexFileNames.SEGMENTS_GEN);
-        } catch (IOException ex) {
-            // ignore - best effort
-        }
         int foundSegmentFiles = 0;
-        for (final String file : directory.listAll()) {
-            /**
-             * we could also use a deletion policy here but in the case of snapshot and restore
-             * sometimes we restore an index and override files that were referenced by a "future"
-             * commit. If such a commit is opened by the IW it would likely throw a corrupted index exception
-             * since checksums don's match anymore. that's why we prune the name here directly.
-             * We also want the caller to know if we were not able to remove a segments_N file.
-             */
-            if (file.startsWith(IndexFileNames.SEGMENTS)) {
-                foundSegmentFiles++;
-                if (file.equals(si.getSegmentsFileName()) == false) {
-                    directory.deleteFile(file); // remove all segment_N files except of the one we wanna keep
+        try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
+            if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
+                throw new LockObtainFailedException("Index locked for write: " + writeLock);
+            }
+            for (final String file : directory.listAll()) {
+                /**
+                 * we could also use a deletion policy here but in the case of snapshot and restore
+                 * sometimes we restore an index and override files that were referenced by a "future"
+                 * commit. If such a commit is opened by the IW it would likely throw a corrupted index exception
+                 * since checksums don's match anymore. that's why we prune the name here directly.
+                 * We also want the caller to know if we were not able to remove a segments_N file.
+                 */
+                if (file.startsWith(IndexFileNames.SEGMENTS) || file.equals(IndexFileNames.SEGMENTS_GEN)) {
+                    foundSegmentFiles++;
+                    if (file.equals(si.getSegmentsFileName()) == false) {
+                        directory.deleteFile(file); // remove all segment_N files except of the one we wanna keep
+                    }
                 }
             }
-        }
-        assert SegmentInfos.getLastCommitSegmentsFileName(directory).equals(segmentsFileName);
-        if (foundSegmentFiles == 0) {
-            throw new IllegalStateException("no commit found in the directory");
+            assert SegmentInfos.getLastCommitSegmentsFileName(directory).equals(segmentsFileName);
+            if (foundSegmentFiles == 0) {
+                throw new IllegalStateException("no commit found in the directory");
+            }
         }
         final CommitPoint cp = new CommitPoint(si, directory);
         final IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig(Version.LATEST, Lucene.STANDARD_ANALYZER)
@@ -165,6 +161,29 @@ public class Lucene {
                 .setOpenMode(IndexWriterConfig.OpenMode.APPEND));
         iw.rollback(); // do nothing and close this will kick of IndexFileDeleter which will remove all pending files
         return si;
+    }
+
+    /**
+     * This method removes all lucene files from the given directory. It will first try to delete all commit points / segments
+     * files to ensure broken commits or corrupted indices will not be opened in the future. If any of the segment files can't be deleted
+     * this operation fails.
+     */
+    public static void cleanLuceneIndex(Directory directory) throws IOException {
+        try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
+            if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
+                throw new LockObtainFailedException("Index locked for write: " + writeLock);
+            }
+            for (final String file : directory.listAll()) {
+                if (file.startsWith(IndexFileNames.SEGMENTS) || file.equals(IndexFileNames.SEGMENTS_GEN)) {
+                    directory.deleteFile(file); // remove all segment_N files
+                }
+            }
+        }
+        IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig(Version.LATEST, Lucene.STANDARD_ANALYZER)
+                .setMergePolicy(NoMergePolicy.INSTANCE) // no merges
+                .setOpenMode(IndexWriterConfig.OpenMode.CREATE)); // force creation - don't append...
+        // do nothing and close this will kick of IndexFileDeleter which will remove all pending files
+        iw.rollback();
     }
 
     public static void checkSegmentInfoIntegrity(final Directory directory) throws IOException {

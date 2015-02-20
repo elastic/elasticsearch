@@ -20,6 +20,7 @@
 package org.elasticsearch.index.gateway.none;
 
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.none.NoneGateway;
 import org.elasticsearch.index.gateway.IndexShardGateway;
@@ -65,7 +66,7 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
         indexShard.store().incRef();
         try {
             logger.debug("cleaning shard content before creation");
-            indexShard.store().deleteContent();
+            Lucene.cleanLuceneIndex(indexShard.store().directory());
         } catch (IOException e) {
             logger.warn("failed to clean store before starting shard", e);
         } finally {

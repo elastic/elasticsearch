@@ -35,6 +35,7 @@ import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -377,7 +378,7 @@ public class RecoveryTarget extends AbstractComponent {
         }
     }
 
-    class CleanFilesRequestHandler extends BaseTransportRequestHandler<RecoveryCleanFilesRequest> {
+     class CleanFilesRequestHandler extends BaseTransportRequestHandler<RecoveryCleanFilesRequest> {
 
         @Override
         public RecoveryCleanFilesRequest newInstance() {
@@ -422,7 +423,12 @@ public class RecoveryTarget extends AbstractComponent {
                         // broken. We have to clean up this shard entirely, remove all files and bubble it up to the
                         // source shard since this index might be broken there as well? The Source can handle this and checks
                         // its content on disk if possible.
-                        store.deleteContent(); // clean up and delete all files
+                        try {
+                            Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
+                        } catch (Throwable e) {
+                            logger.debug("Failed to clean lucene index", e);
+                            ex.addSuppressed(e);
+                        }
                         throw new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
                     } catch (Exception ex) {
                         throw new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);

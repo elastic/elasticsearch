@@ -17,7 +17,6 @@
  * under the License.
  */
 package org.elasticsearch.common.lucene;
-import com.google.common.collect.Iterables;
 import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -47,6 +46,57 @@ public class LuceneTest extends ElasticsearchLuceneTestCase {
     public void testVersion() {
         // note this is just a silly sanity check, we test it in lucene, and we point to it this way
         assertEquals(Lucene.VERSION, Version.LATEST);
+    }
+
+    public void testCleanIndex() throws IOException {
+        MockDirectoryWrapper dir = newMockDirectory();
+        dir.setEnableVirusScanner(false);
+        IndexWriterConfig iwc = newIndexWriterConfig(new MockAnalyzer(random()));
+        iwc.setIndexDeletionPolicy(NoDeletionPolicy.INSTANCE);
+        iwc.setMergePolicy(NoMergePolicy.INSTANCE);
+        iwc.setMaxBufferedDocs(2);
+        IndexWriter writer = new IndexWriter(dir, iwc);
+        Document doc = new Document();
+        doc.add(new TextField("id", "1", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+        writer.commit();
+
+        doc = new Document();
+        doc.add(new TextField("id", "2", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+
+        doc = new Document();
+        doc.add(new TextField("id", "3", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+
+        writer.commit();
+        doc = new Document();
+        doc.add(new TextField("id", "4", random().nextBoolean() ? Field.Store.YES : Field.Store.NO));
+        writer.addDocument(doc);
+
+        writer.deleteDocuments(new Term("id", "2"));
+        writer.commit();
+        try (DirectoryReader open = DirectoryReader.open(writer, true)) {
+            assertEquals(3, open.numDocs());
+            assertEquals(1, open.numDeletedDocs());
+            assertEquals(4, open.maxDoc());
+        }
+        writer.close();
+        if (random().nextBoolean()) {
+            for (String file : dir.listAll()) {
+                if (file.startsWith("_1")) {
+                    // delete a random file
+                    dir.deleteFile(file);
+                    break;
+                }
+            }
+        }
+        Lucene.cleanLuceneIndex(dir);
+        if (dir.listAll().length > 0) {
+            assertEquals(dir.listAll().length, 1);
+            assertEquals(dir.listAll()[0], "write.lock");
+        }
+        dir.close();
     }
 
     public void testPruneUnreferencedFiles() throws IOException {

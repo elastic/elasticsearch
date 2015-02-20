@@ -142,9 +142,9 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool(getClass().getName());
         store = createStore();
-        store.deleteContent();
         storeReplica = createStore();
-        storeReplica.deleteContent();
+        Lucene.cleanLuceneIndex(store.directory());
+        Lucene.cleanLuceneIndex(storeReplica.directory());
         translog = createTranslog();
         engine = createEngine(store, translog);
         LiveIndexWriterConfig currentIndexWriterConfig = ((InternalEngine)engine).getCurrentIndexWriterConfig();

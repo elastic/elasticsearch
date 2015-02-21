@@ -24,9 +24,7 @@ import org.elasticsearch.common.logging.Loggers;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -61,7 +59,7 @@ public class MatchAssertion extends Assertion {
         }
 
         assertThat(errorMessage(), actualValue, notNullValue());
-        logger.trace("assert that [{}] matches [{}]", actualValue, expectedValue);
+        logger.trace("assert that [{}] matches [{}] (field [{}])", actualValue, expectedValue, getField());
         if (!actualValue.getClass().equals(expectedValue.getClass())) {
             if (actualValue instanceof Number && expectedValue instanceof Number) {
                 //Double 1.0 is equal to Integer 1

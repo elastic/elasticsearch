@@ -94,6 +94,10 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
 
         final RecoveryState.Index index = new RecoveryState.Index();
         final long startTime = System.currentTimeMillis();
+        // before we start we must report 0
+        assertThat(index.recoveredFilesPercent(), equalTo((float) 0.0));
+        assertThat(index.recoveredBytesPercent(), equalTo((float) 0.0));
+
         index.startTime(startTime);
         for (File file : files) {
             index.addFileDetail(file.name(), file.length(), file.reused());
@@ -108,7 +112,8 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
         assertThat(index.totalRecoverFiles(), equalTo(filesToRecover.size()));
         assertThat(index.recoveredFileCount(), equalTo(0));
         assertThat(index.recoveredBytes(), equalTo(0l));
-        assertThat(index.recoverdFilesPercent(), equalTo((float) 0.0));
+        assertThat(index.recoveredFilesPercent(), equalTo(filesToRecover.size() == 0 ? 100.0f : 0.0f));
+        assertThat(index.recoveredBytesPercent(), equalTo(filesToRecover.size() == 0 ? 100.0f : 0.0f));
         assertThat(index.startTime(), equalTo(startTime));
 
 
@@ -166,9 +171,11 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
         assertThat(index.recoveredFileCount(), equalTo(index.totalRecoverFiles() - filesToRecover.size()));
         assertThat(index.recoveredBytes(), equalTo(recoveredBytes));
         if (index.totalRecoverFiles() == 0) {
-            assertThat((double) index.recoverdFilesPercent(), equalTo(0.0));
+            assertThat((double) index.recoveredFilesPercent(), equalTo(100.0));
+            assertThat((double) index.recoveredBytesPercent(), equalTo(100.0));
         } else {
-            assertThat((double) index.recoverdFilesPercent(), closeTo(100.0 * index.recoveredFileCount() / index.totalRecoverFiles(), 0.1));
+            assertThat((double) index.recoveredFilesPercent(), closeTo(100.0 * index.recoveredFileCount() / index.totalRecoverFiles(), 0.1));
+            assertThat((double) index.recoveredBytesPercent(), closeTo(100.0 * index.recoveredBytes() / index.totalRecoverBytes(), 0.1));
         }
         assertThat(index.startTime(), equalTo(startTime));
     }

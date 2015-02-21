@@ -486,7 +486,7 @@ public class RecoveryState implements ToXContent, Streamable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(Fields.RECOVERED, currentTranslogOperations);
+            builder.field(Fields.RECOVERED, currentTranslogOperations.get());
             builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time);
             return builder;
         }
@@ -654,7 +654,6 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
 
-
         /** number of file that were recovered (excluding on ongoing files) */
         public int recoveredFileCount() {
             int count = 0;
@@ -667,7 +666,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
         /** percent of recovered (i.e., not reused) files out of the total files to be recovered */
-        public float recoverdFilesPercent() {
+        public float recoveredFilesPercent() {
             int total = 0;
             int recovered = 0;
             for (File file : fileDetails.values()) {
@@ -678,10 +677,10 @@ public class RecoveryState implements ToXContent, Streamable {
                     }
                 }
             }
-            if (total == 0) {      // indicates we are still in init phase
+            if (total == 0 && fileDetails.size() == 0) {      // indicates we are still in init phase
                 return 0.0f;
             }
-            if ((total - recovered) == 0) {
+            if (total == recovered) {
                 return 100.0f;
             } else {
                 float result = 100.0f * (recovered / (float) total);
@@ -738,14 +737,14 @@ public class RecoveryState implements ToXContent, Streamable {
                     recovered += file.recovered();
                 }
             }
-            if (total == 0) {      // indicates we are still in init phase
+            if (total == 0 && fileDetails.size() == 0) {
+                // indicates we are still in init phase
                 return 0.0f;
             }
-            if ((total - recovered) == 0) {
+            if (total == recovered) {
                 return 100.0f;
             } else {
-                float result = 100.0f * (recovered / (float) total);
-                return result;
+                return 100.0f * recovered / total;
             }
         }
 
@@ -859,7 +858,7 @@ public class RecoveryState implements ToXContent, Streamable {
             builder.field(Fields.TOTAL, totalFileCount());
             builder.field(Fields.REUSED, reusedFileCount());
             builder.field(Fields.RECOVERED, recoveredFileCount());
-            builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoverdFilesPercent()));
+            builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredFilesPercent()));
             if (params.paramAsBoolean("details", false)) {
                 builder.startArray(Fields.DETAILS);
                 for (File file : fileDetails.values()) {

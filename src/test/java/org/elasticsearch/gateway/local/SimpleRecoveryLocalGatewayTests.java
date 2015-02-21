@@ -405,7 +405,7 @@ public class SimpleRecoveryLocalGatewayTests extends ElasticsearchIntegrationTes
                         response.getShardId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
                         recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
                 assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredBytes(), equalTo(0l));
-                assertThat("data should have been reused", recoveryState.getIndex().recoveredBytes(), greaterThan(0l));
+                assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0l));
                 assertThat("all bytes should be reused", recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes()));
                 assertThat("no files should be recovered", recoveryState.getIndex().recoveredFileCount(), equalTo(0));
                 assertThat("all files should be reused", recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));

@@ -104,8 +104,8 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
                     assertThat(index.toString(), index.recoveredFileCount(), equalTo(0));
                     assertThat(index.toString(), index.reusedFileCount(), equalTo(index.totalFileCount()));
                     assertThat(index.toString(), index.reusedFileCount(), greaterThan(0));
-                    assertThat(index.toString(), index.recoveredBytesPercent(), equalTo(0.f));
-                    assertThat(index.toString(), index.recoveredFilesPercent(), equalTo(0.f));
+                    assertThat(index.toString(), index.recoveredBytesPercent(), equalTo(100.f));
+                    assertThat(index.toString(), index.recoveredFilesPercent(), equalTo(100.f));
                     assertThat(index.toString(), index.reusedBytes(), greaterThan(index.recoveredBytes()));
                 } else {
                     /* We added checksums on 1.3 but they were available on 1.2 already since this uses Lucene 4.8.

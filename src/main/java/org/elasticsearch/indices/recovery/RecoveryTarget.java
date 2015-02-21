@@ -111,10 +111,6 @@ public class RecoveryTarget extends AbstractComponent {
         });
     }
 
-    public int recoveriesCount() {
-        return onGoingRecoveries.size();
-    }
-
     public RecoveryState recoveryState(IndexShard indexShard) {
         try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.findRecoveryByShard(indexShard)) {
             if (statusRef == null) {

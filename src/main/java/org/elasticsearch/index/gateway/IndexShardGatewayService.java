@@ -111,12 +111,10 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                 try {
                     if (indexShard.routingEntry().restoreSource() != null) {
                         logger.debug("restoring from {} ...", indexShard.routingEntry().restoreSource());
-                        recoveryState.setType(RecoveryState.Type.SNAPSHOT);
                         recoveryState.setRestoreSource(indexShard.routingEntry().restoreSource());
                         snapshotService.restore(recoveryState);
                     } else {
                         logger.debug("starting recovery from {} ...", shardGateway);
-                        recoveryState.setType(RecoveryState.Type.GATEWAY);
                         recoveryState.setSourceNode(clusterService.localNode());
                         shardGateway.recover(indexShouldExists, recoveryState);
                     }
@@ -138,9 +136,14 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                     if (logger.isTraceEnabled()) {
                         StringBuilder sb = new StringBuilder();
                         sb.append("recovery completed from ").append(shardGateway).append(", took [").append(timeValueMillis(recoveryState.getTimer().time())).append("]\n");
-                        sb.append("    index    : files           [").append(recoveryState.getIndex().totalFileCount()).append("] with total_size [")
-                                .append(new ByteSizeValue(recoveryState.getIndex().totalBytes())).append("], took[")
-                                .append(TimeValue.timeValueMillis(recoveryState.getIndex().time())).append("]\n");
+                        RecoveryState.Index index = recoveryState.getIndex();
+                        sb.append("    index    : files           [").append(index.totalFileCount()).append("] with total_size [")
+                                .append(new ByteSizeValue(index.totalBytes())).append("], took[")
+                                .append(TimeValue.timeValueMillis(index.time())).append("]\n");
+                        sb.append("             : recovered_files [").append(index.recoveredFileCount()).append("] with total_size [")
+                                .append(new ByteSizeValue(index.recoveredBytes())).append("]\n");
+                        sb.append("             : reusing_files   [").append(index.reusedFileCount()).append("] with total_size [")
+                                .append(new ByteSizeValue(index.reusedBytes())).append("]\n");
                         sb.append("    start    : took [").append(TimeValue.timeValueMillis(recoveryState.getStart().time())).append("], check_index [")
                                 .append(timeValueMillis(recoveryState.getStart().checkIndexTime())).append("]\n");
                         sb.append("    translog : number_of_operations [").append(recoveryState.getTranslog().currentTranslogOperations())

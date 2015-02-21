@@ -128,7 +128,9 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
         Streamer<RecoveryState.Index> backgroundReader = new Streamer<RecoveryState.Index>(streamShouldStop, index) {
             @Override
             RecoveryState.Index deserialize(StreamInput in) throws IOException {
-                return RecoveryState.Index.readIndex(in);
+                RecoveryState.Index index = new RecoveryState.Index();
+                index.readFrom(in);
+                return index;
             }
         };
 
@@ -149,9 +151,9 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
 
         if (completeRecovery) {
             assertThat(filesToRecover.size(), equalTo(0));
-            long time = System.currentTimeMillis() - startTime;
-            index.time(time);
-            assertThat(index.time(), equalTo(time));
+            long time = System.currentTimeMillis();
+            index.stopTime(time);
+            assertThat(index.time(), equalTo(Math.max(0, time - startTime)));
         }
 
         logger.info("testing serialized information");

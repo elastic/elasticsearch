@@ -58,7 +58,7 @@ public class ShardRecoveryResponse extends BroadcastShardOperationResponse imple
     }
 
     /**
-     * Gets the recovery state information for the shard. Null shard wasn't recovered / recovery didn't start yet.
+     * Gets the recovery state information for the shard. Null if shard wasn't recovered / recovery didn't start yet.
      *
      * @return  Recovery state
      */

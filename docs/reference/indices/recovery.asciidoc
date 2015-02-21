@@ -26,8 +26,8 @@ Response:
   "index1" : {
     "shards" : [ {
       "id" : 0,
-      "type" : "snapshot",
-      "stage" : "index",
+      "type" : "SNAPSHOT",
+      "stage" : "INDEX",
       "primary" : true,
       "start_time" : "2014-02-24T12:15:59.716",
       "stop_time" : 0,
@@ -91,8 +91,8 @@ Response:
   "index1" : {
     "shards" : [ {
       "id" : 0,
-      "type" : "gateway",
-      "stage" : "done",
+      "type" : "GATEWAY",
+      "stage" : "DONE",
       "primary" : true,
       "start_time" : "2014-02-24T12:38:06.349",
       "stop_time" : "2014-02-24T12:38:08.464",
@@ -113,7 +113,7 @@ Response:
         "files" : {
           "total" : 26,
           "reused" : 26,
-          "recovered" : 26,
+          "recovered" : 0,
           "percent" : "100.0%",
           "details" : [ {
             "name" : "segments.gen",
@@ -134,7 +134,7 @@ Response:
         "bytes" : {
           "total" : 26001617,
           "reused" : 26001617,
-          "recovered" : 26001617,
+          "recovered" : 0,
           "percent" : "100.0%"
         },
         "total_time_in_millis" : 2

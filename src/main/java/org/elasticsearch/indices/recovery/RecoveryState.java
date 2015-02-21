@@ -115,10 +115,10 @@ public class RecoveryState implements ToXContent, Streamable {
 
     private volatile Stage stage = Stage.INIT;
 
-    private volatile Index index = new Index();
-    private volatile Translog translog = new Translog();
-    private volatile Start start = new Start();
-    private volatile Timer timer = new Timer();
+    private final Index index = new Index();
+    private final Translog translog = new Translog();
+    private final Start start = new Start();
+    private final Timer timer = new Timer();
 
     private volatile Type type;
     private volatile ShardId shardId;
@@ -226,9 +226,9 @@ public class RecoveryState implements ToXContent, Streamable {
         if (in.readBoolean()) {
             sourceNode = DiscoveryNode.readNode(in);
         }
-        index = Index.readIndex(in);
-        translog = Translog.readTranslog(in);
-        start = Start.readStart(in);
+        index.readFrom(in);
+        translog.readFrom(in);
+        start.readFrom(in);
         if (in.getVersion().before(Version.V_1_5_0)) {
             // used to the detailed flag
             in.readBoolean();
@@ -403,12 +403,6 @@ public class RecoveryState implements ToXContent, Streamable {
             this.checkIndexTime = checkIndexTime;
         }
 
-        public static Start readStart(StreamInput in) throws IOException {
-            Start start = new Start();
-            start.readFrom(in);
-            return start;
-        }
-
         @Override
         public void readFrom(StreamInput in) throws IOException {
             startTime = in.readVLong();
@@ -462,12 +456,6 @@ public class RecoveryState implements ToXContent, Streamable {
 
         public int currentTranslogOperations() {
             return this.currentTranslogOperations.get();
-        }
-
-        public static Translog readTranslog(StreamInput in) throws IOException {
-            Translog translog = new Translog();
-            translog.readFrom(in);
-            return translog;
         }
 
         @Override
@@ -628,9 +616,9 @@ public class RecoveryState implements ToXContent, Streamable {
             return this.time;
         }
 
-        public void time(long time) {
-            assert time >= 0;
-            this.time = time;
+        public void stopTime(long stopTime) {
+            assert stopTime >= 0;
+            this.time = Math.max(0, stopTime - startTime);
         }
 
         public long version() {
@@ -770,12 +758,6 @@ public class RecoveryState implements ToXContent, Streamable {
 
         public void updateVersion(long version) {
             this.version = version;
-        }
-
-        public static Index readIndex(StreamInput in) throws IOException {
-            Index index = new Index();
-            index.readFrom(in);
-            return index;
         }
 
         @Override

@@ -37,7 +37,7 @@ Let's look at a range of percentiles representing load time:
     "aggs" : {
         "load_time_outlier" : {
             "percentile_ranks" : {
-                "field" : "load_time" <1>
+                "field" : "load_time", <1>
                 "values" : [15, 30]
             }
         }

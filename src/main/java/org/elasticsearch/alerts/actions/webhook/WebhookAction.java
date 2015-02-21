@@ -5,13 +5,17 @@
  */
 package org.elasticsearch.alerts.actions.webhook;
 
+import org.elasticsearch.alerts.AlertsSettingsException;
 import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.ActionException;
-import org.elasticsearch.alerts.support.StringTemplateUtils;
+import org.elasticsearch.alerts.actions.ActionSettingsException;
+import org.elasticsearch.alerts.support.template.Template;
+import org.elasticsearch.alerts.support.template.XContentTemplate;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -21,8 +25,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  */
@@ -30,27 +32,18 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
     public static final String TYPE = "webhook";
 
-    static final StringTemplateUtils.Template DEFAULT_BODY_TEMPLATE = new StringTemplateUtils.Template(
-            "{ 'alertname' : '{{alert_name}}', 'response' : {{response}} }");
-
-    private final StringTemplateUtils templateUtils;
     private final HttpClient httpClient;
 
-    private final StringTemplateUtils.Template urlTemplate;
     private final HttpMethod method;
+    private final Template url;
+    private final @Nullable Template body;
 
-    //Optional, default will be used if not provided
-    private final StringTemplateUtils.Template bodyTemplate;
-
-    public WebhookAction(ESLogger logger, StringTemplateUtils templateUtils, HttpClient httpClient,
-                            @Nullable StringTemplateUtils.Template bodyTemplate,
-                            StringTemplateUtils.Template urlTemplate, HttpMethod method) {
+    public WebhookAction(ESLogger logger, HttpClient httpClient, HttpMethod method, Template url, Template body) {
         super(logger);
-        this.templateUtils = templateUtils;
         this.httpClient = httpClient;
-        this.bodyTemplate = bodyTemplate;
-        this.urlTemplate = urlTemplate;
         this.method = method;
+        this.url = url;
+        this.body = body;
     }
 
     @Override
@@ -60,44 +53,62 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
     @Override
     public Result execute(ExecutionContext ctx, Payload payload) throws IOException {
-        Map<String, Object> data = payload.data();
-        String renderedUrl = applyTemplate(templateUtils, urlTemplate, ctx.alert().name(), data);
-        String body = applyTemplate(templateUtils, bodyTemplate != null ? bodyTemplate : DEFAULT_BODY_TEMPLATE, ctx.alert().name(), data);
+        ImmutableMap<String, Object> model = ImmutableMap.<String, Object>builder()
+                .put(ALERT_NAME_VARIABLE, ctx.alert().name())
+                .put(PAYLOAD_VARIABLE, payload.data())
+                .build();
+        String urlText = url.render(model);
+        String bodyText = body != null ? body.render(model) : XContentTemplate.YAML.render(model);
         try {
 
-            int status = httpClient.execute(method, renderedUrl, body);
+            int status = httpClient.execute(method, urlText, bodyText);
             if (status >= 400) {
-                logger.warn("got status [" + status + "] when connecting to [" + renderedUrl + "]");
+                logger.warn("got status [" + status + "] when connecting to [" + urlText + "]");
             } else {
                 if (status >= 300) {
                     logger.warn("a 200 range return code was expected, but got [" + status + "]");
                 }
             }
-            return new Result.Executed(status, renderedUrl, body);
+            return new Result.Executed(status, urlText, bodyText);
+
         } catch (IOException ioe) {
-            logger.error("failed to connect to [{}] for alert [{}]", ioe, renderedUrl, ctx.alert().name());
+            logger.error("failed to connect to [{}] for alert [{}]", ioe, urlText, ctx.alert().name());
             return new Result.Failure("failed to send http request. " + ioe.getMessage());
         }
 
-    }
-
-    static String applyTemplate(StringTemplateUtils templateUtils, StringTemplateUtils.Template template, String alertName, Map<String, Object> data) {
-        Map<String, Object> webHookParams = new HashMap<>();
-        webHookParams.put(ALERT_NAME_VARIABLE_NAME, alertName);
-        webHookParams.put(RESPONSE_VARIABLE_NAME, data);
-        return templateUtils.executeTemplate(template, webHookParams);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Parser.METHOD_FIELD.getPreferredName(), method.getName());
-        if (bodyTemplate != null) {
-            StringTemplateUtils.writeTemplate(Parser.BODY_TEMPLATE_FIELD.getPreferredName(), bodyTemplate, builder, params);
+        builder.field(Parser.URL_FIELD.getPreferredName(), url);
+        if (body != null) {
+            builder.field(Parser.BODY_FIELD.getPreferredName(), body);
         }
-        StringTemplateUtils.writeTemplate(Parser.URL_TEMPLATE_FIELD.getPreferredName(), urlTemplate, builder, params);
-        builder.endObject();
-        return builder;
+        return builder.endObject();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        WebhookAction that = (WebhookAction) o;
+
+        if (!body.equals(that.body)) return false;
+        if (!method.equals(that.method)) return false;
+        if (!url.equals(that.url)) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = method.hashCode();
+        result = 31 * result + url.hashCode();
+        result = 31 * result + body.hashCode();
+        return result;
     }
 
     public abstract static class Result extends Action.Result {
@@ -108,19 +119,19 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
         public static class Executed extends Result {
 
-            private final int httpStatusCode;
+            private final int httpStatus;
             private final String url;
             private final String body;
 
-            public Executed(int httpStatusCode, String url, String body) {
-                super(TYPE, httpStatusCode < 400);
-                this.httpStatusCode = httpStatusCode;
+            public Executed(int httpStatus, String url, String body) {
+                super(TYPE, httpStatus < 400);
+                this.httpStatus = httpStatus;
                 this.url = url;
                 this.body = body;
             }
 
-            public int httpStatusCode() {
-                return httpStatusCode;
+            public int httpStatus() {
+                return httpStatus;
             }
 
             public String url() {
@@ -134,9 +145,9 @@ public class WebhookAction extends Action<WebhookAction.Result> {
             @Override
             protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
                 return builder.field("success", success())
-                        .field(Parser.HTTP_STATUS_FIELD.getPreferredName(), httpStatusCode)
-                        .field(Parser.URL_FIELD.getPreferredName(), url)
-                        .field(Parser.BODY_FIELD.getPreferredName(), body);
+                        .field(WebhookAction.Parser.HTTP_STATUS_FIELD.getPreferredName(), httpStatus)
+                        .field(WebhookAction.Parser.URL_FIELD.getPreferredName(), url)
+                        .field(WebhookAction.Parser.BODY_FIELD.getPreferredName(), body);
             }
         }
 
@@ -151,7 +162,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
             @Override
             protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(Parser.REASON_FIELD.getPreferredName(), reason);
+                return builder.field(WebhookAction.Parser.REASON_FIELD.getPreferredName(), reason);
             }
         }
     }
@@ -160,21 +171,18 @@ public class WebhookAction extends Action<WebhookAction.Result> {
     public static class Parser extends AbstractComponent implements Action.Parser<Result, WebhookAction> {
 
         public static final ParseField METHOD_FIELD = new ParseField("method");
-        public static final ParseField URL_TEMPLATE_FIELD = new ParseField("url_template");
-        public static final ParseField BODY_TEMPLATE_FIELD = new ParseField("body_template");
-
-        public static final ParseField BODY_FIELD = new ParseField("body");
         public static final ParseField URL_FIELD = new ParseField("url");
+        public static final ParseField BODY_FIELD = new ParseField("body");
         public static final ParseField HTTP_STATUS_FIELD = new ParseField("http_status");
         public static final ParseField REASON_FIELD = new ParseField("reason");
 
-        private final StringTemplateUtils templateUtils;
+        private final Template.Parser templateParser;
         private final HttpClient httpClient;
 
         @Inject
-        public Parser(Settings settings, StringTemplateUtils templateUtils, HttpClient httpClient) {
+        public Parser(Settings settings, Template.Parser templateParser, HttpClient httpClient) {
             super(settings);
-            this.templateUtils = templateUtils;
+            this.templateParser = templateParser;
             this.httpClient = httpClient;
         }
 
@@ -186,8 +194,8 @@ public class WebhookAction extends Action<WebhookAction.Result> {
         @Override
         public WebhookAction parse(XContentParser parser) throws IOException {
             HttpMethod method = HttpMethod.POST;
-            StringTemplateUtils.Template urlTemplate = null;
-            StringTemplateUtils.Template bodyTemplate = null;
+            Template urlTemplate = null;
+            Template bodyTemplate = null;
 
             String currentFieldName = null;
             XContentParser.Token token;
@@ -199,26 +207,33 @@ public class WebhookAction extends Action<WebhookAction.Result> {
                     if (METHOD_FIELD.match(currentFieldName)) {
                         method = HttpMethod.valueOf(parser.text());
                         if (method != HttpMethod.POST && method != HttpMethod.GET && method != HttpMethod.PUT) {
-                            throw new ActionException("could not parse webhook action. unsupported http method ["
-                                    + method.getName() + "]");
+                            throw new ActionSettingsException("could not parse webhook action. unsupported http method [" + method.getName() + "]");
                         }
-                    } else if (URL_TEMPLATE_FIELD.match(currentFieldName)) {
-                        urlTemplate = StringTemplateUtils.readTemplate(parser);
-                    } else if (BODY_TEMPLATE_FIELD.match(currentFieldName)) {
-                        bodyTemplate = StringTemplateUtils.readTemplate(parser);
+                    } else if (URL_FIELD.match(currentFieldName)) {
+                        try {
+                            urlTemplate = templateParser.parse(parser);
+                        } catch (Template.Parser.ParseException pe) {
+                            throw new AlertsSettingsException("could not parse webhook action [url] template", pe);
+                        }
+                    } else if (BODY_FIELD.match(currentFieldName)) {
+                        try {
+                            bodyTemplate = templateParser.parse(parser);
+                        } catch (Template.Parser.ParseException pe) {
+                            throw new ActionSettingsException("could not parse webhook action [body] template", pe);
+                        }
                     }  else {
-                        throw new ActionException("could not parse webhook action. unexpected field [" + currentFieldName + "]");
+                        throw new ActionSettingsException("could not parse webhook action. unexpected field [" + currentFieldName + "]");
                     }
                 } else {
-                    throw new ActionException("could not parse webhook action. unexpected token [" + token + "]");
+                    throw new ActionSettingsException("could not parse webhook action. unexpected token [" + token + "]");
                 }
             }
 
             if (urlTemplate == null) {
-                throw new ActionException("could not parse webhook action. [url_template] is required");
+                throw new ActionSettingsException("could not parse webhook action. [url_template] is required");
             }
 
-            return new WebhookAction(logger, templateUtils, httpClient, bodyTemplate, urlTemplate, method);
+            return new WebhookAction(logger, httpClient, method, urlTemplate, bodyTemplate);
         }
 
         @Override
@@ -264,25 +279,4 @@ public class WebhookAction extends Action<WebhookAction.Result> {
         }
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        WebhookAction that = (WebhookAction) o;
-
-        if (bodyTemplate != null ? !bodyTemplate.equals(that.bodyTemplate) : that.bodyTemplate != null) return false;
-        if (method != null ? !method.equals(that.method) : that.method != null) return false;
-        if (urlTemplate != null ? !urlTemplate.equals(that.urlTemplate) : that.urlTemplate != null) return false;
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        int result = urlTemplate != null ? urlTemplate.hashCode() : 0;
-        result = 31 * result + (method != null ? method.hashCode() : 0);
-        result = 31 * result + (bodyTemplate != null ? bodyTemplate.hashCode() : 0);
-        return result;
-    }
 }

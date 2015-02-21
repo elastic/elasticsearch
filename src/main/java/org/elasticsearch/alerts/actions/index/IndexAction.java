@@ -12,6 +12,7 @@ import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.ActionException;
+import org.elasticsearch.alerts.actions.ActionSettingsException;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -90,6 +91,26 @@ public class IndexAction extends Action<IndexAction.Result> {
         return builder;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        IndexAction that = (IndexAction) o;
+
+        if (index != null ? !index.equals(that.index) : that.index != null) return false;
+        if (type != null ? !type.equals(that.type) : that.type != null) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = index != null ? index.hashCode() : 0;
+        result = 31 * result + (type != null ? type.hashCode() : 0);
+        return result;
+    }
+
     public static class Parser extends AbstractComponent implements Action.Parser<Result, IndexAction> {
 
         public static final ParseField INDEX_FIELD = new ParseField("index");
@@ -127,19 +148,19 @@ public class IndexAction extends Action<IndexAction.Result> {
                     } else if (TYPE_FIELD.match(currentFieldName)) {
                         type = parser.text();
                     } else {
-                        throw new ActionException("could not parse index action. unexpected field [" + currentFieldName + "]");
+                        throw new ActionSettingsException("could not parse index action. unexpected field [" + currentFieldName + "]");
                     }
                 } else {
-                    throw new ActionException("could not parse index action. unexpected token [" + token + "]");
+                    throw new ActionSettingsException("could not parse index action. unexpected token [" + token + "]");
                 }
             }
 
             if (index == null) {
-                throw new ActionException("could not parse index action [index] is required");
+                throw new ActionSettingsException("could not parse index action [index] is required");
             }
 
             if (type == null) {
-                throw new ActionException("could not parse index action [type] is required");
+                throw new ActionSettingsException("could not parse index action [type] is required");
             }
 
             return new IndexAction(logger, client, index, type);
@@ -215,24 +236,4 @@ public class IndexAction extends Action<IndexAction.Result> {
 
     }
 
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-
-        IndexAction that = (IndexAction) o;
-
-        if (index != null ? !index.equals(that.index) : that.index != null) return false;
-        if (type != null ? !type.equals(that.type) : that.type != null) return false;
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        int result = index != null ? index.hashCode() : 0;
-        result = 31 * result + (type != null ? type.hashCode() : 0);
-        return result;
-    }
 }

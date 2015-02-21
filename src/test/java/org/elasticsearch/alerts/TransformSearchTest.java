@@ -13,7 +13,6 @@ import org.elasticsearch.alerts.actions.index.IndexAction;
 import org.elasticsearch.alerts.condition.search.ScriptSearchCondition;
 import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
-import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.transform.SearchTransform;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.common.unit.TimeValue;
@@ -59,9 +58,9 @@ public class TransformSearchTest extends AbstractAlertingTests {
         Alert alert = new Alert(
                 "test-serialization",
                 new CronSchedule("0/5 * * * * ? *"),
-                new ScriptSearchCondition(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()),
+                new ScriptSearchCondition(logger, scriptService(), ClientProxy.of(client()),
                         conditionRequest,"return true", ScriptService.ScriptType.INLINE, "groovy"),
-                new SearchTransform(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()), transformRequest),
+                new SearchTransform(logger, scriptService(), ClientProxy.of(client()), transformRequest),
                 new TimeValue(0),
                 new Actions(actions),
                 metadata,

@@ -9,9 +9,10 @@ package org.elasticsearch.alerts.actions;
 import org.elasticsearch.alerts.AbstractAlertingTests;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.actions.index.IndexAction;
+import org.elasticsearch.alerts.condition.Condition;
+import org.elasticsearch.alerts.condition.search.ScriptSearchCondition;
 import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
-import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.transform.SearchTransform;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
@@ -19,8 +20,6 @@ import org.elasticsearch.alerts.transport.actions.get.GetAlertRequest;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertRequest;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
-import org.elasticsearch.alerts.condition.Condition;
-import org.elasticsearch.alerts.condition.search.ScriptSearchCondition;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -57,7 +56,7 @@ public class ActionsTest extends AbstractAlertingTests {
         final List<Action> actionList = new ArrayList<>();
         actionList.add(alertAction);
 
-        Condition alertCondition = new ScriptSearchCondition(logger, ScriptServiceProxy.of(scriptService()),
+        Condition alertCondition = new ScriptSearchCondition(logger, scriptService(),
                 ClientProxy.of(client()), createConditionSearchRequest(), "return true", ScriptService.ScriptType.INLINE, "groovy");
 
 
@@ -65,7 +64,7 @@ public class ActionsTest extends AbstractAlertingTests {
                 "my-first-alert",
                 new CronSchedule("0/5 * * * * ? *"),
                 alertCondition,
-                new SearchTransform(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()), createConditionSearchRequest()),
+                new SearchTransform(logger, scriptService(), ClientProxy.of(client()), createConditionSearchRequest()),
                 new TimeValue(0),
                 new Actions(actionList),
                 null,

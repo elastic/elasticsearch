@@ -16,7 +16,6 @@ import org.elasticsearch.alerts.history.FiredAlert;
 import org.elasticsearch.alerts.history.HistoryStore;
 import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
-import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.transform.SearchTransform;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
@@ -80,9 +79,9 @@ public class BootStrapTest extends AbstractAlertingTests {
         Alert alert = new Alert(
                 "test-serialization",
                 new CronSchedule("0/5 * * * * ? 2035"),
-                new ScriptSearchCondition(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()),
+                new ScriptSearchCondition(logger, scriptService(), ClientProxy.of(client()),
                         searchRequest, "return true", ScriptService.ScriptType.INLINE, "groovy"),
-                new SearchTransform(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()), searchRequest),
+                new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
                 new TimeValue(0),
                 new Actions(new ArrayList<Action>()),
                 null,
@@ -140,9 +139,9 @@ public class BootStrapTest extends AbstractAlertingTests {
                 Alert alert = new Alert(
                         "action-test-"+ i + " " + j,
                         new CronSchedule("0/5 * * * * ? 2035"), //Set a cron schedule far into the future so this alert is never scheduled
-                        new ScriptSearchCondition(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()),
+                        new ScriptSearchCondition(logger, scriptService(), ClientProxy.of(client()),
                                 searchRequest, "return true", ScriptService.ScriptType.INLINE, "groovy"),
-                        new SearchTransform(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()), searchRequest),
+                        new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
                         new TimeValue(0),
                         new Actions(new ArrayList<Action>()),
                         null,

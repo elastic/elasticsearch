@@ -13,6 +13,7 @@ import org.elasticsearch.alerts.rest.AlertsRestModule;
 import org.elasticsearch.alerts.scheduler.SchedulerModule;
 import org.elasticsearch.alerts.support.TemplateUtils;
 import org.elasticsearch.alerts.support.init.InitializingModule;
+import org.elasticsearch.alerts.support.template.TemplateModule;
 import org.elasticsearch.alerts.transform.TransformModule;
 import org.elasticsearch.alerts.transport.AlertsTransportModule;
 import org.elasticsearch.alerts.condition.ConditionModule;
@@ -28,6 +29,7 @@ public class AlertsModule extends AbstractModule implements SpawnModules {
     public Iterable<? extends Module> spawnModules() {
         return ImmutableList.of(
                 new InitializingModule(),
+                new TemplateModule(),
                 new AlertsClientModule(),
                 new TransformModule(),
                 new AlertsRestModule(),

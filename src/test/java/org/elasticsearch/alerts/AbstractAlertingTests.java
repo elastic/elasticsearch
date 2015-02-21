@@ -24,9 +24,10 @@ import org.elasticsearch.alerts.history.FiredAlert;
 import org.elasticsearch.alerts.history.HistoryStore;
 import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
 import org.elasticsearch.alerts.support.AlertUtils;
-import org.elasticsearch.alerts.support.StringTemplateUtils;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.alerts.support.template.ScriptTemplate;
+import org.elasticsearch.alerts.support.template.Template;
 import org.elasticsearch.alerts.transform.SearchTransform;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
 import org.elasticsearch.client.Client;
@@ -162,10 +163,10 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
 
         List<Action> actions = new ArrayList<>();
 
-        StringTemplateUtils.Template template =
-                new StringTemplateUtils.Template("{{alert_name}} executed with {{response.hits.total}} hits");
+        Template url = new ScriptTemplate(scriptService(), "http://localhost/foobarbaz/{{alert_name}}");
+        Template body = new ScriptTemplate(scriptService(), "{{alert_name}} executed with {{response.hits.total}} hits");
 
-        actions.add(new WebhookAction(logger, stringTemplateUtils(), httpClient(), template, new StringTemplateUtils.Template("http://localhost/foobarbaz/{{alert_name}}"), HttpMethod.GET));
+        actions.add(new WebhookAction(logger, httpClient(), HttpMethod.GET, url, body));
 
         Email.Address from = new Email.Address("from@test.com");
         List<Email.Address> emailAddressList = new ArrayList<>();
@@ -178,8 +179,8 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         emailBuilder.to(to);
 
 
-        EmailAction emailAction = new EmailAction(logger, noopEmailService(), stringTemplateUtils(), emailBuilder,
-                new Authentication("testname", "testpassword"), Profile.STANDARD, "testaccount", template, template, null, true);
+        EmailAction emailAction = new EmailAction(logger, noopEmailService(), emailBuilder,
+                new Authentication("testname", "testpassword"), Profile.STANDARD, "testaccount", body, body, null, true);
 
         actions.add(emailAction);
 
@@ -189,9 +190,9 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         return new Alert(
                 alertName,
                 new CronSchedule("0/5 * * * * ? *"),
-                new ScriptSearchCondition(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()),
+                new ScriptSearchCondition(logger, scriptService(), ClientProxy.of(client()),
                         conditionRequest,"return true", ScriptService.ScriptType.INLINE, "groovy"),
-                new SearchTransform(logger, ScriptServiceProxy.of(scriptService()), ClientProxy.of(client()), transformRequest),
+                new SearchTransform(logger, scriptService(), ClientProxy.of(client()), transformRequest),
                 new TimeValue(0),
                 new Actions(actions),
                 metadata,
@@ -204,8 +205,12 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         return internalTestCluster().getInstance(AlertsClient.class);
     }
 
-    protected ScriptService scriptService() {
-        return internalTestCluster().getInstance(ScriptService.class);
+    protected ScriptServiceProxy scriptService() {
+        return internalTestCluster().getInstance(ScriptServiceProxy.class);
+    }
+
+    protected Template.Parser templateParser() {
+        return internalTestCluster().getInstance(Template.Parser.class);
     }
 
     protected HttpClient httpClient() {
@@ -214,10 +219,6 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
 
     protected EmailService noopEmailService() {
         return new NoopEmailService();
-    }
-
-    protected StringTemplateUtils stringTemplateUtils() {
-        return internalTestCluster().getInstance(StringTemplateUtils.class);
     }
 
     protected FiredAlert.Parser firedAlertParser() {

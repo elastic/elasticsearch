@@ -166,23 +166,14 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
             // since we recover from local, just fill the files and size
             try {
-                int numberOfFiles = 0;
-                long totalSizeInBytes = 0;
-                for (String name : indexShard.store().directory().listAll()) {
-                    numberOfFiles++;
-                    long length =  indexShard.store().directory().fileLength(name);
-                    totalSizeInBytes += length;
-                    recoveryState.getIndex().addFileDetail(name, length, length);
-                }
                 RecoveryState.Index index = recoveryState.getIndex();
-                index.totalFileCount(numberOfFiles);
-                index.totalByteCount(totalSizeInBytes);
-                index.reusedFileCount(numberOfFiles);
-                index.reusedByteCount(totalSizeInBytes);
-                index.recoveredFileCount(numberOfFiles);
-                index.recoveredByteCount(totalSizeInBytes);
-            } catch (Exception e) {
-                // ignore
+                for (String name : indexShard.store().directory().listAll()) {
+                    final long length = indexShard.store().directory().fileLength(name);
+                    // we reuse all local files. no files a recovered
+                    index.addFileDetail(name, length, true);
+                }
+            } catch (IOException e) {
+                logger.debug("failed to list file details");
             }
 
             recoveryState.getStart().startTime(System.currentTimeMillis());
@@ -191,7 +182,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 // no translog files, bail
                 indexShard.postRecovery("post recovery from gateway, no translog for id [" + translogId + "]");
                 // no index, just start the shard and bail
-                recoveryState.getStart().time(System.currentTimeMillis() - recoveryState.getStart().startTime());
+                recoveryState.getStart().stopTime(System.currentTimeMillis());
                 recoveryState.getStart().checkIndexTime(indexShard.checkIndexTook());
                 return;
             }
@@ -231,14 +222,14 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 // no translog files, bail
                 indexShard.postRecovery("post recovery from gateway, no translog");
                 // no index, just start the shard and bail
-                recoveryState.getStart().time(System.currentTimeMillis() - recoveryState.getStart().startTime());
+                recoveryState.getStart().stopTime(System.currentTimeMillis());
                 recoveryState.getStart().checkIndexTime(0);
                 return;
             }
 
             // recover from the translog file
             indexShard.performRecoveryPrepareForTranslog();
-            recoveryState.getStart().time(System.currentTimeMillis() - recoveryState.getStart().startTime());
+            recoveryState.getStart().stopTime(System.currentTimeMillis());
             recoveryState.getStart().checkIndexTime(indexShard.checkIndexTook());
 
             recoveryState.getTranslog().startTime(System.currentTimeMillis());

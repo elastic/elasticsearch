@@ -40,13 +40,20 @@ class RecoveryFilesInfoRequest extends TransportRequest {
     List<Long> phase1FileSizes;
     List<String> phase1ExistingFileNames;
     List<Long> phase1ExistingFileSizes;
+
+    @Deprecated
     long phase1TotalSize;
+
+    @Deprecated
     long phase1ExistingTotalSize;
 
     RecoveryFilesInfoRequest() {
     }
 
-    RecoveryFilesInfoRequest(long recoveryId, ShardId shardId, List<String> phase1FileNames, List<Long> phase1FileSizes, List<String> phase1ExistingFileNames, List<Long> phase1ExistingFileSizes, long phase1TotalSize, long phase1ExistingTotalSize) {
+    RecoveryFilesInfoRequest(long recoveryId, ShardId shardId, List<String> phase1FileNames, List<Long> phase1FileSizes,
+                             List<String> phase1ExistingFileNames, List<Long> phase1ExistingFileSizes,
+                             // needed for BWC only
+                             @Deprecated long phase1TotalSize, @Deprecated long phase1ExistingTotalSize) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.phase1FileNames = phase1FileNames;

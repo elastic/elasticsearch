@@ -138,11 +138,13 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                     if (logger.isTraceEnabled()) {
                         StringBuilder sb = new StringBuilder();
                         sb.append("recovery completed from ").append(shardGateway).append(", took [").append(timeValueMillis(recoveryState.getTimer().time())).append("]\n");
-                        sb.append("    index    : files           [").append(recoveryState.getIndex().totalFileCount()).append("] with total_size [").append(new ByteSizeValue(recoveryState.getIndex().totalByteCount())).append("], took[").append(TimeValue.timeValueMillis(recoveryState.getIndex().time())).append("]\n");
-                        sb.append("             : recovered_files [").append(recoveryState.getIndex().numberOfRecoveredFiles()).append("] with total_size [").append(new ByteSizeValue(recoveryState.getIndex().recoveredTotalSize())).append("]\n");
-                        sb.append("             : reusing_files   [").append(recoveryState.getIndex().reusedFileCount()).append("] with total_size [").append(new ByteSizeValue(recoveryState.getIndex().reusedByteCount())).append("]\n");
-                        sb.append("    start    : took [").append(TimeValue.timeValueMillis(recoveryState.getStart().time())).append("], check_index [").append(timeValueMillis(recoveryState.getStart().checkIndexTime())).append("]\n");
-                        sb.append("    translog : number_of_operations [").append(recoveryState.getTranslog().currentTranslogOperations()).append("], took [").append(TimeValue.timeValueMillis(recoveryState.getTranslog().time())).append("]");
+                        sb.append("    index    : files           [").append(recoveryState.getIndex().totalFileCount()).append("] with total_size [")
+                                .append(new ByteSizeValue(recoveryState.getIndex().totalBytes())).append("], took[")
+                                .append(TimeValue.timeValueMillis(recoveryState.getIndex().time())).append("]\n");
+                        sb.append("    start    : took [").append(TimeValue.timeValueMillis(recoveryState.getStart().time())).append("], check_index [")
+                                .append(timeValueMillis(recoveryState.getStart().checkIndexTime())).append("]\n");
+                        sb.append("    translog : number_of_operations [").append(recoveryState.getTranslog().currentTranslogOperations())
+                                .append("], took [").append(TimeValue.timeValueMillis(recoveryState.getTranslog().time())).append("]");
                         logger.trace(sb.toString());
                     } else if (logger.isDebugEnabled()) {
                         logger.debug("recovery completed from [{}], took [{}]", shardGateway, timeValueMillis(recoveryState.getTimer().time()));

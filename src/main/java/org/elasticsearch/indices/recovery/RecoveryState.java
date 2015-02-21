@@ -19,7 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
-import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -35,8 +35,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
-import java.util.Set;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -390,8 +391,8 @@ public class RecoveryState implements ToXContent, Streamable {
             return this.time;
         }
 
-        public void time(long time) {
-            this.time = time;
+        public void stopTime(long time) {
+            this.time = Math.max(0, time - startTime);
         }
 
         public long checkIndexTime() {
@@ -579,9 +580,15 @@ public class RecoveryState implements ToXContent, Streamable {
         @Override
         public boolean equals(Object obj) {
             if (obj instanceof File) {
-                return name.equals(((File) obj).name);
+                File other = (File) obj;
+                return name.equals(other.name) && length == other.length() && reused == other.reused() && recovered == other.recovered();
             }
             return false;
+        }
+
+        @Override
+        public String toString() {
+            return "file (name [" + name + "], reused [" + reused + "], length [" + length + "], recovered [" + recovered + "])";
         }
     }
 
@@ -590,18 +597,23 @@ public class RecoveryState implements ToXContent, Streamable {
         private volatile long startTime = 0;
         private volatile long time = 0;
 
-        private Set<File> fileDetails = ConcurrentCollections.newConcurrentSet();
+        private Map<String, File> fileDetails = ConcurrentCollections.newConcurrentMap();
 
         private volatile long version = -1;
 
-        public Set<File> fileDetails() {
-            return ImmutableSet.copyOf(fileDetails);
+        public List<File> fileDetails() {
+            return ImmutableList.copyOf(fileDetails.values());
         }
 
         public void addFileDetail(String name, long length, boolean reused) {
             File file = new File(name, length, reused);
-            boolean exists = fileDetails.add(file);
-            assert exists == false : "file [" + name + "] is already reported";
+            File existing = fileDetails.put(name, file);
+            assert existing == null : "file [" + name + "] is already reported";
+        }
+
+        public void addRecoveredBytesToFile(String name, long bytes) {
+            File file = fileDetails.get(name);
+            file.addRecoveredBytes(bytes);
         }
 
         public long startTime() {
@@ -630,10 +642,23 @@ public class RecoveryState implements ToXContent, Streamable {
             return fileDetails.size();
         }
 
+        /** total number of files to be recovered (potentially not yet done) */
+        public int totalRecoverFiles() {
+            int total = 0;
+            for (File file : fileDetails.values()) {
+                if (file.reused() == false) {
+                    total++;
+                }
+            }
+            return total;
+        }
+
+
+
         /** number of file that were recovered (excluding on ongoing files) */
         public int recoveredFileCount() {
             int count = 0;
-            for (File file : fileDetails) {
+            for (File file : fileDetails.values()) {
                 if (file.fullyRecovered()) {
                     count++;
                 }
@@ -645,7 +670,7 @@ public class RecoveryState implements ToXContent, Streamable {
         public float recoverdFilesPercent() {
             int total = 0;
             int recovered = 0;
-            for (File file : fileDetails) {
+            for (File file : fileDetails.values()) {
                 if (file.reused() == false) {
                     total++;
                     if (file.fullyRecovered()) {
@@ -667,7 +692,7 @@ public class RecoveryState implements ToXContent, Streamable {
         /** total number of bytes in th shard */
         public long totalBytes() {
             long total = 0;
-            for (File file : fileDetails) {
+            for (File file : fileDetails.values()) {
                 total += file.length();
             }
             return total;
@@ -676,7 +701,7 @@ public class RecoveryState implements ToXContent, Streamable {
         /** total number of bytes recovered so far, including both existing and reused */
         public long recoveredBytes() {
             long recovered = 0;
-            for (File file : fileDetails) {
+            for (File file : fileDetails.values()) {
                 recovered += file.recovered();
             }
             return recovered;
@@ -685,7 +710,7 @@ public class RecoveryState implements ToXContent, Streamable {
         /** total bytes of files to be recovered (potentially not yet done) */
         public long totalRecoverBytes() {
             long total = 0;
-            for (File file : fileDetails) {
+            for (File file : fileDetails.values()) {
                 if (file.reused() == false) {
                     total += file.length();
                 }
@@ -695,7 +720,7 @@ public class RecoveryState implements ToXContent, Streamable {
 
         public long totalReuseBytes() {
             long total = 0;
-            for (File file : fileDetails) {
+            for (File file : fileDetails.values()) {
                 if (file.reused()) {
                     total += file.length();
                 }
@@ -707,7 +732,7 @@ public class RecoveryState implements ToXContent, Streamable {
         public float recoveredBytesPercent() {
             long total = 0;
             long recovered = 0;
-            for (File file : fileDetails) {
+            for (File file : fileDetails.values()) {
                 if (file.reused() == false) {
                     total += file.length();
                     recovered += file.recovered();
@@ -726,7 +751,7 @@ public class RecoveryState implements ToXContent, Streamable {
 
         public int reusedFileCount() {
             int reused = 0;
-            for (File file : fileDetails) {
+            for (File file : fileDetails.values()) {
                 if (file.reused()) {
                     reused++;
                 }
@@ -736,7 +761,7 @@ public class RecoveryState implements ToXContent, Streamable {
 
         public long reusedBytes() {
             long reused = 0;
-            for (File file : fileDetails) {
+            for (File file : fileDetails.values()) {
                 if (file.reused()) {
                     reused += file.length();
                 }
@@ -768,16 +793,19 @@ public class RecoveryState implements ToXContent, Streamable {
                 in.readVLong(); // recoveredByteCount
                 int size = in.readVInt();
                 for (int i = 0; i < size; i++) {
-                    fileDetails.add(File.readFile(in));
+                    File file = File.readFile(in);
+                    fileDetails.put(file.name, file);
                 }
                 size = in.readVInt();
                 for (int i = 0; i < size; i++) {
-                    fileDetails.add(File.readFile(in));
+                    File file = File.readFile(in);
+                    fileDetails.put(file.name, file);
                 }
             } else {
                 int size = in.readVInt();
                 for (int i = 0; i < size; i++) {
-                    fileDetails.add(File.readFile(in));
+                    File file = File.readFile(in);
+                    fileDetails.put(file.name, file);
                 }
             }
         }
@@ -793,7 +821,7 @@ public class RecoveryState implements ToXContent, Streamable {
                 out.writeVLong(reusedBytes());
                 out.writeVInt(recoveredFileCount());
                 out.writeVLong(recoveredBytes());
-                final File[] files = fileDetails.toArray(new File[0]);
+                final File[] files = fileDetails.values().toArray(new File[0]);
                 int nonReusedCount = 0;
                 int reusedCount = 0;
                 for (File file : files) {
@@ -804,21 +832,21 @@ public class RecoveryState implements ToXContent, Streamable {
                     }
                 }
                 out.writeVInt(nonReusedCount);
-                for (File file : fileDetails) {
+                for (File file : files) {
                     if (file.reused() == false) {
                         file.writeTo(out);
                     }
                 }
                 out.writeVInt(reusedCount);
-                for (File file : fileDetails) {
+                for (File file : files) {
                     if (file.reused()) {
                         file.writeTo(out);
                     }
                 }
             } else {
-                final File[] files = fileDetails.toArray(new File[0]);
+                final File[] files = fileDetails.values().toArray(new File[0]);
                 out.writeVInt(files.length);
-                for (File file : fileDetails) {
+                for (File file : files) {
                     file.writeTo(out);
                 }
             }
@@ -834,7 +862,7 @@ public class RecoveryState implements ToXContent, Streamable {
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoverdFilesPercent()));
             if (params.paramAsBoolean("details", false)) {
                 builder.startArray(Fields.DETAILS);
-                for (File file : fileDetails) {
+                for (File file : fileDetails.values()) {
                     file.toXContent(builder, params);
                 }
                 builder.endArray();

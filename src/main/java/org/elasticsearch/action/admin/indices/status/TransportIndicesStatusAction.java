@@ -199,9 +199,9 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                 }
                 shardStatus.peerRecoveryStatus = new PeerRecoveryStatus(stage, recoveryState.getTimer().startTime(),
                         recoveryState.getTimer().time(),
-                        recoveryState.getIndex().totalByteCount(),
-                        recoveryState.getIndex().reusedByteCount(),
-                        recoveryState.getIndex().recoveredByteCount(), recoveryState.getTranslog().currentTranslogOperations());
+                        recoveryState.getIndex().totalBytes(),
+                        recoveryState.getIndex().reusedBytes(),
+                        recoveryState.getIndex().recoveredBytes(), recoveryState.getTranslog().currentTranslogOperations());
             } else if (recoveryState.getType() == RecoveryState.Type.GATEWAY) {
                 GatewayRecoveryStatus.Stage stage;
                 switch (recoveryState.getStage()) {
@@ -221,7 +221,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                         stage = GatewayRecoveryStatus.Stage.INIT;
                 }
                 shardStatus.gatewayRecoveryStatus = new GatewayRecoveryStatus(stage, recoveryState.getTimer().startTime(), recoveryState.getTimer().time(),
-                        recoveryState.getIndex().totalByteCount(), recoveryState.getIndex().reusedByteCount(), recoveryState.getIndex().recoveredByteCount(), recoveryState.getTranslog().currentTranslogOperations());
+                        recoveryState.getIndex().totalBytes(), recoveryState.getIndex().reusedBytes(), recoveryState.getIndex().recoveredBytes(), recoveryState.getTranslog().currentTranslogOperations());
             }
         }
         return shardStatus;

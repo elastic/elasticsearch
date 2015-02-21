@@ -361,12 +361,12 @@ public class RecoveryTarget extends AbstractComponent {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
                 final RecoveryState.Index index = recoveryStatus.state().getIndex();
-                index.addFileDetails(request.phase1FileNames, request.phase1FileSizes);
-                index.addReusedFileDetails(request.phase1ExistingFileNames, request.phase1ExistingFileSizes);
-                index.totalByteCount(request.phase1TotalSize);
-                index.totalFileCount(request.phase1FileNames.size() + request.phase1ExistingFileNames.size());
-                index.reusedByteCount(request.phase1ExistingTotalSize);
-                index.reusedFileCount(request.phase1ExistingFileNames.size());
+                for (int i = 0; i < request.phase1ExistingFileNames.size(); i++) {
+                    index.addFileDetail(request.phase1ExistingFileNames.get(i), request.phase1ExistingFileSizes.get(i), true);
+                }
+                for (int i = 0; i < request.phase1FileNames.size(); i++) {
+                    index.addFileDetail(request.phase1FileNames.get(i), request.phase1FileSizes.get(i), false);
+                }
                 // recoveryBytesCount / recoveryFileCount will be set as we go...
                 recoveryStatus.stage(RecoveryState.Stage.INDEX);
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -453,11 +453,7 @@ public class RecoveryTarget extends AbstractComponent {
                     content = content.toBytesArray();
                 }
                 indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
-                recoveryStatus.state().getIndex().addRecoveredByteCount(content.length());
-                RecoveryState.File file = recoveryStatus.state().getIndex().file(request.name());
-                if (file != null) {
-                    file.updateRecovered(request.length());
-                }
+                recoveryStatus.state().getIndex().addRecoveredBytesToFile(request.name(), content.length());
                 if (indexOutput.getFilePointer() >= request.length() || request.lastChunk()) {
                     try {
                         Store.verify(indexOutput);
@@ -471,7 +467,6 @@ public class RecoveryTarget extends AbstractComponent {
                     assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName);
                     store.directory().sync(Collections.singleton(temporaryFileName));
                     IndexOutput remove = recoveryStatus.removeOpenIndexOutputs(request.name());
-                    recoveryStatus.state().getIndex().addRecoveredFileCount(1);
                     assert remove == null || remove == indexOutput; // remove maybe null if we got finished
                 }
             }

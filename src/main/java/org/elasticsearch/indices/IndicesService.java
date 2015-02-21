@@ -641,6 +641,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param timeout the timeout used for processing pending deletes
      */
     public void processPendingDeletes(Index index, @IndexSettings Settings indexSettings, TimeValue timeout) throws IOException {
+        logger.debug("{} processing pending deletes", index);
         final long startTime = System.currentTimeMillis();
         final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, timeout.millis());
         try {
@@ -665,13 +666,14 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                     if (shardLock != null) {
                         try {
                             deleteShardStore("pending delete", shardLock, delete.settings);
+                            iterator.remove();
                         } catch (IOException ex) {
-                            logger.debug("{} retry pending delete", shardLock.getShardId(), ex);
+                            logger.debug("{} retry pending delete", ex, shardLock.getShardId());
                         }
                     } else {
                         logger.warn("{} no shard lock for pending delete", delete.shardId);
+                        iterator.remove();
                     }
-                    iterator.remove();
                 }
                 if (remove.isEmpty() == false) {
                     logger.warn("{} still pending deletes present for shards {} - retrying", index, remove.toString());

@@ -25,6 +25,7 @@ import org.elasticsearch.common.logging.Loggers;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 
 /**
@@ -92,13 +93,14 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
             exists = Files.exists(file);
             // TODO we might use the new NIO2 API to get real notification?
             if (exists) {
-                isDirectory = Files.isDirectory(file);
+                BasicFileAttributes attributes = Files.readAttributes(file, BasicFileAttributes.class);
+                isDirectory = attributes.isDirectory();
                 if (isDirectory) {
                     length = 0;
                     lastModified = 0;
                 } else {
-                    length = Files.size(file);
-                    lastModified = Files.getLastModifiedTime(file).toMillis();
+                    length = attributes.size();
+                    lastModified = attributes.lastModifiedTime().toMillis();
                 }
             } else {
                 isDirectory = false;
@@ -154,12 +156,13 @@ public class FileWatcher extends AbstractResourceWatcher<FileChangesListener> {
         private void init(boolean initial) throws IOException {
             exists = Files.exists(file);
             if (exists) {
-                isDirectory =Files.isDirectory(file);
+                BasicFileAttributes attributes = Files.readAttributes(file, BasicFileAttributes.class);
+                isDirectory = attributes.isDirectory();
                 if (isDirectory) {
                     onDirectoryCreated(initial);
                 } else {
-                    length = Files.size(file);
-                    lastModified = Files.getLastModifiedTime(file).toMillis();
+                    length = attributes.size();
+                    lastModified = attributes.lastModifiedTime().toMillis();
                     onFileCreated(initial);
                 }
             }

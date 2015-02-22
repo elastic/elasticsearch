@@ -237,7 +237,7 @@ public class PluginManager {
         // It could potentially be a non explicit _site plugin
         boolean potentialSitePlugin = true;
         Path binFile = extractLocation.resolve("bin");
-        if (Files.exists(binFile) && Files.isDirectory(binFile)) {
+        if (Files.isDirectory(binFile)) {
             Path toLocation = pluginHandle.binDir(environment);
             debug("Found bin, moving to " + toLocation.toAbsolutePath());
             if (Files.exists(toLocation)) {
@@ -270,7 +270,7 @@ public class PluginManager {
         }
 
         Path configFile = extractLocation.resolve("config");
-        if (Files.exists(configFile) && Files.isDirectory(configFile)) {
+        if (Files.isDirectory(configFile)) {
             Path configDestLocation = pluginHandle.configDir(environment);
             debug("Found config, moving to " + configDestLocation.toAbsolutePath());
             moveFilesWithoutOverwriting(configFile, configDestLocation, ".new");

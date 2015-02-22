@@ -309,8 +309,8 @@ public final class FileSystemUtils {
             Path newFile = target.resolve(source.relativize(file));
             try {
                 Files.copy(file, newFile);
-                if ((delete) && (Files.exists(newFile))) {
-                    Files.delete(file);
+                if (delete) {
+                    Files.deleteIfExists(file);
                 }
             } catch (IOException x) {
                 // We ignore this

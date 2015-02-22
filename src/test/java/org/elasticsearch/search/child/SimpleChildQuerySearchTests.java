@@ -48,6 +48,7 @@ import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -2610,6 +2611,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @Ignore("https://github.com/elasticsearch/elasticsearch/issues/9461")
     public void testParentFieldToNonExistingType() {
         assertAcked(prepareCreate("test").addMapping("parent").addMapping("child", "_parent", "type=parent2"));
         client().prepareIndex("test", "parent", "1").setSource("{}").get();

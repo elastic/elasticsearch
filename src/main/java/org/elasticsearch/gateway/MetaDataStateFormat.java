@@ -232,7 +232,7 @@ public abstract class MetaDataStateFormat<T> {
         if (dataLocations != null) { // select all eligable files first
             for (Path dataLocation : dataLocations) {
                 final Path stateDir = dataLocation.resolve(STATE_DIR_NAME);
-                if (!Files.exists(stateDir) || !Files.isDirectory(stateDir)) {
+                if (!Files.isDirectory(stateDir)) {
                     continue;
                 }
                 // now, iterate over the current versions, and find latest one

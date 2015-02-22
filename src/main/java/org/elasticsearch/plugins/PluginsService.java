@@ -387,7 +387,7 @@ public class PluginsService extends AbstractComponent {
                     List<Path> libFiles = Lists.newArrayList();
                     libFiles.addAll(Arrays.asList(files(plugin)));
                     Path libLocation = plugin.resolve("lib");
-                    if (Files.exists(libLocation) && Files.isDirectory(libLocation)) {
+                    if (Files.isDirectory(libLocation)) {
                         libFiles.addAll(Arrays.asList(files(libLocation)));
                     }
 
@@ -519,7 +519,7 @@ public class PluginsService extends AbstractComponent {
         // Let's try to find all _site plugins we did not already found
         Path pluginsFile = environment.pluginsFile();
 
-        if (!Files.exists(pluginsFile) || !Files.isDirectory(pluginsFile)) {
+        if (!Files.isDirectory(pluginsFile)) {
             return false;
         }
 

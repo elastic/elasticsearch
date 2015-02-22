@@ -527,7 +527,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         // see if we have templates defined under config
         final Path templatesDir = environment.configFile().resolve("templates");
-        if (Files.exists(templatesDir) && Files.isDirectory(templatesDir)) {
+        if (Files.isDirectory(templatesDir)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(templatesDir)) {
                 for (Path templatesFile : stream) {
                     if (Files.isRegularFile(templatesFile)) {

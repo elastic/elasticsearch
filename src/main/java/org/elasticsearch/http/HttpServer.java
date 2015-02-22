@@ -20,6 +20,7 @@
 package org.elasticsearch.http;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -33,6 +34,7 @@ import org.elasticsearch.rest.*;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -180,9 +182,11 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             channel.sendResponse(new BytesRestResponse(NOT_FOUND));
             return;
         }
-        if (!Files.isRegularFile(file)) {
+        
+        BasicFileAttributes attributes = Files.readAttributes(file, BasicFileAttributes.class);
+        if (!attributes.isRegularFile()) {
             // If it's not a dir, we send a 403
-            if (!Files.isDirectory(file)) {
+            if (!attributes.isDirectory()) {
                 channel.sendResponse(new BytesRestResponse(FORBIDDEN));
                 return;
             }

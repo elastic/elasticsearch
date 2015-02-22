@@ -235,9 +235,6 @@ public abstract class MetaDataStateFormat<T> {
         if (dataLocations != null) { // select all eligable files first
             for (File dataLocation : dataLocations) {
                 File stateDir = new File(dataLocation, MetaDataStateFormat.STATE_DIR_NAME);
-                if (!stateDir.exists() || !stateDir.isDirectory()) {
-                    continue;
-                }
                 // now, iterate over the current versions, and find latest one
                 File[] stateFiles = stateDir.listFiles();
                 if (stateFiles == null) {

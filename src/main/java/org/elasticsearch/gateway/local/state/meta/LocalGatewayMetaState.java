@@ -411,9 +411,6 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         long version = -1;
         for (File dataLocation : nodeEnv.nodeDataLocations()) {
             File stateLocation = new File(dataLocation, "_state");
-            if (!stateLocation.exists()) {
-                continue;
-            }
             File[] stateFiles = stateLocation.listFiles();
             if (stateFiles == null) {
                 continue;
@@ -484,9 +481,6 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
         // delete all other shards state files
         for (File dataLocation : nodeEnv.nodeDataLocations()) {
             File stateLocation = new File(dataLocation, "_state");
-            if (!stateLocation.exists()) {
-                continue;
-            }
             File[] stateFiles = stateLocation.listFiles();
             if (stateFiles == null) {
                 continue;

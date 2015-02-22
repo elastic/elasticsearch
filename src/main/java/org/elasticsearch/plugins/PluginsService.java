@@ -372,8 +372,9 @@ public class PluginsService extends AbstractComponent {
                     libFiles.addAll(Arrays.asList(plugin.listFiles()));
                 }
                 File libLocation = new File(plugin, "lib");
-                if (libLocation.exists() && libLocation.isDirectory() && libLocation.listFiles() != null) {
-                    libFiles.addAll(Arrays.asList(libLocation.listFiles()));
+                File listing[] = libLocation.listFiles();
+                if (listing != null) {
+                    libFiles.addAll(Arrays.asList(listing));
                 }
 
                 // if there are jars in it, add it as well
@@ -496,7 +497,7 @@ public class PluginsService extends AbstractComponent {
         // Let's try to find all _site plugins we did not already found
         File pluginsFile = environment.pluginsFile();
 
-        if (!pluginsFile.exists() || !pluginsFile.isDirectory()) {
+        if (!pluginsFile.isDirectory()) {
             return false;
         }
 

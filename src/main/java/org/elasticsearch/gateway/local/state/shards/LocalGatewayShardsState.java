@@ -253,9 +253,6 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
         File latest = null;
         for (File dataLocation : nodeEnv.nodeDataLocations()) {
             File stateLocation = new File(dataLocation, "_state");
-            if (!stateLocation.exists()) {
-                continue;
-            }
             File[] stateFiles = stateLocation.listFiles();
             if (stateFiles == null) {
                 continue;
@@ -305,9 +302,6 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
         // delete all other shards state files
         for (File dataLocation : nodeEnv.nodeDataLocations()) {
             File stateLocation = new File(dataLocation, "_state");
-            if (!stateLocation.exists()) {
-                continue;
-            }
             File[] stateFiles = stateLocation.listFiles();
             if (stateFiles == null) {
                 continue;

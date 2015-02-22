@@ -234,7 +234,7 @@ public class PluginManager {
         // It could potentially be a non explicit _site plugin
         boolean potentialSitePlugin = true;
         File binFile = new File(extractLocation, "bin");
-        if (binFile.exists() && binFile.isDirectory()) {
+        if (binFile.isDirectory()) {
             File toLocation = pluginHandle.binDir(environment);
             debug("Found bin, moving to " + toLocation.getAbsolutePath());
 
@@ -264,7 +264,7 @@ public class PluginManager {
         }
 
         File configFile = new File(extractLocation, "config");
-        if (configFile.exists() && configFile.isDirectory()) {
+        if (configFile.isDirectory()) {
             File configDestLocation = pluginHandle.configDir(environment);
             debug("Found config, moving to " + configDestLocation.getAbsolutePath());
             moveFilesWithoutOverwriting(configFile, configDestLocation, ".new");

@@ -41,21 +41,19 @@ public class FileSystemUtils {
     }
 
     public static boolean hasExtensions(File root, String... extensions) {
-        if (root != null && root.exists()) {
-            if (root.isDirectory()) {
-                File[] children = root.listFiles();
-                if (children != null) {
-                    for (File child : children) {
-                        if (child.isDirectory()) {
-                            boolean has = hasExtensions(child, extensions);
-                            if (has) {
+        if (root != null) {
+            File[] children = root.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    if (child.isDirectory()) {
+                        boolean has = hasExtensions(child, extensions);
+                        if (has) {
+                            return true;
+                        }
+                    } else {
+                        for (String extension : extensions) {
+                            if (child.getName().endsWith(extension)) {
                                 return true;
-                            }
-                        } else {
-                            for (String extension : extensions) {
-                                if (child.getName().endsWith(extension)) {
-                                    return true;
-                                }
                             }
                         }
                     }
@@ -135,16 +133,14 @@ public class FileSystemUtils {
      *         otherwise <code>false</code>
      */
     public static boolean deleteRecursively(File root, boolean deleteRoot) {
-        if (root != null && root.exists()) {
-            if (root.isDirectory()) {
-                File[] children = root.listFiles();
-                if (children != null) {
-                    for (File aChildren : children) {
-                        deleteRecursively(aChildren, true);
-                    }
+        if (root != null) {
+            File[] children = root.listFiles();
+            if (children != null) {
+                for (File aChildren : children) {
+                    deleteRecursively(aChildren, true);
                 }
             }
-
+            
             if (deleteRoot) {
                 return root.delete();
             } else {

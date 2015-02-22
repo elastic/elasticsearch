@@ -308,16 +308,16 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
                     // now add config level mappings
                     File mappingsDir = new File(environment.configFile(), "mappings");
-                    if (mappingsDir.exists() && mappingsDir.isDirectory()) {
+                    if (mappingsDir.isDirectory()) {
                         // first index level
                         File indexMappingsDir = new File(mappingsDir, request.index());
-                        if (indexMappingsDir.exists() && indexMappingsDir.isDirectory()) {
+                        if (indexMappingsDir.isDirectory()) {
                             addMappings(mappings, indexMappingsDir);
                         }
 
                         // second is the _default mapping
                         File defaultMappingsDir = new File(mappingsDir, "_default");
-                        if (defaultMappingsDir.exists() && defaultMappingsDir.isDirectory()) {
+                        if (defaultMappingsDir.isDirectory()) {
                             addMappings(mappings, defaultMappingsDir);
                         }
                     }
@@ -524,24 +524,22 @@ public class MetaDataCreateIndexService extends AbstractComponent {
 
         // see if we have templates defined under config
         File templatesDir = new File(environment.configFile(), "templates");
-        if (templatesDir.exists() && templatesDir.isDirectory()) {
-            File[] templatesFiles = templatesDir.listFiles();
-            if (templatesFiles != null) {
-                for (File templatesFile : templatesFiles) {
-                    if (templatesFile.isFile()) {
-                        XContentParser parser = null;
-                        try {
-                            byte[] templatesData = Streams.copyToByteArray(templatesFile);
-                            parser = XContentHelper.createParser(templatesData, 0, templatesData.length);
-                            IndexTemplateMetaData template = IndexTemplateMetaData.Builder.fromXContent(parser, templatesFile.getName());
-                            if (indexTemplateFilter.apply(request, template)) {
-                                templates.add(template);
-                            }
-                        } catch (Exception e) {
-                            logger.warn("[{}] failed to read template [{}] from config", e, request.index(), templatesFile.getAbsolutePath());
-                        } finally {
-                            Releasables.closeWhileHandlingException(parser);
+        File[] templatesFiles = templatesDir.listFiles();
+        if (templatesFiles != null) {
+            for (File templatesFile : templatesFiles) {
+                if (templatesFile.isFile()) {
+                    XContentParser parser = null;
+                    try {
+                        byte[] templatesData = Streams.copyToByteArray(templatesFile);
+                        parser = XContentHelper.createParser(templatesData, 0, templatesData.length);
+                        IndexTemplateMetaData template = IndexTemplateMetaData.Builder.fromXContent(parser, templatesFile.getName());
+                        if (indexTemplateFilter.apply(request, template)) {
+                            templates.add(template);
                         }
+                    } catch (Exception e) {
+                        logger.warn("[{}] failed to read template [{}] from config", e, request.index(), templatesFile.getAbsolutePath());
+                    } finally {
+                        Releasables.closeWhileHandlingException(parser);
                     }
                 }
             }

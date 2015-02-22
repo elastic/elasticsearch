@@ -121,7 +121,7 @@ public class HunspellService extends AbstractComponent {
      * Scans the hunspell directory and loads all found dictionaries
      */
     private void scanAndLoadDictionaries() {
-        if (hunspellDir.exists() && hunspellDir.isDirectory()) {
+        if (hunspellDir.isDirectory()) {
             for (File file : hunspellDir.listFiles()) {
                 if (file.isDirectory()) {
                     if (file.list(DIC_FILE_FILTER).length > 0) { // just making sure it's indeed a dictionary dir
@@ -147,7 +147,7 @@ public class HunspellService extends AbstractComponent {
             logger.debug("Loading hunspell dictionary [{}]...", locale);
         }
         File dicDir = new File(hunspellDir, locale);
-        if (!dicDir.exists() || !dicDir.isDirectory()) {
+        if (!dicDir.isDirectory()) {
             throw new ElasticsearchException(String.format(Locale.ROOT, "Could not find hunspell dictionary [%s]", locale));
         }
 

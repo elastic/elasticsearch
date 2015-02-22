@@ -330,15 +330,19 @@ public class RecoveryState implements ToXContent, Streamable {
         static final XContentBuilderString TRANSLOG = new XContentBuilderString("translog");
         static final XContentBuilderString START = new XContentBuilderString("start");
         static final XContentBuilderString RECOVERED = new XContentBuilderString("recovered");
+        static final XContentBuilderString RECOVERED_IN_BYTES = new XContentBuilderString("recovered_in_bytes");
         static final XContentBuilderString CHECK_INDEX_TIME = new XContentBuilderString("check_index_time");
         static final XContentBuilderString CHECK_INDEX_TIME_IN_MILLIS = new XContentBuilderString("check_index_time_in_millis");
         static final XContentBuilderString LENGTH = new XContentBuilderString("length");
+        static final XContentBuilderString LENGTH_IN_BYTES = new XContentBuilderString("length_in_bytes");
         static final XContentBuilderString FILES = new XContentBuilderString("files");
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString TOTAL_IN_BYTES = new XContentBuilderString("total_in_bytes");
         static final XContentBuilderString REUSED = new XContentBuilderString("reused");
+        static final XContentBuilderString REUSED_IN_BYTES = new XContentBuilderString("reused_in_bytes");
         static final XContentBuilderString PERCENT = new XContentBuilderString("percent");
         static final XContentBuilderString DETAILS = new XContentBuilderString("details");
-        static final XContentBuilderString BYTES = new XContentBuilderString("bytes");
+        static final XContentBuilderString SIZE = new XContentBuilderString("size");
     }
 
     public static class Timer {
@@ -558,9 +562,9 @@ public class RecoveryState implements ToXContent, Streamable {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Fields.NAME, name);
-            builder.field(Fields.LENGTH, length);
+            builder.byteSizeField(Fields.LENGTH_IN_BYTES, Fields.LENGTH, length);
             builder.field(Fields.REUSED, reused);
-            builder.field(Fields.RECOVERED, recovered);
+            builder.byteSizeField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, length);
             builder.endObject();
             return builder;
         }
@@ -835,6 +839,13 @@ public class RecoveryState implements ToXContent, Streamable {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            // stream size first, as it matters more and the files section can be long
+            builder.startObject(Fields.SIZE);
+            builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, totalBytes());
+            builder.byteSizeField(Fields.REUSED_IN_BYTES, Fields.REUSED, totalBytes());
+            builder.byteSizeField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, recoveredBytes());
+            builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredBytesPercent()));
+            builder.endObject();
 
             builder.startObject(Fields.FILES);
             builder.field(Fields.TOTAL, totalFileCount());
@@ -849,15 +860,7 @@ public class RecoveryState implements ToXContent, Streamable {
                 builder.endArray();
             }
             builder.endObject();
-
-            builder.startObject(Fields.BYTES);
-            builder.field(Fields.TOTAL, totalBytes());
-            builder.field(Fields.REUSED, totalReuseBytes());
-            builder.field(Fields.RECOVERED, recoveredBytes());
-            builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredBytesPercent()));
-            builder.endObject();
             builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time);
-
             return builder;
         }
 

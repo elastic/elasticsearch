@@ -97,9 +97,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
         for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
             for (int dirIndex = 0; dirIndex < environment.dataWithClusterFiles().length; dirIndex++) {
                 Path dir = environment.dataWithClusterFiles()[dirIndex].resolve(Paths.get(NODES_FOLDER, Integer.toString(possibleLockId)));
-                if (Files.exists(dir) == false) {
-                    Files.createDirectories(dir);
-                }
+                Files.createDirectories(dir);
                 
                 try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
                     logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
@@ -473,7 +471,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
         Set<String> indices = Sets.newHashSet();
         for (Path indicesLocation : nodeIndicesPaths) {
 
-            if (Files.exists(indicesLocation) && Files.isDirectory(indicesLocation)) {
+            if (Files.isDirectory(indicesLocation)) {
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(indicesLocation)) {
                     for (Path index : stream) {
                         if (Files.isDirectory(index)) {
@@ -505,7 +503,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
     private static Set<ShardId> findAllShardIds(@Nullable final String index, Path... locations) throws IOException {
         final Set<ShardId> shardIds = Sets.newHashSet();
         for (final Path location : locations) {
-            if (Files.exists(location) && Files.isDirectory(location)) {
+            if (Files.isDirectory(location)) {
                 try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(location)) {
                     for (Path indexPath : indexStream) {
                         if (index == null || index.equals(indexPath.getFileName().toString())) {
@@ -520,11 +518,11 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
 
     private static Set<ShardId> findAllShardsForIndex(Path indexPath) throws IOException {
         Set<ShardId> shardIds = new HashSet<>();
-        if (Files.exists(indexPath) && Files.isDirectory(indexPath)) {
+        if (Files.isDirectory(indexPath)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
                 String currentIndex = indexPath.getFileName().toString();
                 for (Path shardPath : stream) {
-                    if (Files.exists(shardPath) && Files.isDirectory(shardPath)) {
+                    if (Files.isDirectory(shardPath)) {
                         Integer shardId = Ints.tryParse(shardPath.getFileName().toString());
                         if (shardId != null) {
                             ShardId id = new ShardId(currentIndex, shardId);

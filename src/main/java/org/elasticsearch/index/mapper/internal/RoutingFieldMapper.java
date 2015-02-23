@@ -123,7 +123,6 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
 
     private boolean required;
     private final String path;
-    private final boolean writePre20Settings;
 
     public RoutingFieldMapper(Settings indexSettings) {
         this(Defaults.FIELD_TYPE, Defaults.REQUIRED, Defaults.PATH, null, indexSettings);
@@ -134,7 +133,6 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
                 Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
         this.required = required;
         this.path = path;
-        this.writePre20Settings = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
     }
 
     @Override
@@ -238,7 +236,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         if (includeDefaults || required != Defaults.REQUIRED) {
             builder.field("required", required);
         }
-        if (writePre20Settings && (includeDefaults || path != Defaults.PATH)) {
+        if (writePre2xSettings && (includeDefaults || path != Defaults.PATH)) {
             builder.field("path", path);
         }
         builder.endObject();

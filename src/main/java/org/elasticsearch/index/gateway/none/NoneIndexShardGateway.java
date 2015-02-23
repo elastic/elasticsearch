@@ -65,11 +65,13 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
         } finally {
             indexShard.store().decRef();
         }
+        // TODO: fold all stages and timing to index shard.
+        recoveryState.getIndex().stopTime(System.currentTimeMillis());
+        indexShard.performRecoveryPrepareForTranslog();
+        recoveryState.getTranslog().startTime(System.currentTimeMillis());
+        indexShard.performRecoveryFinalization(false);
+        recoveryState.getTranslog().time(System.currentTimeMillis() - recoveryState.getTranslog().startTime());
         indexShard.postRecovery("post recovery from gateway");
-        long time = System.currentTimeMillis();
-        recoveryState.getIndex().stopTime(time);
-        recoveryState.getTranslog().startTime(time);
-        recoveryState.getTranslog().time(0);
     }
 
     @Override

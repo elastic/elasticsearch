@@ -727,6 +727,8 @@ public class IndexShard extends AbstractIndexShardComponent {
 
 
     public IndexShard postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
+        assert currentEngineReference.get() != null : "post recovery but engine is null. did you call performRecoveryPrepareForTranslog?";
+        assert config.isEnableGcDeletes() : "post recovery but GC deletes are not enable. did you call performRecoveryFinalization?";
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(shardId);
@@ -737,11 +739,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (state == IndexShardState.RELOCATED) {
                 throw new IndexShardRelocatedException(shardId);
             }
-            if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
-                checkIndex(true);
-            }
-            createNewEngine();
-            startScheduledTasksIfNeeded();
             changeState(IndexShardState.POST_RECOVERY, reason);
         }
         indicesLifecycle.afterIndexShardPostRecovery(this);
@@ -785,16 +782,13 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public void performRecoveryFinalization(boolean withFlush) throws ElasticsearchException {
+        assert currentEngineReference.get() != null : "recovery is finalized but engine is null. did you call performRecoveryPrepareForTranslog?";
         if (withFlush) {
             engine().flush();
         }
         // clear unreferenced files
         translog.clearUnreferenced();
         engine().refresh("recovery_finalization");
-        synchronized (mutex) {
-            changeState(IndexShardState.POST_RECOVERY, "post recovery");
-        }
-        indicesLifecycle.afterIndexShardPostRecovery(this);
         startScheduledTasksIfNeeded();
         config.setEnableGcDeletes(true);
     }

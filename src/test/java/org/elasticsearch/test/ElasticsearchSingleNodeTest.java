@@ -43,8 +43,7 @@ import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Ignore;
+import org.junit.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
@@ -57,8 +56,7 @@ import static org.hamcrest.Matchers.*;
 public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase {
 
     private static class Holder {
-        // lazy init on first access
-        private static Node NODE = newNode(false);
+        private static Node NODE = null;
 
         private static boolean LOCAL_GATEWAY = false;
 
@@ -67,6 +65,19 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
             node().stop();
             Holder.NODE = newNode(localGateway);
             LOCAL_GATEWAY = localGateway;
+        }
+
+        private static void startNode() {
+            assert NODE == null;
+            NODE = newNode(LOCAL_GATEWAY);
+        }
+
+        private static void stopNode() {
+            if (NODE != null) {
+                Node node = NODE;
+                NODE = null;
+                node.stop();
+            }
         }
     }
 
@@ -83,8 +94,20 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
     }
 
     @After
-    public void after() {
+    public void tearDown() throws Exception {
+        super.tearDown();
         cleanup(resetNodeAfterTest());
+    }
+
+    @BeforeClass
+    public static void setUpClass() throws Exception {
+        Holder.stopNode();
+        Holder.startNode();
+    }
+
+    @AfterClass
+    public static void tearDownClass() {
+        Holder.stopNode();
     }
 
     /**

@@ -27,7 +27,7 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
 import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
-import org.junit.BeforeClass;
+import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -46,10 +46,10 @@ import static org.hamcrest.Matchers.not;
  */
 public class VariousDocTest extends AttachmentUnitTestCase {
 
-    protected static DocumentMapper docMapper;
+    protected DocumentMapper docMapper;
 
-    @BeforeClass
-    public static void createMapper() throws IOException {
+    @Before
+    public void createMapper() throws IOException {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(ImmutableSettings.builder().build());
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 

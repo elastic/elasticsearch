@@ -22,11 +22,11 @@ package org.elasticsearch.action.bulk;
 import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.WriteFailure;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -42,7 +42,6 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
@@ -162,8 +161,8 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                             ops[requestIndex] = result.op;
                         }
                     } catch (WriteFailure e) {
-                        if (e.mappingTypeToUpdate != null) {
-                            mappingTypesToUpdate.add(e.mappingTypeToUpdate);
+                        if (e.getMappingTypeToUpdate() != null) {
+                            mappingTypesToUpdate.add(e.getMappingTypeToUpdate());
                         }
                         throw e.getCause();
                     }
@@ -395,17 +394,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             return (T) response;
         }
 
-    }
-
-    static class WriteFailure extends ElasticsearchException implements ElasticsearchWrapperException {
-        @Nullable
-        final String mappingTypeToUpdate;
-
-        WriteFailure(Throwable cause, String mappingTypeToUpdate) {
-            super(null, cause);
-            assert cause != null;
-            this.mappingTypeToUpdate = mappingTypeToUpdate;
-        }
     }
 
     private WriteResult shardIndexOperation(BulkShardRequest request, IndexRequest indexRequest, ClusterState clusterState,

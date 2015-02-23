@@ -25,7 +25,6 @@ public class AlertsRestModule extends AbstractModule implements PreProcessModule
             restModule.addRestAction(RestAlertsStatsAction.class);
             restModule.addRestAction(RestGetAlertAction.class);
             restModule.addRestAction(RestAlertServiceAction.class);
-            restModule.addRestAction(RestConfigAlertAction.class);
             restModule.addRestAction(RestAckAlertAction.class);
         }
     }

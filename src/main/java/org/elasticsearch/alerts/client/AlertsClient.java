@@ -11,10 +11,6 @@ import org.elasticsearch.alerts.transport.actions.ack.AckAlertAction;
 import org.elasticsearch.alerts.transport.actions.ack.AckAlertRequest;
 import org.elasticsearch.alerts.transport.actions.ack.AckAlertRequestBuilder;
 import org.elasticsearch.alerts.transport.actions.ack.AckAlertResponse;
-import org.elasticsearch.alerts.transport.actions.config.ConfigAlertAction;
-import org.elasticsearch.alerts.transport.actions.config.ConfigAlertRequest;
-import org.elasticsearch.alerts.transport.actions.config.ConfigAlertRequestBuilder;
-import org.elasticsearch.alerts.transport.actions.config.ConfigAlertResponse;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertAction;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequest;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertRequestBuilder;
@@ -253,26 +249,5 @@ public class AlertsClient {
      */
     public ActionFuture<AlertsServiceResponse> alertService(AlertsServiceRequest request) {
         return client.execute(AlertsServiceAction.INSTANCE, request);
-    }
-
-    /**
-     * Prepare make an alert config request.
-     */
-    public ConfigAlertRequestBuilder prepareAlertConfig() {
-        return new ConfigAlertRequestBuilder(client);
-    }
-
-    /**
-     * Perform an config alert request
-     */
-    public void alertConfig(ConfigAlertRequest request, ActionListener<ConfigAlertResponse> listener) {
-        client.execute(ConfigAlertAction.INSTANCE, request, listener);
-    }
-
-    /**
-     * Perform an config alert request
-     */
-    public ActionFuture<ConfigAlertResponse> alertConfig(ConfigAlertRequest request) {
-        return client.execute(ConfigAlertAction.INSTANCE, request);
     }
 }

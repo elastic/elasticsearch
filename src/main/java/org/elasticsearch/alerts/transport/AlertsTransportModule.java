@@ -8,8 +8,6 @@ package org.elasticsearch.alerts.transport;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.alerts.transport.actions.ack.AckAlertAction;
 import org.elasticsearch.alerts.transport.actions.ack.TransportAckAlertAction;
-import org.elasticsearch.alerts.transport.actions.config.ConfigAlertAction;
-import org.elasticsearch.alerts.transport.actions.config.TransportConfigAlertAction;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertAction;
 import org.elasticsearch.alerts.transport.actions.delete.TransportDeleteAlertAction;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertAction;
@@ -39,8 +37,6 @@ public class AlertsTransportModule extends AbstractModule implements PreProcessM
             actionModule.registerAction(AlertsStatsAction.INSTANCE, TransportAlertsStatsAction.class);
             actionModule.registerAction(AckAlertAction.INSTANCE, TransportAckAlertAction.class);
             actionModule.registerAction(AlertsServiceAction.INSTANCE, TransportAlertsServiceAction.class);
-            actionModule.registerAction(ConfigAlertAction.INSTANCE, TransportConfigAlertAction.class);
-            actionModule.registerAction(ConfigAlertAction.INSTANCE, TransportConfigAlertAction.class);
         }
     }
 

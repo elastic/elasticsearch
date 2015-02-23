@@ -195,7 +195,6 @@ import static org.hamcrest.Matchers.*;
 public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase {
 
     /** node names of the corresponding clusters will start with these prefixes */
-    public static final String GLOBAL_CLUSTER_NODE_PREFIX = "node_";
     public static final String SUITE_CLUSTER_NODE_PREFIX = "node_s";
     public static final String TEST_CLUSTER_NODE_PREFIX = "node_t";
 

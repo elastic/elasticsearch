@@ -1,0 +1,16 @@
+{
+  "person":{
+    "properties":{
+      "file":{
+        "type":"attachment",
+        "fields": {
+          "file" : {
+            "type": "string",
+            "store" : "yes",
+            "term_vector": "with_positions_offsets"
+          }
+        }
+      }
+    }
+  }
+}

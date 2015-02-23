@@ -33,7 +33,7 @@ public abstract class ScoreFunction implements ReaderContextAware {
 
     public abstract double score(int docId, float subQueryScore);
 
-    public abstract Explanation explainScore(int docId, float subQueryScore) throws IOException;
+    public abstract Explanation explainScore(int docId, Explanation subQueryScore) throws IOException;
 
     public CombineFunction getDefaultScoreCombiner() {
         return scoreCombiner;

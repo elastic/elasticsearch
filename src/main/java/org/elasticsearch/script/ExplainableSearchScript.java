@@ -52,8 +52,8 @@ public interface ExplainableSearchScript extends SearchScript {
     /**
      * Build the explanation of the current document being scored
      *
-     * @param score the score
+     * @param subQueryScore the Explanation for _score
      */
-    Explanation explain(float score) throws IOException;
+    Explanation explain(Explanation subQueryScore) throws IOException;
 
 }

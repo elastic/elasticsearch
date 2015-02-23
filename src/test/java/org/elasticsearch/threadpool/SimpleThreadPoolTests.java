@@ -118,7 +118,6 @@ public class SimpleThreadPoolTests extends ElasticsearchIntegrationTest {
                 continue;
             }
             String nodePrefix = "(" + Pattern.quote(InternalTestCluster.TRANSPORT_CLIENT_PREFIX) + ")?(" +
-                    Pattern.quote(ElasticsearchIntegrationTest.GLOBAL_CLUSTER_NODE_PREFIX) + "|" +
                     Pattern.quote(ElasticsearchIntegrationTest.SUITE_CLUSTER_NODE_PREFIX) + "|" +
                     Pattern.quote(ElasticsearchIntegrationTest.TEST_CLUSTER_NODE_PREFIX) + "|" +
                     Pattern.quote(TribeTests.SECOND_CLUSTER_NODE_PREFIX) + ")";

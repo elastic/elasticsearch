@@ -302,7 +302,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     protected FieldDataType fieldDataType;
     protected final MultiFields multiFields;
     protected CopyTo copyTo;
-    protected final boolean writePre20Metadata;
+    protected final boolean writePre2xSettings;
 
     protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues, NamedAnalyzer indexAnalyzer,
                                   NamedAnalyzer searchAnalyzer, SimilarityProvider similarity,
@@ -348,7 +348,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
         this.multiFields = multiFields;
         this.copyTo = copyTo;
-        this.writePre20Metadata = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
+        this.writePre2xSettings = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
     }
 
     @Nullable
@@ -683,7 +683,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
 
         builder.field("type", contentType());
-        if (writePre20Metadata && (includeDefaults || !names.name().equals(names.indexNameClean()))) {
+        if (writePre2xSettings && (includeDefaults || !names.name().equals(names.indexNameClean()))) {
             builder.field("index_name", names.indexNameClean());
         }
 

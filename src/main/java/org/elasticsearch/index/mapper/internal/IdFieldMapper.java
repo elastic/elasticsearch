@@ -137,7 +137,6 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     private final String path;
-    private final boolean writePre20Settings;
 
     public IdFieldMapper(Settings indexSettings) {
         this(Defaults.NAME, Defaults.INDEX_NAME, Defaults.BOOST, idFieldType(indexSettings), null, Defaults.PATH, null, indexSettings);
@@ -148,7 +147,6 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         super(new Names(name, indexName, indexName, name), boost, fieldType, docValues, Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
         this.path = path;
-        this.writePre20Settings = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
     }
     
     private static FieldType idFieldType(Settings indexSettings) {
@@ -363,7 +361,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (includeDefaults || fieldType.indexOptions() != Defaults.FIELD_TYPE.indexOptions()) {
             builder.field("index", indexTokenizeOptionToString(fieldType.indexOptions() != IndexOptions.NONE, fieldType.tokenized()));
         }
-        if (writePre20Settings && (includeDefaults || path != Defaults.PATH)) {
+        if (writePre2xSettings && (includeDefaults || path != Defaults.PATH)) {
             builder.field("path", path);
         }
 

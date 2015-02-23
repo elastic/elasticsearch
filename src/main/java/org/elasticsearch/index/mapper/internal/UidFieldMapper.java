@@ -26,9 +26,9 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -61,7 +61,6 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = UidFieldMapper.NAME;
-        public static final String INDEX_NAME = UidFieldMapper.NAME;
 
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
         public static final FieldType NESTED_FIELD_TYPE;
@@ -83,7 +82,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
         public Builder() {
             super(Defaults.NAME, Defaults.FIELD_TYPE);
-            indexName = Defaults.INDEX_NAME;
+            indexName = Defaults.NAME;
         }
 
         @Override
@@ -96,6 +95,9 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = uid();
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
+                throw new MapperParsingException(NAME + " is not configurable");
+            }
             parseField(builder, builder.name, node, parserContext);
             return builder;
         }
@@ -200,6 +202,9 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (writePre2xSettings == false) {
+            return builder;
+        }
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // if defaults, don't output

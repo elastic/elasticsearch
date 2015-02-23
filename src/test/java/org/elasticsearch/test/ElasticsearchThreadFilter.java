@@ -36,7 +36,6 @@ public final class ElasticsearchThreadFilter implements ThreadFilter {
 
     private final Pattern nodePrefix = Pattern.compile("\\[(" +
             "(" + Pattern.quote(InternalTestCluster.TRANSPORT_CLIENT_PREFIX) + ")?(" +
-            Pattern.quote(ElasticsearchIntegrationTest.GLOBAL_CLUSTER_NODE_PREFIX) + "|" +
             Pattern.quote(ElasticsearchIntegrationTest.SUITE_CLUSTER_NODE_PREFIX) + "|" +
             Pattern.quote(ElasticsearchIntegrationTest.TEST_CLUSTER_NODE_PREFIX) + "|" +
             Pattern.quote(ExternalTestCluster.EXTERNAL_CLUSTER_PREFIX) + "|" +

@@ -93,7 +93,7 @@ public class GeoPointParsingTests  extends ElasticsearchTestCase {
         try {
             GeoUtils.parseGeoPoint(parser);
             assertTrue(false);
-        } catch (Throwable e) {}
+        } catch (Exception e) {}
     }
 
     @Test
@@ -109,7 +109,7 @@ public class GeoPointParsingTests  extends ElasticsearchTestCase {
         try {
             GeoUtils.parseGeoPoint(parser);
             assertTrue(false);
-        } catch (Throwable e) {}
+        } catch (Exception e) {}
     }
 
     @Test
@@ -125,7 +125,7 @@ public class GeoPointParsingTests  extends ElasticsearchTestCase {
         try {
             GeoUtils.parseGeoPoint(parser);
             assertTrue(false);
-        } catch (Throwable e) {}
+        } catch (Exception e) {}
     }
 
     @Test
@@ -141,7 +141,7 @@ public class GeoPointParsingTests  extends ElasticsearchTestCase {
         try {
             GeoUtils.parseGeoPoint(parser);
             assertTrue(false);
-        } catch (Throwable e) {}
+        } catch (Exception e) {}
     }
 
     private static XContentParser objectLatLon(double lat, double lon) throws IOException {

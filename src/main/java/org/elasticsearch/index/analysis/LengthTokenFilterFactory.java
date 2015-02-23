@@ -57,7 +57,7 @@ public class LengthTokenFilterFactory extends AbstractTokenFilterFactory {
         if (version.onOrAfter(Version.LUCENE_4_4)) {
             return new LengthFilter(tokenStream, min, max);
         } else {
-            @SuppressWarnings("deprecated")
+            @SuppressWarnings("deprecation")
             final TokenStream filter = new Lucene43LengthFilter(enablePositionIncrements, tokenStream, min, max);
             return filter;
         }

@@ -21,6 +21,7 @@ package org.elasticsearch.bwcompat;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -131,10 +132,18 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
     }
 
     public void testOldIndexes() throws Exception {
-        Collections.shuffle(indexes, getRandom());
-        for (String index : indexes) {
-            logger.info("Testing old index " + index);
-            assertOldIndexWorks(index);
+        // Enable logging of all file deletions while we try to debug this tricky rare test failure (#9822):
+        Loggers.getLogger("test.engine.lucene.iw.ifd").setLevel("TRACE");
+
+        try {
+            Collections.shuffle(indexes, getRandom());
+            for (String index : indexes) {
+                logger.info("Testing old index " + index);
+                assertOldIndexWorks(index);
+            }
+        } finally {
+            // Restore default:
+            Loggers.getLogger("test.engine.lucene.iw.ifd").setLevel(null);
         }
     }
 

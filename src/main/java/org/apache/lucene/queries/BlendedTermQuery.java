@@ -239,6 +239,7 @@ public abstract class BlendedTermQuery extends Query {
 
     public static BlendedTermQuery booleanBlendedQuery(Term[] terms, final float[] boosts, final boolean disableCoord) {
         return new BlendedTermQuery(terms) {
+            @Override
             protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
                 BooleanQuery query = new BooleanQuery(disableCoord);
                 for (int i = 0; i < terms.length; i++) {
@@ -255,6 +256,7 @@ public abstract class BlendedTermQuery extends Query {
 
     public static BlendedTermQuery commonTermsBlendedQuery(Term[] terms, final float[] boosts, final boolean disableCoord, final float maxTermFrequency) {
         return new BlendedTermQuery(terms) {
+            @Override
             protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
                 BooleanQuery query = new BooleanQuery(true);
                 BooleanQuery high = new BooleanQuery(disableCoord);
@@ -294,6 +296,7 @@ public abstract class BlendedTermQuery extends Query {
 
     public static BlendedTermQuery dismaxBlendedQuery(Term[] terms, final float[] boosts, final float tieBreakerMultiplier) {
         return new BlendedTermQuery(terms) {
+            @Override
             protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
                 DisjunctionMaxQuery query = new DisjunctionMaxQuery(tieBreakerMultiplier);
                 for (int i = 0; i < terms.length; i++) {

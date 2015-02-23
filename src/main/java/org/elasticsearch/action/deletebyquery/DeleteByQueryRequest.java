@@ -199,6 +199,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
         return this;
     }
 
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         sourceUnsafe = false;
@@ -207,6 +208,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
         types = in.readStringArray();
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBytesReference(source);

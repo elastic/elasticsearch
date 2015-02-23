@@ -54,32 +54,39 @@ public class InstanceBindingImpl<T> extends BindingImpl<T> implements InstanceBi
         return this.provider;
     }
 
+    @Override
     public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
         return visitor.visit(this);
     }
 
+    @Override
     public T getInstance() {
         return instance;
     }
 
+    @Override
     public Set<InjectionPoint> getInjectionPoints() {
         return injectionPoints;
     }
 
+    @Override
     public Set<Dependency<?>> getDependencies() {
         return instance instanceof HasDependencies
                 ? ImmutableSet.copyOf(((HasDependencies) instance).getDependencies())
                 : Dependency.forInjectionPoints(injectionPoints);
     }
 
+    @Override
     public BindingImpl<T> withScoping(Scoping scoping) {
         return new InstanceBindingImpl<>(getSource(), getKey(), scoping, injectionPoints, instance);
     }
 
+    @Override
     public BindingImpl<T> withKey(Key<T> key) {
         return new InstanceBindingImpl<>(getSource(), key, getScoping(), injectionPoints, instance);
     }
 
+    @Override
     public void applyTo(Binder binder) {
         // instance bindings aren't scoped
         binder.withSource(getSource()).bind(getKey()).toInstance(instance);

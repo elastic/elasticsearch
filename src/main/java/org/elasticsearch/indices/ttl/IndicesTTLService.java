@@ -132,6 +132,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             notifier.setTimeout(interval);
         }
 
+        @Override
         public void run() {
             try {
                 while (running.get()) {
@@ -244,6 +245,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         public ExpiredDocsCollector() {
         }
 
+        @Override
         public void setScorer(Scorer scorer) {
         }
 
@@ -252,6 +254,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             return false;
         }
 
+        @Override
         public void collect(int doc) {
             try {
                 UidAndRoutingFieldsVisitor fieldsVisitor = new UidAndRoutingFieldsVisitor();
@@ -264,6 +267,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             }
         }
 
+        @Override
         public void doSetNextReader(LeafReaderContext context) throws IOException {
             this.context = context;
         }

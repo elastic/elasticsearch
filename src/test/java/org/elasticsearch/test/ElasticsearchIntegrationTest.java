@@ -1007,6 +1007,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         final long[] lastKnownCount = {-1};
         long lastStartCount = -1;
         Predicate<Object> testDocs = new Predicate<Object>() {
+            @Override
             public boolean apply(Object o) {
                 lastKnownCount[0] = indexer.totalIndexedDocs();
                 if (lastKnownCount[0] >= numDocs) {
@@ -1510,6 +1511,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             this.builder = builder;
         }
 
+        @Override
         protected void addError(Throwable t) {
             errors.add(new Tuple<>(builder, t));
         }

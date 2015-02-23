@@ -43,10 +43,12 @@ public class UniqueAnnotations {
 
     static Annotation create(final int value) {
         return new Internal() {
+            @Override
             public int value() {
                 return value;
             }
 
+            @Override
             public Class<? extends Annotation> annotationType() {
                 return Internal.class;
             }

@@ -137,6 +137,7 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
     /**
      * The replication type to use with this operation.
      */
+    @Override
     public DeleteByQueryRequestBuilder setReplicationType(ReplicationType replicationType) {
         request.replicationType(replicationType);
         return this;
@@ -145,11 +146,13 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
     /**
      * The replication type to use with this operation.
      */
+    @Override
     public DeleteByQueryRequestBuilder setReplicationType(String replicationType) {
         request.replicationType(replicationType);
         return this;
     }
 
+    @Override
     public DeleteByQueryRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
         request.consistencyLevel(consistencyLevel);
         return this;

@@ -220,6 +220,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     /**
      * @return the name of the breaker
      */
+    @Override
     public String getName() {
         return this.name;
     }

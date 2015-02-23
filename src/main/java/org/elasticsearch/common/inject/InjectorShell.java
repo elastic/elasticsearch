@@ -190,15 +190,18 @@ class InjectorShell {
             this.injector = injector;
         }
 
+        @Override
         public Injector get(Errors errors, InternalContext context, Dependency<?> dependency)
                 throws ErrorsException {
             return injector;
         }
 
+        @Override
         public Injector get() {
             return injector;
         }
 
+        @Override
         public String toString() {
             return "Provider<Injector>";
         }
@@ -218,6 +221,7 @@ class InjectorShell {
     }
 
     private static class LoggerFactory implements InternalFactory<Logger>, Provider<Logger> {
+        @Override
         public Logger get(Errors errors, InternalContext context, Dependency<?> dependency) {
             InjectionPoint injectionPoint = dependency.getInjectionPoint();
             return injectionPoint == null
@@ -225,10 +229,12 @@ class InjectorShell {
                     : Logger.getLogger(injectionPoint.getMember().getDeclaringClass().getName());
         }
 
+        @Override
         public Logger get() {
             return Logger.getAnonymousLogger();
         }
 
+        @Override
         public String toString() {
             return "Provider<Logger>";
         }
@@ -241,6 +247,7 @@ class InjectorShell {
             this.stage = checkNotNull(stage, "stage");
         }
 
+        @Override
         public void configure(Binder binder) {
             binder = binder.withSource(SourceProvider.UNKNOWN_SOURCE);
             binder.bind(Stage.class).toInstance(stage);

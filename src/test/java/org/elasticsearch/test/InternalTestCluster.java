@@ -1050,6 +1050,7 @@ public final class InternalTestCluster extends TestCluster {
         final Predicate<InternalTestCluster.NodeAndClient> predicate;
         if (node != null) {
             predicate = new Predicate<InternalTestCluster.NodeAndClient>() {
+                @Override
                 public boolean apply(NodeAndClient nodeAndClient) {
                     return node.equals(nodeAndClient.name);
                 }
@@ -1256,6 +1257,7 @@ public final class InternalTestCluster extends TestCluster {
 
 
     private static final RestartCallback EMPTY_CALLBACK = new RestartCallback() {
+        @Override
         public Settings onNodeStopped(String node) {
             return null;
         }

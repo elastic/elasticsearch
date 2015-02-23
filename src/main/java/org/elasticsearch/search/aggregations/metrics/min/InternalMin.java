@@ -67,6 +67,7 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
         return min;
     }
 
+    @Override
     public double getValue() {
         return min;
     }

@@ -547,6 +547,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
         return findAllShardIds(null);
     }
 
+    @Override
     public void close() {
         if (closed.compareAndSet(false, true) && locks != null) {
             for (Lock lock : locks) {

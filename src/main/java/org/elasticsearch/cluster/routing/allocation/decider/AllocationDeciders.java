@@ -120,6 +120,7 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
+    @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
@@ -138,6 +139,7 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
+    @Override
     public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {

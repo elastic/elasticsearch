@@ -52,6 +52,7 @@ public class PlainHighlighter implements Highlighter {
         return new String[] { "plain", "highlighter" };
     }
 
+    @Override
     public HighlightField highlight(HighlighterContext highlighterContext) {
         SearchContextHighlight.Field field = highlighterContext.field;
         SearchContext context = highlighterContext.context;
@@ -123,6 +124,7 @@ public class PlainHighlighter implements Highlighter {
         }
         if (field.fieldOptions().scoreOrdered()) {
             CollectionUtil.introSort(fragsList, new Comparator<TextFragment>() {
+                @Override
                 public int compare(TextFragment o1, TextFragment o2) {
                     return Math.round(o2.getScore() - o1.getScore());
                 }

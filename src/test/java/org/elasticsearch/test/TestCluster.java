@@ -125,6 +125,7 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
     /**
      * Closes the current cluster
      */
+    @Override
     public abstract void close() throws IOException;
 
     /**

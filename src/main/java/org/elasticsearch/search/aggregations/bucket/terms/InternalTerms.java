@@ -75,6 +75,7 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
             return docCount;
         }
 
+        @Override
         public long getDocCountError() {
             if (!showDocCountError) {
                 throw new ElasticsearchIllegalStateException("show_terms_doc_count_error is false");
@@ -150,6 +151,7 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
         return bucketMap.get(term);
     }
 
+    @Override
     public long getDocCountError() {
         return docCountError;
     }

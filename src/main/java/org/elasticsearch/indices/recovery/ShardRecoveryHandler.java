@@ -244,6 +244,7 @@ public class ShardRecoveryHandler implements Engine.RecoveryHandler {
                         logger.debug("Failed to transfer file [" + name + "] on recovery");
                     }
 
+                    @Override
                     public void onAfter() {
                         // Signify this file has completed by decrementing the latch
                         latch.countDown();

@@ -41,52 +41,64 @@ public final class ConstantBindingBuilderImpl<T>
         super(binder, elements, source, (Key<T>) NULL_KEY);
     }
 
+    @Override
     public ConstantBindingBuilder annotatedWith(Class<? extends Annotation> annotationType) {
         annotatedWithInternal(annotationType);
         return this;
     }
 
+    @Override
     public ConstantBindingBuilder annotatedWith(Annotation annotation) {
         annotatedWithInternal(annotation);
         return this;
     }
 
+    @Override
     public void to(final String value) {
         toConstant(String.class, value);
     }
 
+    @Override
     public void to(final int value) {
         toConstant(Integer.class, value);
     }
 
+    @Override
     public void to(final long value) {
         toConstant(Long.class, value);
     }
 
+    @Override
     public void to(final boolean value) {
         toConstant(Boolean.class, value);
     }
 
+    @Override
     public void to(final double value) {
         toConstant(Double.class, value);
     }
 
+    @Override
     public void to(final float value) {
         toConstant(Float.class, value);
     }
 
+    @Override
     public void to(final short value) {
         toConstant(Short.class, value);
     }
 
+    @Override
     public void to(final char value) {
         toConstant(Character.class, value);
     }
 
+    @Override
     public void to(final Class<?> value) {
         toConstant(Class.class, value);
     }
 
+    @Override
     public <E extends Enum<E>> void to(final E value) {
         toConstant(value.getDeclaringClass(), value);
     }

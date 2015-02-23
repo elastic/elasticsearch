@@ -38,6 +38,7 @@ public interface Filters extends MultiBucketsAggregation {
     /**
      * The buckets created by this aggregation.
      */
+    @Override
     List<? extends Bucket> getBuckets();
 
     Bucket getBucketByKey(String key);

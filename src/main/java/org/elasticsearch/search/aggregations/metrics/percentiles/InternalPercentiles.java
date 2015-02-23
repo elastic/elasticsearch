@@ -77,6 +77,7 @@ public class InternalPercentiles extends AbstractInternalPercentiles implements 
         return percentile(key);
     }
 
+    @Override
     protected AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed, Map<String, Object> metaData) {
         return new InternalPercentiles(name, keys, merged, keyed, valueFormatter, metaData);
     }

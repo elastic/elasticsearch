@@ -573,6 +573,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
     }
 
 
+    @Override
     protected void shardOperationOnReplica(ReplicaOperationRequest shardRequest) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).shardSafe(shardRequest.shardId.id());
         final BulkShardRequest request = shardRequest.request;

@@ -67,10 +67,12 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         return this;
     }
 
+    @Override
     public long id() {
         return this.id;
     }
 
+    @Override
     public SearchShardTarget shardTarget() {
         return shardTarget;
     }

@@ -98,6 +98,7 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
         context = new QueryParseContext(index, queryParserService);
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

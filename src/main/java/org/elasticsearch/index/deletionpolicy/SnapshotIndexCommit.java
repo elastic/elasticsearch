@@ -56,6 +56,7 @@ public class SnapshotIndexCommit extends IndexCommitDelegate implements Releasab
     /**
      * Releases the current snapshot.
      */
+    @Override
     public void close() {
         deletionPolicy.close(getGeneration());
     }

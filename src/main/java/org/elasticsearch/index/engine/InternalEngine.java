@@ -370,6 +370,7 @@ public class InternalEngine extends Engine {
                 }
                 // Now refresh to clear versionMap:
                 engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
+                    @Override
                     public void run() {
                         try {
                             refresh("version_table_full");
@@ -873,6 +874,7 @@ public class InternalEngine extends Engine {
      * called while the write lock is hold or in a disaster condition ie. if the engine
      * is failed.
      */
+    @Override
     protected final void closeNoLock(String reason) throws ElasticsearchException {
         if (isClosed.compareAndSet(false, true)) {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";

@@ -144,6 +144,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             this.builder = this;
         }
 
+        @Override
         public Builder multiFieldPathType(ContentPath.Type pathType) {
             this.pathType = pathType;
             return this;
@@ -174,6 +175,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             return this;
         }
 
+        @Override
         public Builder fieldDataSettings(Settings settings) {
             this.fieldDataSettings = settings;
             return builder;

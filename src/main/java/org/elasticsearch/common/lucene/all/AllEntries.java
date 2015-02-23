@@ -104,6 +104,7 @@ public class AllEntries extends Reader {
         itsSeparatorTime = false;
     }
 
+    @Override
     public void reset() {
         try {
             for (Entry entry : entries) {

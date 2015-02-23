@@ -44,11 +44,13 @@ public class KeepLastNDeletionPolicy extends AbstractESDeletionPolicy {
         logger.debug("Using [keep_last_n] deletion policy with num_to_keep[{}]", numToKeep);
     }
 
+    @Override
     public void onInit(List<? extends IndexCommit> commits) throws IOException {
         // do no deletions on init
         doDeletes(commits);
     }
 
+    @Override
     public void onCommit(List<? extends IndexCommit> commits) throws IOException {
         doDeletes(commits);
     }

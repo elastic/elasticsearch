@@ -72,6 +72,7 @@ public class CachedDfSource extends IndexSearcher {
         return this.maxDoc;
     }
 
+    @Override
     public Query rewrite(Query query) {
         // this is a bit of a hack. We know that a query which
         // creates a Weight based on this Dummy-Searcher is
@@ -80,14 +81,17 @@ public class CachedDfSource extends IndexSearcher {
         return query;
     }
 
+    @Override
     public Document doc(int i) {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public void doc(int docID, StoredFieldVisitor fieldVisitor) throws IOException {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Explanation explain(Weight weight, int doc) {
         throw new UnsupportedOperationException();
     }

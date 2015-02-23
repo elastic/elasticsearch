@@ -42,6 +42,7 @@ import static org.hamcrest.Matchers.*;
 public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsCompatIntegrationTest {
 
 
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
@@ -49,10 +50,12 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
                 .put("gateway.recover_after_nodes", 2).build();
     }
 
+    @Override
     protected int minExternalNodes() {
         return 2;
     }
 
+    @Override
     protected int maxExternalNodes() {
         return 3;
     }

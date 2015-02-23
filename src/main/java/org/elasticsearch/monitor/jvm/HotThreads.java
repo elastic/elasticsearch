@@ -192,6 +192,7 @@ public class HotThreads {
             final int busiestThreads = Math.min(this.busiestThreads, hotties.size());
             // skip that for now
             CollectionUtil.introSort(hotties, new Comparator<MyThreadInfo>() {
+                @Override
                 public int compare(MyThreadInfo o1, MyThreadInfo o2) {
                     if ("cpu".equals(type)) {
                         return (int) (o2.cpuTime - o1.cpuTime);

@@ -34,22 +34,27 @@ public class DoubleFieldDataTests extends AbstractNumericFieldDataTests {
         return new FieldDataType("double", getFieldDataSettings());
     }
 
+    @Override
     protected String one() {
         return "1.0";
     }
 
+    @Override
     protected String two() {
         return "2.0";
     }
 
+    @Override
     protected String three() {
         return "3.0";
     }
 
+    @Override
     protected String four() {
         return "4.0";
     }
 
+    @Override
     protected void add2SingleValuedDocumentsAndDeleteOneOfThem() throws Exception {
         Document d = new Document();
         d.add(new StringField("_id", "1", Field.Store.NO));
@@ -140,6 +145,7 @@ public class DoubleFieldDataTests extends AbstractNumericFieldDataTests {
         writer.addDocument(d);
     }
 
+    @Override
     protected void fillExtendedMvSet() throws Exception {
         Document d = new Document();
         d.add(new StringField("_id", "1", Field.Store.NO));

@@ -26,10 +26,12 @@ public class NoneRecyclerTests extends AbstractRecyclerTests {
         return Recyclers.none(RECYCLER_C);
     }
 
+    @Override
     protected void assertRecycled(byte[] data) {
         // will never match
     }
 
+    @Override
     protected void assertDead(byte[] data) {
         // will never match
     }

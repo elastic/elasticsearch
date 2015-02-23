@@ -248,6 +248,7 @@ public class ImmutableShardRouting implements Streamable, Serializable, ShardRou
      * @param out {@link StreamOutput} to write shard information to
      * @throws IOException if something happens during write
      */
+    @Override
     public void writeToThin(StreamOutput out) throws IOException {
         out.writeLong(version);
         if (currentNodeId != null) {

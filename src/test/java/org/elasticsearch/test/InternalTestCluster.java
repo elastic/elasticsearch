@@ -998,10 +998,17 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Returns a reference to a random nodes {@link ClusterService}
+     * Returns a reference to a random node's {@link ClusterService}
      */
-    public synchronized ClusterService clusterService() {
-        return getInstance(ClusterService.class);
+    public ClusterService clusterService() {
+        return clusterService(null);
+    }
+
+    /**
+     * Returns a reference to a node's {@link ClusterService}. If the given node is null, a random node will be selected.
+     */
+    public synchronized ClusterService clusterService(@Nullable String node) {
+        return getInstance(ClusterService.class, node);
     }
 
     /**

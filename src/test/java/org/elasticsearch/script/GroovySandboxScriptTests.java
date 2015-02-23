@@ -60,6 +60,8 @@ public class GroovySandboxScriptTests extends ElasticsearchIntegrationTest {
         testSuccess("def t = Instant.now().getMillis()");
         // GroovyCollections
         testSuccess("def n = [1,2,3]; GroovyCollections.max(n)");
+        // String
+        testSuccess("def s = String.format(\\\"%d\\\", 4)");
 
         // Fail cases
         testFailure("pr = Runtime.getRuntime().exec(\\\"touch /tmp/gotcha\\\"); pr.waitFor()",

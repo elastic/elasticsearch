@@ -147,7 +147,7 @@ public class AlertsService extends AbstractComponent {
         try {
             AlertsStore.AlertPut result = alertsStore.putAlert(name, alertSource);
             if (result.previous() == null || !result.previous().schedule().equals(result.current().schedule())) {
-                scheduler.schedule(result.current());
+                scheduler.add(result.current());
             }
             return result.indexResponse();
         } finally {

@@ -7,6 +7,7 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.alerts.actions.ActionRegistry;
 import org.elasticsearch.alerts.actions.Actions;
+import org.elasticsearch.alerts.scheduler.Scheduler;
 import org.elasticsearch.alerts.scheduler.schedule.Schedule;
 import org.elasticsearch.alerts.scheduler.schedule.ScheduleRegistry;
 import org.elasticsearch.alerts.throttle.AlertThrottler;
@@ -37,7 +38,7 @@ import java.util.Map;
 
 import static org.elasticsearch.alerts.support.AlertsDateUtils.*;
 
-public class Alert implements ToXContent {
+public class Alert implements Scheduler.Job, ToXContent {
 
     private final String name;
     private final Schedule schedule;
@@ -365,8 +366,6 @@ public class Alert implements ToXContent {
             }
             return false;
         }
-
-
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {

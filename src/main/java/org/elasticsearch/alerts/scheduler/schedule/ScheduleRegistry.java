@@ -32,13 +32,14 @@ public class ScheduleRegistry {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
-            } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT) && type != null) {
-                Schedule.Parser scheduleParser = parsers.get(type);
-                if (scheduleParser == null) {
-                    throw new AlertsSettingsException("unknown schedule type [" + type + "]");
-                }
-                schedule = scheduleParser.parse(parser);
+            } else if (type != null) {
+                schedule = parse(type, parser);
+            } else {
+                throw new AlertsSettingsException("could not parse schedule. expected a schedule type field, but found [" + token + "]");
             }
+        }
+        if (schedule == null) {
+            throw new AlertsSettingsException("could not parse schedule. expected a schedule type field, but no fields were found");
         }
         return schedule;
     }
@@ -46,7 +47,7 @@ public class ScheduleRegistry {
     public Schedule parse(String type, XContentParser parser) throws IOException {
         Schedule.Parser scheduleParser = parsers.get(type);
         if (scheduleParser == null) {
-            throw new AlertsSettingsException("unknown schedule type [" + type + "]");
+            throw new AlertsSettingsException("could not parse schedule. unknown schedule type [" + type + "]");
         }
         return scheduleParser.parse(parser);
     }

@@ -5,22 +5,26 @@
  */
 package org.elasticsearch.alerts.scheduler.schedule;
 
+import org.elasticsearch.alerts.AlertsSettingsException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.quartz.CronExpression;
 
 import java.io.IOException;
+import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  *
  */
-public class CronSchedule implements Schedule {
+public class CronSchedule extends CronnableSchedule {
 
     public static final String TYPE = "cron";
 
-    private final String cron;
-
-    public CronSchedule(String cron) {
-        this.cron = cron;
+    public CronSchedule(String... crons) {
+        super(crons);
+        validate(crons);
     }
 
     @Override
@@ -29,13 +33,18 @@ public class CronSchedule implements Schedule {
     }
 
     @Override
-    public String cron() {
-        return cron;
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return crons.length == 1 ? builder.value(crons[0]) : builder.value(crons);
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.value(cron);
+    static void validate(String... crons) {
+        for (String cron :crons) {
+            try {
+                CronExpression.validateExpression(cron);
+            } catch (ParseException pe) {
+                throw new ValidationException(cron, pe);
+            }
+        }
     }
 
     public static class Parser implements Schedule.Parser<CronSchedule> {
@@ -47,26 +56,43 @@ public class CronSchedule implements Schedule {
 
         @Override
         public CronSchedule parse(XContentParser parser) throws IOException {
-            assert parser.currentToken() == XContentParser.Token.VALUE_STRING : "expecting a string value with cron expression";
-            String cron = parser.text();
-            return new CronSchedule(cron);
+            try {
+
+                XContentParser.Token token = parser.currentToken();
+                if (token == XContentParser.Token.VALUE_STRING) {
+                    return new CronSchedule(parser.text());
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    List<String> crons = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        switch (token) {
+                            case VALUE_STRING:
+                                crons.add(parser.text());
+                                break;
+                            default:
+                                throw new AlertsSettingsException("could not parse [cron] schedule. expected a string value in the cron array but found [" + token + "]");
+                        }
+                    }
+                    if (crons.isEmpty()) {
+                        throw new AlertsSettingsException("could not parse [cron] schedule. no cron expression found in cron array");
+                    }
+                    return new CronSchedule(crons.toArray(new String[crons.size()]));
+                } else {
+                    throw new AlertsSettingsException("could not parse [cron] schedule. expected either a cron string value or an array of cron string values, but found [" + token + "]");
+                }
+
+            } catch (ValidationException ve) {
+                throw new AlertsSettingsException("could not parse [cron] schedule. invalid cron expression [" + ve.expression + "]", ve);
+            }
         }
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+    public static class ValidationException extends AlertsSettingsException {
 
-        CronSchedule that = (CronSchedule) o;
+        private String expression;
 
-        if (cron != null ? !cron.equals(that.cron) : that.cron != null) return false;
-
-        return true;
-    }
-
-    @Override
-    public int hashCode() {
-        return cron != null ? cron.hashCode() : 0;
+        public ValidationException(String expression, ParseException cause) {
+            super("invalid cron expression [" + expression + "]. " + cause.getMessage());
+            this.expression = expression;
+        }
     }
 }

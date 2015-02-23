@@ -17,8 +17,6 @@ public interface Schedule extends ToXContent {
 
     String type();
 
-    String cron();
-
     static interface Parser<S extends Schedule> {
 
         String type();

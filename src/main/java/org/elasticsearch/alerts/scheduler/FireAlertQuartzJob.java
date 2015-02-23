@@ -7,17 +7,17 @@ package org.elasticsearch.alerts.scheduler;
 
 import org.quartz.*;
 
-public class FireAlertJob implements Job {
+public class FireAlertQuartzJob implements Job {
 
     static final String SCHEDULER_KEY = "scheduler";
 
-    public FireAlertJob() {
+    public FireAlertQuartzJob() {
     }
 
     @Override
     public void execute(JobExecutionContext jobExecutionContext) throws JobExecutionException {
         String alertName = jobExecutionContext.getJobDetail().getKey().getName();
-        Scheduler scheduler = (Scheduler) jobExecutionContext.getJobDetail().getJobDataMap().get(SCHEDULER_KEY);
+        InternalScheduler scheduler = (InternalScheduler) jobExecutionContext.getJobDetail().getJobDataMap().get(SCHEDULER_KEY);
         scheduler.notifyListeners(alertName, jobExecutionContext);
     }
 
@@ -25,8 +25,8 @@ public class FireAlertJob implements Job {
         return new JobKey(alertName);
     }
 
-    static JobDetail jobDetail(String alertName, Scheduler scheduler) {
-        JobDetail job = JobBuilder.newJob(FireAlertJob.class).withIdentity(alertName).build();
+    static JobDetail jobDetail(String alertName, InternalScheduler scheduler) {
+        JobDetail job = JobBuilder.newJob(FireAlertQuartzJob.class).withIdentity(alertName).build();
         job.getJobDataMap().put("scheduler", scheduler);
         return job;
     }

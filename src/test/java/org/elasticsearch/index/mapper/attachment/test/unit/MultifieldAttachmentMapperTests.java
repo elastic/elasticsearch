@@ -41,7 +41,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class MultifieldAttachmentMapperTests extends ElasticsearchTestCase {
+public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
 
     private DocumentMapperParser mapperParser;
     private ThreadPool threadPool;

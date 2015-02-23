@@ -27,7 +27,6 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
 import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -42,7 +41,7 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  *
  */
-public class LanguageDetectionAttachmentMapperTests extends ElasticsearchTestCase {
+public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCase {
 
     private DocumentMapper docMapper;
 

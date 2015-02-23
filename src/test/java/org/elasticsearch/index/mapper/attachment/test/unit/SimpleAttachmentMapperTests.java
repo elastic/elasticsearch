@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-public class SimpleAttachmentMapperTests extends ElasticsearchTestCase {
+public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
 
     private DocumentMapperParser mapperParser;
 

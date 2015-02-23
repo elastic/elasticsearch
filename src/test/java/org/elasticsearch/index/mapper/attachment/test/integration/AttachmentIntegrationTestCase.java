@@ -17,29 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.mapper.attachments.tika;
+package org.elasticsearch.index.mapper.attachment.test.integration;
 
-
-import org.apache.tika.Tika;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.hamcrest.Matcher;
+import org.junit.BeforeClass;
 
 import static org.elasticsearch.plugin.mapper.attachments.tika.LocaleChecker.isLocaleCompatible;
+import static org.hamcrest.Matchers.not;
 
-/**
- *
- */
-public class TikaInstance {
+@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
+public class AttachmentIntegrationTestCase extends ElasticsearchIntegrationTest {
 
-    private static final Tika tika;
+    protected static boolean expectError;
 
-    static {
-        if (isLocaleCompatible()) {
-           tika = new Tika();
-        } else {
-            tika = null;
-        }
+    @BeforeClass
+    public static void expectErrorWithCurrentLocale() {
+        expectError = !isLocaleCompatible();
     }
 
-    public static Tika tika() {
-        return tika;
+    protected static  <T> boolean assertThatWithError(T actual, Matcher<T> expected) {
+        if (expectError) {
+            assertThat(actual, not(expected));
+        } else {
+            assertThat(actual, expected);
+        }
+        return !expectError;
     }
 }

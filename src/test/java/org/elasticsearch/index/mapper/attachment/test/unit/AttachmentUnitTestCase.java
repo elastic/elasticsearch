@@ -17,29 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.mapper.attachments.tika;
+package org.elasticsearch.index.mapper.attachment.test.unit;
 
+import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.BeforeClass;
 
-import org.apache.tika.Tika;
+import static org.elasticsearch.index.mapper.attachment.test.MapperTestUtils.assumeCorrectLocale;
 
-import static org.elasticsearch.plugin.mapper.attachments.tika.LocaleChecker.isLocaleCompatible;
-
-/**
- *
- */
-public class TikaInstance {
-
-    private static final Tika tika;
-
-    static {
-        if (isLocaleCompatible()) {
-           tika = new Tika();
-        } else {
-            tika = null;
-        }
-    }
-
-    public static Tika tika() {
-        return tika;
+public class AttachmentUnitTestCase extends ElasticsearchTestCase {
+    /**
+     * We can have issues with some JVMs and Locale
+     * See https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/105
+     */
+    @BeforeClass
+    public static void checkLocale() {
+        assumeCorrectLocale();
     }
 }

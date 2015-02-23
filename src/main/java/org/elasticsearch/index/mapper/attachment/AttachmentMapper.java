@@ -21,6 +21,8 @@ package org.elasticsearch.index.mapper.attachment;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.util.Constants;
+import org.apache.tika.Tika;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
@@ -36,6 +38,7 @@ import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
@@ -64,7 +67,7 @@ import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika
  */
 public class AttachmentMapper extends AbstractFieldMapper<Object> {
 
-    private static ESLogger logger = ESLoggerFactory.getLogger(AttachmentMapper.class.getName());
+    private static ESLogger logger = ESLoggerFactory.getLogger("mapper.attachment");
 
     public static final String CONTENT_TYPE = "attachment";
 
@@ -442,8 +445,20 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
 
         String parsedContent;
         try {
+            Tika tika = tika();
+            if (tika == null) {
+                if (!ignoreErrors) {
+                    throw new MapperParsingException("Tika can not be initialized with the current Locale [" +
+                            Locale.getDefault().getLanguage() + "] on the current JVM [" +
+                            Constants.JAVA_VERSION + "]");
+                } else {
+                    logger.warn("Tika can not be initialized with the current Locale [{}] on the current JVM [{}]",
+                            Locale.getDefault().getLanguage(), Constants.JAVA_VERSION);
+                    return;
+                }
+            }
             // Set the maximum length of strings returned by the parseToString method, -1 sets no limit
-            parsedContent = tika().parseToString(new BytesStreamInput(content, false), metadata, indexedChars);
+            parsedContent = tika.parseToString(new BytesStreamInput(content, false), metadata, indexedChars);
         } catch (Throwable e) {
             // It could happen that Tika adds a System property `sun.font.fontmanager` which should not happen
             // TODO Remove when this will be fixed in Tika. See https://issues.apache.org/jira/browse/TIKA-1548

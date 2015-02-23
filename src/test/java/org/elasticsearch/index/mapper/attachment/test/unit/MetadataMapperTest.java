@@ -28,7 +28,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
 import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -41,7 +40,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * Test for https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/38
  */
-public class MetadataMapperTest extends ElasticsearchTestCase {
+public class MetadataMapperTest extends AttachmentUnitTestCase {
 
     protected void checkMeta(String filename, Settings settings, Long expectedDate, Long expectedLength) throws IOException {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(settings);

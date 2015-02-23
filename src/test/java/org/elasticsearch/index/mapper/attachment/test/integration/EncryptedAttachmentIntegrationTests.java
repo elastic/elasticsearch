@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.putMappingRequest;
@@ -38,8 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Test case for issue https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/18
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
-public class EncryptedAttachmentIntegrationTests extends ElasticsearchIntegrationTest {
+public class EncryptedAttachmentIntegrationTests extends AttachmentIntegrationTestCase {
     private boolean ignore_errors = true;
 
     @Override
@@ -78,7 +76,7 @@ public class EncryptedAttachmentIntegrationTests extends ElasticsearchIntegratio
 
 
         CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("World").defaultField("file1")).execute().get();
-        assertThat(countResponse.getCount(), equalTo(1l));
+        assertThatWithError(countResponse.getCount(), equalTo(1l));
 
         countResponse = client().prepareCount("test").setQuery(queryStringQuery("World").defaultField("hello")).execute().get();
         assertThat(countResponse.getCount(), equalTo(1l));

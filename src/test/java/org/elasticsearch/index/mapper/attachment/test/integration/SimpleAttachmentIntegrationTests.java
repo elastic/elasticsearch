@@ -27,7 +27,6 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.highlight.HighlightField;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -44,8 +43,7 @@ import static org.hamcrest.Matchers.containsString;
 /**
  *
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
-public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTest {
+public class SimpleAttachmentIntegrationTests extends AttachmentIntegrationTestCase {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -58,6 +56,7 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
     @Before
     public void createEmptyIndex() throws Exception {
         logger.info("creating index [test]");
+        internalCluster().wipeIndices("test");
         createIndex("test");
     }
 
@@ -72,10 +71,10 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
         refresh();
 
         CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("test document").defaultField("file.title")).execute().get();
-        assertThat(countResponse.getCount(), equalTo(1l));
+        assertThatWithError(countResponse.getCount(), equalTo(1l));
 
         countResponse = client().prepareCount("test").setQuery(queryStringQuery("tests the ability").defaultField("file")).execute().get();
-        assertThat(countResponse.getCount(), equalTo(1l));
+        assertThatWithError(countResponse.getCount(), equalTo(1l));
     }
 
     @Test
@@ -90,7 +89,7 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
         refresh();
 
         CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("BeforeLimit").defaultField("file")).execute().get();
-        assertThat(countResponse.getCount(), equalTo(1l));
+        assertThatWithError(countResponse.getCount(), equalTo(1l));
 
         countResponse = client().prepareCount("test").setQuery(queryStringQuery("AfterLimit").defaultField("file")).execute().get();
         assertThat(countResponse.getCount(), equalTo(0l));
@@ -108,10 +107,10 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
         refresh();
 
         CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("Begin").defaultField("file")).execute().get();
-        assertThat(countResponse.getCount(), equalTo(1l));
+        assertThatWithError(countResponse.getCount(), equalTo(1l));
 
         countResponse = client().prepareCount("test").setQuery(queryStringQuery("End").defaultField("file")).execute().get();
-        assertThat(countResponse.getCount(), equalTo(1l));
+        assertThatWithError(countResponse.getCount(), equalTo(1l));
     }
 
     /**
@@ -147,10 +146,18 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
                 .addField("file.content_type")
                 .addField("file.name")
                 .execute().get();
-        String contentType = response.getHits().getAt(0).getFields().get("file.content_type").getValue();
-        String name = response.getHits().getAt(0).getFields().get("file.name").getValue();
-        assertThat(contentType, is(dummyContentType));
-        assertThat(name, is(dummyName));
+
+        logger.info("{}", response);
+
+        assertThat(response.getHits().totalHits(), is(1L));
+        if (assertThatWithError(response.getHits().getAt(0).getFields().get("file.content_type"), notNullValue())) {
+            String contentType = response.getHits().getAt(0).getFields().get("file.content_type").getValue();
+            assertThat(contentType, is(dummyContentType));
+        }
+        if (assertThatWithError(response.getHits().getAt(0).getFields().get("file.name"), notNullValue())) {
+            String name = response.getHits().getAt(0).getFields().get("file.name").getValue();
+            assertThat(name, is(dummyName));
+        }
     }
 
     /**
@@ -168,10 +175,10 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
         refresh();
 
         CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("Queen").defaultField("file")).execute().get();
-        assertThat(countResponse.getCount(), equalTo(1l));
+        assertThatWithError(countResponse.getCount(), equalTo(1l));
 
         countResponse = client().prepareCount("test").setQuery(queryStringQuery("Queen").defaultField("copy")).execute().get();
-        assertThat(countResponse.getCount(), equalTo(1l));
+        assertThatWithError(countResponse.getCount(), equalTo(1l));
     }
 
     @Test
@@ -185,10 +192,10 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
         refresh();
 
         CountResponse countResponse = client().prepareCount("test").setQuery(queryStringQuery("Queen").defaultField("file")).execute().get();
-        assertThat(countResponse.getCount(), equalTo(1l));
+        assertThatWithError(countResponse.getCount(), equalTo(1l));
 
         countResponse = client().prepareCount("test").setQuery(queryStringQuery("Queen").defaultField("copy")).execute().get();
-        assertThat(countResponse.getCount(), equalTo(1l));
+        assertThatWithError(countResponse.getCount(), equalTo(1l));
     }
 
     @Test
@@ -207,14 +214,15 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
                 .setNoFields().get();
 
         logger.info("{}", searchResponse);
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
-        assertThat(searchResponse.getHits().getAt(0).getHighlightFields(), notNullValue());
-        assertThat(searchResponse.getHits().getAt(0).getHighlightFields().keySet(), contains("file"));
-        searchResponse.getHits().getAt(0).getHighlightFields();
-        for (HighlightField highlightField : searchResponse.getHits().getAt(0).getHighlightFields().values()) {
-            for (Text fragment : highlightField.getFragments()) {
-                assertThat(fragment.string(), containsString("<em>Apache</em>"));
-                assertThat(fragment.string(), containsString("<em>Tika</em>"));
+        if (assertThatWithError(searchResponse.getHits().getTotalHits(), equalTo(1l))) {
+            assertThat(searchResponse.getHits().getAt(0).getHighlightFields(), notNullValue());
+            assertThat(searchResponse.getHits().getAt(0).getHighlightFields().keySet(), contains("file"));
+            searchResponse.getHits().getAt(0).getHighlightFields();
+            for (HighlightField highlightField : searchResponse.getHits().getAt(0).getHighlightFields().values()) {
+                for (Text fragment : highlightField.getFragments()) {
+                    assertThat(fragment.string(), containsString("<em>Apache</em>"));
+                    assertThat(fragment.string(), containsString("<em>Tika</em>"));
+                }
             }
         }
     }

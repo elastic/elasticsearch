@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.attachment.test;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Injector;
@@ -43,6 +44,11 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCacheListener;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Locale;
+
+import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
+import static org.elasticsearch.plugin.mapper.attachments.tika.LocaleChecker.isLocaleCompatible;
 
 public class MapperTestUtils {
 
@@ -91,4 +97,14 @@ public class MapperTestUtils {
                 .build();
         return new DocumentMapperParser(new Index("test"), forcedSettings, MapperTestUtils.newAnalysisService(forcedSettings), null, null);
     }
+
+    /**
+     * We can have issues with some JVMs and Locale
+     * See https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/105
+     */
+    public static void assumeCorrectLocale() {
+        assumeTrue("Current Locale language " + Locale.getDefault().getLanguage() +" could cause an error with Java " +
+                Constants.JAVA_VERSION, isLocaleCompatible());
+    }
+
 }

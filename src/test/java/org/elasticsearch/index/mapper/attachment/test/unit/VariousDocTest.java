@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.attachment.test.unit;
 
+import org.apache.tika.Tika;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -26,7 +27,6 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
 import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Test for different documents
  */
-public class VariousDocTest extends ElasticsearchTestCase {
+public class VariousDocTest extends AttachmentUnitTestCase {
 
     /**
      * Test for https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/104
@@ -92,8 +92,11 @@ public class VariousDocTest extends ElasticsearchTestCase {
     }
 
     protected void testTika(String filename, boolean errorExpected) {
+        Tika tika = tika();
+        assumeTrue("Tika has been disabled. Ignoring test...", tika != null);
+
         try (InputStream is = VariousDocTest.class.getResourceAsStream("/org/elasticsearch/index/mapper/attachment/test/sample-files/" + filename)) {
-            String parsedContent = tika().parseToString(is);
+            String parsedContent = tika.parseToString(is);
             assertThat(parsedContent, not(isEmptyOrNullString()));
             logger.debug("extracted content: {}", parsedContent);
         } catch (Throwable e) {

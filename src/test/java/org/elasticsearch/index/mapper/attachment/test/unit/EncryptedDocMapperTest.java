@@ -27,7 +27,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
 import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -42,7 +41,7 @@ import static org.hamcrest.Matchers.*;
  * Note that we have converted /org/elasticsearch/index/mapper/xcontent/testContentLength.txt
  * to a /org/elasticsearch/index/mapper/xcontent/encrypted.pdf with password `12345678`.
  */
-public class EncryptedDocMapperTest extends ElasticsearchTestCase {
+public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
 
     @Test
     public void testMultipleDocsEncryptedLast() throws IOException {

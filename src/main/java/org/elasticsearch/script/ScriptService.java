@@ -25,6 +25,7 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
@@ -133,9 +134,9 @@ public class ScriptService extends AbstractComponent {
     }
 
     public static final ParseField SCRIPT_LANG = new ParseField("lang","script_lang");
-    public static final ParseField SCRIPT_FILE = new ParseField("script_file","file");
-    public static final ParseField SCRIPT_ID = new ParseField("script_id", "id");
-    public static final ParseField SCRIPT_INLINE = new ParseField("script","scriptField");
+    public static final ParseField SCRIPT_FILE = new ParseField("script_file");
+    public static final ParseField SCRIPT_ID = new ParseField("script_id");
+    public static final ParseField SCRIPT_INLINE = new ParseField("script");
 
     public static enum ScriptType {
 
@@ -339,15 +340,6 @@ public class ScriptService extends AbstractComponent {
                 return compiled;
             } else {
                 throw new ElasticsearchIllegalArgumentException("Unable to find on disk script " + script);
-            }
-        }
-
-        if (scriptType != ScriptType.INDEXED) {
-            //For backwards compat attempt to load from disk
-            compiled = staticCache.get(script); //On disk scripts will be loaded into the staticCache by the listener
-
-            if (compiled != null) {
-                return compiled;
             }
         }
 

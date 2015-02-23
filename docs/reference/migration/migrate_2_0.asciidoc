@@ -249,3 +249,9 @@ It is still possible to change the whole codec by using the `index.codec`
 setting. Please however note that using a non-default codec is discouraged as
 it could prevent future versions of Elasticsearch from being able to read the
 index.
+
+=== Scripts
+
+Deprecated script parameters `id`, `file`, and `scriptField` have been removed 
+from all scriptable APIs. `script_id`, `script_file` and `script` should be used 
+in their place.

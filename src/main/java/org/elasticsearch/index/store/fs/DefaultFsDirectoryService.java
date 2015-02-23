@@ -49,6 +49,13 @@ public class DefaultFsDirectoryService extends FsDirectoryService {
 
     @Override
     protected Directory newFSDirectory(File location, LockFactory lockFactory) throws IOException {
-        return new FileSwitchDirectory(PRIMARY_EXTENSIONS, new MMapDirectory(location, lockFactory), new NIOFSDirectory(location, lockFactory), true);
+        final MMapDirectory mmapDir = new MMapDirectory(location, lockFactory);
+        return new FileSwitchDirectory(PRIMARY_EXTENSIONS, mmapDir, new NIOFSDirectory(location, lockFactory), true) {
+            @Override
+            public String[] listAll() throws IOException {
+                // Avoid doing listAll twice:
+                return mmapDir.listAll();
+            }
+        };
     }
 }

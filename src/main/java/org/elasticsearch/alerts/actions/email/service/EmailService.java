@@ -5,16 +5,10 @@
  */
 package org.elasticsearch.alerts.actions.email.service;
 
-import org.elasticsearch.cluster.ClusterState;
-
 /**
  *
  */
 public interface EmailService {
-
-    void start(ClusterState state);
-
-    void stop();
 
     EmailSent send(Email email, Authentication auth, Profile profile);
 

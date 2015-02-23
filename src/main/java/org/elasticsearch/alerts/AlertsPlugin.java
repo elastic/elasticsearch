@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.alerts;
 
+import org.elasticsearch.alerts.actions.email.service.InternalEmailService;
 import org.elasticsearch.alerts.support.init.InitializingService;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -47,7 +48,8 @@ public class AlertsPlugin extends AbstractPlugin {
                 // the initialization service must be first in the list
                 // as other services may depend on one of the initialized
                 // constructs
-                InitializingService.class);
+                InitializingService.class,
+                InternalEmailService.class);
     }
 
     @Override

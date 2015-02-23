@@ -20,16 +20,14 @@ import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 
 /**
  *
  */
 public class Email implements ToXContent {
 
+    public static final ParseField ID_FIELD = new ParseField("id");
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField REPLY_TO_FIELD = new ParseField("reply_to");
     public static final ParseField PRIORITY_FIELD = new ParseField("priority");
@@ -40,8 +38,6 @@ public class Email implements ToXContent {
     public static final ParseField SUBJECT_FIELD = new ParseField("subject");
     public static final ParseField TEXT_BODY_FIELD = new ParseField("text_body");
     public static final ParseField HTML_BODY_FIELD = new ParseField("html_body");
-    public static final ParseField ATTACHMENTS_FIELD = new ParseField("attachments");
-    public static final ParseField INLINES_FIELD = new ParseField("inlines");
 
     final String id;
     final Address from;
@@ -65,7 +61,7 @@ public class Email implements ToXContent {
         this.from = from;
         this.replyTo = replyTo;
         this.priority = priority;
-        this.sentDate = sentDate;
+        this.sentDate = sentDate != null ? sentDate : new DateTime();
         this.to = to;
         this.cc = cc;
         this.bcc = bcc;
@@ -74,6 +70,10 @@ public class Email implements ToXContent {
         this.htmlBody = htmlBody;
         this.attachments = attachments;
         this.inlines = inlines;
+    }
+
+    public String id() {
+        return id;
     }
 
     public Address from() {
@@ -126,20 +126,46 @@ public class Email implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject()
-                .field(FROM_FIELD.getPreferredName(), from)
-                .field(REPLY_TO_FIELD.getPreferredName(), (ToXContent) replyTo)
-                .field(PRIORITY_FIELD.getPreferredName(), priority)
-                .field(SENT_DATE_FIELD.getPreferredName(), sentDate)
-                .field(TO_FIELD.getPreferredName(), (ToXContent) to)
-                .field(CC_FIELD.getPreferredName(), (ToXContent) cc)
-                .field(BCC_FIELD.getPreferredName(), (ToXContent) bcc)
-                .field(SUBJECT_FIELD.getPreferredName(), subject)
-                .field(TEXT_BODY_FIELD.getPreferredName(), textBody)
-                .field(HTML_BODY_FIELD.getPreferredName(), htmlBody)
-                .field(ATTACHMENTS_FIELD.getPreferredName(), attachments)
-                .field(INLINES_FIELD.getPreferredName(), inlines)
-                .endObject();
+        builder.startObject();
+        builder.field(ID_FIELD.getPreferredName(), id);
+        builder.field(FROM_FIELD.getPreferredName(), from);
+        if (replyTo != null) {
+            builder.field(REPLY_TO_FIELD.getPreferredName(), (ToXContent) replyTo);
+        }
+        if (priority != null) {
+            builder.field(PRIORITY_FIELD.getPreferredName(), priority);
+        }
+        builder.field(SENT_DATE_FIELD.getPreferredName(), sentDate);
+        builder.field(TO_FIELD.getPreferredName(), (ToXContent) to);
+        if (cc != null) {
+            builder.field(CC_FIELD.getPreferredName(), (ToXContent) cc);
+        }
+        if (bcc != null) {
+            builder.field(BCC_FIELD.getPreferredName(), (ToXContent) bcc);
+        }
+        builder.field(SUBJECT_FIELD.getPreferredName(), subject);
+        builder.field(TEXT_BODY_FIELD.getPreferredName(), textBody);
+        if (htmlBody != null) {
+            builder.field(HTML_BODY_FIELD.getPreferredName(), htmlBody);
+        }
+        return builder.endObject();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Email email = (Email) o;
+
+        if (!id.equals(email.id)) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return id.hashCode();
     }
 
     public static Builder builder() {
@@ -154,7 +180,9 @@ public class Email implements ToXContent {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) && currentFieldName != null) {
-                if (FROM_FIELD.match(currentFieldName)) {
+                if (ID_FIELD.match(currentFieldName)) {
+                    email.id(parser.text());
+                } else if (FROM_FIELD.match(currentFieldName)) {
                     email.from(Address.parse(currentFieldName, token, parser));
                 } else if (REPLY_TO_FIELD.match(currentFieldName)) {
                     email.replyTo(AddressList.parse(currentFieldName, token, parser));
@@ -174,10 +202,6 @@ public class Email implements ToXContent {
                     email.textBody(parser.text());
                 } else if (HTML_BODY_FIELD.match(currentFieldName)) {
                     email.htmlBody(parser.text());
-                } else if (ATTACHMENTS_FIELD.match(currentFieldName)) {
-                    //@TODO handle this
-                } else if (INLINES_FIELD.match(currentFieldName)) {
-                    //@TODO handle this
                 } else {
                     throw new EmailException("could not parse email. unrecognized field [" + currentFieldName + "]");
                 }
@@ -293,7 +317,6 @@ public class Email implements ToXContent {
 
         public Email build() {
             assert id != null : "email id should not be null (should be set to the alert id";
-            assert to != null && !to.isEmpty() : "email must have a [to] recipient";
             return new Email(id, from, replyTo, priority, sentDate, to, cc, bcc, subject, textBody, htmlBody, attachments.build(), inlines.build());
         }
 
@@ -427,6 +450,8 @@ public class Email implements ToXContent {
 
     public static class AddressList implements Iterable<Address>, ToXContent {
 
+        public static final AddressList EMPTY = new AddressList(Collections.<Address>emptyList());
+
         private final List<Address> addresses;
 
         public AddressList(List<Address> addresses) {
@@ -444,6 +469,10 @@ public class Email implements ToXContent {
 
         public Address[] toArray() {
             return addresses.toArray(new Address[addresses.size()]);
+        }
+
+        public int size() {
+            return addresses.size();
         }
 
         @Override
@@ -498,6 +527,23 @@ public class Email implements ToXContent {
             }
             throw new EmailException("could not parse [" + field + "] as address list. field must either be a string " +
                     "(comma-separated list of RFC822 encoded addresses) or an array of objects representing addresses");
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            AddressList addresses1 = (AddressList) o;
+
+            if (!addresses.equals(addresses1.addresses)) return false;
+
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            return addresses.hashCode();
         }
     }
 

@@ -6,6 +6,9 @@
 package org.elasticsearch.alerts.actions.email.service;
 
 import org.elasticsearch.alerts.actions.email.service.support.BodyPartSource;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import javax.activation.DataHandler;
@@ -14,7 +17,10 @@ import javax.activation.FileDataSource;
 import javax.mail.MessagingException;
 import javax.mail.Part;
 import javax.mail.internet.MimeBodyPart;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Path;
 
 /**
@@ -22,24 +28,33 @@ import java.nio.file.Path;
  */
 public abstract class Inline extends BodyPartSource {
 
-    public Inline(String id) {
-        super(id);
+    protected Inline(String id, String name, String contentType) {
+        super(id, name, contentType);
     }
 
-    public Inline(String id, String name) {
-        super(id, name);
-    }
-
-    public Inline(String id, String name, String description) {
-        super(id, name, description);
-    }
+    public abstract String type();
 
     @Override
     public final MimeBodyPart bodyPart() throws MessagingException {
         MimeBodyPart part = new MimeBodyPart();
         part.setDisposition(Part.INLINE);
+        part.setContentID(id);
+        part.setFileName(name);
         writeTo(part);
         return part;
+    }
+
+    /**
+     * intentionally not emitting path as it may come as an information leak
+     */
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject()
+                .field("type", type())
+                .field("id", id)
+                .field("name", name)
+                .field("content_type", contentType)
+                .endObject();
     }
 
     protected abstract void writeTo(MimeBodyPart part) throws MessagingException;
@@ -50,32 +65,19 @@ public abstract class Inline extends BodyPartSource {
 
         private final Path path;
         private DataSource dataSource;
-        private final String contentType;
 
         public File(String id, Path path) {
             this(id, path.getFileName().toString(), path);
         }
 
-        public File(String id, Path path, String contentType) {
-            this(id, path.getFileName().toString(), path, contentType);
-        }
-
         public File(String id, String name, Path path) {
-            this(id, name, name, path);
+            this(id, name, path, fileTypeMap.getContentType(path.toFile()));
         }
+
         public File(String id, String name, Path path, String contentType) {
-            this(id, name, name, path, contentType);
-        }
-
-        public File(String id, String name, String description, Path path) {
-            this(id, name, description, path, null);
-        }
-
-        public File(String id, String name, String description, Path path, String contentType) {
-            super(id, name, description);
+            super(id, name, contentType);
             this.path = path;
             this.dataSource = new FileDataSource(path.toFile());
-            this.contentType = contentType;
         }
 
         public Path path() {
@@ -86,30 +88,99 @@ public abstract class Inline extends BodyPartSource {
             return TYPE;
         }
 
-        String contentType() {
-            return contentType != null ? contentType : dataSource.getContentType();
-        }
-
         @Override
         public void writeTo(MimeBodyPart part) throws MessagingException {
-            DataHandler handler = contentType != null ?
-                    new DataHandler(dataSource, contentType) :
-                    new DataHandler(dataSource);
-            part.setDataHandler(handler);
+            part.setDataHandler(new DataHandler(dataSource, contentType));
+        }
+    }
+
+    public static class Stream extends Inline {
+
+        static final String TYPE = "stream";
+
+        private final Provider<InputStream> source;
+
+        public Stream(String id, String name, Provider<InputStream> source) {
+            this(id, name, fileTypeMap.getContentType(name), source);
         }
 
-        /**
-         * intentionally not emitting path as it may come as an information leak
-         */
+        public Stream(String id, String name, String contentType, Provider<InputStream> source) {
+            super(id, name, contentType);
+            this.source = source;
+        }
+
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject()
-                    .field("type", type())
-                    .field("id", id)
-                    .field("name", name)
-                    .field("description", description)
-                    .field("content_type", contentType())
-                    .endObject();
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        protected void writeTo(MimeBodyPart part) throws MessagingException {
+            DataSource ds = new StreamDataSource(name, contentType, source);
+            DataHandler dh = new DataHandler(ds);
+            part.setDataHandler(dh);
+        }
+
+        static class StreamDataSource implements DataSource {
+
+            private final String name;
+            private final String contentType;
+            private final Provider<InputStream> source;
+
+            public StreamDataSource(String name, String contentType, Provider<InputStream> source) {
+                this.name = name;
+                this.contentType = contentType;
+                this.source = source;
+            }
+
+            @Override
+            public InputStream getInputStream() throws IOException {
+                return source.get();
+            }
+
+            @Override
+            public OutputStream getOutputStream() throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public String getContentType() {
+                return contentType;
+            }
+
+            @Override
+            public String getName() {
+                return name;
+            }
+        }
+    }
+
+    public static class Bytes extends Stream {
+
+        public Bytes(String id, String name, String contentType, byte[] bytes) {
+            super(id, name, contentType, new BytesStreamProvider(bytes));
+        }
+
+        public Bytes(String id, String name, String contentType, BytesReference bytes) {
+            super(id, name, contentType, new BytesStreamProvider(bytes));
+        }
+
+        static class BytesStreamProvider implements Provider<InputStream> {
+
+            private final BytesReference bytes;
+
+            public BytesStreamProvider(byte[] bytes) {
+                this(new BytesArray(bytes));
+            }
+
+            public BytesStreamProvider(BytesReference bytes) {
+                this.bytes = bytes;
+            }
+
+            @Override
+            public InputStream get() {
+                return new ByteArrayInputStream(bytes.array(), bytes.arrayOffset(), bytes.length());
+            }
         }
     }
 }

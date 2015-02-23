@@ -16,7 +16,6 @@ import javax.mail.internet.MimeBodyPart;
 import javax.mail.internet.MimeMessage;
 import javax.mail.internet.MimeMultipart;
 import java.io.IOException;
-import java.util.Date;
 import java.util.Locale;
 
 /**
@@ -26,11 +25,51 @@ import java.util.Locale;
 public enum Profile implements ToXContent {
 
     STANDARD() {
+
+        @Override
+        public String textBody(MimeMessage msg) throws IOException, MessagingException {
+            MimeMultipart mixed = (MimeMultipart) msg.getContent();
+            MimeMultipart related = null;
+            for (int i = 0; i < mixed.getCount(); i++) {
+                MimeBodyPart part = (MimeBodyPart) mixed.getBodyPart(i);
+
+                if (part.getContentType().startsWith("multipart/related")) {
+                    related = (MimeMultipart) part.getContent();
+                    break;
+                }
+            }
+            if (related == null) {
+                throw new EmailException("could not extract body text from mime message");
+            }
+
+            MimeMultipart alternative = null;
+            for (int i = 0; i < related.getCount(); i++) {
+                MimeBodyPart part = (MimeBodyPart) related.getBodyPart(i);
+                if (part.getContentType().startsWith("multipart/alternative")) {
+                    alternative = (MimeMultipart) part.getContent();
+                    break;
+                }
+            }
+            if (alternative == null) {
+                throw new EmailException("could not extract body text from mime message");
+            }
+
+            for (int i = 0; i < alternative.getCount(); i++) {
+                MimeBodyPart part = (MimeBodyPart) alternative.getBodyPart(i);
+                if (part.getContentType().startsWith("text/plain")) {
+                    return (String) part.getContent();
+                }
+            }
+
+            throw new EmailException("could not extract body text from mime message");
+        }
+
         @Override
         public MimeMessage toMimeMessage(Email email, Session session) throws MessagingException {
             MimeMessage message = createCommon(email, session);
 
             MimeMultipart mixed = new MimeMultipart("mixed");
+            message.setContent(mixed);
 
             MimeMultipart related = new MimeMultipart("related");
             mixed.addBodyPart(wrap(related, null));
@@ -39,12 +78,16 @@ public enum Profile implements ToXContent {
             related.addBodyPart(wrap(alternative, "text/alternative"));
 
             MimeBodyPart text = new MimeBodyPart();
-            text.setText(email.textBody, Charsets.UTF_8.name());
+            if (email.textBody != null) {
+                text.setText(email.textBody, Charsets.UTF_8.name());
+            } else {
+                text.setText("", Charsets.UTF_8.name());
+            }
             alternative.addBodyPart(text);
 
             if (email.htmlBody != null) {
                 MimeBodyPart html = new MimeBodyPart();
-                text.setText(email.textBody, Charsets.UTF_8.name(), "html");
+                html.setText(email.htmlBody, Charsets.UTF_8.name(), "html");
                 alternative.addBodyPart(html);
             }
 
@@ -65,18 +108,36 @@ public enum Profile implements ToXContent {
     },
 
     OUTLOOK() {
+
+        @Override
+        public String textBody(MimeMessage msg) throws IOException, MessagingException {
+            return STANDARD.textBody(msg);
+        }
+
         @Override
         public MimeMessage toMimeMessage(Email email, Session session) throws MessagingException {
             return STANDARD.toMimeMessage(email, session);
         }
     },
     GMAIL() {
+
+        @Override
+        public String textBody(MimeMessage msg) throws IOException, MessagingException {
+            return STANDARD.textBody(msg);
+        }
+
         @Override
         public MimeMessage toMimeMessage(Email email, Session session) throws MessagingException {
             return STANDARD.toMimeMessage(email, session);
         }
     },
     MAC() {
+
+        @Override
+        public String textBody(MimeMessage msg) throws IOException, MessagingException {
+            return STANDARD.textBody(msg);
+        }
+
         @Override
         public MimeMessage toMimeMessage(Email email, Session session) throws MessagingException {
             return STANDARD.toMimeMessage(email, session);
@@ -86,6 +147,8 @@ public enum Profile implements ToXContent {
     static final String MESSAGE_ID_HEADER = "Message-ID";
 
     public abstract MimeMessage toMimeMessage(Email email, Session session) throws MessagingException ;
+
+    public abstract String textBody(MimeMessage msg) throws IOException, MessagingException;
 
     public static Profile resolve(String name) {
         Profile profile = resolve(name, null);
@@ -104,6 +167,7 @@ public enum Profile implements ToXContent {
             case "standard":    return STANDARD;
             case "outlook":     return OUTLOOK;
             case "gmail":       return GMAIL;
+            case "mac":         return MAC;
             default:
                 return defaultProfile;
         }
@@ -126,14 +190,19 @@ public enum Profile implements ToXContent {
         if (email.priority != null) {
             email.priority.applyTo(message);
         }
-        Date sentDate = email.sentDate != null ? email.sentDate.toDate() : new Date();
-        message.setSentDate(sentDate);
-
+        message.setSentDate(email.sentDate.toDate());
         message.setRecipients(Message.RecipientType.TO, email.to.toArray());
-        message.setRecipients(Message.RecipientType.CC, email.cc.toArray());
-        message.setRecipients(Message.RecipientType.BCC, email.bcc.toArray());
-
-        message.setSubject(email.subject, Charsets.UTF_8.name());
+        if (email.cc != null) {
+            message.setRecipients(Message.RecipientType.CC, email.cc.toArray());
+        }
+        if (email.bcc != null) {
+            message.setRecipients(Message.RecipientType.BCC, email.bcc.toArray());
+        }
+        if (email.subject != null) {
+            message.setSubject(email.subject, Charsets.UTF_8.name());
+        } else {
+            message.setSubject("", Charsets.UTF_8.name());
+        }
 
         return message;
     }

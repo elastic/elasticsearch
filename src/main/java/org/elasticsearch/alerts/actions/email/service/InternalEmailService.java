@@ -5,24 +5,22 @@
  */
 package org.elasticsearch.alerts.actions.email.service;
 
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 import javax.mail.MessagingException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  *
  */
-public class InternalEmailService extends AbstractComponent implements EmailService {
+public class InternalEmailService extends AbstractLifecycleComponent<InternalEmailService> implements EmailService {
 
     private volatile Accounts accounts;
-
-    private final AtomicBoolean started = new AtomicBoolean(false);
 
     @Inject
     public InternalEmailService(Settings settings, NodeSettingsService nodeSettingsService) {
@@ -33,6 +31,19 @@ public class InternalEmailService extends AbstractComponent implements EmailServ
                 reset(settings);
             }
         });
+    }
+
+    @Override
+    protected void doStart() throws ElasticsearchException {
+        reset(settings);
+    }
+
+    @Override
+    protected void doStop() throws ElasticsearchException {
+    }
+
+    @Override
+    protected void doClose() throws ElasticsearchException {
     }
 
     @Override
@@ -59,29 +70,16 @@ public class InternalEmailService extends AbstractComponent implements EmailServ
         return new EmailSent(account.name(), email);
     }
 
-    @Override
-    public synchronized void start(ClusterState state) {
-        if (started.get()) {
-            return;
-        }
-        reset(state.metaData().settings());
-        started.set(true);
-    }
-
-    @Override
-    public synchronized void stop() {
-        started.set(false);
-    }
-
-    synchronized void reset(Settings nodeSettings) {
-        if (!started.get()) {
-            return;
-        }
+    void reset(Settings nodeSettings) {
         Settings settings = ImmutableSettings.builder()
                 .put(componentSettings)
                 .put(nodeSettings.getComponentSettings(InternalEmailService.class))
                 .build();
-        accounts = new Accounts(settings, logger);
+        accounts = createAccounts(settings, logger);
+    }
+
+    protected Accounts createAccounts(Settings settings, ESLogger logger) {
+        return new Accounts(settings, logger);
     }
 
 }

@@ -6,7 +6,6 @@
 package org.elasticsearch.alerts.actions.email.service;
 
 import org.elasticsearch.alerts.actions.email.service.support.BodyPartSource;
-import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -26,16 +25,8 @@ import java.nio.file.Path;
 */
 public abstract class Attachment extends BodyPartSource {
 
-    public Attachment(String id) {
-        super(id);
-    }
-
-    public Attachment(String id, String name) {
-        super(id, name);
-    }
-
-    public Attachment(String id, String name, String description) {
-        super(id, name, description);
+    protected Attachment(String id, String name, String contentType) {
+        super(id, name, contentType);
     }
 
     @Override
@@ -43,10 +34,24 @@ public abstract class Attachment extends BodyPartSource {
         MimeBodyPart part = new MimeBodyPart();
         part.setContentID(id);
         part.setFileName(name);
-        part.setDescription(description, Charsets.UTF_8.name());
         part.setDisposition(Part.ATTACHMENT);
         writeTo(part);
         return part;
+    }
+
+    public abstract String type();
+
+    /**
+     * intentionally not emitting path as it may come as an information leak
+     */
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject()
+                .field("type", type())
+                .field("id", id)
+                .field("name", name)
+                .field("content_type", contentType)
+                .endObject();
     }
 
     protected abstract void writeTo(MimeBodyPart part) throws MessagingException;
@@ -57,7 +62,6 @@ public abstract class Attachment extends BodyPartSource {
 
         private final Path path;
         private final DataSource dataSource;
-        private final String contentType;
 
         public File(String id, Path path) {
             this(id, path.getFileName().toString(), path);
@@ -68,21 +72,13 @@ public abstract class Attachment extends BodyPartSource {
         }
 
         public File(String id, String name, Path path) {
-            this(id, name, name, path);
+            this(id, name, path, fileTypeMap.getContentType(path.toFile()));
         }
+
         public File(String id, String name, Path path, String contentType) {
-            this(id, name, name, path, contentType);
-        }
-
-        public File(String id, String name, String description, Path path) {
-            this(id, name, description, path, null);
-        }
-
-        public File(String id, String name, String description, Path path, String contentType) {
-            super(id, name, description);
+            super(id, name, contentType);
             this.path = path;
             this.dataSource = new FileDataSource(path.toFile());
-            this.contentType = contentType;
         }
 
         public Path path() {
@@ -93,31 +89,9 @@ public abstract class Attachment extends BodyPartSource {
             return TYPE;
         }
 
-        String contentType() {
-            return contentType != null ? contentType : dataSource.getContentType();
-        }
-
         @Override
         public void writeTo(MimeBodyPart part) throws MessagingException {
-            DataSource dataSource = new FileDataSource(path.toFile());
-            DataHandler handler = contentType != null ?
-                    new DataHandler(dataSource, contentType) :
-                    new DataHandler(dataSource);
-            part.setDataHandler(handler);
-        }
-
-        /**
-         * intentionally not emitting path as it may come as an information leak
-         */
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject()
-                    .field("type", type())
-                    .field("id", id)
-                    .field("name", name)
-                    .field("description", description)
-                    .field("content_type", contentType())
-                    .endObject();
+            part.setDataHandler(new DataHandler(dataSource));
         }
     }
 
@@ -126,20 +100,18 @@ public abstract class Attachment extends BodyPartSource {
         static final String TYPE = "bytes";
 
         private final byte[] bytes;
-        private final String contentType;
 
         public Bytes(String id, byte[] bytes, String contentType) {
             this(id, id, bytes, contentType);
         }
 
-        public Bytes(String id, String name, byte[] bytes, String contentType) {
-            this(id, name, name, bytes, contentType);
+        public Bytes(String id, String name, byte[] bytes) {
+            this(id, name, bytes, fileTypeMap.getContentType(name));
         }
 
-        public Bytes(String id, String name, String description, byte[] bytes, String contentType) {
-            super(id, name, description);
+        public Bytes(String id, String name, byte[] bytes, String contentType) {
+            super(id, name, contentType);
             this.bytes = bytes;
-            this.contentType = contentType;
         }
 
         public String type() {
@@ -150,26 +122,11 @@ public abstract class Attachment extends BodyPartSource {
             return bytes;
         }
 
-        public String contentType() {
-            return contentType;
-        }
-
         @Override
         public void writeTo(MimeBodyPart part) throws MessagingException {
             DataSource dataSource = new ByteArrayDataSource(bytes, contentType);
             DataHandler handler = new DataHandler(dataSource);
             part.setDataHandler(handler);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject()
-                    .field("type", type())
-                    .field("id", id)
-                    .field("name", name)
-                    .field("description", description)
-                    .field("content_type", contentType)
-                    .endObject();
         }
     }
 
@@ -180,11 +137,7 @@ public abstract class Attachment extends BodyPartSource {
         }
 
         protected XContent(String id, String name, ToXContent content, XContentType type) {
-            this(id, name, name, content, type);
-        }
-
-        protected XContent(String id, String name, String description, ToXContent content, XContentType type) {
-            super(id, name, description, bytes(name, content, type), mimeType(type));
+            super(id, name, bytes(name, content, type), mimeType(type));
         }
 
         static String mimeType(XContentType type) {
@@ -202,7 +155,7 @@ public abstract class Attachment extends BodyPartSource {
             try {
                 XContentBuilder builder = XContentBuilder.builder(type.xContent());
                 content.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                return builder.bytes().array();
+                return builder.bytes().toBytes();
             } catch (IOException ioe) {
                 throw new EmailException("could not create an xcontent attachment [" + name + "]", ioe);
             }
@@ -216,10 +169,6 @@ public abstract class Attachment extends BodyPartSource {
 
             public Yaml(String id, String name, ToXContent content) {
                 super(id, name, content, XContentType.YAML);
-            }
-
-            public Yaml(String id, String name, String description, ToXContent content) {
-                super(id, name, description, content, XContentType.YAML);
             }
 
             @Override
@@ -236,10 +185,6 @@ public abstract class Attachment extends BodyPartSource {
 
             public Json(String id, String name, ToXContent content) {
                 super(id, name, content, XContentType.JSON);
-            }
-
-            public Json(String id, String name, String description, ToXContent content) {
-                super(id, name, description, content, XContentType.JSON);
             }
 
             @Override

@@ -50,6 +50,10 @@ public class ScriptTemplate implements ToXContent, Template {
         this(service, text, DEFAULT_LANG, ScriptService.ScriptType.INLINE, Collections.<String, Object>emptyMap());
     }
 
+    public ScriptTemplate(ScriptServiceProxy service, String text, String lang, ScriptService.ScriptType type) {
+        this(service, text, lang, type, Collections.<String, Object>emptyMap());
+    }
+
     public ScriptTemplate(ScriptServiceProxy service, String text, String lang, ScriptService.ScriptType type, Map<String, Object> params) {
         this.service = service;
         this.text = text;
@@ -135,8 +139,12 @@ public class ScriptTemplate implements ToXContent, Template {
 
         @Override
         public ScriptTemplate parse(XContentParser parser) throws IOException {
-            assert parser.currentToken() == XContentParser.Token.START_OBJECT : "Expected START_OBJECT, but was " + parser.currentToken();
-
+            if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                return new ScriptTemplate(scriptService, parser.text());
+            }
+            if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+                throw new ParseException("expected either a string or an object, but found [" + parser.currentToken() + "] instead");
+            }
             String text = null;
             ScriptService.ScriptType type = ScriptService.ScriptType.INLINE;
             String lang = DEFAULT_LANG;

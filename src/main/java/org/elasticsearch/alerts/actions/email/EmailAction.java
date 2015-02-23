@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  */
@@ -29,23 +30,23 @@ public class EmailAction extends Action<EmailAction.Result> {
 
     public static final String TYPE = "email";
 
-    private final Email.Builder email;
-    private final Authentication auth;
-    private final Profile profile;
-    private final String account;
-    private final Template subject;
-    private final Template textBody;
-    private final Template htmlBody;
-    private final boolean attachPayload;
+    final Email emailPrototype;
+    final Authentication auth;
+    final Profile profile;
+    final String account;
+    final Template subject;
+    final Template textBody;
+    final Template htmlBody;
+    final boolean attachPayload;
 
-    private final EmailService emailService;
+    final EmailService emailService;
 
-    public EmailAction(ESLogger logger, EmailService emailService, Email.Builder email, Authentication auth, Profile profile,
+    public EmailAction(ESLogger logger, EmailService emailService, Email emailPrototype, Authentication auth, Profile profile,
                        String account, Template subject, Template textBody, Template htmlBody, boolean attachPayload) {
 
         super(logger);
         this.emailService = emailService;
-        this.email = email;
+        this.emailPrototype = emailPrototype;
         this.auth = auth;
         this.profile = profile;
         this.account = account;
@@ -64,6 +65,10 @@ public class EmailAction extends Action<EmailAction.Result> {
     public Result execute(ExecutionContext ctx, Payload payload) throws IOException {
         ImmutableMap<String, Object> model = templateModel(ctx, payload);
 
+        Email.Builder email = Email.builder()
+                .id(ctx.id())
+                .copyFrom(emailPrototype);
+
         email.id(ctx.id());
         email.subject(subject.render(model));
         email.textBody(textBody.render(model));
@@ -73,7 +78,7 @@ public class EmailAction extends Action<EmailAction.Result> {
         }
 
         if (attachPayload) {
-            Attachment.Bytes attachment = new Attachment.XContent.Yaml("payload", "payload.yml", "alert execution output", payload);
+            Attachment.Bytes attachment = new Attachment.XContent.Yaml("payload", "payload.yml", payload);
             email.attach(attachment);
         }
 
@@ -87,20 +92,69 @@ public class EmailAction extends Action<EmailAction.Result> {
     }
 
     @Override
+    public int hashCode() {
+        return Objects.hash(emailPrototype, auth, profile, account, subject, textBody, htmlBody, attachPayload);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        final EmailAction other = (EmailAction) obj;
+        return Objects.equals(this.emailPrototype, other.emailPrototype)
+                && Objects.equals(this.auth, other.auth)
+                && Objects.equals(this.profile, other.profile)
+                && Objects.equals(this.account, other.account)
+                && Objects.equals(this.subject, other.subject)
+                && Objects.equals(this.textBody, other.textBody)
+                && Objects.equals(this.htmlBody, other.htmlBody)
+                && Objects.equals(this.attachPayload, other.attachPayload);
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (account != null) {
-            builder.field(EmailAction.Parser.ACCOUNT_FIELD.getPreferredName(), account);
+            builder.field(Parser.ACCOUNT_FIELD.getPreferredName(), account);
         }
         if (profile != null) {
-            builder.field(EmailAction.Parser.PROFILE_FIELD.getPreferredName(), profile);
+            builder.field(Parser.PROFILE_FIELD.getPreferredName(), profile);
         }
-        builder.field(Email.TO_FIELD.getPreferredName(), (ToXContent) email.to());
+        if (auth != null) {
+            builder.field(Parser.USER_FIELD.getPreferredName(), auth.user());
+            builder.field(Parser.PASSWORD_FIELD.getPreferredName(), auth.password());
+        }
+        builder.field(Parser.ATTACH_PAYLOAD_FIELD.getPreferredName(), attachPayload);
+        if (emailPrototype.from() != null) {
+            builder.field(Email.FROM_FIELD.getPreferredName(), emailPrototype.from());
+        }
+        if (emailPrototype.to() != null && !emailPrototype.to().isEmpty()) {
+            builder.field(Email.TO_FIELD.getPreferredName(), (ToXContent) emailPrototype.to());
+        }
+        if (emailPrototype.cc() != null && !emailPrototype.cc().isEmpty()) {
+            builder.field(Email.CC_FIELD.getPreferredName(), (ToXContent) emailPrototype.cc());
+        }
+        if (emailPrototype.bcc() != null && !emailPrototype.bcc().isEmpty()) {
+            builder.field(Email.BCC_FIELD.getPreferredName(), (ToXContent) emailPrototype.bcc());
+        }
+        if (emailPrototype.replyTo() != null && !emailPrototype.replyTo().isEmpty()) {
+            builder.field(Email.REPLY_TO_FIELD.getPreferredName(), (ToXContent) emailPrototype.replyTo());
+        }
         if (subject != null) {
             builder.field(Email.SUBJECT_FIELD.getPreferredName(), subject);
         }
         if (textBody != null) {
             builder.field(Email.TEXT_BODY_FIELD.getPreferredName(), textBody);
+        }
+        if (htmlBody != null) {
+            builder.field(Email.HTML_BODY_FIELD.getPreferredName(), htmlBody);
+        }
+        if (emailPrototype.priority() != null) {
+            builder.field(Email.PRIORITY_FIELD.getPreferredName(), emailPrototype.priority());
         }
         return builder.endObject();
     }
@@ -136,7 +190,7 @@ public class EmailAction extends Action<EmailAction.Result> {
             String password = null;
             String account = null;
             Profile profile = null;
-            Email.Builder email = Email.builder();
+            Email.Builder email = Email.builder().id("prototype");
             Template subject = null;
             Template textBody = null;
             Template htmlBody = null;
@@ -202,12 +256,9 @@ public class EmailAction extends Action<EmailAction.Result> {
                 }
             }
 
-            if (email.to() == null || email.to().isEmpty()) {
-                throw new ActionSettingsException("could not parse email action. [to] was not found or was empty");
-            }
+            Authentication auth = user != null ? new Authentication(user, password) : null;
 
-            Authentication auth = new Authentication(user, password);
-            return new EmailAction(logger, emailService, email, auth, profile, account, subject, textBody, htmlBody, attachPayload);
+            return new EmailAction(logger, emailService, email.build(), auth, profile, account, subject, textBody, htmlBody, attachPayload);
         }
 
         @Override
@@ -263,7 +314,6 @@ public class EmailAction extends Action<EmailAction.Result> {
             super(type, success);
         }
 
-
         public static class Success extends Result {
 
             private final EmailService.EmailSent sent;
@@ -295,6 +345,10 @@ public class EmailAction extends Action<EmailAction.Result> {
             public Failure(String reason) {
                 super(TYPE, false);
                 this.reason = reason;
+            }
+
+            public String reason() {
+                return reason;
             }
 
             @Override

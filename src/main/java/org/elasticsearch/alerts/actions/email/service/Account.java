@@ -43,8 +43,12 @@ public class Account {
         // applying the defaults on missing emails fields
         email = config.defaults.apply(email);
 
+        if (email.to == null) {
+            throw new EmailException("email must have [to] recipient");
+        }
+
         Transport transport = session.getTransport(SMTP_PROTOCOL);
-        String user = auth != null ? auth.username() : null;
+        String user = auth != null ? auth.user() : null;
         if (user == null) {
             user = config.smtp.user;
             if (user == null) {
@@ -85,10 +89,10 @@ public class Account {
 
         static final String SMTP_SETTINGS_PREFIX = "mail.smtp.";
 
-        private final String name;
-        private final Profile profile;
-        private final Smtp smtp;
-        private final EmailDefaults defaults;
+        final String name;
+        final Profile profile;
+        final Smtp smtp;
+        final EmailDefaults defaults;
 
         public Config(String name, Settings settings) {
             this.name = name;
@@ -106,16 +110,16 @@ public class Account {
 
         static class Smtp {
 
-            private final String host;
-            private final int port;
-            private final String user;
-            private final String password;
-            private final Properties properties;
+            final String host;
+            final int port;
+            final String user;
+            final String password;
+            final Properties properties;
 
             public Smtp(Settings settings) {
-                host = settings.get("host");
-                port = settings.getAsInt("port", settings.getAsInt("localport", 25));
-                user = settings.get("user", settings.get("from", settings.get("local_address", null)));
+                host = settings.get("host", settings.get("localaddress", settings.get("local_address")));
+                port = settings.getAsInt("port", settings.getAsInt("localport", settings.getAsInt("local_port", 25)));
+                user = settings.get("user", settings.get("from", null));
                 password = settings.get("password", null);
                 properties = loadSmtpProperties(settings);
             }
@@ -165,7 +169,7 @@ public class Account {
          * needed on each alert (e.g. if all the emails are always sent to the same recipients
          * one could set those here and leave them out on the alert definition).
          */
-        class EmailDefaults {
+        static class EmailDefaults {
 
             final Email.Address from;
             final Email.AddressList replyTo;
@@ -186,16 +190,59 @@ public class Account {
             }
 
             Email apply(Email email) {
-                return Email.builder()
-                        .from(from)
-                        .replyTo(replyTo)
-                        .priority(priority)
-                        .to(to)
-                        .cc(cc)
-                        .bcc(bcc)
-                        .subject(subject)
-                        .copyFrom(email)
-                        .build();
+                Email.Builder builder = Email.builder().copyFrom(email);
+                if (email.from == null) {
+                    builder.from(from);
+                }
+                if (email.replyTo == null) {
+                    builder.replyTo(replyTo);
+                }
+                if (email.priority == null) {
+                    builder.priority(priority);
+                }
+                if (email.to == null) {
+                    builder.to(to);
+                }
+                if (email.cc == null) {
+                    builder.cc(cc);
+                }
+                if (email.bcc == null) {
+                    builder.bcc(bcc);
+                }
+                if (email.subject == null) {
+                    builder.subject(subject);
+                }
+                return builder.build();
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+
+                EmailDefaults that = (EmailDefaults) o;
+
+                if (bcc != null ? !bcc.equals(that.bcc) : that.bcc != null) return false;
+                if (cc != null ? !cc.equals(that.cc) : that.cc != null) return false;
+                if (from != null ? !from.equals(that.from) : that.from != null) return false;
+                if (priority != that.priority) return false;
+                if (replyTo != null ? !replyTo.equals(that.replyTo) : that.replyTo != null) return false;
+                if (subject != null ? !subject.equals(that.subject) : that.subject != null) return false;
+                if (to != null ? !to.equals(that.to) : that.to != null) return false;
+
+                return true;
+            }
+
+            @Override
+            public int hashCode() {
+                int result = from != null ? from.hashCode() : 0;
+                result = 31 * result + (replyTo != null ? replyTo.hashCode() : 0);
+                result = 31 * result + (priority != null ? priority.hashCode() : 0);
+                result = 31 * result + (to != null ? to.hashCode() : 0);
+                result = 31 * result + (cc != null ? cc.hashCode() : 0);
+                result = 31 * result + (bcc != null ? bcc.hashCode() : 0);
+                result = 31 * result + (subject != null ? subject.hashCode() : 0);
+                return result;
             }
         }
     }

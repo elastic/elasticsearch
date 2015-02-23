@@ -55,7 +55,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.*;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.*;
@@ -174,12 +174,12 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
         Email.AddressList to = new Email.AddressList(emailAddressList);
 
 
-        Email.Builder emailBuilder = Email.builder();
+        Email.Builder emailBuilder = Email.builder().id("prototype");
         emailBuilder.from(from);
         emailBuilder.to(to);
 
 
-        EmailAction emailAction = new EmailAction(logger, noopEmailService(), emailBuilder,
+        EmailAction emailAction = new EmailAction(logger, noopEmailService(), emailBuilder.build(),
                 new Authentication("testname", "testpassword"), Profile.STANDARD, "testaccount", body, body, null, true);
 
         actions.add(emailAction);
@@ -471,19 +471,10 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
     }
 
     private static class NoopEmailService implements EmailService {
-        @Override
-        public void start(ClusterState state) {
-
-        }
-
-        @Override
-        public void stop() {
-
-        }
 
         @Override
         public EmailSent send(Email email, Authentication auth, Profile profile) {
-            return new EmailSent(auth.username(), email);
+            return new EmailSent(auth.user(), email);
         }
 
         @Override

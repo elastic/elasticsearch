@@ -8,7 +8,6 @@ package org.elasticsearch.alerts.actions.email.service;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -21,31 +20,27 @@ public class Accounts {
     private final Map<String, Account> accounts;
 
     public Accounts(Settings settings, ESLogger logger) {
-        settings = settings.getAsSettings("account");
-        Map<String, Account> accounts = new HashMap<>();
-        for (String name : settings.names()) {
-            Account.Config config = new Account.Config(name, settings.getAsSettings(name));
+        Settings accountsSettings = settings.getAsSettings("account");
+        accounts = new HashMap<>();
+        for (String name : accountsSettings.names()) {
+            Account.Config config = new Account.Config(name, accountsSettings.getAsSettings(name));
             Account account = new Account(config, logger);
             accounts.put(name, account);
         }
 
-        if (accounts.isEmpty()) {
-            this.accounts = Collections.emptyMap();
-            this.defaultAccountName = null;
-        } else {
-            this.accounts = accounts;
-            String defaultAccountName = settings.get("default_account");
-            if (defaultAccountName == null) {
-                Account account = accounts.values().iterator().next();
-                logger.error("default account set to [{}]", account.name());
-                this.defaultAccountName = account.name();
-            } else if (!accounts.containsKey(defaultAccountName)) {
-                Account account = accounts.values().iterator().next();
-                this.defaultAccountName = account.name();
-                logger.error("could not find configured default account [{}]. falling back on account [{}]", defaultAccountName, account.name());
+        String defaultAccountName = settings.get("default_account");
+        if (defaultAccountName == null) {
+            if (accounts.isEmpty()) {
+                this.defaultAccountName = null;
             } else {
-                this.defaultAccountName = defaultAccountName;
+                Account account = accounts.values().iterator().next();
+                logger.info("default account set to [{}]", account.name());
+                this.defaultAccountName = account.name();
             }
+        } else if (!accounts.containsKey(defaultAccountName)) {
+            throw new EmailSettingsException("could not fine default account [" + defaultAccountName + "]");
+        } else {
+            this.defaultAccountName = defaultAccountName;
         }
     }
 

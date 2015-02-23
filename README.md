@@ -8,7 +8,7 @@ microsoft office formats, open document formats, ePub, HTML, and so on (full lis
 In order to install the plugin, run: 
 
 ```sh
-bin/plugin install elasticsearch/elasticsearch-mapper-attachments/2.4.2
+bin/plugin install elasticsearch/elasticsearch-mapper-attachments/2.4.3
 ```
 
 You need to install a version matching your Elasticsearch version:
@@ -17,7 +17,7 @@ You need to install a version matching your Elasticsearch version:
 |------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
 |    master              | Build from source | See below                                                                                                                          |
 |    es-1.x              | Build from source | [2.5.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/es-1.x/#version-250-snapshot-for-elasticsearch-1x)|
-|    es-1.4              |     2.4.2         | [2.4.2](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.4.2/#version-242-for-elasticsearch-14)                  |
+|    es-1.4              |     2.4.3         | [2.4.3](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.4.3/#version-243-for-elasticsearch-14)                  |
 |    es-1.3              |     2.3.2         | [2.3.2](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.3.2/#version-232-for-elasticsearch-13)                  |
 |    es-1.2              |     2.2.1         | [2.2.1](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.2.1/#version-221-for-elasticsearch-12)                  |
 |    es-1.1              |     2.0.0         | [2.0.0](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.0.0/#mapper-attachments-type-for-elasticsearch)  |

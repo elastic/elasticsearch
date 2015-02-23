@@ -70,11 +70,11 @@ import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * ShardRecoveryHandler handles the three phases of shard recovery, which is
+ * RecoverySourceHandler handles the three phases of shard recovery, which is
  * everything relating to copying the segment files as well as sending translog
  * operations across the wire once the segments have been copied.
  */
-public class ShardRecoveryHandler implements Engine.RecoveryHandler {
+public class RecoverySourceHandler implements Engine.RecoveryHandler {
 
     protected final ESLogger logger;
     // Shard that is going to be recovered (the "source")
@@ -107,9 +107,9 @@ public class ShardRecoveryHandler implements Engine.RecoveryHandler {
     };
 
 
-    public ShardRecoveryHandler(final IndexShard shard, final StartRecoveryRequest request, final RecoverySettings recoverySettings,
-                                final TransportService transportService, final ClusterService clusterService,
-                                final IndicesService indicesService, final MappingUpdatedAction mappingUpdatedAction, final ESLogger logger) {
+    public RecoverySourceHandler(final IndexShard shard, final StartRecoveryRequest request, final RecoverySettings recoverySettings,
+                                 final TransportService transportService, final ClusterService clusterService,
+                                 final IndicesService indicesService, final MappingUpdatedAction mappingUpdatedAction, final ESLogger logger) {
         this.shard = shard;
         this.request = request;
         this.recoverySettings = recoverySettings;

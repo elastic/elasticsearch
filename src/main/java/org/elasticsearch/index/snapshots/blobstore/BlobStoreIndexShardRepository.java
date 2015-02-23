@@ -161,9 +161,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
     public void restore(SnapshotId snapshotId, ShardId shardId, ShardId snapshotShardId, RecoveryState recoveryState) {
         final RestoreContext snapshotContext = new RestoreContext(snapshotId, shardId, snapshotShardId, recoveryState);
         try {
-            recoveryState.getIndex().startTime(System.currentTimeMillis());
             snapshotContext.restore();
-            recoveryState.getIndex().stopTime(System.currentTimeMillis());
         } catch (Throwable e) {
             throw new IndexShardRestoreFailedException(shardId, "failed to restore snapshot [" + snapshotId.getSnapshot() + "]", e);
         }
@@ -711,8 +709,6 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
             try {
                 logger.debug("[{}] [{}] restoring to [{}] ...", snapshotId, repositoryName, shardId);
                 BlobStoreIndexShardSnapshot snapshot = loadSnapshot();
-
-                recoveryState.setStage(RecoveryState.Stage.INDEX);
                 final Store.MetadataSnapshot recoveryTargetMetadata;
                 try {
                     recoveryTargetMetadata = store.getMetadataOrEmpty();

@@ -27,6 +27,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
@@ -101,8 +103,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
      * Recovers the state of the shard from the gateway.
      */
     public void recover(boolean indexShouldExists, RecoveryState recoveryState) throws IndexShardGatewayRecoveryException {
-        recoveryState.getIndex().startTime(System.currentTimeMillis());
-        recoveryState.setStage(RecoveryState.Stage.INDEX);
+        indexShard.prepareForIndexRecovery();
         long version = -1;
         long translogId = -1;
         final Set<String> typesToUpdate = Sets.newHashSet();
@@ -150,7 +151,6 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
                 throw new IndexShardGatewayRecoveryException(shardId(), "failed to fetch index version after copying it over", e);
             }
             recoveryState.getIndex().updateVersion(version);
-            recoveryState.getIndex().stopTime(System.currentTimeMillis());
 
             // since we recover from local, just fill the files and size
             try {
@@ -166,51 +166,37 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
                 logger.debug("failed to list file details", e);
             }
 
-            final RecoveryState.Start stateStart = recoveryState.getStart();
-            stateStart.startTime(System.currentTimeMillis());
-            recoveryState.setStage(RecoveryState.Stage.START);
-            if (translogId == -1) {
-                // no translog files, bail
-                indexShard.postRecovery("post recovery from gateway, no translog for id [" + translogId + "]");
-                // no index, just start the shard and bail
-                stateStart.stopTime(System.currentTimeMillis());
-                stateStart.checkIndexTime(indexShard.checkIndexTook());
-                return;
-            }
-
-            final Translog translog = indexShard.translog();
-            final Path translogName = translog.getPath(translogId);
-            logger.trace("try recover from translog file {} locations: {}", translogName, Arrays.toString(translog.locations()));
             Path recoveringTranslogFile = null;
-            OUTER:
-            for (Path translogLocation : translog.locations()) {
-                // we have to support .recovering since it's a leftover from previous version but might still be on the filesystem
-                // we used to rename the foo into foo.recovering since foo was reused / overwritten but we fixed that in 1.5
-                for (Path recoveryFiles : FileSystemUtils.files(translogLocation, translogName.getFileName() + "{.recovering,}")) {
-                    logger.trace("Translog file found in {}", recoveryFiles);
-                    recoveringTranslogFile = recoveryFiles;
-                    break OUTER;
+            if (translogId == -1) {
+                logger.trace("no translog id set (indexShouldExist [{}])", indexShouldExists);
+            } else {
+                final Translog translog = indexShard.translog();
+                final Path translogName = translog.getPath(translogId);
+                logger.trace("try recover from translog file {} locations: {}", translogName, Arrays.toString(translog.locations()));
+                OUTER:
+                for (Path translogLocation : translog.locations()) {
+                    // we have to support .recovering since it's a leftover from previous version but might still be on the filesystem
+                    // we used to rename the foo into foo.recovering since foo was reused / overwritten but we fixed that in 1.5
+                    for (Path recoveryFiles : FileSystemUtils.files(translogLocation, translogName.getFileName() + "{.recovering,}")) {
+                        logger.trace("Translog file found in {}", recoveryFiles);
+                        recoveringTranslogFile = recoveryFiles;
+                        break OUTER;
+                    }
+                    logger.trace("Translog file NOT found in {} - continue", translogLocation);
                 }
-                logger.trace("Translog file NOT found in {} - continue", translogLocation);
             }
+            // we must do this *after* we capture translog name so the engine creation will not make a new one.
+            // also we have to do this regardless of whether we have a translog, to follow the recovery stages.
+            indexShard.prepareForTranslogRecovery();
 
             if (recoveringTranslogFile == null || Files.exists(recoveringTranslogFile) == false) {
-                // no translog to recovery from, start and bail
                 // no translog files, bail
+                indexShard.finalizeRecovery();
                 indexShard.postRecovery("post recovery from gateway, no translog");
                 // no index, just start the shard and bail
-                stateStart.stopTime(System.currentTimeMillis());
-                stateStart.checkIndexTime(0);
                 return;
             }
 
-            // recover from the translog file
-            indexShard.performRecoveryPrepareForTranslog();
-            stateStart.stopTime(System.currentTimeMillis());
-            stateStart.checkIndexTime(0);
-
-            recoveryState.getTranslog().startTime(System.currentTimeMillis());
-            recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
             StreamInput in = null;
 
             try {
@@ -266,7 +252,18 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
             } finally {
                 IOUtils.closeWhileHandlingException(in);
             }
-            indexShard.performRecoveryFinalization(true);
+            // we flush to trim the translog, in case it was big.
+            try {
+                FlushRequest flushRequest = new FlushRequest();
+                flushRequest.force(false);
+                flushRequest.waitIfOngoing(false);
+                indexShard.flush(flushRequest);
+            } catch (FlushNotAllowedEngineException e) {
+                // to be safe we catch the FNAEX , at this point no one can recover
+                logger.debug("skipping flush at end of recovery (not allowed)", e);
+            }
+            indexShard.finalizeRecovery();
+            indexShard.postRecovery("post recovery from gateway");
 
             try {
                 Files.deleteIfExists(recoveringTranslogFile);
@@ -307,7 +304,6 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
             });
 
         }
-        recoveryState.getTranslog().time(System.currentTimeMillis() - recoveryState.getTranslog().startTime());
     }
 
     @Override

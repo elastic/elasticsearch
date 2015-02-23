@@ -100,15 +100,12 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             return;
         }
 
-        final RecoveryState recoveryState = indexShard.recoveryState();
-
         threadPool.generic().execute(new Runnable() {
             @Override
             public void run() {
-                recoveryState.getTimer().startTime(System.currentTimeMillis());
-                recoveryState.setStage(RecoveryState.Stage.INIT);
 
                 try {
+                    final RecoveryState recoveryState = indexShard.recoveryState();
                     if (indexShard.routingEntry().restoreSource() != null) {
                         logger.debug("restoring from {} ...", indexShard.routingEntry().restoreSource());
                         snapshotService.restore(recoveryState);
@@ -117,19 +114,13 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                         shardGateway.recover(indexShouldExists, recoveryState);
                     }
 
-                    // start the shard if the gateway has not started it already. Note that if the gateway
-                    // moved shard to POST_RECOVERY, it may have been started as well if:
+                    // Check that the gateway have set the shard to POST_RECOVERY. Note that if a shard
+                    // is in POST_RECOVERY, it may have been started as well if:
                     // 1) master sent a new cluster state indicating shard is initializing
                     // 2) IndicesClusterStateService#applyInitializingShard will send a shard started event
                     // 3) Master will mark shard as started and this will be processed locally.
                     IndexShardState shardState = indexShard.state();
-                    if (shardState != IndexShardState.POST_RECOVERY && shardState != IndexShardState.STARTED) {
-                        indexShard.postRecovery("post recovery from gateway");
-                    }
-                    // refresh the shard
-                    indexShard.refresh("post_gateway");
-
-                    recoveryState.setStage(RecoveryState.Stage.DONE);
+                    assert shardState == IndexShardState.POST_RECOVERY || shardState == IndexShardState.STARTED : "recovery process didn't call post_recovery. shardState [" + shardState + "]";
 
                     if (logger.isTraceEnabled()) {
                         StringBuilder sb = new StringBuilder();

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.mapper.attachments.test;
+package org.elasticsearch.index.mapper.attachment.test.integration;
 
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -39,7 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
  * Test case for issue https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/18
  */
 @ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
-public class MultipleAttachmentIntegrationTests extends ElasticsearchIntegrationTest {
+public class EncryptedAttachmentIntegrationTests extends ElasticsearchIntegrationTest {
     private boolean ignore_errors = true;
 
     @Override
@@ -67,9 +67,9 @@ public class MultipleAttachmentIntegrationTests extends ElasticsearchIntegration
         logger.info("creating index [test]");
         createIndex("test");
 
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multipledocs/test-mapping.json");
-        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/htmlWithValidDateMeta.html");
-        byte[] pdf = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/encrypted.pdf");
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/integration/encrypted/test-mapping.json");
+        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/htmlWithValidDateMeta.html");
+        byte[] pdf = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/encrypted.pdf");
 
         client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
 
@@ -94,9 +94,9 @@ public class MultipleAttachmentIntegrationTests extends ElasticsearchIntegration
         logger.info("creating index [test]");
         createIndex("test");
 
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multipledocs/test-mapping.json");
-        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/htmlWithValidDateMeta.html");
-        byte[] pdf = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/encrypted.pdf");
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/integration/encrypted/test-mapping.json");
+        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/htmlWithValidDateMeta.html");
+        byte[] pdf = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/encrypted.pdf");
 
         client().admin().indices()
                 .putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();

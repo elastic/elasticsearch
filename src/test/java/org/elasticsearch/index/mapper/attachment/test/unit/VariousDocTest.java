@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.xcontent;
+package org.elasticsearch.index.mapper.attachment.test.unit;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
+import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -91,7 +92,7 @@ public class VariousDocTest extends ElasticsearchTestCase {
     }
 
     protected void testTika(String filename, boolean errorExpected) {
-        try (InputStream is = VariousDocTest.class.getResourceAsStream(filename)) {
+        try (InputStream is = VariousDocTest.class.getResourceAsStream("/org/elasticsearch/index/mapper/attachment/test/sample-files/" + filename)) {
             String parsedContent = tika().parseToString(is);
             assertThat(parsedContent, not(isEmptyOrNullString()));
             logger.debug("extracted content: {}", parsedContent);
@@ -106,9 +107,9 @@ public class VariousDocTest extends ElasticsearchTestCase {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(ImmutableSettings.builder().build());
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/test-mapping.json");
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/various-doc/test-mapping.json");
         DocumentMapper docMapper = mapperParser.parse(mapping);
-        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/" + filename);
+        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/" + filename);
 
         BytesReference json = jsonBuilder()
                 .startObject()

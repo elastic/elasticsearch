@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.xcontent;
+package org.elasticsearch.index.mapper.attachment.test.unit;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
+import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
@@ -48,10 +49,10 @@ public class EncryptedDocMapperTest extends ElasticsearchTestCase {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser();
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multipledocs/test-mapping.json");
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/encrypted/test-mapping.json");
         DocumentMapper docMapper = mapperParser.parse(mapping);
-        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/htmlWithValidDateMeta.html");
-        byte[] pdf = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/encrypted.pdf");
+        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/htmlWithValidDateMeta.html");
+        byte[] pdf = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/encrypted.pdf");
 
         BytesReference json = jsonBuilder()
                 .startObject()
@@ -81,10 +82,10 @@ public class EncryptedDocMapperTest extends ElasticsearchTestCase {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser();
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multipledocs/test-mapping.json");
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/encrypted/test-mapping.json");
         DocumentMapper docMapper = mapperParser.parse(mapping);
-        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/htmlWithValidDateMeta.html");
-        byte[] pdf = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/encrypted.pdf");
+        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/htmlWithValidDateMeta.html");
+        byte[] pdf = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/encrypted.pdf");
 
         BytesReference json = jsonBuilder()
                 .startObject()
@@ -114,10 +115,10 @@ public class EncryptedDocMapperTest extends ElasticsearchTestCase {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(ImmutableSettings.builder().put("index.mapping.attachment.ignore_errors", false).build());
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multipledocs/test-mapping.json");
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/encrypted/test-mapping.json");
         DocumentMapper docMapper = mapperParser.parse(mapping);
-        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/htmlWithValidDateMeta.html");
-        byte[] pdf = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/encrypted.pdf");
+        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/htmlWithValidDateMeta.html");
+        byte[] pdf = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/encrypted.pdf");
 
         BytesReference json = jsonBuilder()
                 .startObject()

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.xcontent;
+package org.elasticsearch.index.mapper.attachment.test.unit;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
+import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
@@ -54,14 +55,14 @@ public class LanguageDetectionAttachmentMapperTests extends ElasticsearchTestCas
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(
                 ImmutableSettings.settingsBuilder().put("index.mapping.attachment.detect_language", langDetect).build());
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/language/language-mapping.json");
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/language/language-mapping.json");
         docMapper = mapperParser.parse(mapping);
 
         assertThat(docMapper.mappers().fullName("file.language").mapper(), instanceOf(StringFieldMapper.class));
     }
 
     private void testLanguage(String filename, String expected, String... forcedLanguage) throws IOException {
-        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/" + filename);
+        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/" + filename);
 
         XContentBuilder xcb = jsonBuilder()
                 .startObject()
@@ -118,7 +119,7 @@ public class LanguageDetectionAttachmentMapperTests extends ElasticsearchTestCas
         // We replace the mapper with another one which have index.mapping.attachment.detect_language = false
         setupMapperParser(false);
 
-        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/text-in-english.txt");
+        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/text-in-english.txt");
 
         XContentBuilder xcb = jsonBuilder()
                 .startObject()

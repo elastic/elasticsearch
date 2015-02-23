@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.xcontent;
+package org.elasticsearch.index.mapper.attachment.test.unit;
 
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
+import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -59,7 +60,7 @@ public class MultifieldAttachmentMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testSimpleMappings() throws Exception {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/multifield-mapping.json");
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/multifield/multifield-mapping.json");
         DocumentMapper docMapper = mapperParser.parse(mapping);
 
 
@@ -97,7 +98,7 @@ public class MultifieldAttachmentMapperTests extends ElasticsearchTestCase {
         MapperService mapperService = MapperTestUtils.newMapperService(threadPool);
         mapperService.documentMapperParser().putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/multifield-mapping.json");
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/multifield/multifield-mapping.json");
 
         DocumentMapper documentMapper = mapperService.documentMapperParser().parse(mapping);
 

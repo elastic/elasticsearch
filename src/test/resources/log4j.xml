@@ -24,7 +24,7 @@
 		<level value="info" />
 	</logger>
 
-    <logger name="org.elasticsearch.index.mapper">
+    <logger name="org.elasticsearch.index.mapper.attachment">
         <level value="trace" />
     </logger>
 

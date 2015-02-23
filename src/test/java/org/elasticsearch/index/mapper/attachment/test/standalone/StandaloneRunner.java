@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.mapper.attachments.test;
+package org.elasticsearch.index.mapper.attachment.test.standalone;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.cli.CliTool;
@@ -32,7 +32,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
-import org.elasticsearch.index.mapper.xcontent.MapperTestUtils;
+import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -86,7 +86,7 @@ public class StandaloneRunner extends CliTool {
             DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser();
             mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
-            String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/test-mapping.json");
+            String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/standalone/standalone-mapping.json");
             docMapper = mapperParser.parse(mapping);
         }
 

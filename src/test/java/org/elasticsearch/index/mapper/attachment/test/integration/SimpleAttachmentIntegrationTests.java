@@ -17,14 +17,16 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.mapper.attachments.test;
+package org.elasticsearch.index.mapper.attachment.test.integration;
 
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
 import org.junit.Ignore;
@@ -34,9 +36,10 @@ import static org.elasticsearch.client.Requests.putMappingRequest;
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  *
@@ -60,8 +63,8 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
 
     @Test
     public void testSimpleAttachment() throws Exception {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/test-mapping.json");
-        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/testXHTML.html");
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/integration/simple/test-mapping.json");
+        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testXHTML.html");
 
         client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
 
@@ -77,8 +80,8 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
 
     @Test
     public void testSimpleAttachmentContentLengthLimit() throws Exception {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/test-mapping.json");
-        byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/testContentLength.txt");
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/integration/simple/test-mapping.json");
+        byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testContentLength.txt");
         final int CONTENT_LENGTH_LIMIT = 20;
 
         client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
@@ -95,8 +98,8 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
 
     @Test
     public void testSimpleAttachmentNoContentLengthLimit() throws Exception {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/test-mapping.json");
-        byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/testContentLength.txt");
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/integration/simple/test-mapping.json");
+        byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testContentLength.txt");
         final int CONTENT_LENGTH_LIMIT = -1;
 
         client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
@@ -118,7 +121,7 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
      */
     @Test(expected = MapperParsingException.class)
     public void testNoContent() throws Exception {
-       String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/test-mapping.json");
+       String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/integration/simple/test-mapping.json");
 
         client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
 
@@ -129,8 +132,8 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
     public void testContentTypeAndName() throws Exception {
         String dummyContentType = "text/my-dummy-content-type";
         String dummyName = "my-dummy-name-txt";
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/xcontent/test-mapping-store-content-type.json");
-        byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/testContentLength.txt");
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/integration/simple/test-mapping-store-content-type.json");
+        byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testContentLength.txt");
 
         client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
 
@@ -156,8 +159,8 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
      */
     @Test @Ignore
     public void testCopyTo() throws Exception {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/copy-to/copy-to.json");
-        byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/text-in-english.txt");
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/integration/simple/copy-to.json");
+        byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/text-in-english.txt");
 
         client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
 
@@ -173,8 +176,8 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
 
     @Test
     public void testCopyToSubField() throws Exception {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/copy-to/copy-to-subfield.json");
-        byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/xcontent/text-in-english.txt");
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/integration/simple/copy-to-subfield.json");
+        byte[] txt = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/text-in-english.txt");
 
         client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
 
@@ -188,4 +191,31 @@ public class SimpleAttachmentIntegrationTests extends ElasticsearchIntegrationTe
         assertThat(countResponse.getCount(), equalTo(1l));
     }
 
+    @Test
+    public void testHighlightAttachment() throws Exception {
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/integration/simple/test-highlight-mapping.json");
+        byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testXHTML.html");
+
+        client().admin().indices().putMapping(putMappingRequest("test").type("person").source(mapping)).actionGet();
+
+        index("test", "person", jsonBuilder().startObject().field("file", html).endObject());
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(matchQuery("file", "apache tika"))
+                .addHighlightedField("file")
+                .setNoFields().get();
+
+        logger.info("{}", searchResponse);
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().getAt(0).getHighlightFields(), notNullValue());
+        assertThat(searchResponse.getHits().getAt(0).getHighlightFields().keySet(), contains("file"));
+        searchResponse.getHits().getAt(0).getHighlightFields();
+        for (HighlightField highlightField : searchResponse.getHits().getAt(0).getHighlightFields().values()) {
+            for (Text fragment : highlightField.getFragments()) {
+                assertThat(fragment.string(), containsString("<em>Apache</em>"));
+                assertThat(fragment.string(), containsString("<em>Tika</em>"));
+            }
+        }
+    }
 }

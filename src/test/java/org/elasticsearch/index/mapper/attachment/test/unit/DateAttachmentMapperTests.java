@@ -17,11 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.xcontent;
+package org.elasticsearch.index.mapper.attachment.test.unit;
 
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
+import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Before;
@@ -45,7 +46,7 @@ public class DateAttachmentMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testSimpleMappings() throws Exception {
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/date/date-mapping.json");
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/date/date-mapping.json");
         DocumentMapper docMapper = mapperParser.parse(mapping);
 
         // Our mapping should be kept as a String

@@ -589,7 +589,8 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
                     try {
                         logDeleteFile(reason, existingFile);
                         dir.deleteFile(existingFile);
-                    } catch (Exception e) {
+                    } catch (Exception ex) {
+                        logger.debug("failed to delete file [{}]", ex, existingFile);
                         // ignore, we don't really care, will get deleted later on
                     }
                 }

@@ -55,7 +55,7 @@ public class TrimTokenFilterFactory extends AbstractTokenFilterFactory {
         if (version.onOrAfter(Version.LUCENE_4_4_0)) {
             return new TrimFilter(tokenStream);
         } else {
-            @SuppressWarnings("deprecated")
+            @SuppressWarnings("deprecation")
             final TokenStream filter = new Lucene43TrimFilter(tokenStream, updateOffsets);
             return filter;
         }

@@ -186,7 +186,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
             searchRequest.templateSource(bytesRef, false);
             client().search(searchRequest).get();
             fail("expected exception");
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             // expected - no params
         }
         String query = "{ \"template\" : { \"query\": {\"match_all\": {}}, \"size\" : \"{{my_size}}\"  }, \"params\" : { \"my_size\": 1 } }";

@@ -224,7 +224,9 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
             StreamInput in = null;
 
             try {
-                logger.trace("recovering translog file: {} length: {}", recoveringTranslogFile, Files.size(recoveringTranslogFile));
+                if (logger.isTraceEnabled()) {
+                    logger.trace("recovering translog file: {} length: {}", recoveringTranslogFile, Files.size(recoveringTranslogFile));
+                }
                 TranslogStream stream = TranslogStreams.translogStreamFor(recoveringTranslogFile);
                 try {
                     in = stream.openInput(recoveringTranslogFile);

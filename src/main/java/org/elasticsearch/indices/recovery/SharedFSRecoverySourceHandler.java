@@ -30,18 +30,16 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
-
 /**
  * A recovery handler that skips phase 1 as well as sending the snapshot. During phase 3 the shard is marked
  * as relocated an closed to ensure that the engine is closed and the target can acquire the IW write lock.
  */
-public class SharedFSRecoveryHandler extends ShardRecoveryHandler {
+public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
 
     private final IndexShard shard;
     private final StartRecoveryRequest request;
 
-    public SharedFSRecoveryHandler(IndexShard shard, StartRecoveryRequest request, RecoverySettings recoverySettings, TransportService transportService, ClusterService clusterService, IndicesService indicesService, MappingUpdatedAction mappingUpdatedAction, ESLogger logger) {
+    public SharedFSRecoverySourceHandler(IndexShard shard, StartRecoveryRequest request, RecoverySettings recoverySettings, TransportService transportService, ClusterService clusterService, IndicesService indicesService, MappingUpdatedAction mappingUpdatedAction, ESLogger logger) {
         super(shard, request, recoverySettings, transportService, clusterService, indicesService, mappingUpdatedAction, logger);
         this.shard = shard;
         this.request = request;

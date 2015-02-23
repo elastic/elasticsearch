@@ -153,7 +153,6 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
-    private long checkIndexTook = 0;
 
     private TimeValue refreshInterval;
     private final TimeValue mergeInterval;
@@ -721,11 +720,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    public long checkIndexTook() {
-        return this.checkIndexTook;
-    }
-
-
     public IndexShard postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
@@ -737,24 +731,30 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (state == IndexShardState.RELOCATED) {
                 throw new IndexShardRelocatedException(shardId);
             }
-            if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
-                checkIndex(true);
-            }
-            createNewEngine();
-            startScheduledTasksIfNeeded();
+            recoveryState.setStage(RecoveryState.Stage.DONE);
             changeState(IndexShardState.POST_RECOVERY, reason);
         }
         indicesLifecycle.afterIndexShardPostRecovery(this);
         return this;
     }
 
-    /**
-     * After the store has been recovered, we need to start the engine in order to apply operations
-     */
-    public void performRecoveryPrepareForTranslog() throws ElasticsearchException {
+    /** called before starting to copy index files over */
+    public void prepareForIndexRecovery() throws ElasticsearchException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
+        recoveryState.setStage(RecoveryState.Stage.INDEX);
+        assert currentEngineReference.get() == null;
+    }
+
+    /**
+     * After the store has been recovered, we need to start the engine in order to apply operations
+     */
+    public void prepareForTranslogRecovery() throws ElasticsearchException {
+        if (state != IndexShardState.RECOVERING) {
+            throw new IndexShardNotRecoveringException(shardId, state);
+        }
+        recoveryState.setStage(RecoveryState.Stage.START);
         // also check here, before we apply the translog
         if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
             checkIndex(true);
@@ -763,6 +763,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         // but we need to make sure we don't loose deletes until we are done recovering
         config.setEnableGcDeletes(false);
         createNewEngine();
+        recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
     }
 
     /** called if recovery has to be restarted after network error / delay ** */
@@ -773,6 +774,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
             final Engine engine = this.currentEngineReference.getAndSet(null);
             IOUtils.close(engine);
+            recoveryState().setStage(RecoveryState.Stage.INIT);
         }
     }
 
@@ -784,17 +786,15 @@ public class IndexShard extends AbstractIndexShardComponent {
         return this.recoveryState;
     }
 
-    public void performRecoveryFinalization(boolean withFlush) throws ElasticsearchException {
-        if (withFlush) {
-            engine().flush();
-        }
+    /**
+     * perform the last stages of recovery once all translog operations are done.
+     * note that you should still call {@link #postRecovery(String)}.
+     */
+    public void finalizeRecovery() {
+        recoveryState().setStage(RecoveryState.Stage.FINALIZE);
         // clear unreferenced files
         translog.clearUnreferenced();
         engine().refresh("recovery_finalization");
-        synchronized (mutex) {
-            changeState(IndexShardState.POST_RECOVERY, "post recovery");
-        }
-        indicesLifecycle.afterIndexShardPostRecovery(this);
         startScheduledTasksIfNeeded();
         config.setEnableGcDeletes(true);
     }
@@ -1156,7 +1156,6 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private void checkIndex(boolean throwException) throws IndexShardException {
         try {
-            checkIndexTook = 0;
             long time = System.currentTimeMillis();
             if (!Lucene.indexExists(store.directory())) {
                 return;
@@ -1192,7 +1191,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                     logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
                 }
             }
-            checkIndexTook = System.currentTimeMillis() - time;
+            recoveryState.getStart().checkIndexTime(Math.max(0, System.currentTimeMillis() - time));
         } catch (Exception e) {
             logger.warn("failed to check index", e);
         }

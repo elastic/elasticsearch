@@ -93,7 +93,7 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
         if (version.onOrAfter(Version.LUCENE_4_4)) {
             return new KeepWordFilter(tokenStream, keepWords);
         } else {
-            @SuppressWarnings("deprecated")
+            @SuppressWarnings("deprecation")
             final TokenStream filter = new Lucene43KeepWordFilter(enablePositionIncrements, tokenStream, keepWords);
             return filter;
         }

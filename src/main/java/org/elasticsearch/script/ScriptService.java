@@ -244,8 +244,7 @@ public class ScriptService extends AbstractComponent {
         if (cacheExpire != null) {
             cacheBuilder.expireAfterAccess(cacheExpire.nanos(), TimeUnit.NANOSECONDS);
         }
-        cacheBuilder.removalListener(new ScriptCacheRemovalListener());
-        this.cache = cacheBuilder.build();
+        this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
 
         ImmutableMap.Builder<String, ScriptEngineService> builder = ImmutableMap.builder();
         for (ScriptEngineService scriptEngine : scriptEngines) {

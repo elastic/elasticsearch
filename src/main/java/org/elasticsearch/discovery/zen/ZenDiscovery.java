@@ -176,7 +176,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.rejoinOnMasterGone = settings.getAsBoolean(SETTING_REJOIN_ON_MASTER_GONE, true);
 
         if (this.joinRetryAttempts < 1) {
-            throw new ElasticsearchIllegalArgumentException("'" + SETTING_JOIN_RETRY_ATTEMPTS + "' must be a positive number. got [" + this.SETTING_JOIN_RETRY_ATTEMPTS + "]");
+            throw new ElasticsearchIllegalArgumentException("'" + SETTING_JOIN_RETRY_ATTEMPTS + "' must be a positive number. got [" + SETTING_JOIN_RETRY_ATTEMPTS + "]");
         }
         if (this.maxPingsFromAnotherMaster < 1) {
             throw new ElasticsearchIllegalArgumentException("'" + SETTING_MAX_PINGS_FROM_ANOTHER_MASTER + "' must be a positive number. got [" + this.maxPingsFromAnotherMaster + "]");

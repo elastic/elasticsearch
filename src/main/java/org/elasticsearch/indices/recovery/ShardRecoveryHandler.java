@@ -231,7 +231,7 @@ public class ShardRecoveryHandler implements Engine.RecoveryHandler {
                 // recovered while ongoing large segment recoveries are
                 // happening. It also allows these pools to be configured
                 // separately.
-                if (fileSize > recoverySettings.SMALL_FILE_CUTOFF_BYTES) {
+                if (fileSize > RecoverySettings.SMALL_FILE_CUTOFF_BYTES) {
                     pool = recoverySettings.concurrentStreamPool();
                 } else {
                     pool = recoverySettings.concurrentSmallFileStreamPool();

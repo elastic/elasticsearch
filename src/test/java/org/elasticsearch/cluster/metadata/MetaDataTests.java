@@ -581,74 +581,63 @@ public class MetaDataTests extends ElasticsearchTestCase {
 
     @Test
     public void testIsAllIndices_null() throws Exception {
-        MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isAllIndices(null), equalTo(true));
+        assertThat(MetaData.isAllIndices(null), equalTo(true));
     }
 
     @Test
     public void testIsAllIndices_empty() throws Exception {
-        MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isAllIndices(new String[0]), equalTo(true));
+        assertThat(MetaData.isAllIndices(new String[0]), equalTo(true));
     }
 
     @Test
     public void testIsAllIndices_explicitAll() throws Exception {
-        MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isAllIndices(new String[]{"_all"}), equalTo(true));
+        assertThat(MetaData.isAllIndices(new String[]{"_all"}), equalTo(true));
     }
 
     @Test
     public void testIsAllIndices_explicitAllPlusOther() throws Exception {
-        MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isAllIndices(new String[]{"_all", "other"}), equalTo(false));
+        assertThat(MetaData.isAllIndices(new String[]{"_all", "other"}), equalTo(false));
     }
 
     @Test
     public void testIsAllIndices_normalIndexes() throws Exception {
-        MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isAllIndices(new String[]{"index1", "index2", "index3"}), equalTo(false));
+        assertThat(MetaData.isAllIndices(new String[]{"index1", "index2", "index3"}), equalTo(false));
     }
 
     @Test
     public void testIsAllIndices_wildcard() throws Exception {
-        MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isAllIndices(new String[]{"*"}), equalTo(false));
+        assertThat(MetaData.isAllIndices(new String[]{"*"}), equalTo(false));
     }
 
     @Test
     public void testIsExplicitAllIndices_null() throws Exception {
-        MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isExplicitAllPattern(null), equalTo(false));
+        assertThat(MetaData.isExplicitAllPattern(null), equalTo(false));
     }
 
     @Test
     public void testIsExplicitAllIndices_empty() throws Exception {
-        MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isExplicitAllPattern(new String[0]), equalTo(false));
+        assertThat(MetaData.isExplicitAllPattern(new String[0]), equalTo(false));
     }
 
     @Test
     public void testIsExplicitAllIndices_explicitAll() throws Exception {
-        MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isExplicitAllPattern(new String[]{"_all"}), equalTo(true));
+        assertThat(MetaData.isExplicitAllPattern(new String[]{"_all"}), equalTo(true));
     }
 
     @Test
     public void testIsExplicitAllIndices_explicitAllPlusOther() throws Exception {
-        MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isExplicitAllPattern(new String[]{"_all", "other"}), equalTo(false));
+        assertThat(MetaData.isExplicitAllPattern(new String[]{"_all", "other"}), equalTo(false));
     }
 
     @Test
     public void testIsExplicitAllIndices_normalIndexes() throws Exception {
-        MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isExplicitAllPattern(new String[]{"index1", "index2", "index3"}), equalTo(false));
+        assertThat(MetaData.isExplicitAllPattern(new String[]{"index1", "index2", "index3"}), equalTo(false));
     }
 
     @Test
     public void testIsExplicitAllIndices_wildcard() throws Exception {
         MetaData metaData = MetaData.builder().build();
-        assertThat(metaData.isExplicitAllPattern(new String[]{"*"}), equalTo(false));
+        assertThat(MetaData.isExplicitAllPattern(new String[]{"*"}), equalTo(false));
     }
 
     @Test

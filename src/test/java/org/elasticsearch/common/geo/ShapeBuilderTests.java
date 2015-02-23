@@ -185,7 +185,7 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
                 .point(40.0, -50.0)
             .close().build();
             fail("Polygon self-intersection");
-        } catch (Throwable e) {}
+        } catch (Exception e) {}
         
     }
 

@@ -256,13 +256,12 @@ public class HistoryService extends AbstractComponent {
             ctx.onConditionResult(conditionResult);
 
             if (conditionResult.met()) {
-                Throttler.Result throttleResult = alert.throttler().throttle(ctx, conditionResult);
+                Throttler.Result throttleResult = alert.throttler().throttle(ctx);
                 ctx.onThrottleResult(throttleResult);
 
                 if (!throttleResult.throttle()) {
                     Transform.Result result = alert.transform().apply(ctx, conditionResult.payload());
                     ctx.onTransformResult(result);
-
                     for (Action action : alert.actions()) {
                         Action.Result actionResult = action.execute(ctx, result.payload());
                         ctx.onActionResult(actionResult);

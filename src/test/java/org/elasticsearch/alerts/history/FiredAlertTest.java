@@ -48,7 +48,7 @@ public class FiredAlertTest extends AbstractAlertingTests {
         ctx.onActionResult(new EmailAction.Result.Failure("failed to send because blah"));
         ctx.onActionResult(new WebhookAction.Result.Executed(300, "http://localhost:8000/alertfoo", "{'awesome' : 'us'}"));
         Condition.Result conditionResult = new SimpleCondition.Result(new Payload.Simple());
-        ctx.onThrottleResult(Throttler.NO_THROTTLE.throttle(ctx, conditionResult));
+        ctx.onThrottleResult(Throttler.NO_THROTTLE.throttle(ctx));
         ctx.onConditionResult(conditionResult);
         firedAlert.update(new AlertExecution(ctx));
 
@@ -68,7 +68,7 @@ public class FiredAlertTest extends AbstractAlertingTests {
         ctx.onActionResult(new EmailAction.Result.Failure("failed to send because blah"));
         ctx.onActionResult(new WebhookAction.Result.Executed(300, "http://localhost:8000/alertfoo", "{'awesome' : 'us'}"));
         Condition.Result conditionResult = new SearchCondition.Result(ScriptSearchCondition.TYPE, true, createConditionSearchRequest(), new Payload.Simple());
-        ctx.onThrottleResult(Throttler.NO_THROTTLE.throttle(ctx, conditionResult));
+        ctx.onThrottleResult(Throttler.NO_THROTTLE.throttle(ctx));
         ctx.onConditionResult(conditionResult);
         firedAlert.update(new AlertExecution(ctx));
 

@@ -40,6 +40,7 @@ public abstract class BucketCollector implements Collector {
         public LeafBucketCollector getLeafCollector(LeafReaderContext reader) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
+        @Override
         public void preCollection() throws IOException {
             // no-op
         }
@@ -47,6 +48,7 @@ public abstract class BucketCollector implements Collector {
         public void postCollection() throws IOException {
             // no-op
         }
+        @Override
         public boolean needsScores() {
             return false;
         }

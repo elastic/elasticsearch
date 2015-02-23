@@ -109,6 +109,7 @@ public class HttpDownloadHelper {
         /**
          * begin a download
          */
+        @Override
         public void beginDownload() {
 
         }
@@ -116,12 +117,14 @@ public class HttpDownloadHelper {
         /**
          * tick handler
          */
+        @Override
         public void onTick() {
         }
 
         /**
          * end a download
          */
+        @Override
         public void endDownload() {
 
         }
@@ -157,6 +160,7 @@ public class HttpDownloadHelper {
         /**
          * begin a download
          */
+        @Override
         public void beginDownload() {
             writer.print("Downloading ");
             dots = 0;
@@ -165,6 +169,7 @@ public class HttpDownloadHelper {
         /**
          * tick handler
          */
+        @Override
         public void onTick() {
             writer.print(".");
             if (dots++ > 50) {
@@ -176,6 +181,7 @@ public class HttpDownloadHelper {
         /**
          * end a download
          */
+        @Override
         public void endDownload() {
             writer.println("DONE");
             writer.flush();
@@ -205,6 +211,7 @@ public class HttpDownloadHelper {
             progress = p;
         }
 
+        @Override
         public void run() {
             try {
                 success = get();

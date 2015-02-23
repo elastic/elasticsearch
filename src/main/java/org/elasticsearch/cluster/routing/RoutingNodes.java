@@ -762,6 +762,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             return shard = delegate.next();
         }
 
+        @Override
         public void remove() {
             delegate.remove();
             RoutingNodes.this.remove(shard);

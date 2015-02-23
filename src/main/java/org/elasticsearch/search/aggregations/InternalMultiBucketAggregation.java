@@ -49,6 +49,7 @@ public abstract class InternalMultiBucketAggregation extends InternalAggregation
     }
 
     public static abstract class InternalBucket implements Bucket {
+        @Override
         public Object getProperty(String containingAggName, List<String> path) {
             if (path.isEmpty()) {
                 return this;

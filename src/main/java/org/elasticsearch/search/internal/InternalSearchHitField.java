@@ -45,6 +45,7 @@ public class InternalSearchHitField implements SearchHitField {
         this.values = values;
     }
 
+    @Override
     public String name() {
         return name;
     }
@@ -67,6 +68,7 @@ public class InternalSearchHitField implements SearchHitField {
         return value();
     }
 
+    @Override
     public List<Object> values() {
         return values;
     }

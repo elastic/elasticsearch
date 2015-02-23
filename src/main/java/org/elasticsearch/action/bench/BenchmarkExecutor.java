@@ -348,10 +348,12 @@ public class BenchmarkExecutor {
             }
         }
 
+        @Override
         public void onResponse(Response response) {
             manage();
         }
 
+        @Override
         public void onFailure(Throwable e) {
             try {
                 if (errorMessages.size() < 5) {

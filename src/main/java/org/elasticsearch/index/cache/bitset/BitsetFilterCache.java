@@ -113,6 +113,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         loadedFilters.invalidate(ownerCoreCacheKey);
     }
 
+    @Override
     public void close() throws ElasticsearchException {
         indicesWarmer.removeListener(warmer);
         clear("close");

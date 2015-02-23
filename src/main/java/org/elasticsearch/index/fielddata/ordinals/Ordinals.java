@@ -38,6 +38,7 @@ public abstract class Ordinals implements Accountable {
     /**
      * The memory size this ordinals take.
      */
+    @Override
     public abstract long ramBytesUsed();
 
     public abstract RandomAccessOrds ordinals(ValuesHolder values);

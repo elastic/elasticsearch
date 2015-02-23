@@ -337,6 +337,7 @@ public class PluginManagerTests extends ElasticsearchIntegrationTest {
         //checking that the http connector is working properly
         // We will try it for some seconds as it could happen that the REST interface is not yet fully started
         assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object obj) {
                 try {
                     HttpResponse response = httpRequestBuilder.method("GET").path("/").execute();

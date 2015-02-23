@@ -56,12 +56,15 @@ public abstract class CircuitBreakerService extends AbstractLifecycleComponent<C
      */
     public abstract CircuitBreakerStats stats(String name);
 
+    @Override
     protected void doStart() throws ElasticsearchException {
     }
 
+    @Override
     protected void doStop() throws ElasticsearchException {
     }
 
+    @Override
     protected void doClose() throws ElasticsearchException {
     }
 }

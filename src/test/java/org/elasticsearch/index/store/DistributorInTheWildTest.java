@@ -57,6 +57,7 @@ public class DistributorInTheWildTest extends ThreadedIndexingAndSearchingTestCa
 
     private boolean useNonNrtReaders = true;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();

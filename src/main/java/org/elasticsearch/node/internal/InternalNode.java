@@ -219,6 +219,7 @@ public final class InternalNode implements Node {
         return client;
     }
 
+    @Override
     public Node start() {
         if (!lifecycle.moveToStarted()) {
             return this;
@@ -310,6 +311,7 @@ public final class InternalNode implements Node {
     // During concurrent close() calls we want to make sure that all of them return after the node has completed it's shutdown cycle.
     // If not, the hook that is added in Bootstrap#setup() will be useless: close() might not be executed, in case another (for example api) call
     // to close() has already set some lifecycles to stopped. In this case the process will be terminated even if the first call to close() has not finished yet.
+    @Override
     public synchronized void close() {
         if (lifecycle.started()) {
             stop();

@@ -62,6 +62,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
 @ElasticsearchIntegrationTest.SuiteScopeTest
 public class ReverseNestedTests extends ElasticsearchIntegrationTest {
 
+    @Override
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("idx")
                 .addMapping(

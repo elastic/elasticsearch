@@ -47,6 +47,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         this.path = path;
     }
 
+    @Override
     public ImmutableMap<String, BlobMetaData> listBlobs() throws IOException {
         Path[] files = FileSystemUtils.files(path);
         if (files.length == 0) {

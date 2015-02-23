@@ -764,6 +764,7 @@ public class DocumentMapper implements ToXContent {
             this.parameters = parameters;
         }
 
+        @Override
         @SuppressWarnings("unchecked")
         public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
             try {

@@ -880,6 +880,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             return removed;
         }
 
+        @Override
         public String toString() {
             StringBuilder sb = new StringBuilder();
             sb.append("Node(").append(id).append(")");

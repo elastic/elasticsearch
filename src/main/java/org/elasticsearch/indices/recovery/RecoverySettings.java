@@ -142,6 +142,7 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
         nodeSettingsService.addListener(new ApplySettings());
     }
 
+    @Override
     public void close() {
         ThreadPool.terminate(concurrentStreamPool, 1, TimeUnit.SECONDS);
     }

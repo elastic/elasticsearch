@@ -529,6 +529,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
             this.requestBlocked = requestBlocked;
         }
 
+        @Override
         public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
             if (recoveryActionToBlock.equals(action) || requestBlocked.getCount() == 0) {
                 logger.info("--> preventing {} request", action);

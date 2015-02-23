@@ -394,6 +394,7 @@ public class ChildrenQuery extends Query {
             this.scores = this.bigArrays.newFloatArray(512, false);
         }
 
+        @Override
         protected void newParent(long parentIdx) throws IOException {
             scores = bigArrays.grow(scores, parentIdx + 1);
             scores.set(parentIdx, scorer.score());
@@ -414,6 +415,7 @@ public class ChildrenQuery extends Query {
             this.occurrences = bigArrays.newIntArray(512, false);
         }
 
+        @Override
         protected void newParent(long parentIdx) throws IOException {
             scores = bigArrays.grow(scores, parentIdx + 1);
             scores.set(parentIdx, scorer.score());
@@ -675,6 +677,7 @@ public class ChildrenQuery extends Query {
             this.occurrences = ((ParentScoreCountCollector) collector).occurrences;
         }
 
+        @Override
         protected boolean acceptAndScore(long parentIdx) {
             int count = occurrences.get(parentIdx);
             if (count < minChildren || count > maxChildren) {

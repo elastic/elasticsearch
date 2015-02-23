@@ -210,11 +210,13 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
             return "cache(" + filter + ")";
         }
 
+        @Override
         public boolean equals(Object o) {
             if (!(o instanceof FilterCacheFilterWrapper)) return false;
             return this.filter.equals(((FilterCacheFilterWrapper) o).filter);
         }
 
+        @Override
         public int hashCode() {
             return filter.hashCode() ^ 0x1117BF25;
         }

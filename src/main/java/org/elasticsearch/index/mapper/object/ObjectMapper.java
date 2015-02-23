@@ -481,6 +481,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         return true;
     }
 
+    @Override
     public void parse(ParseContext context) throws IOException {
         if (!enabled) {
             context.parser().skipChildren();

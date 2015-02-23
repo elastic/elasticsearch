@@ -155,6 +155,7 @@ public class EsExecutors {
      * waiting if necessary for space to become available.
      */
     static class ForceQueuePolicy implements XRejectedExecutionHandler {
+        @Override
         public void rejectedExecution(Runnable r, ThreadPoolExecutor executor) {
             try {
                 executor.getQueue().put(r);

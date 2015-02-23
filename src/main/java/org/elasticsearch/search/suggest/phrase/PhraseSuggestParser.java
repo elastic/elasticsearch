@@ -45,6 +45,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
         this.suggester = suggester;
     }
 
+    @Override
     public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService) throws IOException {
         PhraseSuggestionContext suggestion = new PhraseSuggestionContext(suggester);
         XContentParser.Token token;

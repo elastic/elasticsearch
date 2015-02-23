@@ -132,6 +132,7 @@ public interface ValueFormatter extends Streamable {
             this.timeZone = timeZone;
         }
 
+        @Override
         public String format(double value) {
             return format((long) value);
         }

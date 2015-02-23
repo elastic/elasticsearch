@@ -158,6 +158,7 @@ public class FunctionScoreQuery extends Query {
         }
     }
 
+    @Override
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
         sb.append("function score (").append(subQuery.toString(field)).append(",function=").append(function).append(')');
@@ -165,6 +166,7 @@ public class FunctionScoreQuery extends Query {
         return sb.toString();
     }
 
+    @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass())
             return false;
@@ -173,6 +175,7 @@ public class FunctionScoreQuery extends Query {
                 && this.maxBoost == other.maxBoost;
     }
 
+    @Override
     public int hashCode() {
         return subQuery.hashCode() + 31 * function.hashCode() ^ Float.floatToIntBits(getBoost());
     }

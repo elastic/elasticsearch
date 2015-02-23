@@ -199,6 +199,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         return this.settings;
     }
 
+    @Override
     public void httpServerAdapter(HttpServerAdapter httpServerAdapter) {
         this.httpServerAdapter = httpServerAdapter;
     }
@@ -302,6 +303,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     protected void doClose() throws ElasticsearchException {
     }
 
+    @Override
     public BoundTransportAddress boundAddress() {
         return this.boundAddress;
     }

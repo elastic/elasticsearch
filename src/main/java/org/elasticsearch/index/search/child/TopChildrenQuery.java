@@ -286,6 +286,7 @@ public class TopChildrenQuery extends Query {
         return result;
     }
 
+    @Override
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
         sb.append("score_child[").append(childType).append("/").append(parentType).append("](").append(originalChildQuery.toString(field)).append(')');

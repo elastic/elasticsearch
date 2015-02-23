@@ -302,6 +302,7 @@ public abstract class AbstractClusterAdminClient implements ClusterAdminClient {
         execute(PendingClusterTasksAction.INSTANCE, request, listener);
     }
 
+    @Override
     public ActionFuture<PutRepositoryResponse> putRepository(PutRepositoryRequest request) {
         return execute(PutRepositoryAction.INSTANCE, request);
     }

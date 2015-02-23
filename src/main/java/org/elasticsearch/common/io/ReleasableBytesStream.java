@@ -26,5 +26,6 @@ import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
  */
 public interface ReleasableBytesStream extends BytesStream {
 
+    @Override
     ReleasablePagedBytesReference bytes();
 }

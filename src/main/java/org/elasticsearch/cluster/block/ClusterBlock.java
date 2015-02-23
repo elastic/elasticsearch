@@ -152,6 +152,7 @@ public class ClusterBlock implements Serializable, Streamable, ToXContent {
         RestStatus.writeTo(out, status);
     }
 
+    @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(id).append(",").append(description).append(", blocks ");

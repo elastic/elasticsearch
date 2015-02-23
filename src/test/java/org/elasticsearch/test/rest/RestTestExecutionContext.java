@@ -158,6 +158,7 @@ public class RestTestExecutionContext implements Closeable {
     /**
      * Closes the execution context and releases the underlying resources
      */
+    @Override
     public void close() {
         if (restClient != null) {
             restClient.close();

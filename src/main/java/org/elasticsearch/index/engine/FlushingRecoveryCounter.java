@@ -39,6 +39,7 @@ public final class FlushingRecoveryCounter extends RecoveryCounter {
         this.logger = logger;
     }
 
+    @Override
     int endRecovery() throws ElasticsearchException {
         int left = super.endRecovery();
         if (left == 0) {

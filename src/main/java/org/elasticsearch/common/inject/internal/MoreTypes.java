@@ -462,18 +462,22 @@ public class MoreTypes {
             }
         }
 
+        @Override
         public Type[] getActualTypeArguments() {
             return typeArguments.clone();
         }
 
+        @Override
         public Type getRawType() {
             return rawType;
         }
 
+        @Override
         public Type getOwnerType() {
             return ownerType;
         }
 
+        @Override
         public boolean isFullySpecified() {
             if (ownerType != null && !MoreTypes.isFullySpecified(ownerType)) {
                 return false;
@@ -519,10 +523,12 @@ public class MoreTypes {
             this.componentType = canonicalize(componentType);
         }
 
+        @Override
         public Type getGenericComponentType() {
             return componentType;
         }
 
+        @Override
         public boolean isFullySpecified() {
             return MoreTypes.isFullySpecified(componentType);
         }
@@ -574,14 +580,17 @@ public class MoreTypes {
             }
         }
 
+        @Override
         public Type[] getUpperBounds() {
             return new Type[]{upperBound};
         }
 
+        @Override
         public Type[] getLowerBounds() {
             return lowerBound != null ? new Type[]{lowerBound} : EMPTY_TYPE_ARRAY;
         }
 
+        @Override
         public boolean isFullySpecified() {
             return MoreTypes.isFullySpecified(upperBound)
                     && (lowerBound == null || MoreTypes.isFullySpecified(lowerBound));
@@ -633,18 +642,22 @@ public class MoreTypes {
             this.memberKey = memberKey(member);
         }
 
+        @Override
         public Class getDeclaringClass() {
             return declaringClass;
         }
 
+        @Override
         public String getName() {
             return name;
         }
 
+        @Override
         public int getModifiers() {
             return modifiers;
         }
 
+        @Override
         public boolean isSynthetic() {
             return synthetic;
         }

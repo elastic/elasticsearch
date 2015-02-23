@@ -103,6 +103,7 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
     private String codecName;
     private Path dirPath;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -148,6 +149,7 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
         }
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

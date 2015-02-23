@@ -164,6 +164,7 @@ public class IncludeNestedDocsQuery extends Query {
             return parentScorer.getChildren();
         }
 
+        @Override
         public int nextDoc() throws IOException {
             if (currentParentPointer == NO_MORE_DOCS) {
                 return (currentDoc = NO_MORE_DOCS);
@@ -191,6 +192,7 @@ public class IncludeNestedDocsQuery extends Query {
             return currentDoc;
         }
 
+        @Override
         public int advance(int target) throws IOException {
             if (target == NO_MORE_DOCS) {
                 return (currentDoc = NO_MORE_DOCS);
@@ -223,10 +225,12 @@ public class IncludeNestedDocsQuery extends Query {
             return currentDoc;
         }
 
+        @Override
         public float score() throws IOException {
             return parentScorer.score();
         }
 
+        @Override
         public int freq() throws IOException {
             return parentScorer.freq();
         }
@@ -251,6 +255,7 @@ public class IncludeNestedDocsQuery extends Query {
             return parentScorer.getPayload();
         }
 
+        @Override
         public int docID() {
             return currentDoc;
         }

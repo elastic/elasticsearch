@@ -53,6 +53,7 @@ public class DfsPhase implements SearchPhase {
     public void preProcess(SearchContext context) {
     }
 
+    @Override
     public void execute(SearchContext context) {
         final ObjectOpenHashSet<Term> termsSet = new ObjectOpenHashSet<>();
         try {

@@ -254,6 +254,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
                 }
             }
 
+            @Override
             public boolean wrapTerms(String field) {
                 return field.startsWith("test");
             }

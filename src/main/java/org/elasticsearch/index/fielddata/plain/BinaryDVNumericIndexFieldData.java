@@ -58,6 +58,7 @@ public class BinaryDVNumericIndexFieldData extends DocValuesIndexFieldData imple
         this.numericType = numericType;
     }
 
+    @Override
     public org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource comparatorSource(final Object missingValue, final MultiValueMode sortMode, Nested nested) {
         switch (numericType) {
         case FLOAT:

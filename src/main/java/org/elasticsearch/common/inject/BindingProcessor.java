@@ -70,6 +70,7 @@ class BindingProcessor extends AbstractProcessor {
 
         command.acceptTargetVisitor(new BindingTargetVisitor<T, Void>() {
 
+            @Override
             public Void visit(InstanceBinding<? extends T> binding) {
                 Set<InjectionPoint> injectionPoints = binding.getInjectionPoints();
                 T instance = binding.getInstance();
@@ -82,6 +83,7 @@ class BindingProcessor extends AbstractProcessor {
                 return null;
             }
 
+            @Override
             public Void visit(ProviderInstanceBinding<? extends T> binding) {
                 Provider<? extends T> provider = binding.getProviderInstance();
                 Set<InjectionPoint> injectionPoints = binding.getInjectionPoints();
@@ -94,6 +96,7 @@ class BindingProcessor extends AbstractProcessor {
                 return null;
             }
 
+            @Override
             public Void visit(ProviderKeyBinding<? extends T> binding) {
                 Key<? extends Provider<? extends T>> providerKey = binding.getProviderKey();
                 BoundProviderFactory<T> boundProviderFactory
@@ -106,6 +109,7 @@ class BindingProcessor extends AbstractProcessor {
                 return null;
             }
 
+            @Override
             public Void visit(LinkedKeyBinding<? extends T> binding) {
                 Key<? extends T> linkedKey = binding.getLinkedKey();
                 if (key.equals(linkedKey)) {
@@ -120,6 +124,7 @@ class BindingProcessor extends AbstractProcessor {
                 return null;
             }
 
+            @Override
             public Void visit(UntargettedBinding<? extends T> untargetted) {
                 // Error: Missing implementation.
                 // Example: bind(Date.class).annotatedWith(Red.class);
@@ -143,6 +148,7 @@ class BindingProcessor extends AbstractProcessor {
                 }
 
                 uninitializedBindings.add(new Runnable() {
+                    @Override
                     public void run() {
                         try {
                             ((InjectorImpl) binding.getInjector()).initializeBinding(
@@ -156,18 +162,22 @@ class BindingProcessor extends AbstractProcessor {
                 return null;
             }
 
+            @Override
             public Void visit(ExposedBinding<? extends T> binding) {
                 throw new IllegalArgumentException("Cannot apply a non-module element");
             }
 
+            @Override
             public Void visit(ConvertedConstantBinding<? extends T> binding) {
                 throw new IllegalArgumentException("Cannot apply a non-module element");
             }
 
+            @Override
             public Void visit(ConstructorBinding<? extends T> binding) {
                 throw new IllegalArgumentException("Cannot apply a non-module element");
             }
 
+            @Override
             public Void visit(ProviderBinding<? extends T> binding) {
                 throw new IllegalArgumentException("Cannot apply a non-module element");
             }

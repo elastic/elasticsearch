@@ -140,6 +140,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         /**
          * @return the number of bytes for the term based on the length and ordinal overhead
          */
+        @Override
         public long bytesPerValue(BytesRef term) {
             if (term == null) {
                 return 0;
@@ -189,6 +190,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
          * @return A possibly wrapped TermsEnum for the terms
          * @throws IOException
          */
+        @Override
         public TermsEnum beforeLoad(Terms terms) throws IOException {
             final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat(
                     FilterSettingFields.ACCEPTABLE_TRANSIENT_OVERHEAD_RATIO,
@@ -229,6 +231,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
          * @param termsEnum  terms that were loaded
          * @param actualUsed actual field data memory usage
          */
+        @Override
         public void afterLoad(TermsEnum termsEnum, long actualUsed) {
             if (termsEnum instanceof RamAccountingTermsEnum) {
                 estimatedBytes = ((RamAccountingTermsEnum) termsEnum).getTotalBytes();

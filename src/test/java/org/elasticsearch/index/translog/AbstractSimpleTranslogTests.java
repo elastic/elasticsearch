@@ -61,6 +61,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
 
     protected Translog translog;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -70,6 +71,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         translog.newTranslog(1);
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         try {

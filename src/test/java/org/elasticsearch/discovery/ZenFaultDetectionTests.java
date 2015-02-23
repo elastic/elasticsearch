@@ -59,6 +59,7 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
     protected DiscoveryNode nodeB;
     protected MockTransportService serviceB;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -95,6 +96,7 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
         serviceB.removeConnectionListener(waitForConnection);
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

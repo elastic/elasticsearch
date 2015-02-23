@@ -94,6 +94,7 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
     }
 
 
+    @Override
     public void close() {
         indexSettingsService.removeListener(applySettings);
         FutureUtils.cancel(this.future);

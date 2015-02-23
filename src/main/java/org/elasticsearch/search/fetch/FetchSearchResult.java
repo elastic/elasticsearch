@@ -54,10 +54,12 @@ public class FetchSearchResult extends TransportResponse implements FetchSearchR
         return this;
     }
 
+    @Override
     public long id() {
         return this.id;
     }
 
+    @Override
     public SearchShardTarget shardTarget() {
         return this.shardTarget;
     }

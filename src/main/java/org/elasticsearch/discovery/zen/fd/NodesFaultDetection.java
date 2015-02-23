@@ -114,6 +114,7 @@ public class NodesFaultDetection extends FaultDetection {
         return this;
     }
 
+    @Override
     public void close() {
         super.close();
         stop();

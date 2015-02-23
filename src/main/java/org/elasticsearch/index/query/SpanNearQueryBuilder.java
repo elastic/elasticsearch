@@ -62,6 +62,7 @@ public class SpanNearQueryBuilder extends BaseQueryBuilder implements SpanQueryB
         return this;
     }
 
+    @Override
     public SpanNearQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;

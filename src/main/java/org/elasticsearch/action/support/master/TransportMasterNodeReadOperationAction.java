@@ -41,6 +41,7 @@ public abstract class TransportMasterNodeReadOperationAction<Request extends Mas
         this.forceLocal = settings.getAsBoolean(FORCE_LOCAL_SETTING, null);
     }
 
+    @Override
     protected final boolean localExecute(Request request) {
         if (forceLocal != null) {
             return forceLocal;

@@ -241,6 +241,7 @@ public class ParentConstantScoreQuery extends Query {
             this.parentType = parentType;
         }
 
+        @Override
         public void collect(int doc) throws IOException {
             // It can happen that for particular segment no document exist for an specific type. This prevents NPE
             if (globalOrdinals != null) {

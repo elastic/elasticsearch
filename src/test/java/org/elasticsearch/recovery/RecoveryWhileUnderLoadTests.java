@@ -326,6 +326,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
 
     private void refreshAndAssert() throws InterruptedException {
         assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object o) {
                 try {
                     RefreshResponse actionGet = client().admin().indices().prepareRefresh().execute().actionGet();

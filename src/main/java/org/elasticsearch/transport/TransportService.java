@@ -68,6 +68,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     // An LRU (don't really care about concurrency here) that holds the latest timed out requests so if they
     // do show up, we can print more descriptive information about them
     final Map<Long, TimeoutInfoHolder> timeoutInfoHandlers = Collections.synchronizedMap(new LinkedHashMap<Long, TimeoutInfoHolder>(100, .75F, true) {
+        @Override
         protected boolean removeEldestEntry(Map.Entry eldest) {
             return size() > 100;
         }

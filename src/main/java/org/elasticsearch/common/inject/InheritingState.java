@@ -53,41 +53,50 @@ class InheritingState implements State {
         this.lock = (parent == State.NONE) ? this : parent.lock();
     }
 
+    @Override
     public State parent() {
         return parent;
     }
 
+    @Override
     @SuppressWarnings("unchecked") // we only put in BindingImpls that match their key types
     public <T> BindingImpl<T> getExplicitBinding(Key<T> key) {
         Binding<?> binding = explicitBindings.get(key);
         return binding != null ? (BindingImpl<T>) binding : parent.getExplicitBinding(key);
     }
 
+    @Override
     public Map<Key<?>, Binding<?>> getExplicitBindingsThisLevel() {
         return explicitBindings;
     }
 
+    @Override
     public void putBinding(Key<?> key, BindingImpl<?> binding) {
         explicitBindingsMutable.put(key, binding);
     }
 
+    @Override
     public Scope getScope(Class<? extends Annotation> annotationType) {
         Scope scope = scopes.get(annotationType);
         return scope != null ? scope : parent.getScope(annotationType);
     }
 
+    @Override
     public void putAnnotation(Class<? extends Annotation> annotationType, Scope scope) {
         scopes.put(annotationType, scope);
     }
 
+    @Override
     public Iterable<MatcherAndConverter> getConvertersThisLevel() {
         return converters;
     }
 
+    @Override
     public void addConverter(MatcherAndConverter matcherAndConverter) {
         converters.add(matcherAndConverter);
     }
 
+    @Override
     public MatcherAndConverter getConverter(
             String stringValue, TypeLiteral<?> type, Errors errors, Object source) {
         MatcherAndConverter matchingConverter = null;
@@ -104,10 +113,12 @@ class InheritingState implements State {
         return matchingConverter;
     }
 
+    @Override
     public void addTypeListener(TypeListenerBinding listenerBinding) {
         listenerBindings.add(listenerBinding);
     }
 
+    @Override
     public List<TypeListenerBinding> getTypeListenerBindings() {
         List<TypeListenerBinding> parentBindings = parent.getTypeListenerBindings();
         List<TypeListenerBinding> result
@@ -117,11 +128,13 @@ class InheritingState implements State {
         return result;
     }
 
+    @Override
     public void blacklist(Key<?> key) {
         parent.blacklist(key);
         blacklistedKeys.add(key);
     }
 
+    @Override
     public boolean isBlacklisted(Key<?> key) {
         return blacklistedKeys.contains(key);
     }
@@ -144,6 +157,7 @@ class InheritingState implements State {
         this.explicitBindingsMutable.putAll(x);
     }
 
+    @Override
     public Object lock() {
         return lock;
     }

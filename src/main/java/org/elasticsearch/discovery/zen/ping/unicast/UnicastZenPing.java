@@ -274,6 +274,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             return pingCollection;
         }
 
+        @Override
         public void close() {
             if (closed.compareAndSet(false, true)) {
                 receivedResponses.remove(id);

@@ -79,6 +79,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
         reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(directory));
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         reader.close();

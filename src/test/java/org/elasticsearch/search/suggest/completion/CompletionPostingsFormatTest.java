@@ -280,6 +280,7 @@ public class CompletionPostingsFormatTest extends ElasticsearchTestCase {
             throws IOException {
         RAMDirectory dir = new RAMDirectory();
         FilterCodec filterCodec = new FilterCodec("filtered", Codec.getDefault()) {
+            @Override
             public PostingsFormat postingsFormat() {
                 final PostingsFormat in = super.postingsFormat();
                 return mapper.postingsFormat(in);

@@ -107,6 +107,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             return builder;
         }
         // if we are indexed we use DOCS
+        @Override
         protected IndexOptions getDefaultIndexOption() {
             return IndexOptions.DOCS;
         }
@@ -275,6 +276,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         return query;
     }
 
+    @Override
     public Filter regexpFilter(Object value, int flags, int maxDeterminizedStates, @Nullable QueryParseContext context) {
         if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.regexpFilter(value, flags, maxDeterminizedStates, context);

@@ -378,6 +378,7 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         return locations;
     }
 
+    @Override
     public String[] tmpPaths() {
         final int numPaths = randomIntBetween(1, 3);
         final String[] absPaths = new String[numPaths];
@@ -387,10 +388,12 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
         return absPaths;
     }
 
+    @Override
     public NodeEnvironment newNodeEnvironment() throws IOException {
         return newNodeEnvironment(ImmutableSettings.EMPTY);
     }
 
+    @Override
     public NodeEnvironment newNodeEnvironment(Settings settings) throws IOException {
         Settings build = ImmutableSettings.builder()
                 .put(settings)

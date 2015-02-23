@@ -279,6 +279,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
         return result;
     }
 
+    @Override
     public Set<Dependency<?>> getDependencies() {
         List<Dependency<?>> dependencies = Lists.newArrayList();
         for (AssistedConstructor<?> constructor : factoryMethodToConstructor.values()) {
@@ -291,8 +292,10 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
         return ImmutableSet.copyOf(dependencies);
     }
 
+    @Override
     public F get() {
         InvocationHandler invocationHandler = new InvocationHandler() {
+            @Override
             public Object invoke(Object proxy, Method method, Object[] creationArgs) throws Throwable {
                 // pass methods from Object.class to the proxy
                 if (method.getDeclaringClass().equals(Object.class)) {

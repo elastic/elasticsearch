@@ -643,6 +643,7 @@ public class ElasticsearchAssertions {
          * pending we will fail anyway.*/
         try {
             if (awaitBusy(new Predicate<Object>() {
+                @Override
                 public boolean apply(Object o) {
                     return MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty() &&
                             MockShadowEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
@@ -762,36 +763,42 @@ public class ElasticsearchAssertions {
     }
 
     private static Predicate<PluginInfo> jvmPluginPredicate = new Predicate<PluginInfo>() {
+        @Override
         public boolean apply(PluginInfo pluginInfo) {
             return pluginInfo.isJvm();
         }
     };
 
     private static Predicate<PluginInfo> sitePluginPredicate = new Predicate<PluginInfo>() {
+        @Override
         public boolean apply(PluginInfo pluginInfo) {
             return pluginInfo.isSite();
         }
     };
 
     private static Function<PluginInfo, String> nameFunction = new Function<PluginInfo, String>() {
+        @Override
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getName();
         }
     };
 
     private static Function<PluginInfo, String> descriptionFunction = new Function<PluginInfo, String>() {
+        @Override
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getDescription();
         }
     };
 
     private static Function<PluginInfo, String> urlFunction = new Function<PluginInfo, String>() {
+        @Override
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getUrl();
         }
     };
 
     private static Function<PluginInfo, String> versionFunction = new Function<PluginInfo, String>() {
+        @Override
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getVersion();
         }

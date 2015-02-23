@@ -273,6 +273,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         return clusterName.value() + "/" + localNode.id();
     }
 
+    @Override
     public void publish(ClusterState clusterState, final Discovery.AckListener ackListener) {
         if (!master) {
             throw new ElasticsearchIllegalStateException("Shouldn't publish state when not master");

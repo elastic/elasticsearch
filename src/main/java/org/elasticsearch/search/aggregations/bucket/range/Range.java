@@ -57,6 +57,7 @@ public interface Range extends MultiBucketsAggregation {
     /**
      * Return the buckets of this range aggregation.
      */
+    @Override
     List<? extends Bucket> getBuckets();
 
 }

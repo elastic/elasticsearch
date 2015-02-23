@@ -117,6 +117,7 @@ class InternalOrder extends Terms.Order {
         this.comparator = comparator;
     }
 
+    @Override
     byte id() {
         return id;
     }

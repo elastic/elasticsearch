@@ -410,6 +410,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      *
      * @return <code>resource</code> (for call chaining).
      */
+    @Override
     public <T extends Closeable> T closeAfterTest(T resource) {
         return RandomizedContext.current().closeAtEnd(resource, LifecycleScope.TEST);
     }

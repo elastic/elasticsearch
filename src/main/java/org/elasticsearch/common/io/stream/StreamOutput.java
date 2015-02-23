@@ -249,11 +249,13 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Forces any buffered output to be written.
      */
+    @Override
     public abstract void flush() throws IOException;
 
     /**
      * Closes this stream to further operations.
      */
+    @Override
     public abstract void close() throws IOException;
 
     public abstract void reset() throws IOException;

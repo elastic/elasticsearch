@@ -49,6 +49,7 @@ public class ChannelsTests extends ElasticsearchTestCase {
     byte[] randomBytes;
     FileChannel fileChannel;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -58,6 +59,7 @@ public class ChannelsTests extends ElasticsearchTestCase {
         randomBytes = randomUnicodeOfLength(scaledRandomIntBetween(10, 100000)).getBytes("UTF-8");
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         fileChannel.close();

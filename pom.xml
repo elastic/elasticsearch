@@ -30,6 +30,7 @@
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
         <tests.rest>false</tests.rest>
+        <tests.slow>false</tests.slow>
     </properties>
 
     <dependencies>

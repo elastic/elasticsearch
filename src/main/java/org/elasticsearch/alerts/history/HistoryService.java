@@ -214,6 +214,7 @@ public class HistoryService extends AbstractComponent {
             if (!started.get()) {
                 throw new ElasticsearchIllegalStateException("not started");
             }
+            AlertLockService.Lock lock = alertLockService.acquire(alert.name());
             try {
                 firedAlert.update(FiredAlert.State.CHECKING, null);
                 logger.debug("checking alert [{}]", firedAlert.name());
@@ -234,6 +235,8 @@ public class HistoryService extends AbstractComponent {
                 } else {
                     logger.debug("failed to execute fired alert [{}] after shutdown", e, firedAlert);
                 }
+            } finally {
+                lock.release();
             }
         }
 
@@ -249,31 +252,24 @@ public class HistoryService extends AbstractComponent {
          */
 
         AlertExecution execute(ExecutionContext ctx) throws IOException {
-            AlertLockService.Lock lock = alertLockService.acquire(alert.name());
-            try {
+            Condition.Result conditionResult = alert.condition().execute(ctx);
+            ctx.onConditionResult(conditionResult);
 
-                Condition.Result conditionResult = alert.condition().execute(ctx);
-                ctx.onConditionResult(conditionResult);
+            if (conditionResult.met()) {
+                Throttler.Result throttleResult = alert.throttler().throttle(ctx, conditionResult);
+                ctx.onThrottleResult(throttleResult);
 
-                if (conditionResult.met()) {
-                    Throttler.Result throttleResult = alert.throttler().throttle(ctx, conditionResult);
-                    ctx.onThrottleResult(throttleResult);
+                if (!throttleResult.throttle()) {
+                    Transform.Result result = alert.transform().apply(ctx, conditionResult.payload());
+                    ctx.onTransformResult(result);
 
-                    if (!throttleResult.throttle()) {
-                        Transform.Result result = alert.transform().apply(ctx, conditionResult.payload());
-                        ctx.onTransformResult(result);
-
-                        for (Action action : alert.actions()) {
-                            Action.Result actionResult = action.execute(ctx, result.payload());
-                            ctx.onActionResult(actionResult);
-                        }
+                    for (Action action : alert.actions()) {
+                        Action.Result actionResult = action.execute(ctx, result.payload());
+                        ctx.onActionResult(actionResult);
                     }
                 }
-                return ctx.finish();
-
-            } finally {
-                lock.release();
             }
+            return ctx.finish();
         }
     }
 

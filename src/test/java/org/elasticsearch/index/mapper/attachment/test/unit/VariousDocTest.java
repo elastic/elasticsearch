@@ -27,6 +27,7 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
 import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
+import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -35,6 +36,7 @@ import java.io.InputStream;
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.attachment.AttachmentMapper.FieldNames.*;
 import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
 import static org.hamcrest.Matchers.not;
@@ -43,6 +45,17 @@ import static org.hamcrest.Matchers.not;
  * Test for different documents
  */
 public class VariousDocTest extends AttachmentUnitTestCase {
+
+    protected static DocumentMapper docMapper;
+
+    @BeforeClass
+    public static void createMapper() throws IOException {
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(ImmutableSettings.builder().build());
+        mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
+
+        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/various-doc/test-mapping.json");
+        docMapper = mapperParser.parse(mapping);
+    }
 
     /**
      * Test for https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/104
@@ -91,6 +104,16 @@ public class VariousDocTest extends AttachmentUnitTestCase {
         testMapper("text-in-english.txt", false);
     }
 
+    /**
+     * Test for ASCIIDOC
+     * Not yet supported by Tika: https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/29
+     */
+    @Test
+    public void testAsciidocDocument() throws Exception {
+        testTika("asciidoc.asciidoc", false);
+        testMapper("asciidoc.asciidoc", false);
+    }
+
     protected void testTika(String filename, boolean errorExpected) {
         Tika tika = tika();
         assumeTrue("Tika has been disabled. Ignoring test...", tika != null);
@@ -107,11 +130,6 @@ public class VariousDocTest extends AttachmentUnitTestCase {
     }
 
     protected void testMapper(String filename, boolean errorExpected) throws IOException {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(ImmutableSettings.builder().build());
-        mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
-
-        String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/various-doc/test-mapping.json");
-        DocumentMapper docMapper = mapperParser.parse(mapping);
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/" + filename);
 
         BytesReference json = jsonBuilder()
@@ -126,7 +144,20 @@ public class VariousDocTest extends AttachmentUnitTestCase {
         ParseContext.Document doc =  docMapper.parse(json).rootDoc();
         if (!errorExpected) {
             assertThat(doc.get(docMapper.mappers().smartName("file").mapper().names().indexName()), not(isEmptyOrNullString()));
-            logger.debug("extracted content: {}", doc.get(docMapper.mappers().smartName("file").mapper().names().indexName()));
+            logger.debug("-> extracted content: {}", doc.get(docMapper.mappers().smartName("file").mapper().names().indexName()));
+            logger.debug("-> extracted metadata:");
+            printMetadataContent(doc, AUTHOR);
+            printMetadataContent(doc, CONTENT_LENGTH);
+            printMetadataContent(doc, CONTENT_TYPE);
+            printMetadataContent(doc, DATE);
+            printMetadataContent(doc, KEYWORDS);
+            printMetadataContent(doc, LANGUAGE);
+            printMetadataContent(doc, NAME);
+            printMetadataContent(doc, TITLE);
         }
+    }
+
+    private void printMetadataContent(ParseContext.Document doc, String field) {
+        logger.debug("- [{}]: [{}]", field, doc.get(docMapper.mappers().smartName("file." + field).mapper().names().indexName()));
     }
 }

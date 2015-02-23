@@ -299,12 +299,12 @@ GET /test/person/_search
   "fields": [], 
   "query": {
     "match": {
-      "file.file": "king queen"
+      "file": "king queen"
     }
   },
   "highlight": {
     "fields": {
-      "file.file": {
+      "file": {
       }
     }
   }
@@ -332,7 +332,7 @@ It gives back:
             "_id": "1",
             "_score": 0.13561106,
             "highlight": {
-               "file.file": [
+               "file": [
                   "\"God Save the <em>Queen</em>\" (alternatively \"God Save the <em>King</em>\"\n"
                ]
             }

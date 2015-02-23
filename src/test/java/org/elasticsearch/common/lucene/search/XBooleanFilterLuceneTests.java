@@ -61,6 +61,7 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
     private Directory directory;
     private LeafReader reader;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -78,6 +79,7 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
         writer.close();
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

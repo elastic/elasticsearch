@@ -278,6 +278,7 @@ public class CategoryContextMapping extends ContextMapping {
             this.values = values;
         }
 
+        @Override
         public Automaton toAutomaton() {
             List<Automaton> automatons = new ArrayList<>();
             for (CharSequence value : values) {

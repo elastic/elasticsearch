@@ -97,6 +97,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                     BytesRefFieldComparatorSource.this.setScorer(scorer);
                 }
 
+                @Override
                 public BytesRef value(int slot) {
                     // TODO: When serializing the response to the coordinating node, we lose the information about
                     // whether the comparator sorts missing docs first or last. We should fix it and let
@@ -109,6 +110,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                     return value;
                 }
                 
+                @Override
                 public void setTopValue(BytesRef topValue) {
                     // symetric of value(int): if we need to feed the comparator with <tt>null</tt>
                     // if we overrode the value with MAX_TERM in value(int)

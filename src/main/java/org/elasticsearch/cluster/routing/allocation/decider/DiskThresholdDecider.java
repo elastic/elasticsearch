@@ -283,6 +283,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         return shardSize == null ? 0 : shardSize;
     }
 
+    @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
 
         // Always allow allocation if the decider is disabled
@@ -437,6 +438,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, "enough disk for shard on node, free: [%s]", new ByteSizeValue(freeBytes));
     }
 
+    @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (!enabled) {
             return allocation.decision(Decision.YES, NAME, "disk threshold decider disabled");

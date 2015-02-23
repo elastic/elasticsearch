@@ -374,20 +374,24 @@ public final class InjectionPoint {
 
     private interface Factory<M extends Member & AnnotatedElement> {
         Factory<Field> FIELDS = new Factory<Field>() {
+            @Override
             public Field[] getMembers(Class<?> type) {
                 return type.getDeclaredFields();
             }
 
+            @Override
             public InjectionPoint create(TypeLiteral<?> typeLiteral, Field member, Errors errors) {
                 return new InjectionPoint(typeLiteral, member);
             }
         };
 
         Factory<Method> METHODS = new Factory<Method>() {
+            @Override
             public Method[] getMembers(Class<?> type) {
                 return type.getDeclaredMethods();
             }
 
+            @Override
             public InjectionPoint create(TypeLiteral<?> typeLiteral, Method member, Errors errors) {
                 checkForMisplacedBindingAnnotations(member, errors);
                 return new InjectionPoint(typeLiteral, member);

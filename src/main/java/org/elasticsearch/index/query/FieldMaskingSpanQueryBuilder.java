@@ -42,6 +42,7 @@ public class FieldMaskingSpanQueryBuilder extends BaseQueryBuilder implements Sp
         this.field = field;
     }
 
+    @Override
     public FieldMaskingSpanQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;

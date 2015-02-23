@@ -169,6 +169,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
 
     private boolean waitForShardDeletion(final String server, final  String index, final int shard) throws InterruptedException {
         awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object o) {
                 return !Files.exists(shardDirectory(server, index, shard));
             }

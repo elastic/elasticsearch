@@ -39,10 +39,12 @@ public class PercentilesParser extends AbstractPercentilesParser {
         return InternalPercentiles.TYPE.name();
     }
 
+    @Override
     protected String keysFieldName() {
         return "percents";
     }
     
+    @Override
     protected AggregatorFactory buildFactory(SearchContext context, String aggregationName, ValuesSourceConfig<Numeric> valuesSourceConfig, double[] keys, double compression, boolean keyed) {
         if (keys == null) {
             keys = DEFAULT_PERCENTS;

@@ -37,6 +37,7 @@ public class BenchmarkNegativeTest extends ElasticsearchIntegrationTest {
 
     private static final String INDEX_NAME = "test_index";
 
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put("node.bench", false).build();

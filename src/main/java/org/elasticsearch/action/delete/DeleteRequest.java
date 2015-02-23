@@ -125,6 +125,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
     /**
      * The type of the document to delete.
      */
+    @Override
     public String type() {
         return type;
     }
@@ -140,6 +141,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
     /**
      * The id of the document to delete.
      */
+    @Override
     public String id() {
         return id;
     }
@@ -167,6 +169,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */
+    @Override
     public DeleteRequest routing(String routing) {
         if (routing != null && routing.length() == 0) {
             this.routing = null;
@@ -180,6 +183,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
      * Controls the shard routing of the delete request. Using this value to hash the shard
      * and not the id.
      */
+    @Override
     public String routing() {
         return this.routing;
     }

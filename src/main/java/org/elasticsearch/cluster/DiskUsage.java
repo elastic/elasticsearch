@@ -71,6 +71,7 @@ public class DiskUsage {
         return getTotalBytes() - getFreeBytes();
     }
 
+    @Override
     public String toString() {
         return "[" + nodeId + "][" + nodeName + "] free: " + new ByteSizeValue(getFreeBytes()) +
                 "[" + Strings.format1Decimals(getFreeDiskAsPercentage(), "%") + "]";

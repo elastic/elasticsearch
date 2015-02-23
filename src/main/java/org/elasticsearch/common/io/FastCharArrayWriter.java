@@ -62,6 +62,7 @@ public class FastCharArrayWriter extends Writer {
     /**
      * Writes a character to the buffer.
      */
+    @Override
     public void write(int c) {
         int newcount = count + 1;
         if (newcount > buf.length) {
@@ -78,6 +79,7 @@ public class FastCharArrayWriter extends Writer {
      * @param off the start offset in the data
      * @param len the number of chars that are written
      */
+    @Override
     public void write(char c[], int off, int len) {
         if ((off < 0) || (off > c.length) || (len < 0) ||
                 ((off + len) > c.length) || ((off + len) < 0)) {
@@ -100,6 +102,7 @@ public class FastCharArrayWriter extends Writer {
      * @param off Offset from which to start reading characters
      * @param len Number of characters to be written
      */
+    @Override
     public void write(String str, int off, int len) {
         int newcount = count + len;
         if (newcount > buf.length) {
@@ -140,6 +143,7 @@ public class FastCharArrayWriter extends Writer {
      * @return This writer
      * @since 1.5
      */
+    @Override
     public FastCharArrayWriter append(CharSequence csq) {
         String s = (csq == null ? "null" : csq.toString());
         write(s, 0, s.length());
@@ -169,6 +173,7 @@ public class FastCharArrayWriter extends Writer {
      *                                   <tt>csq.length()</tt>
      * @since 1.5
      */
+    @Override
     public FastCharArrayWriter append(CharSequence csq, int start, int end) {
         String s = (csq == null ? "null" : csq).subSequence(start, end).toString();
         write(s, 0, s.length());
@@ -188,6 +193,7 @@ public class FastCharArrayWriter extends Writer {
      * @return This writer
      * @since 1.5
      */
+    @Override
     public FastCharArrayWriter append(char c) {
         write(c);
         return this;
@@ -232,6 +238,7 @@ public class FastCharArrayWriter extends Writer {
      *
      * @return the string.
      */
+    @Override
     public String toString() {
         return new String(buf, 0, count);
     }
@@ -257,6 +264,7 @@ public class FastCharArrayWriter extends Writer {
     /**
      * Flush the stream.
      */
+    @Override
     public void flush() {
     }
 
@@ -265,6 +273,7 @@ public class FastCharArrayWriter extends Writer {
      * contents might still be required. Note: Invoking this method in this class
      * will have no effect.
      */
+    @Override
     public void close() {
     }
 

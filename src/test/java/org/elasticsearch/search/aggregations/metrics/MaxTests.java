@@ -36,6 +36,7 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class MaxTests extends AbstractNumericTests {
 
+    @Override
     @Test
     public void testEmptyAggregation() throws Exception {
 
@@ -55,6 +56,7 @@ public class MaxTests extends AbstractNumericTests {
         assertThat(max.getName(), equalTo("max"));
         assertThat(max.getValue(), equalTo(Double.NEGATIVE_INFINITY));
     }
+    @Override
     @Test
     public void testUnmapped() throws Exception {
 
@@ -71,6 +73,7 @@ public class MaxTests extends AbstractNumericTests {
         assertThat(max.getValue(), equalTo(Double.NEGATIVE_INFINITY));
     }
 
+    @Override
     @Test
     public void testSingleValuedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -100,6 +103,7 @@ public class MaxTests extends AbstractNumericTests {
         assertThat(max.getValueAsString(), equalTo("0010.0"));
     }
 
+    @Override
     @Test
     public void testSingleValuedField_getProperty() throws Exception {
 
@@ -125,6 +129,7 @@ public class MaxTests extends AbstractNumericTests {
         assertThat((double) max.getProperty("value"), equalTo(expectedMaxValue));
     }
 
+    @Override
     @Test
     public void testSingleValuedField_PartiallyUnmapped() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx", "idx_unmapped")
@@ -140,6 +145,7 @@ public class MaxTests extends AbstractNumericTests {
         assertThat(max.getValue(), equalTo(10.0));
     }
 
+    @Override
     @Test
     public void testSingleValuedField_WithValueScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -155,6 +161,7 @@ public class MaxTests extends AbstractNumericTests {
         assertThat(max.getValue(), equalTo(11.0));
     }
 
+    @Override
     @Test
     public void testSingleValuedField_WithValueScript_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -170,6 +177,7 @@ public class MaxTests extends AbstractNumericTests {
         assertThat(max.getValue(), equalTo(11.0));
     }
 
+    @Override
     @Test
     public void testMultiValuedField() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -185,6 +193,7 @@ public class MaxTests extends AbstractNumericTests {
         assertThat(max.getValue(), equalTo(12.0));
     }
 
+    @Override
     @Test
     public void testMultiValuedField_WithValueScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -200,6 +209,7 @@ public class MaxTests extends AbstractNumericTests {
         assertThat(max.getValue(), equalTo(13.0));
     }
 
+    @Override
     @Test
     public void testMultiValuedField_WithValueScript_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -215,6 +225,7 @@ public class MaxTests extends AbstractNumericTests {
         assertThat(max.getValue(), equalTo(13.0));
     }
 
+    @Override
     @Test
     public void testScript_SingleValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -230,6 +241,7 @@ public class MaxTests extends AbstractNumericTests {
         assertThat(max.getValue(), equalTo(10.0));
     }
 
+    @Override
     @Test
     public void testScript_SingleValued_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -245,6 +257,7 @@ public class MaxTests extends AbstractNumericTests {
         assertThat(max.getValue(), equalTo(11.0));
     }
 
+    @Override
     @Test
     public void testScript_ExplicitSingleValued_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -260,6 +273,7 @@ public class MaxTests extends AbstractNumericTests {
         assertThat(max.getValue(), equalTo(11.0));
     }
 
+    @Override
     @Test
     public void testScript_MultiValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -275,6 +289,7 @@ public class MaxTests extends AbstractNumericTests {
         assertThat(max.getValue(), equalTo(12.0));
     }
 
+    @Override
     @Test
     public void testScript_ExplicitMultiValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -290,6 +305,7 @@ public class MaxTests extends AbstractNumericTests {
         assertThat(max.getValue(), equalTo(12.0));
     }
 
+    @Override
     @Test
     public void testScript_MultiValued_WithParams() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")

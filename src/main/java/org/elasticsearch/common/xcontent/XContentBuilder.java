@@ -1121,6 +1121,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
+    @Override
     public void close() {
         try {
             generator.close();

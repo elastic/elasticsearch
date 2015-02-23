@@ -60,6 +60,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
     protected abstract MockTransportService build(Settings settings, Version version);
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -96,6 +97,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
         serviceB.removeConnectionListener(waitForConnection);
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

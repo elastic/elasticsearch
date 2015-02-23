@@ -40,6 +40,7 @@ public final class Modules {
     }
 
     public static final Module EMPTY_MODULE = new Module() {
+        @Override
         public void configure(Binder binder) {
         }
     };
@@ -91,6 +92,7 @@ public final class Modules {
     public static Module combine(Iterable<? extends Module> modules) {
         final Set<Module> modulesSet = ImmutableSet.copyOf(modules);
         return new Module() {
+            @Override
             public void configure(Binder binder) {
                 binder = binder.skipSources(getClass());
                 for (Module module : modulesSet) {
@@ -123,10 +125,12 @@ public final class Modules {
             this.baseModules = ImmutableSet.copyOf(baseModules);
         }
 
+        @Override
         public Module with(Module... overrides) {
             return with(Arrays.asList(overrides));
         }
 
+        @Override
         public Module with(final Iterable<? extends Module> overrides) {
             return new AbstractModule() {
                 @Override
@@ -238,6 +242,7 @@ public final class Modules {
 
                 private Scope getScopeInstanceOrNull(Binding<?> binding) {
                     return binding.acceptScopingVisitor(new DefaultBindingScopingVisitor<Scope>() {
+                        @Override
                         public Scope visitScope(Scope scope) {
                             return scope;
                         }

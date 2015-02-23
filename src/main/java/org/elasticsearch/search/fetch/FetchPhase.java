@@ -104,6 +104,7 @@ public class FetchPhase implements SearchPhase {
     public void preProcess(SearchContext context) {
     }
 
+    @Override
     public void execute(SearchContext context) {
         FieldsVisitor fieldsVisitor;
         Set<String> fieldNames = null;

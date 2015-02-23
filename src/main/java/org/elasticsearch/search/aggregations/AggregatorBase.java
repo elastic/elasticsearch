@@ -172,6 +172,7 @@ public abstract class AggregatorBase extends Aggregator {
     /**
      * @return  The name of the aggregation.
      */
+    @Override
     public String name() {
         return name;
     }
@@ -182,6 +183,7 @@ public abstract class AggregatorBase extends Aggregator {
      *          be aggregated per bucket). This method returns the direct parent aggregator that contains this aggregator, or
      *          {@code null} if there is none (meaning, this aggregator is a top level one)
      */
+    @Override
     public Aggregator parent() {
         return parent;
     }
@@ -190,6 +192,7 @@ public abstract class AggregatorBase extends Aggregator {
         return subAggregators;
     }
 
+    @Override
     public Aggregator subAggregator(String aggName) {
         if (subAggregatorbyName == null) {
             subAggregatorbyName = new HashMap<>(subAggregators.length);
@@ -203,6 +206,7 @@ public abstract class AggregatorBase extends Aggregator {
     /**
      * @return  The current aggregation context.
      */
+    @Override
     public AggregationContext context() {
         return context;
     }

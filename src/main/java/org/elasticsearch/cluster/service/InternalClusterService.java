@@ -128,6 +128,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         return this.nodeSettingsService;
     }
 
+    @Override
     public void addInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException {
         if (lifecycle.started()) {
             throw new ElasticsearchIllegalStateException("can't set initial block when started");
@@ -188,22 +189,27 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         return operationRouting;
     }
 
+    @Override
     public ClusterState state() {
         return this.clusterState;
     }
 
+    @Override
     public void addFirst(ClusterStateListener listener) {
         priorityClusterStateListeners.add(listener);
     }
 
+    @Override
     public void addLast(ClusterStateListener listener) {
         lastClusterStateListeners.add(listener);
     }
 
+    @Override
     public void add(ClusterStateListener listener) {
         clusterStateListeners.add(listener);
     }
 
+    @Override
     public void remove(ClusterStateListener listener) {
         clusterStateListeners.remove(listener);
         priorityClusterStateListeners.remove(listener);
@@ -228,6 +234,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         localNodeMasterListeners.remove(listener);
     }
 
+    @Override
     public void add(final TimeValue timeout, final TimeoutClusterStateListener listener) {
         if (lifecycle.stoppedOrClosed()) {
             listener.onClose();
@@ -254,10 +261,12 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
     }
 
+    @Override
     public void submitStateUpdateTask(final String source, final ClusterStateUpdateTask updateTask) {
         submitStateUpdateTask(source, Priority.NORMAL, updateTask);
     }
 
+    @Override
     public void submitStateUpdateTask(final String source, Priority priority, final ClusterStateUpdateTask updateTask) {
         if (!lifecycle.started()) {
             return;

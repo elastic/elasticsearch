@@ -57,6 +57,7 @@ public interface Node extends Releasable {
     /**
      * Closes the node (and {@link #stop}s if its running).
      */
+    @Override
     void close();
 
     /**

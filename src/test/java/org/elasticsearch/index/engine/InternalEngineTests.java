@@ -113,6 +113,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     private int indexConcurrency;
     private String codecName;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -159,6 +160,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         }
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

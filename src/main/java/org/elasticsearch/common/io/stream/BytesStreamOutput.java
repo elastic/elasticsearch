@@ -99,6 +99,7 @@ public class BytesStreamOutput extends StreamOutput implements BytesStream {
         count += length;
     }
 
+    @Override
     public void reset() {
         // shrink list of pages
         if (bytes.size() > BigArrays.PAGE_SIZE_IN_BYTES) {

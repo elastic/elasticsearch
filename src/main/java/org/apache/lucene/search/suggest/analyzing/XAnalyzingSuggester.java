@@ -254,7 +254,8 @@ public class XAnalyzingSuggester extends Lookup {
   }
 
   /** Returns byte size of the underlying FST. */
-  public long ramBytesUsed() {
+  @Override
+public long ramBytesUsed() {
     return fst == null ? 0 : fst.ramBytesUsed();
   }
 

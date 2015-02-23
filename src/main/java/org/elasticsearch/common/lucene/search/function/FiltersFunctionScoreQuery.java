@@ -327,6 +327,7 @@ public class FiltersFunctionScoreQuery extends Query {
         }
     }
 
+    @Override
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
         sb.append("function score (").append(subQuery.toString(field)).append(", functions: [");
@@ -338,6 +339,7 @@ public class FiltersFunctionScoreQuery extends Query {
         return sb.toString();
     }
 
+    @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass())
             return false;
@@ -350,6 +352,7 @@ public class FiltersFunctionScoreQuery extends Query {
         return Arrays.equals(this.filterFunctions, other.filterFunctions);
     }
 
+    @Override
     public int hashCode() {
         return subQuery.hashCode() + 31 * Arrays.hashCode(filterFunctions) ^ Float.floatToIntBits(getBoost());
     }

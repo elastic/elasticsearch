@@ -353,6 +353,7 @@ public class SearchWithRandomExceptionsTests extends ElasticsearchIntegrationTes
                 }
             }
 
+            @Override
             public boolean wrapTerms(String field) {
                 return true;
             }

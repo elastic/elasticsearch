@@ -95,6 +95,7 @@ public class BoostFieldMapper extends NumberFieldMapper<Float> implements Intern
         }
 
         // if we are indexed we use DOCS_ONLY
+        @Override
         protected IndexOptions getDefaultIndexOption() {
             return IndexOptions.DOCS;
         }

@@ -92,6 +92,7 @@ public abstract class SearchContext implements Releasable {
     private Multimap<Lifetime, Releasable> clearables = null;
     private final AtomicBoolean closed = new AtomicBoolean(false);
 
+    @Override
     public final void close() {
         if (closed.compareAndSet(false, true)) { // prevent double release
             try {

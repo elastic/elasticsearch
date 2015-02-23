@@ -103,10 +103,12 @@ public class InternalRange<B extends InternalRange.Bucket> extends InternalMulti
             this.aggregations = aggregations;
         }
 
+        @Override
         public String getKey() {
             return getKeyAsString();
         }
 
+        @Override
         public String getKeyAsString() {
             return key;
         }

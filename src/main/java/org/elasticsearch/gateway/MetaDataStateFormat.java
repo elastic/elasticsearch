@@ -328,6 +328,7 @@ public abstract class MetaDataStateFormat<T> {
             this.legacy = legacy;
         }
 
+        @Override
         public String toString() {
             return "[version:" + version + ", legacy:" + legacy + ", file:" + file.toAbsolutePath() + "]";
         }

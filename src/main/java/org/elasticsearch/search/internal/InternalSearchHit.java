@@ -193,6 +193,7 @@ public class InternalSearchHit implements SearchHit {
     /**
      * Returns bytes reference, also un compress the source if needed.
      */
+    @Override
     public BytesReference sourceRef() {
         try {
             this.source = CompressorFactory.uncompressIfNeeded(this.source);
@@ -400,6 +401,7 @@ public class InternalSearchHit implements SearchHit {
         return this.matchedQueries;
     }
 
+    @Override
     @SuppressWarnings("unchecked")
     public Map<String, SearchHits> getInnerHits() {
         return (Map) innerHits;

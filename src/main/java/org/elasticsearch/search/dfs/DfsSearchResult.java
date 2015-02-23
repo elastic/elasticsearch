@@ -57,10 +57,12 @@ public class DfsSearchResult extends TransportResponse implements SearchPhaseRes
         this.shardTarget = shardTarget;
     }
 
+    @Override
     public long id() {
         return this.id;
     }
 
+    @Override
     public SearchShardTarget shardTarget() {
         return shardTarget;
     }

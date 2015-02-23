@@ -104,6 +104,7 @@ public class NettyTransportTests extends ElasticsearchIntegrationTest {
                 this.logger = exceptionThrowingNettyTransport.logger;
             }
 
+            @Override
             public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = super.getPipeline();
                 pipeline.replace("dispatcher", "dispatcher", new MessageChannelHandler(nettyTransport, logger, NettyTransport.DEFAULT_PROFILE) {

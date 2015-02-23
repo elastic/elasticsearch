@@ -55,5 +55,6 @@ public interface Scope {
      * {@code "Scopes.SINGLETON"}, {@code "ServletScopes.SESSION"} and
      * {@code "ServletScopes.REQUEST"}.
      */
+    @Override
     String toString();
 }

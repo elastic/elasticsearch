@@ -67,6 +67,7 @@ public abstract class ValuesSource {
 
     public static abstract class Bytes extends ValuesSource {
 
+        @Override
         public Bits docsWithValue(LeafReaderContext context) throws IOException {
             final SortedBinaryDocValues bytes = bytesValues(context);
             if (org.elasticsearch.index.fielddata.FieldData.unwrapSingleton(bytes) != null) {
@@ -78,6 +79,7 @@ public abstract class ValuesSource {
 
         public static abstract class WithOrdinals extends Bytes {
 
+            @Override
             public Bits docsWithValue(LeafReaderContext context) {
                 final RandomAccessOrds ordinals = ordinalsValues(context);
                 if (DocValues.unwrapSingleton(ordinals) != null) {

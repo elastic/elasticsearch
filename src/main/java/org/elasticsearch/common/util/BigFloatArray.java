@@ -64,6 +64,7 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
         return page[indexInPage] = Float.floatToRawIntBits(Float.intBitsToFloat(page[indexInPage]) + inc);
     }
 
+    @Override
     public float get(long index) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
@@ -76,6 +77,7 @@ final class BigFloatArray extends AbstractBigArray implements FloatArray {
     }
 
     /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
+    @Override
     public void resize(long newSize) {
         final int numPages = numPages(newSize);
         if (numPages > pages.length) {

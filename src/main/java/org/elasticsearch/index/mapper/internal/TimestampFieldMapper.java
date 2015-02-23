@@ -246,6 +246,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         return this.ignoreMissing;
     }
 
+    @Override
     public FormatDateTimeFormatter dateTimeFormatter() {
         return this.dateTimeFormatter;
     }

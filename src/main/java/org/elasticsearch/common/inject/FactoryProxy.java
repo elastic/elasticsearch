@@ -39,6 +39,7 @@ class FactoryProxy<T> implements InternalFactory<T>, BindingProcessor.CreationLi
         this.source = source;
     }
 
+    @Override
     public void notify(final Errors errors) {
         try {
             targetFactory = injector.getInternalFactory(targetKey, errors.withSource(source));
@@ -47,6 +48,7 @@ class FactoryProxy<T> implements InternalFactory<T>, BindingProcessor.CreationLi
         }
     }
 
+    @Override
     public T get(Errors errors, InternalContext context, Dependency<?> dependency)
             throws ErrorsException {
         return targetFactory.get(errors.withSource(targetKey), context, dependency);

@@ -129,6 +129,7 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         return this;
     }
 
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         maxNumSegments = in.readInt();
@@ -137,6 +138,7 @@ public class OptimizeRequest extends BroadcastOperationRequest<OptimizeRequest> 
         upgrade = in.readBoolean();
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeInt(maxNumSegments);

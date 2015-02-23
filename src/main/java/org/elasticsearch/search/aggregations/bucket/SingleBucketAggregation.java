@@ -36,5 +36,6 @@ public interface SingleBucketAggregation extends Aggregation, HasAggregations {
     /**
      * @return  The sub-aggregations of this bucket
      */
+    @Override
     Aggregations getAggregations();
 }

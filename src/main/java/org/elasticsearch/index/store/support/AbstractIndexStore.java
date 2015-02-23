@@ -131,6 +131,7 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
      * the index settings to determine if a custom data path is set for the
      * index and uses that if applicable.
      */
+    @Override
     public Path[] shardIndexLocations(ShardId shardId) {
         Path[] shardLocations = nodeEnv.shardDataPaths(shardId, indexSettings);
         Path[] locations = new Path[shardLocations.length];
@@ -146,6 +147,7 @@ public abstract class AbstractIndexStore extends AbstractIndexComponent implemen
      * the index settings to determine if a custom data path is set for the
      * index and uses that if applicable.
      */
+    @Override
     public Path[] shardTranslogLocations(ShardId shardId) {
         Path[] shardLocations = nodeEnv.shardDataPaths(shardId, indexSettings);
         Path[] locations = new Path[shardLocations.length];

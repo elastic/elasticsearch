@@ -231,6 +231,7 @@ public class RestClient implements Closeable {
     /**
      * Closes the REST client and the underlying http client
      */
+    @Override
     public void close() {
         IOUtils.closeWhileHandlingException(httpClient);
     }

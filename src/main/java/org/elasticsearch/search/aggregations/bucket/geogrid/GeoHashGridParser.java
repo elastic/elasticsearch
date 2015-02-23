@@ -126,6 +126,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
             final InternalAggregation aggregation = new InternalGeoHashGrid(name, requiredSize, Collections.<InternalGeoHashGrid.Bucket>emptyList(), metaData);
             return new NonCollectingAggregator(name, aggregationContext, parent, metaData) {
+                @Override
                 public InternalAggregation buildEmptyAggregation() {
                     return aggregation;
                 }

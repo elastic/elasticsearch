@@ -36,54 +36,67 @@ import java.util.Map;
 interface State {
 
     static final State NONE = new State() {
+        @Override
         public State parent() {
             throw new UnsupportedOperationException();
         }
 
+        @Override
         public <T> BindingImpl<T> getExplicitBinding(Key<T> key) {
             return null;
         }
 
+        @Override
         public Map<Key<?>, Binding<?>> getExplicitBindingsThisLevel() {
             throw new UnsupportedOperationException();
         }
 
+        @Override
         public void putBinding(Key<?> key, BindingImpl<?> binding) {
             throw new UnsupportedOperationException();
         }
 
+        @Override
         public Scope getScope(Class<? extends Annotation> scopingAnnotation) {
             return null;
         }
 
+        @Override
         public void putAnnotation(Class<? extends Annotation> annotationType, Scope scope) {
             throw new UnsupportedOperationException();
         }
 
+        @Override
         public void addConverter(MatcherAndConverter matcherAndConverter) {
             throw new UnsupportedOperationException();
         }
 
+        @Override
         public MatcherAndConverter getConverter(String stringValue, TypeLiteral<?> type, Errors errors,
                                                 Object source) {
             throw new UnsupportedOperationException();
         }
 
+        @Override
         public Iterable<MatcherAndConverter> getConvertersThisLevel() {
             return ImmutableSet.of();
         }
 
+        @Override
         public void addTypeListener(TypeListenerBinding typeListenerBinding) {
             throw new UnsupportedOperationException();
         }
 
+        @Override
         public List<TypeListenerBinding> getTypeListenerBindings() {
             return ImmutableList.of();
         }
 
+        @Override
         public void blacklist(Key<?> key) {
         }
 
+        @Override
         public boolean isBlacklisted(Key<?> key) {
             return true;
         }
@@ -96,6 +109,7 @@ interface State {
         public void makeAllBindingsToEagerSingletons(Injector injector) {
         }
 
+        @Override
         public Object lock() {
             throw new UnsupportedOperationException();
         }

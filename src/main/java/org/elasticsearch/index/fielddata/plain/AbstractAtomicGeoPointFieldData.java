@@ -37,6 +37,7 @@ abstract class AbstractAtomicGeoPointFieldData implements AtomicGeoPointFieldDat
         return FieldData.toString(getGeoPointValues());
     }
 
+    @Override
     public final ScriptDocValues.GeoPoints getScriptValues() {
         return new ScriptDocValues.GeoPoints(getGeoPointValues());
     }

@@ -69,6 +69,7 @@ public class TermsLookup {
         return queryParseContext;
     }
 
+    @Override
     public String toString() {
         return index + "/" + type + "/" + id + "/" + path;
     }

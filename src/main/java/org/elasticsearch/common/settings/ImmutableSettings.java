@@ -1124,6 +1124,7 @@ public class ImmutableSettings implements Settings {
          * Builds a {@link Settings} (underlying uses {@link ImmutableSettings}) based on everything
          * set on this builder.
          */
+        @Override
         public Settings build() {
             return new ImmutableSettings(Collections.unmodifiableMap(map), classLoader);
         }

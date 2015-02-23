@@ -51,6 +51,7 @@ public class IndicesServiceTest extends ElasticsearchSingleNodeTest {
         return getInstanceFromNode(IndicesService.class);
     }
 
+    @Override
     protected boolean resetNodeAfterTest() {
         return true;
     }

@@ -35,5 +35,6 @@ public interface ExposedBinding<T> extends Binding<T>, HasDependencies {
     /**
      * Unsupported. Always throws {@link UnsupportedOperationException}.
      */
+    @Override
     void applyTo(Binder binder);
 }

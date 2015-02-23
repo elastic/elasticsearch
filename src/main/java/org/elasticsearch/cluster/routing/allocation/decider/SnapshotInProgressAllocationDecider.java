@@ -82,6 +82,7 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
      * re-balanced to the given allocation. The default is
      * {@link Decision#ALWAYS}.
      */
+    @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         return canMove(shardRouting, allocation);
     }
@@ -90,6 +91,7 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
      * Returns a {@link Decision} whether the given shard routing can be
      * allocated on the given node. The default is {@link Decision#ALWAYS}.
      */
+    @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         return canMove(shardRouting, allocation);
     }

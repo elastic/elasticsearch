@@ -76,6 +76,7 @@ public final class Priority implements Comparable<Priority> {
         return values;
     }
 
+    @Override
     public int compareTo(Priority p) {
         return (this.value < p.value) ? -1 : ((this.value > p.value) ? 1 : 0);
     }

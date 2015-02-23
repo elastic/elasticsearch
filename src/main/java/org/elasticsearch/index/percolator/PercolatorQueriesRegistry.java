@@ -118,6 +118,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
         return percolateQueries;
     }
 
+    @Override
     public void close() {
         mapperService.removeTypeListener(percolateTypeListener);
         indicesLifecycle.removeListener(shardLifecycleListener);

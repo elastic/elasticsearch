@@ -108,6 +108,7 @@ public final class UTF8StreamWriter extends Writer {
      * @param code the 31 bits Unicode of the character to be written.
      * @throws IOException if an I/O error occurs.
      */
+    @Override
     public void write(int code) throws IOException {
         if ((code & 0xffffff80) == 0) {
             _bytes[_index] = (byte) code;
@@ -219,6 +220,7 @@ public final class UTF8StreamWriter extends Writer {
      * @param len  the number of characters to write.
      * @throws IOException if an I/O error occurs.
      */
+    @Override
     public void write(char cbuf[], int off, int len) throws IOException {
         final int off_plus_len = off + len;
         for (int i = off; i < off_plus_len; ) {
@@ -242,6 +244,7 @@ public final class UTF8StreamWriter extends Writer {
      * @param len the number of characters to write.
      * @throws IOException if an I/O error occurs
      */
+    @Override
     public void write(String str, int off, int len) throws IOException {
         final int off_plus_len = off + len;
         for (int i = off; i < off_plus_len; ) {
@@ -287,6 +290,7 @@ public final class UTF8StreamWriter extends Writer {
      *
      * @throws IOException if an I/O error occurs.
      */
+    @Override
     public void flush() throws IOException {
         flushBuffer();
         _outputStream.flush();
@@ -297,6 +301,7 @@ public final class UTF8StreamWriter extends Writer {
      *
      * @throws IOException if an I/O error occurs
      */
+    @Override
     public void close() throws IOException {
         if (_outputStream != null) {
             flushBuffer();

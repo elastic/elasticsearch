@@ -657,11 +657,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     }
 
-    /** Log that we are about to delete this file, to the index.store.deletes component. */
-    public void deleteFile(String msg, String storeFile) throws IOException {
-        directory.deleteFile(msg, storeFile);
-    }
-
     /**
      * Represents a snapshot of the current directory build from the latest Lucene commit.
      * Only files that are part of the last commit are considered in this datastrucutre.

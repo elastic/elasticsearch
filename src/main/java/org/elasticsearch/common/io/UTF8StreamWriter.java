@@ -327,6 +327,7 @@ public final class UTF8StreamWriter extends Writer {
     /**
      * @deprecated Replaced by {@link #setOutput(OutputStream)}
      */
+    @Deprecated
     public UTF8StreamWriter setOutputStream(OutputStream out) {
         return this.setOutput(out);
     }

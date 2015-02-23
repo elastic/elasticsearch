@@ -161,8 +161,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         if (cacheExpire != null) {
             cacheBuilder.expireAfterAccess(cacheExpire.nanos(), TimeUnit.NANOSECONDS);
         }
-        cacheBuilder.removalListener(new ScriptCacheRemovalListener());
-        this.cache = cacheBuilder.build();
+        this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
 
         ImmutableMap.Builder<String, ScriptEngineService> enginesByLangBuilder = ImmutableMap.builder();
         ImmutableMap.Builder<String, ScriptEngineService> enginesByExtBuilder = ImmutableMap.builder();

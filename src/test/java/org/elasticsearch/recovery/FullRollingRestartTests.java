@@ -19,7 +19,6 @@
 
 package org.elasticsearch.recovery;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -57,7 +56,6 @@ public class FullRollingRestartTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
-    @LuceneTestCase.AwaitsFix(bugUrl = "see https://github.com/elasticsearch/elasticsearch/issues/9503")
     public void testFullRollingRestart() throws Exception {
         Settings settings = ImmutableSettings.builder().put(ZenDiscovery.SETTING_JOIN_TIMEOUT, "30s").build();
         internalCluster().startNode(settings);

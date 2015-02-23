@@ -375,9 +375,7 @@ public class PluginManager {
         Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true);
 
         try {
-            if (!Files.exists(initialSettings.v2().pluginsFile())) {
-                Files.createDirectories(initialSettings.v2().pluginsFile());
-            }
+            Files.createDirectories(initialSettings.v2().pluginsFile());
         } catch (IOException e) {
             displayHelp("Unable to create plugins dir: " + initialSettings.v2().pluginsFile());
             System.exit(EXIT_CODE_ERROR);

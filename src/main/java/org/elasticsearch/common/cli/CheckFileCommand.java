@@ -78,9 +78,10 @@ public abstract class CheckFileCommand extends CliTool.Command {
                 try {
                     boolean supportsPosixPermissions = Files.getFileStore(path).supportsFileAttributeView(PosixFileAttributeView.class);
                     if (supportsPosixPermissions) {
-                        permissions.put(path, Files.getPosixFilePermissions(path));
-                        owners.put(path, Files.getOwner(path).getName());
-                        groups.put(path, Files.readAttributes(path, PosixFileAttributes.class).group().getName());
+                        PosixFileAttributes attributes = Files.readAttributes(path, PosixFileAttributes.class);
+                        permissions.put(path, attributes.permissions());
+                        owners.put(path, attributes.owner().getName());
+                        groups.put(path, attributes.group().getName());
                     }
                 } catch (IOException e) {
                     // silently swallow if not supported, no need to log things

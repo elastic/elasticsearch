@@ -26,7 +26,7 @@ import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
-import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -212,7 +212,7 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
 
             return new AttachmentMapper(buildNames(context), pathType, defaultIndexedChars, ignoreErrors, langDetect, contentMapper,
                     dateMapper, titleMapper, nameMapper, authorMapper, keywordsMapper, contentTypeMapper, contentLength,
-                    language, multiFieldsBuilder.build(this, context), copyTo);
+                    language, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
 
@@ -354,9 +354,9 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
                             Boolean defaultLangDetect, Mapper contentMapper,
                             Mapper dateMapper, Mapper titleMapper, Mapper nameMapper, Mapper authorMapper,
                             Mapper keywordsMapper, Mapper contentTypeMapper, Mapper contentLengthMapper,
-                            Mapper languageMapper, MultiFields multiFields, CopyTo copyTo) {
+                            Mapper languageMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, 1.0f, AbstractFieldMapper.Defaults.FIELD_TYPE, false, null, null, null, null, null,
-                ImmutableSettings.EMPTY, multiFields, copyTo);
+                indexSettings, multiFields, copyTo);
         this.pathType = pathType;
         this.defaultIndexedChars = defaultIndexedChars;
         this.ignoreErrors = ignoreErrors;

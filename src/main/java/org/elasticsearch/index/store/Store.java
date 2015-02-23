@@ -565,7 +565,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 if (!sourceMetaData.contains(existingFile) && !Store.isChecksum(existingFile)) {
                     try {
                         dir.deleteFile(reason, existingFile);
-                    } catch (Exception e) {
+                    } catch (Exception ex) {
+                        logger.debug("failed to delete file [{}]", ex, existingFile);
                         // ignore, we don't really care, will get deleted later on
                     }
                 }

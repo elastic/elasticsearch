@@ -67,7 +67,7 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
                 String entryDn = settings.get("user_search.pool.health_check.dn", (bindRequest == null) ? null : bindRequest.getBindDN());
                 if (entryDn == null) {
                     pool.close();
-                    throw new ShieldSettingsException("[user_search.bind_dn] has not been specified so a value must be specified for [user_search.pool.health_check.dn] or [user_search.pool.health_check.enabled] must be set to false");
+                    throw new ShieldSettingsException("[bind_dn] has not been specified so a value must be specified for [user_search.pool.health_check.dn] or [user_search.pool.health_check.enabled] must be set to false");
                 }
                 long healthCheckInterval = settings.getAsTime("user_search.pool.health_check.interval", DEFAULT_HEALTH_CHECK_INTERVAL).millis();
                 // Checks the status of the LDAP connection at a specified interval in the background. We do not check on
@@ -85,9 +85,9 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
 
     static SimpleBindRequest bindRequest(Settings settings) {
         SimpleBindRequest request = null;
-        String bindDn = settings.get("user_search.bind_dn");
+        String bindDn = settings.get("bind_dn");
         if (bindDn != null) {
-            request = new SimpleBindRequest(bindDn, settings.get("user_search.bind_password"));
+            request = new SimpleBindRequest(bindDn, settings.get("bind_password"));
         }
         return request;
     }

@@ -57,8 +57,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
                 .put(buildLdapSettings(ldapUrl(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
-                .put("user_search.bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put("user_search.bind_password", "pass")
+                .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+                .put("bind_password", "pass")
                 .put("user_search.attribute", "cn")
                 .build());
 
@@ -83,8 +83,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
                 .put(buildLdapSettings(ldapUrl(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
-                .put("user_search.bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put("user_search.bind_password", "pass")
+                .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+                .put("bind_password", "pass")
                 .put("user_search.scope", LdapSearchScope.BASE)
                 .put("user_search.attribute", "cn")
                 .build());
@@ -111,8 +111,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
                 .put(buildLdapSettings(ldapUrl(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
-                .put("user_search.bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put("user_search.bind_password", "pass")
+                .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+                .put("bind_password", "pass")
                 .put("user_search.scope", LdapSearchScope.BASE)
                 .put("user_search.attribute", "cn")
                 .build());
@@ -138,8 +138,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
                 .put(buildLdapSettings(ldapUrl(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
-                .put("user_search.bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put("user_search.bind_password", "pass")
+                .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+                .put("bind_password", "pass")
                 .put("user_search.scope", LdapSearchScope.ONE_LEVEL)
                 .put("user_search.attribute", "cn")
                 .build());
@@ -166,8 +166,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
                 .put(buildLdapSettings(ldapUrl(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
-                .put("user_search.bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put("user_search.bind_password", "pass")
+                .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+                .put("bind_password", "pass")
                 .put("user_search.scope", LdapSearchScope.ONE_LEVEL)
                 .put("user_search.attribute", "cn")
                 .build());
@@ -193,8 +193,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
                 .put(buildLdapSettings(ldapUrl(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
-                .put("user_search.bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put("user_search.bind_password", "pass")
+                .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+                .put("bind_password", "pass")
                 .put("user_search.attribute", "uid1")
                 .build());
 
@@ -220,8 +220,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
                 .put(buildLdapSettings(ldapUrl(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
-                .put("user_search.bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put("user_search.bind_password", "pass")
+                .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+                .put("bind_password", "pass")
                 .build());
 
         LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, null);
@@ -244,8 +244,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         Settings settings = settingsBuilder()
                 .put(LdapTest.buildLdapSettings(ActiveDirectorySessionFactoryTests.AD_LDAP_URL, Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
-                .put("user_search.bind_dn", "ironman@ad.test.elasticsearch.com")
-                .put("user_search.bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
+                .put("bind_dn", "ironman@ad.test.elasticsearch.com")
+                .put("bind_password", ActiveDirectorySessionFactoryTests.PASSWORD)
                 .put("user_search.attribute", "cn")
                 .build();
         RealmConfig config = new RealmConfig("ad-as-ldap-test", settings);
@@ -272,8 +272,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         RealmConfig config = new RealmConfig("oldap-test", settingsBuilder()
                 .put(LdapTest.buildLdapSettings(OpenLdapTests.OPEN_LDAP_URL, Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.ONE_LEVEL))
                 .put("user_search.base_dn", userSearchBase)
-                .put("user_search.bind_dn", "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
-                .put("user_search.bind_password", OpenLdapTests.PASSWORD)
+                .put("bind_dn", "uid=blackwidow,ou=people,dc=oldap,dc=test,dc=elasticsearch,dc=com")
+                .put("bind_password", OpenLdapTests.PASSWORD)
                 .build());
         LdapUserSearchSessionFactory sessionFactory = new LdapUserSearchSessionFactory(config, clientSSLService);
 
@@ -297,8 +297,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
                 .put(buildLdapSettings(ldapUrl(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
-                .put("user_search.bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put("user_search.bind_password", "pass")
+                .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+                .put("bind_password", "pass")
                 .build());
 
         LDAPConnectionPool connectionPool = LdapUserSearchSessionFactory.connectionPool(config.settings(), new SingleServerSet("localhost", ldapServer.getListenPort()), TimeValue.timeValueSeconds(5));
@@ -321,8 +321,8 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
                 .put(buildLdapSettings(ldapUrl(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
-                .put("user_search.bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
-                .put("user_search.bind_password", "pass")
+                .put("bind_dn", "cn=Horatio Hornblower,ou=people,o=sevenSeas")
+                .put("bind_password", "pass")
                 .put("user_search.pool.initial_size", 10)
                 .put("user_search.pool.size", 12)
                 .put("user_search.pool.health_check.enabled", false)
@@ -346,27 +346,27 @@ public class LdapUserSearchSessionFactoryTests extends LdapTest {
         RealmConfig config = new RealmConfig("ldap_realm", settingsBuilder()
                 .put(buildLdapSettings(ldapUrl(), Strings.EMPTY_ARRAY, groupSearchBase, LdapSearchScope.SUB_TREE))
                 .put("user_search.base_dn", userSearchBase)
-                .put("user_search.bind_password", "pass")
+                .put("bind_password", "pass")
                 .build());
 
         try {
             new LdapUserSearchSessionFactory(config, null);
         } catch (ShieldSettingsException e) {
-            assertThat(e.getMessage(), containsString("[user_search.bind_dn] has not been specified so a value must be specified for [user_search.pool.health_check.dn] or [user_search.pool.health_check.enabled] must be set to false"));
+            assertThat(e.getMessage(), containsString("[bind_dn] has not been specified so a value must be specified for [user_search.pool.health_check.dn] or [user_search.pool.health_check.enabled] must be set to false"));
         }
     }
 
     @Test
     public void testEmptyBindDNReturnsNullBindRequest() {
-        BindRequest request = LdapUserSearchSessionFactory.bindRequest(settingsBuilder().put("user_search.bind_password", "password").build());
+        BindRequest request = LdapUserSearchSessionFactory.bindRequest(settingsBuilder().put("bind_password", "password").build());
         assertThat(request, is(nullValue()));
     }
 
     @Test
     public void testThatBindRequestReturnsSimpleBindRequest() {
         BindRequest request = LdapUserSearchSessionFactory.bindRequest(settingsBuilder()
-                .put("user_search.bind_password", "password")
-                .put("user_search.bind_dn", "cn=ironman")
+                .put("bind_password", "password")
+                .put("bind_dn", "cn=ironman")
                 .build());
         assertEquals(request.getClass(), SimpleBindRequest.class);
         SimpleBindRequest simpleBindRequest = (SimpleBindRequest) request;

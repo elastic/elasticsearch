@@ -248,7 +248,9 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             recoveryState.getTranslog().startTime(System.currentTimeMillis());
             recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
             StreamInput in = null;
-            logger.trace("recovering translog file: {} length: {}", recoveringTranslogFile, recoveringTranslogFile.length());
+            if (logger.isTraceEnabled()) {
+                logger.trace("recovering translog file: {} length: {}", recoveringTranslogFile, recoveringTranslogFile.length());
+            }
             try {
                 TranslogStream stream = TranslogStreams.translogStreamFor(recoveringTranslogFile);
                 try {

@@ -545,7 +545,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
     private static Set<ShardId> findAllShardIds(@Nullable final String index, Path... locations) throws IOException {
         final Set<ShardId> shardIds = Sets.newHashSet();
         for (final Path location : locations) {
-            if (Files.exists(location) && Files.isDirectory(location)) {
+            if (Files.isDirectory(location)) {
                 try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(location)) {
                     for (Path indexPath : indexStream) {
                         if (index == null || index.equals(indexPath.getFileName().toString())) {
@@ -560,11 +560,11 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
 
     private static Set<ShardId> findAllShardsForIndex(Path indexPath) throws IOException {
         Set<ShardId> shardIds = new HashSet<>();
-        if (Files.exists(indexPath) && Files.isDirectory(indexPath)) {
+        if (Files.isDirectory(indexPath)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
                 String currentIndex = indexPath.getFileName().toString();
                 for (Path shardPath : stream) {
-                    if (Files.exists(shardPath) && Files.isDirectory(shardPath)) {
+                    if (Files.isDirectory(shardPath)) {
                         Integer shardId = Ints.tryParse(shardPath.getFileName().toString());
                         if (shardId != null) {
                             ShardId id = new ShardId(currentIndex, shardId);

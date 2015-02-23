@@ -201,19 +201,6 @@ public class AlertsService extends AbstractComponent {
         }
     }
 
-    /**
-     * Return once a cluster state version appears that is never than the version
-     */
-    private ClusterState newClusterState(ClusterState previous) {
-        ClusterState current;
-        while (true) {
-            current = clusterService.state();
-            if (current.getVersion() > previous.getVersion()) {
-                return current;
-            }
-        }
-    }
-
     private final class AlertsClusterStateListener implements ClusterStateListener {
 
         @Override

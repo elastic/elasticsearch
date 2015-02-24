@@ -231,7 +231,7 @@ public class RootObjectMapper extends ObjectMapper {
         String mappingType = dynamicTemplate.mappingType(dynamicType);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
         if (typeParser == null) {
-            throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + name + "]");
+            throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + name + "]", context.mappingsModified());
         }
         return typeParser.parse(name, dynamicTemplate.mappingForName(name, dynamicType), parserContext);
     }

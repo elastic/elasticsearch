@@ -600,6 +600,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     }
                     ensureClusterSizeConsistency();
                     cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
+                    cluster().close();
                     cluster().assertAfterTest();
                 }
             } finally {

@@ -59,7 +59,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
         private static void reset() {
             assert NODE != null;
-            node().stop();
+            node().close();
             Holder.NODE = newNode();
         }
 
@@ -72,7 +72,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
             if (NODE != null) {
                 Node node = NODE;
                 NODE = null;
-                node.stop();
+                node.close();
             }
         }
     }

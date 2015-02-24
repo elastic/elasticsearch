@@ -122,6 +122,7 @@ import org.junit.*;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
@@ -1900,14 +1901,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     private static boolean isSuiteScopedTest(Class<?> clazz) {
-        if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
-            return false;
-        }
-        SuiteScopeTest annotation = clazz.getAnnotation(SuiteScopeTest.class);
-        if (annotation != null) {
-            return true;
-        }
-        return isSuiteScopedTest(clazz.getSuperclass());
+        return clazz.getAnnotation(SuiteScopeTest.class) != null;
     }
 
     /**
@@ -1917,7 +1911,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * that is executed in a separate test instance. Variables that need to be accessible across test instances must be static.
      */
     @Retention(RetentionPolicy.RUNTIME)
-    @Target({ElementType.TYPE})
+    @Inherited
     @Ignore
     public @interface SuiteScopeTest {
     }

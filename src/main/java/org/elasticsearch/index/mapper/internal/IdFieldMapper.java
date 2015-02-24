@@ -307,7 +307,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     @Override
     public void postParse(ParseContext context) throws IOException {
         if (context.id() == null && !context.sourceToParse().flyweight()) {
-            throw new MapperParsingException("No id found while parsing the content source");
+            throw new MapperParsingException("No id found while parsing the content source", context.mappingsModified());
         }
         // it either get built in the preParse phase, or get parsed...
     }
@@ -329,7 +329,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             // we are in the parse Phase
             String id = parser.text();
             if (context.id() != null && !context.id().equals(id)) {
-                throw new MapperParsingException("Provided id [" + context.id() + "] does not match the content one [" + id + "]");
+                throw new MapperParsingException("Provided id [" + context.id() + "] does not match the content one [" + id + "]", context.mappingsModified());
             }
             context.id(id);
         } // else we are in the pre/post parse phase

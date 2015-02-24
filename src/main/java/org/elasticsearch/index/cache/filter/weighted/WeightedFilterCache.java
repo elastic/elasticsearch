@@ -89,15 +89,12 @@ public class WeightedFilterCache extends AbstractIndexComponent implements Filte
 
 
     @Override
+    //Changed for bug #1
     public void clear(String reason) {
         logger.debug("full cache clear, reason [{}]", reason);
-        for (Object readerKey : seenReaders.keySet()) {
-            Boolean removed = seenReaders.remove(readerKey);
-            if (removed == null) {
-                return;
-            }
-            indicesFilterCache.addReaderKeyToClean(readerKey);
-        }
+        seenReaders.clear();
+        indicesFilterCache.cache().invalidateAll();
+        indicesFilterCache.cache().cleanUp();
     }
 
     @Override

@@ -30,7 +30,7 @@ import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.rest.client.RestException;
@@ -112,7 +112,7 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
-            .put(InternalNode.HTTP_ENABLED, true)
+            .put(Node.HTTP_ENABLED, true)
             .put(super.nodeSettings(nodeOrdinal)).build();
     }
 

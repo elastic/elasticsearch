@@ -25,9 +25,8 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.io.BufferedReader;
@@ -37,7 +36,7 @@ import java.util.Arrays;
 public class RoutingBackwardCompatibilityTests extends ElasticsearchTestCase {
 
     public void testBackwardCompatibility() throws Exception {
-        InternalNode node = new InternalNode();
+        Node node = new Node();
         try {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(RoutingBackwardCompatibilityTests.class.getResourceAsStream("/org/elasticsearch/cluster/routing/shard_routes.txt"), "UTF-8"))) {
                 for (String line = reader.readLine(); line != null; line = reader.readLine()) {

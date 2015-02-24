@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.action.admin.indices.upgrade.UpgradeTest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
@@ -134,7 +134,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
 
     void assertOldIndexWorks(String index) throws Exception {
         Settings settings = ImmutableSettings.builder()
-            .put(InternalNode.HTTP_ENABLED, true) // for _upgrade
+            .put(Node.HTTP_ENABLED, true) // for _upgrade
                 .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class) // disable merging so no segments will be upgraded
                 .build();
         loadIndex(index, settings);
@@ -192,7 +192,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
             internalCluster().startNode(ImmutableSettings.builder()
                 .put("data.node", true)
                 .put("master.node", false)
-                .put(InternalNode.HTTP_ENABLED, true) // for _upgrade
+                .put(Node.HTTP_ENABLED, true) // for _upgrade
                 .build());
         }
         client().admin().cluster().prepareHealth("test").setWaitForNodes("" + (numReplicas + 1));

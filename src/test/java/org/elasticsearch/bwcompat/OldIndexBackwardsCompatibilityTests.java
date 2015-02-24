@@ -36,73 +36,39 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.hamcrest.Matchers;
+import org.junit.BeforeClass;
 
 import java.lang.reflect.Modifier;
-import java.util.*;
+import java.net.URL;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardCompatibilityTest {
     
-    List<String> indexes = Arrays.asList(
-        "index-0.20.0.RC1.zip",
-        "index-0.20.0.zip",
-        "index-0.20.1.zip",
-        "index-0.20.2.zip",
-        "index-0.20.3.zip",
-        "index-0.20.4.zip",
-        "index-0.20.5.zip",
-        "index-0.20.6.zip",
-        "index-0.90.0.Beta1.zip",
-        "index-0.90.0.RC1.zip",
-        "index-0.90.0.RC2.zip",
-        "index-0.90.0.zip",
-        "index-0.90.1.zip",
-        "index-0.90.2.zip",
-        "index-0.90.3.zip",
-        "index-0.90.4.zip",
-        "index-0.90.5.zip",
-        "index-0.90.6.zip",
-        "index-0.90.7.zip",
-        "index-0.90.8.zip",
-        "index-0.90.9.zip",
-        "index-0.90.10.zip",
-        "index-0.90.11.zip",
-        "index-0.90.12.zip",
-        "index-0.90.13.zip",
-        "index-1.0.0.Beta1.zip",
-        "index-1.0.0.Beta2.zip",
-        "index-1.0.0.RC1.zip",
-        "index-1.0.0.RC2.zip",
-        "index-1.0.0.zip",
-        "index-1.0.1.zip",
-        "index-1.0.2.zip",
-        "index-1.0.3.zip",
-        "index-1.1.0.zip",
-        "index-1.1.1.zip",
-        "index-1.1.2.zip",
-        "index-1.2.0.zip",
-        "index-1.2.1.zip",
-        "index-1.2.2.zip",
-        "index-1.2.3.zip",
-        "index-1.2.4.zip",
-        "index-1.3.0.zip",
-        "index-1.3.1.zip",
-        "index-1.3.2.zip",
-        "index-1.3.3.zip",
-        "index-1.3.4.zip",
-        "index-1.3.5.zip",
-        "index-1.3.6.zip",
-        "index-1.3.7.zip",
-        "index-1.3.8.zip",
-        "index-1.3.9.zip",
-        "index-1.4.0.Beta1.zip",
-        "index-1.4.0.zip",
-        "index-1.4.1.zip",
-        "index-1.4.2.zip",
-        "index-1.4.3.zip",
-        "index-1.4.4.zip"
-    );
+    static List<String> indexes;
+    
+    @BeforeClass
+    public static void initIndexes() throws Exception {
+        indexes = new ArrayList<>();
+        URL dirUrl = OldIndexBackwardsCompatibilityTests.class.getResource(".");
+        Path dir = Paths.get(dirUrl.toURI());
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "index-*.zip")) {
+            for (Path path : stream) {
+                indexes.add(path.getFileName().toString());
+            }
+        }
+        Collections.sort(indexes);
+    }
     
     public void testAllVersionsTested() throws Exception {
         SortedSet<String> expectedVersions = new TreeSet<>();

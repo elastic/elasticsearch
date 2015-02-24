@@ -83,7 +83,6 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchService;
@@ -731,14 +730,14 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private final class NodeAndClient implements Closeable {
-        private InternalNode node;
+        private Node node;
         private Client nodeClient;
         private Client transportClient;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final String name;
 
         NodeAndClient(String name, Node node) {
-            this.node = (InternalNode) node;
+            this.node = node;
             this.name = name;
         }
 
@@ -825,7 +824,7 @@ public final class InternalTestCluster extends TestCluster {
                     IOUtils.rm(nodeEnv.nodeDataPaths());
                 }
             }
-            node = (InternalNode) nodeBuilder().settings(node.settings()).settings(newSettings).node();
+            node = nodeBuilder().settings(node.settings()).settings(newSettings).node();
         }
 
         void registerDataPath() {
@@ -872,7 +871,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         public Client client(Node node, String clusterName) {
-            TransportAddress addr = ((InternalNode) node).injector().getInstance(TransportService.class).boundAddress().publishAddress();
+            TransportAddress addr = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             Settings nodeSettings = node.settings();
             Builder builder = settingsBuilder()
                     .put("client.transport.nodes_sampler_interval", "1s")
@@ -1078,7 +1077,7 @@ public final class InternalTestCluster extends TestCluster {
         return getInstance(clazz, Predicates.<NodeAndClient>alwaysTrue());
     }
 
-    private synchronized <T> T getInstanceFromNode(Class<T> clazz, InternalNode node) {
+    private synchronized <T> T getInstanceFromNode(Class<T> clazz, Node node) {
         return node.injector().getInstance(clazz);
     }
 
@@ -1596,7 +1595,7 @@ public final class InternalTestCluster extends TestCluster {
         assertThat(shard, greaterThanOrEqualTo(0));
         assertThat(shard, greaterThanOrEqualTo(0));
         for (NodeAndClient n : nodes.values()) {
-            InternalNode node = (InternalNode) n.node;
+            Node node = n.node;
             IndicesService indicesService = getInstanceFromNode(IndicesService.class, node);
             ClusterService clusterService = getInstanceFromNode(ClusterService.class, node);
             IndexService indexService = indicesService.indexService(index);

@@ -35,7 +35,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -278,6 +278,6 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(InternalNode.HTTP_ENABLED, true).build();
+            .put(Node.HTTP_ENABLED, true).build();
     }
 }

@@ -20,7 +20,7 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
@@ -36,7 +36,7 @@ public class CorsRegexDefaultTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
-            .put(InternalNode.HTTP_ENABLED, true)
+            .put(Node.HTTP_ENABLED, true)
             .put(super.nodeSettings(nodeOrdinal)).build();
     }
 

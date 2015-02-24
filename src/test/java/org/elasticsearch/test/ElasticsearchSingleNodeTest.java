@@ -40,7 +40,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.*;
@@ -160,7 +159,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
      * Get an instance for a particular class using the injector of the singleton node.
      */
     protected static <T> T getInstanceFromNode(Class<T> clazz) {
-        return ((InternalNode) NODE).injector().getInstance(clazz);
+        return NODE.injector().getInstance(clazz);
     }
 
     /**

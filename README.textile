@@ -215,7 +215,7 @@ h1. License
 <pre>
 This software is licensed under the Apache License, version 2 ("ALv2"), quoted below.
 
-Copyright 2009-2014 Elasticsearch <http://www.elasticsearch.org>
+Copyright 2009–2014 Elasticsearch <http://www.elasticsearch.org>
 
 Licensed under the Apache License, Version 2.0 (the "License"); you may not
 use this file except in compliance with the License. You may obtain a copy of

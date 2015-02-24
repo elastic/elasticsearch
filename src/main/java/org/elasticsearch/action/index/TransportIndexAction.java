@@ -188,7 +188,6 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
         long version;
         boolean created;
 
-        Engine.IndexingOperation op;
         try {
             if (request.opType() == IndexRequest.OpType.INDEX) {
                 Engine.Index index = indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY, request.canHaveDuplicates());
@@ -197,7 +196,6 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                 }
                 indexShard.index(index);
                 version = index.version();
-                op = index;
                 created = index.created();
             } else {
                 Engine.Create create = indexShard.prepareCreate(sourceToParse,
@@ -207,7 +205,6 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
                 }
                 indexShard.create(create);
                 version = create.version();
-                op = create;
                 created = true;
             }
             if (request.refresh()) {

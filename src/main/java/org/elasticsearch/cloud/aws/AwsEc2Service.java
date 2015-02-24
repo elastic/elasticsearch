@@ -48,7 +48,10 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
     @Inject
     public AwsEc2Service(Settings settings, SettingsFilter settingsFilter, NetworkService networkService, DiscoveryNodeService discoveryNodeService) {
         super(settings);
-        settingsFilter.addFilter(new AwsSettingsFilter());
+        settingsFilter.addFilter("cloud.key");
+        settingsFilter.addFilter("cloud.account");
+        settingsFilter.addFilter("cloud.aws.access_key");
+        settingsFilter.addFilter("cloud.aws.secret_key");
         // add specific ec2 name resolver
         networkService.addCustomNameResolver(new Ec2NameResolver(settings));
         discoveryNodeService.addCustomAttributeProvider(new Ec2CustomNodeAttributes(settings));

@@ -48,10 +48,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
     private Map<Tuple<String, String>, AmazonS3Client> clients = new HashMap<Tuple<String,String>, AmazonS3Client>();
 
     @Inject
-    public InternalAwsS3Service(Settings settings, SettingsFilter settingsFilter) {
+    public InternalAwsS3Service(Settings settings) {
         super(settings);
-
-        settingsFilter.addFilter(new AwsSettingsFilter());
     }
 
     @Override

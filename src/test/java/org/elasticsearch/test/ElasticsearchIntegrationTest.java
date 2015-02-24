@@ -583,7 +583,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
     }
 
-    protected final void afterInternal() throws Exception {
+    protected final void afterInternal(boolean close) throws Exception {
         boolean success = false;
         try {
             logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
@@ -600,7 +600,11 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     }
                     ensureClusterSizeConsistency();
                     cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
-                    cluster().close();
+                    if (close) {
+                        // TODO: if we ever get thread leak checks to be per test with TEST scope clusters, this will
+                        // need to happen on every call to this function
+                        cluster().close();
+                    }
                     cluster().assertAfterTest();
                 }
             } finally {
@@ -1804,7 +1808,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     @After
     public final void after() throws Exception {
         if (runTestScopeLifecycle()) {
-            afterInternal();
+            afterInternal(false);
         }
     }
 
@@ -1812,7 +1816,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public static void afterClass() throws Exception {
         if (!runTestScopeLifecycle()) {
             try {
-                INSTANCE.afterInternal();
+                INSTANCE.afterInternal(true);
             } finally {
                 INSTANCE = null;
             }

@@ -8,8 +8,6 @@
         enabled:true,
         _source:{
         },
-        _type:{
-        },
         _boost:{
             null_value:2.0
         },

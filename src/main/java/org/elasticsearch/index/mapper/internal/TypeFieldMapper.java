@@ -30,6 +30,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.PrefixFilter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
@@ -94,6 +95,9 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
+                throw new MapperParsingException(NAME + " is not configurable");
+            }
             TypeFieldMapper.Builder builder = type();
             parseField(builder, builder.name, node, parserContext);
             return builder;
@@ -187,6 +191,9 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (writePre2xSettings == false) {
+            return builder;
+        }
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // if all are defaults, no sense to write it at all

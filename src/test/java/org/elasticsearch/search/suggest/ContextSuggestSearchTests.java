@@ -967,7 +967,6 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject();
         mapping.startObject(type);
-        mapping.startObject("_type").field("index", "not_analyzed").endObject(); // Forcefully configure the _type field, since it can be randomized and if used as context it needs to be enabled
         mapping.startObject("properties");
         mapping.startObject(FIELD);
         mapping.field("type", "completion");

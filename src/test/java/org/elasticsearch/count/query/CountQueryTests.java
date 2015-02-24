@@ -227,7 +227,8 @@ public class CountQueryTests extends ElasticsearchIntegrationTest {
     }
 
     private void typeFilterTests(String index) throws Exception {
-        assertAcked(prepareCreate("test")
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        assertAcked(prepareCreate("test").setSettings(indexSettings)
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
                         .startObject("_type").field("index", index).endObject()
                         .endObject().endObject())

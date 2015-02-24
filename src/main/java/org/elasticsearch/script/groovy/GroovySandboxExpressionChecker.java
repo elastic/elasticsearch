@@ -92,6 +92,7 @@ public class GroovySandboxExpressionChecker implements SecureASTCustomizer.Expre
     private final static String[] defaultReceiverWhitelist = new String [] {
             groovy.util.GroovyCollections.class.getName(),
             java.lang.Math.class.getName(),
+            java.lang.String.class.getName(),
             java.lang.Integer.class.getName(), "[I", "[[I", "[[[I",
             java.lang.Float.class.getName(), "[F", "[[F", "[[[F",
             java.lang.Double.class.getName(), "[D", "[[D", "[[[D",

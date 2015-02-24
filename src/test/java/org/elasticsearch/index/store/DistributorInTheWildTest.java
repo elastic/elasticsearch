@@ -19,7 +19,6 @@
 package org.elasticsearch.index.store;
 
 import com.carrotsearch.randomizedtesting.annotations.Listeners;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import org.apache.lucene.index.DirectoryReader;
@@ -32,7 +31,6 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.store.distributor.Distributor;
-import org.elasticsearch.test.ElasticsearchThreadFilter;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.junit.Before;
 
@@ -47,7 +45,6 @@ import java.util.concurrent.ExecutorService;
  * hard concurrent pressure on the directory etc. to ensure DistributorDirectory is behaving ok.
  */
 @LuceneTestCase.SuppressCodecs({ "SimpleText", "Memory", "Direct" })
-@ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
 @ThreadLeakScope(ThreadLeakScope.Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @Listeners(LoggingListener.class)

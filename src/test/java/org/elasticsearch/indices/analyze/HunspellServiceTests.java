@@ -19,6 +19,7 @@
 package org.elasticsearch.indices.analyze;
 
 import org.apache.lucene.analysis.hunspell.Dictionary;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -90,6 +91,7 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9849")
     public void testDicWithNoAff() throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("path.conf", getResourcePath("/indices/analyze/no_aff_conf_dir"))
@@ -109,6 +111,7 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9849")
     public void testDicWithTwoAffs() throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("path.conf", getResourcePath("/indices/analyze/two_aff_conf_dir"))

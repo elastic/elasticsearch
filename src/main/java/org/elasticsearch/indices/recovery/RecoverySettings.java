@@ -98,6 +98,7 @@ public class RecoverySettings extends AbstractComponent {
         concurrentStreamPool.shutdown();
         try {
             concurrentStreamPool.awaitTermination(1, TimeUnit.SECONDS);
+            concurrentSmallFileStreamPool.awaitTermination(1, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             // that's fine...
         }

@@ -39,8 +39,6 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
 
     private final IndexShard indexShard;
 
-    private final RecoveryState recoveryState = new RecoveryState();
-
     @Inject
     public NoneIndexShardGateway(ShardId shardId, @IndexSettings Settings indexSettings, IndexShard indexShard) {
         super(shardId, indexSettings);
@@ -50,11 +48,6 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
     @Override
     public String toString() {
         return "_none_";
-    }
-
-    @Override
-    public RecoveryState recoveryState() {
-        return recoveryState;
     }
 
     @Override

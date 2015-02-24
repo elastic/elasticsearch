@@ -126,19 +126,14 @@ public class RecoveryTarget extends AbstractComponent {
 
     public void startRecovery(final IndexShard indexShard, final RecoveryState.Type recoveryType, final DiscoveryNode sourceNode, final RecoveryListener listener) {
         try {
-            indexShard.recovering("from " + sourceNode, recoveryType);
+            indexShard.recovering("from " + sourceNode, recoveryType, sourceNode);
         } catch (IllegalIndexShardStateException e) {
             // that's fine, since we might be called concurrently, just ignore this, we are already recovering
             logger.debug("{} ignore recovery. already in recovering process, {}", indexShard.shardId(), e.getMessage());
             return;
         }
         // create a new recovery status, and process...
-        RecoveryState recoveryState = indexShard.recoveryState();
-        recoveryState.setType(recoveryType);
-        recoveryState.setSourceNode(sourceNode);
-        recoveryState.setTargetNode(clusterService.localNode());
-        recoveryState.setPrimary(indexShard.routingEntry().primary());
-        final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, recoveryState, listener, recoverySettings.activityTimeout());
+        final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, listener, recoverySettings.activityTimeout());
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
 
     }

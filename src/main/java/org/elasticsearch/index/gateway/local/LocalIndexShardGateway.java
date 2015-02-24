@@ -73,8 +73,6 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
     private final TimeValue waitForMappingUpdatePostRecovery;
 
-    private final RecoveryState recoveryState = new RecoveryState();
-
     private volatile ScheduledFuture flushScheduler;
     private final TimeValue syncInterval;
     private final CancellableThreads cancellableThreads = new CancellableThreads();
@@ -104,11 +102,6 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
     @Override
     public String toString() {
         return "local";
-    }
-
-    @Override
-    public RecoveryState recoveryState() {
-        return recoveryState;
     }
 
     @Override
@@ -173,17 +166,18 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                     index.addFileDetail(name, length, true);
                 }
             } catch (IOException e) {
-                logger.debug("failed to list file details");
+                logger.debug("failed to list file details", e);
             }
 
-            recoveryState.getStart().startTime(System.currentTimeMillis());
+            final RecoveryState.Start stateStart = recoveryState.getStart();
+            stateStart.startTime(System.currentTimeMillis());
             recoveryState.setStage(RecoveryState.Stage.START);
             if (translogId == -1) {
                 // no translog files, bail
                 indexShard.postRecovery("post recovery from gateway, no translog for id [" + translogId + "]");
                 // no index, just start the shard and bail
-                recoveryState.getStart().stopTime(System.currentTimeMillis());
-                recoveryState.getStart().checkIndexTime(indexShard.checkIndexTook());
+                stateStart.stopTime(System.currentTimeMillis());
+                stateStart.checkIndexTime(indexShard.checkIndexTook());
                 return;
             }
 
@@ -222,15 +216,15 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 // no translog files, bail
                 indexShard.postRecovery("post recovery from gateway, no translog");
                 // no index, just start the shard and bail
-                recoveryState.getStart().stopTime(System.currentTimeMillis());
-                recoveryState.getStart().checkIndexTime(0);
+                stateStart.stopTime(System.currentTimeMillis());
+                stateStart.checkIndexTime(0);
                 return;
             }
 
             // recover from the translog file
             indexShard.performRecoveryPrepareForTranslog();
-            recoveryState.getStart().stopTime(System.currentTimeMillis());
-            recoveryState.getStart().checkIndexTime(indexShard.checkIndexTook());
+            stateStart.stopTime(System.currentTimeMillis());
+            stateStart.checkIndexTime(indexShard.checkIndexTook());
 
             recoveryState.getTranslog().startTime(System.currentTimeMillis());
             recoveryState.setStage(RecoveryState.Stage.TRANSLOG);

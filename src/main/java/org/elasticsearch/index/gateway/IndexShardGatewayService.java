@@ -88,9 +88,9 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
         }
         try {
             if (indexShard.routingEntry().restoreSource() != null) {
-                indexShard.recovering("from snapshot", RecoveryState.Type.SNAPSHOT);
+                indexShard.recovering("from snapshot", RecoveryState.Type.SNAPSHOT, indexShard.routingEntry().restoreSource());
             } else {
-                indexShard.recovering("from gateway", RecoveryState.Type.GATEWAY);
+                indexShard.recovering("from gateway", RecoveryState.Type.GATEWAY, clusterService.localNode());
             }
         } catch (IllegalIndexShardStateException e) {
             // that's fine, since we might be called concurrently, just ignore this, we are already recovering
@@ -104,18 +104,14 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             @Override
             public void run() {
                 recoveryState.getTimer().startTime(System.currentTimeMillis());
-                recoveryState.setTargetNode(clusterService.localNode());
                 recoveryState.setStage(RecoveryState.Stage.INIT);
-                recoveryState.setPrimary(indexShard.routingEntry().primary());
 
                 try {
                     if (indexShard.routingEntry().restoreSource() != null) {
                         logger.debug("restoring from {} ...", indexShard.routingEntry().restoreSource());
-                        recoveryState.setRestoreSource(indexShard.routingEntry().restoreSource());
                         snapshotService.restore(recoveryState);
                     } else {
                         logger.debug("starting recovery from {} ...", shardGateway);
-                        recoveryState.setSourceNode(clusterService.localNode());
                         shardGateway.recover(indexShouldExists, recoveryState);
                     }
 

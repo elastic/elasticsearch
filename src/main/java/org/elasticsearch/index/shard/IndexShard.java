@@ -32,6 +32,9 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
@@ -40,6 +43,7 @@ import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -145,6 +149,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndexService indexService;
     private final ShardSuggestService shardSuggestService;
     private final ShardFixedBitSetFilterCache shardFixedBitSetFilterCache;
+    private final DiscoveryNode localNode;
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
@@ -172,10 +177,11 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     @Inject
     public IndexShard(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler, Translog translog,
-                              ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
-                              ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
-                              ShardTermVectorService termVectorService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache, ShardFixedBitSetFilterCache shardFixedBitSetFilterCache,
-                              @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, AnalysisService analysisService, SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory) {
+                      ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
+                      ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
+                      ShardTermVectorService termVectorService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache, ShardFixedBitSetFilterCache shardFixedBitSetFilterCache,
+                      @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, AnalysisService analysisService, SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory,
+                      ClusterService clusterService) {
         super(shardId, indexSettings);
         Preconditions.checkNotNull(store, "Store must be provided to the index shard");
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the index shard");
@@ -206,6 +212,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.codecService = codecService;
         this.shardSuggestService = shardSuggestService;
         this.shardFixedBitSetFilterCache = shardFixedBitSetFilterCache;
+        assert clusterService.lifecycleState() == Lifecycle.State.STARTED; // otherwise localNode is still none;
+        this.localNode = clusterService.localNode();
         state = IndexShardState.CREATED;
         this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
         indexSettingsService.addListener(applyRefreshSettings);
@@ -215,7 +223,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         /* create engine config */
         this.config = new EngineConfig(shardId,
                 indexSettings.getAsBoolean(EngineConfig.INDEX_OPTIMIZE_AUTOGENERATED_ID_SETTING, false),
-                threadPool,indexingService,indexSettingsService, warmer, store, deletionPolicy, translog, mergePolicyProvider, mergeScheduler,
+                threadPool, indexingService, indexSettingsService, warmer, store, deletionPolicy, translog, mergePolicyProvider, mergeScheduler,
                 analysisService.defaultIndexAnalyzer(), similarityService.similarity(), codecService, failedEngineListener);
 
 
@@ -224,7 +232,9 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.checkIndexOnStartup = indexSettings.get("index.shard.check_on_startup", "false");
     }
 
-    public MergeSchedulerProvider mergeScheduler() { return this.mergeScheduler; }
+    public MergeSchedulerProvider mergeScheduler() {
+        return this.mergeScheduler;
+    }
 
     public Store store() {
         return this.store;
@@ -342,10 +352,23 @@ public class IndexShard extends AbstractIndexShardComponent {
         return this;
     }
 
+
     /**
-     * Marks the shard as recovering, fails with exception is recovering is not allowed to be set.
+     * Marks the shard as recovering based on a remote or local node, fails with exception is recovering is not allowed to be set.
      */
-    public IndexShardState recovering(String reason, RecoveryState.Type type) throws IndexShardStartedException,
+    public IndexShardState recovering(String reason, RecoveryState.Type type, DiscoveryNode sourceNode) throws IndexShardStartedException,
+            IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
+        return recovering(reason, new RecoveryState(shardId, shardRouting.primary(), type, sourceNode, localNode));
+    }
+
+    /**
+     * Marks the shard as recovering based on a restore, fails with exception is recovering is not allowed to be set.
+     */
+    public IndexShardState recovering(String reason, RecoveryState.Type type, RestoreSource restoreSource) throws IndexShardStartedException {
+        return recovering(reason, new RecoveryState(shardId, shardRouting.primary(), type, restoreSource, localNode));
+    }
+
+    private IndexShardState recovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
             IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
@@ -363,9 +386,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (state == IndexShardState.POST_RECOVERY) {
                 throw new IndexShardRecoveringException(shardId);
             }
-            this.recoveryState = new RecoveryState(shardId);
-            this.recoveryState.setType(type);
-
+            this.recoveryState = recoveryState;
             return changeState(IndexShardState.RECOVERING, reason);
         }
     }
@@ -1094,7 +1115,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         return engine;
     }
 
-    class ShardEngineFailListener implements  Engine.FailedEngineListener {
+    class ShardEngineFailListener implements Engine.FailedEngineListener {
         private final CopyOnWriteArrayList<Engine.FailedEngineListener> delegates = new CopyOnWriteArrayList<>();
 
         // called by the current engine

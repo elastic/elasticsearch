@@ -175,53 +175,55 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
         if (request.recovery) {
             // check on going recovery (from peer or gateway)
             RecoveryState recoveryState = indexShard.recoveryState();
-            if (recoveryState == null) {
-            } else if (recoveryState.getType() == RecoveryState.Type.REPLICA || recoveryState.getType() == RecoveryState.Type.REPLICA) {
-                PeerRecoveryStatus.Stage stage;
-                switch (recoveryState.getStage()) {
-                    case INIT:
-                        stage = PeerRecoveryStatus.Stage.INIT;
-                        break;
-                    case INDEX:
-                        stage = PeerRecoveryStatus.Stage.INDEX;
-                        break;
-                    case TRANSLOG:
-                        stage = PeerRecoveryStatus.Stage.TRANSLOG;
-                        break;
-                    case FINALIZE:
-                        stage = PeerRecoveryStatus.Stage.FINALIZE;
-                        break;
-                    case DONE:
-                        stage = PeerRecoveryStatus.Stage.DONE;
-                        break;
-                    default:
-                        stage = PeerRecoveryStatus.Stage.INIT;
+            if (recoveryState != null) {
+                final RecoveryState.Index index = recoveryState.getIndex();
+                if (recoveryState.getType() == RecoveryState.Type.REPLICA || recoveryState.getType() == RecoveryState.Type.REPLICA) {
+                    PeerRecoveryStatus.Stage stage;
+                    switch (recoveryState.getStage()) {
+                        case INIT:
+                            stage = PeerRecoveryStatus.Stage.INIT;
+                            break;
+                        case INDEX:
+                            stage = PeerRecoveryStatus.Stage.INDEX;
+                            break;
+                        case TRANSLOG:
+                            stage = PeerRecoveryStatus.Stage.TRANSLOG;
+                            break;
+                        case FINALIZE:
+                            stage = PeerRecoveryStatus.Stage.FINALIZE;
+                            break;
+                        case DONE:
+                            stage = PeerRecoveryStatus.Stage.DONE;
+                            break;
+                        default:
+                            stage = PeerRecoveryStatus.Stage.INIT;
+                    }
+                    shardStatus.peerRecoveryStatus = new PeerRecoveryStatus(stage, recoveryState.getTimer().startTime(),
+                            recoveryState.getTimer().time(),
+                            index.totalBytes(),
+                            index.reusedBytes(),
+                            index.recoveredBytes(), recoveryState.getTranslog().currentTranslogOperations());
+                } else if (recoveryState.getType() == RecoveryState.Type.GATEWAY) {
+                    GatewayRecoveryStatus.Stage stage;
+                    switch (recoveryState.getStage()) {
+                        case INIT:
+                            stage = GatewayRecoveryStatus.Stage.INIT;
+                            break;
+                        case INDEX:
+                            stage = GatewayRecoveryStatus.Stage.INDEX;
+                            break;
+                        case TRANSLOG:
+                            stage = GatewayRecoveryStatus.Stage.TRANSLOG;
+                            break;
+                        case DONE:
+                            stage = GatewayRecoveryStatus.Stage.DONE;
+                            break;
+                        default:
+                            stage = GatewayRecoveryStatus.Stage.INIT;
+                    }
+                    shardStatus.gatewayRecoveryStatus = new GatewayRecoveryStatus(stage, recoveryState.getTimer().startTime(), recoveryState.getTimer().time(),
+                            index.totalBytes(), index.reusedBytes(), index.recoveredBytes(), recoveryState.getTranslog().currentTranslogOperations());
                 }
-                shardStatus.peerRecoveryStatus = new PeerRecoveryStatus(stage, recoveryState.getTimer().startTime(),
-                        recoveryState.getTimer().time(),
-                        recoveryState.getIndex().totalBytes(),
-                        recoveryState.getIndex().reusedBytes(),
-                        recoveryState.getIndex().recoveredBytes(), recoveryState.getTranslog().currentTranslogOperations());
-            } else if (recoveryState.getType() == RecoveryState.Type.GATEWAY) {
-                GatewayRecoveryStatus.Stage stage;
-                switch (recoveryState.getStage()) {
-                    case INIT:
-                        stage = GatewayRecoveryStatus.Stage.INIT;
-                        break;
-                    case INDEX:
-                        stage = GatewayRecoveryStatus.Stage.INDEX;
-                        break;
-                    case TRANSLOG:
-                        stage = GatewayRecoveryStatus.Stage.TRANSLOG;
-                        break;
-                    case DONE:
-                        stage = GatewayRecoveryStatus.Stage.DONE;
-                        break;
-                    default:
-                        stage = GatewayRecoveryStatus.Stage.INIT;
-                }
-                shardStatus.gatewayRecoveryStatus = new GatewayRecoveryStatus(stage, recoveryState.getTimer().startTime(), recoveryState.getTimer().time(),
-                        recoveryState.getIndex().totalBytes(), recoveryState.getIndex().reusedBytes(), recoveryState.getIndex().recoveredBytes(), recoveryState.getTranslog().currentTranslogOperations());
             }
         }
         return shardStatus;

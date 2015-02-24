@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RestoreSource;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -120,19 +121,32 @@ public class RecoveryState implements ToXContent, Streamable {
     private final Start start = new Start();
     private final Timer timer = new Timer();
 
-    private volatile Type type;
-    private volatile ShardId shardId;
-    private volatile RestoreSource restoreSource;
-    private volatile DiscoveryNode sourceNode;
-    private volatile DiscoveryNode targetNode;
+    private Type type;
+    private ShardId shardId;
+    private RestoreSource restoreSource;
+    private DiscoveryNode sourceNode;
+    private DiscoveryNode targetNode;
 
     private volatile boolean primary = false;
 
-    public RecoveryState() {
+    private RecoveryState() {
     }
 
-    public RecoveryState(ShardId shardId) {
+    public RecoveryState(ShardId shardId, boolean primary, Type type, DiscoveryNode sourceNode, DiscoveryNode targetNode) {
+        this(shardId, primary, type, sourceNode, null, targetNode);
+    }
+
+    public RecoveryState(ShardId shardId, boolean primary, Type type, RestoreSource restoreSource, DiscoveryNode targetNode) {
+        this(shardId, primary, type, null, restoreSource, targetNode);
+    }
+
+    private RecoveryState(ShardId shardId, boolean primary, Type type, @Nullable DiscoveryNode sourceNode, @Nullable RestoreSource restoreSource, DiscoveryNode targetNode) {
         this.shardId = shardId;
+        this.primary = primary;
+        this.type = type;
+        this.sourceNode = sourceNode;
+        this.restoreSource = restoreSource;
+        this.targetNode = targetNode;
     }
 
     public ShardId getShardId() {
@@ -171,36 +185,16 @@ public class RecoveryState implements ToXContent, Streamable {
         return type;
     }
 
-    public void setType(Type type) {
-        this.type = type;
-    }
-
-    public void setSourceNode(DiscoveryNode sourceNode) {
-        this.sourceNode = sourceNode;
-    }
-
     public DiscoveryNode getSourceNode() {
         return sourceNode;
-    }
-
-    public void setTargetNode(DiscoveryNode targetNode) {
-        this.targetNode = targetNode;
     }
 
     public DiscoveryNode getTargetNode() {
         return targetNode;
     }
 
-    public void setRestoreSource(RestoreSource restoreSource) {
-        this.restoreSource = restoreSource;
-    }
-
     public RestoreSource getRestoreSource() {
         return restoreSource;
-    }
-
-    public void setPrimary(boolean primary) {
-        this.primary = primary;
     }
 
     public boolean getPrimary() {

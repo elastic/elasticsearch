@@ -35,8 +35,6 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 @Listeners({
         ReproduceInfoPrinter.class
 })
-@ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
-@ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 /**

@@ -58,8 +58,8 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     private static void reset() {
         assert NODE != null;
-        node().stop();
-        NODE = newNode();
+        stopNode();
+        startNode();
     }
 
     private static void startNode() {

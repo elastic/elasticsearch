@@ -145,6 +145,7 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
     @Override
     public void close() {
         ThreadPool.terminate(concurrentStreamPool, 1, TimeUnit.SECONDS);
+        ThreadPool.terminate(concurrentSmallFileStreamPool, 1, TimeUnit.SECONDS);
     }
 
     public ByteSizeValue fileChunkSize() {

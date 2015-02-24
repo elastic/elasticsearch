@@ -29,6 +29,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -95,14 +96,8 @@ public class RecoverySettings extends AbstractComponent {
     }
 
     public void close() {
-        concurrentStreamPool.shutdown();
-        try {
-            concurrentStreamPool.awaitTermination(1, TimeUnit.SECONDS);
-            concurrentSmallFileStreamPool.awaitTermination(1, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // that's fine...
-        }
-        concurrentStreamPool.shutdownNow();
+        ThreadPool.terminate(concurrentStreamPool, 1, TimeUnit.SECONDS);
+        ThreadPool.terminate(concurrentSmallFileStreamPool, 1, TimeUnit.SECONDS);
     }
 
     public ByteSizeValue fileChunkSize() {

@@ -1910,17 +1910,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return isSuiteScopedTest(clazz.getSuperclass());
     }
 
-    private static boolean isSuiteScopeCluster(Class<?> clazz) {
-        if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
-            return false;
-        }
-        SuiteScopeTest annotation = clazz.getAnnotation(SuiteScopeTest.class);
-        if (annotation != null) {
-            return true;
-        }
-        return isSuiteScopedTest(clazz.getSuperclass());
-    }
-
     /**
      * If a test is annotated with {@link org.elasticsearch.test.ElasticsearchIntegrationTest.SuiteScopeTest}
      * the checks and modifications that are applied to the used test cluster are only done after all tests

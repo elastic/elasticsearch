@@ -122,6 +122,7 @@ import org.junit.*;
 import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.ElementType;
+import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
@@ -592,7 +593,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
     }
 
-    protected final void afterInternal() throws Exception {
+    protected final void afterInternal(boolean afterClass) throws Exception {
         boolean success = false;
         try {
             logger.info("[{}#{}]: cleaning up after test", getTestClass().getSimpleName(), getTestName());
@@ -609,6 +610,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                     }
                     ensureClusterSizeConsistency();
                     cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
+                    if (afterClass || currentClusterScope == Scope.TEST) {
+                        cluster().close();
+                    }
                     cluster().assertAfterTest();
                 }
             } finally {
@@ -1817,7 +1821,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     @After
     public final void after() throws Exception {
         if (runTestScopeLifecycle()) {
-            afterInternal();
+            afterInternal(false);
         }
     }
 
@@ -1825,7 +1829,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     public static void afterClass() throws Exception {
         if (!runTestScopeLifecycle()) {
             try {
-                INSTANCE.afterInternal();
+                INSTANCE.afterInternal(true);
             } finally {
                 INSTANCE = null;
             }
@@ -1902,25 +1906,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     private static boolean isSuiteScopedTest(Class<?> clazz) {
-        if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
-            return false;
-        }
-        SuiteScopeTest annotation = clazz.getAnnotation(SuiteScopeTest.class);
-        if (annotation != null) {
-            return true;
-        }
-        return isSuiteScopedTest(clazz.getSuperclass());
-    }
-
-    private static boolean isSuiteScopeCluster(Class<?> clazz) {
-        if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
-            return false;
-        }
-        SuiteScopeTest annotation = clazz.getAnnotation(SuiteScopeTest.class);
-        if (annotation != null) {
-            return true;
-        }
-        return isSuiteScopedTest(clazz.getSuperclass());
+        return clazz.getAnnotation(SuiteScopeTest.class) != null;
     }
 
     /**
@@ -1930,7 +1916,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * that is executed in a separate test instance. Variables that need to be accessible across test instances must be static.
      */
     @Retention(RetentionPolicy.RUNTIME)
-    @Target({ElementType.TYPE})
+    @Inherited
     @Ignore
     public @interface SuiteScopeTest {
     }

@@ -62,9 +62,9 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     private static void reset(boolean localGateway) {
         assert NODE != null;
-        node().stop();
-        NODE = newNode(localGateway);
+        stopNode();
         LOCAL_GATEWAY = localGateway;
+        startNode();
     }
 
     private static void startNode() {
@@ -87,7 +87,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(),
                 metaData.persistentSettings().getAsMap().size(), equalTo(0));
         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(),
-                metaData.transientSettings().getAsMap().size(), equalTo(0));
+            metaData.transientSettings().getAsMap().size(), equalTo(0));
     }
 
     @After
@@ -127,15 +127,15 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
     private static Node newNode(boolean localGateway) {
         Node build = NodeBuilder.nodeBuilder().local(true).data(true).settings(ImmutableSettings.builder()
                 .put(ClusterName.SETTING, clusterName())
-                .put("node.name", nodeName())
+            .put("node.name", nodeName())
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("script.disable_dynamic", false)
                 .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
-                .put("http.enabled", false)
+            .put("http.enabled", false)
                 .put("index.store.type", "ram")
-                .put("config.ignore_system_properties", true) // make sure we get what we set :)
-                .put("gateway.type", localGateway ? "local" : "none")).build();
+            .put("config.ignore_system_properties", true) // make sure we get what we set :)
+            .put("gateway.type", localGateway ? "local" : "none")).build();
         build.start();
         assertThat(DiscoveryNode.localNode(build.settings()), is(true));
         return build;

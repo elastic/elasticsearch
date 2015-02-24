@@ -55,8 +55,8 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
     public void setupSuiteScopeCluster() throws Exception {
         assertAcked(
                 prepareCreate("test")
-                    .addMapping("article", "_id", "index=not_analyzed")
-                    .addMapping("comment", "_parent", "type=article", "_id", "index=not_analyzed")
+                    .addMapping("article")
+                    .addMapping("comment", "_parent", "type=article")
         );
 
         List<IndexRequestBuilder> requests = new ArrayList<>();
@@ -70,6 +70,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numParentDocs; i++) {
             String id = Integer.toString(i);
 
+            // TODO: this array is always of length 1, and testChildrenAggs fails if this is changed
             String[] categories = new String[randomIntBetween(1,1)];
             for (int j = 0; j < categories.length; j++) {
                 String category = categories[j] = uniqueCategories[catIndex++ % uniqueCategories.length];
@@ -165,7 +166,7 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
                 .setQuery(matchQuery("randomized", false))
                 .addAggregation(
                         terms("category").field("category").size(0).subAggregation(
-                                children("to_comment").childType("comment").subAggregation(topHits("top_comments").addSort("_id", SortOrder.ASC))
+                                children("to_comment").childType("comment").subAggregation(topHits("top_comments").addSort("_uid", SortOrder.ASC))
                         )
                 ).get();
         assertSearchResponse(searchResponse);
@@ -192,10 +193,8 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         assertThat(childrenBucket.getDocCount(), equalTo(2l));
         TopHits topHits = childrenBucket.getAggregations().get("top_comments");
         assertThat(topHits.getHits().totalHits(), equalTo(2l));
-        assertThat(topHits.getHits().getAt(0).sortValues()[0].toString(), equalTo("a"));
         assertThat(topHits.getHits().getAt(0).getId(), equalTo("a"));
         assertThat(topHits.getHits().getAt(0).getType(), equalTo("comment"));
-        assertThat(topHits.getHits().getAt(1).sortValues()[0].toString(), equalTo("c"));
         assertThat(topHits.getHits().getAt(1).getId(), equalTo("c"));
         assertThat(topHits.getHits().getAt(1).getType(), equalTo("comment"));
 

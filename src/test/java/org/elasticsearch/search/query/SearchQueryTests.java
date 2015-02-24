@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.*;
@@ -629,7 +630,8 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
     }
 
     private void idsFilterTests(String index) throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings)
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
                         .startObject("_id").field("index", index).endObject()
                         .endObject().endObject()));

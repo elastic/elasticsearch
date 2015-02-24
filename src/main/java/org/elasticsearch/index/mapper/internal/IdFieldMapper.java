@@ -121,13 +121,16 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
+                throw new MapperParsingException(NAME + " is not configurable");
+            }
             IdFieldMapper.Builder builder = id();
             parseField(builder, builder.name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                if (fieldName.equals("path")) {
                     builder.path(fieldNode.toString());
                     iterator.remove();
                 }
@@ -151,7 +154,8 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     
     private static FieldType idFieldType(Settings indexSettings) {
         FieldType fieldType = new FieldType(Defaults.FIELD_TYPE);
-        if (indexSettings.getAsBoolean("index.mapping._id.indexed", true) == false) {
+        boolean pre2x = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
+        if (pre2x && indexSettings.getAsBoolean("index.mapping._id.indexed", true) == false) {
             fieldType.setTokenized(false);
         }
         return fieldType;
@@ -345,6 +349,9 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (writePre2xSettings == false) {
+            return builder;
+        }
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // if all are defaults, no sense to write it at all
@@ -361,7 +368,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         if (includeDefaults || fieldType.indexOptions() != Defaults.FIELD_TYPE.indexOptions()) {
             builder.field("index", indexTokenizeOptionToString(fieldType.indexOptions() != IndexOptions.NONE, fieldType.tokenized()));
         }
-        if (writePre2xSettings && (includeDefaults || path != Defaults.PATH)) {
+        if (includeDefaults || path != Defaults.PATH) {
             builder.field("path", path);
         }
 

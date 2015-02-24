@@ -313,11 +313,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             if (frequently() && randomDynamicTemplates()) {
                 mappings = XContentFactory.jsonBuilder().startObject().startObject("_default_");
                 if (randomBoolean()) {
-                    mappings.startObject(IdFieldMapper.NAME)
-                            .field("index", randomFrom("not_analyzed", "no"))
-                            .endObject();
-                }
-                if (randomBoolean()) {
                     mappings.startObject(TypeFieldMapper.NAME)
                             .field("index", randomFrom("no", "not_analyzed"))
                             .endObject();

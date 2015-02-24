@@ -26,7 +26,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.RoutingMissingException;
-import org.elasticsearch.action.WriteFailure;
+import org.elasticsearch.action.WriteFailureException;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -160,7 +160,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                             }
                             ops[requestIndex] = result.op;
                         }
-                    } catch (WriteFailure e) {
+                    } catch (WriteFailureException e) {
                         if (e.getMappingTypeToUpdate() != null) {
                             mappingTypesToUpdate.add(e.getMappingTypeToUpdate());
                         }
@@ -445,7 +445,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             indexRequest.versionType(indexRequest.versionType().versionTypeForReplicationAndRecovery());
             indexRequest.version(version);
         } catch (Throwable t) {
-            throw new WriteFailure(t, mappingTypeToUpdate);
+            throw new WriteFailureException(t, mappingTypeToUpdate);
         }
 
         assert indexRequest.versionType().validateVersionForWrites(indexRequest.version());

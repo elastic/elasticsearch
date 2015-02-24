@@ -24,11 +24,11 @@ import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.common.Nullable;
 
 
-public class WriteFailure extends ElasticsearchException implements ElasticsearchWrapperException {
+public class WriteFailureException extends ElasticsearchException implements ElasticsearchWrapperException {
     @Nullable
     private final String mappingTypeToUpdate;
 
-    public WriteFailure(Throwable cause, String mappingTypeToUpdate) {
+    public WriteFailureException(Throwable cause, String mappingTypeToUpdate) {
         super(null, cause);
         assert cause != null;
         this.mappingTypeToUpdate = mappingTypeToUpdate;

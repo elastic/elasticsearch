@@ -22,7 +22,7 @@ package org.elasticsearch.action.index;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
-import org.elasticsearch.action.WriteFailure;
+import org.elasticsearch.action.WriteFailureException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -221,7 +221,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
 
             assert request.versionType().validateVersionForWrites(request.version());
             return new Tuple<>(new IndexResponse(shardRequest.shardId.getIndex(), request.type(), request.id(), version, created), shardRequest.request);
-        } catch (WriteFailure e) {
+        } catch (WriteFailureException e) {
             if (e.getMappingTypeToUpdate() != null){
                 DocumentMapper docMapper = indexService.mapperService().documentMapper(e.getMappingTypeToUpdate());
                 if (docMapper != null) {

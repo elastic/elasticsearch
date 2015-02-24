@@ -95,11 +95,11 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
     public static final String INDEX_STORE_STATS_REFRESH_INTERVAL = "index.store.stats_refresh_interval";
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
-    private final DirectoryService directoryService;
     private final StoreDirectory directory;
     private final DistributorDirectory distributorDirectory;
     private final ReentrantReadWriteLock metadataLock = new ReentrantReadWriteLock();
     private final ShardLock shardLock;
+    private final DirectoryService directoryService;
     private final OnClose onClose;
     private final SingleObjectCache<StoreStats> statsCache;
 

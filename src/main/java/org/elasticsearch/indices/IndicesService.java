@@ -22,14 +22,17 @@ package org.elasticsearch.indices;
 import com.google.common.base.Function;
 import com.google.common.collect.*;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -484,6 +487,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     }
 
     private void deleteIndexStore(String reason, Index index, Settings indexSettings) throws IOException {
+        boolean success = false;
         try {
             // we are trying to delete the index store here - not a big deal if the lock can't be obtained
             // the store metadata gets wiped anyway even without the lock this is just best effort since
@@ -492,11 +496,15 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             if (canDeleteIndexContents(index, indexSettings)) {
                 nodeEnv.deleteIndexDirectorySafe(index, 0, indexSettings);
             }
+            success = true;
         } catch (LockObtainFailedException ex) {
             logger.debug("{} failed to delete index store - at least one shards is still locked", ex, index);
         } catch (Exception ex) {
             logger.warn("{} failed to delete index", ex, index);
         } finally {
+            if (success == false) {
+                addPendingDelete(index, indexSettings);
+            }
             // this is a pure protection to make sure this index doesn't get re-imported as a dangeling index.
             // we should in the future rather write a tombstone rather than wiping the metadata.
             MetaDataStateFormat.deleteMetaState(nodeEnv.indexPaths(index));
@@ -602,31 +610,60 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     }
 
     /**
-     * Adds a pending delete for the given index.
+     * Adds a pending delete for the given index shard.
      */
-    public void addPendingDelete(Index index, ShardId shardId, Settings settings) {
+    public void addPendingDelete(ShardId shardId, @IndexSettings Settings settings) {
+        if (shardId == null) {
+            throw new ElasticsearchIllegalArgumentException("shardId must not be null");
+        }
+        if (settings == null) {
+            throw new ElasticsearchIllegalArgumentException("settings must not be null");
+        }
+        PendingDelete pendingDelete = new PendingDelete(shardId, settings, false);
+        addPendingDelete(shardId.index(), pendingDelete);
+    }
+
+    private void addPendingDelete(Index index, PendingDelete pendingDelete) {
         synchronized (pendingDeletes) {
             List<PendingDelete> list = pendingDeletes.get(index);
             if (list == null) {
                 list = new ArrayList<>();
                 pendingDeletes.put(index, list);
             }
-            list.add(new PendingDelete(shardId, settings));
+            list.add(pendingDelete);
         }
     }
 
-    private static final class PendingDelete {
+    /**
+     * Adds a pending delete for the given index shard.
+     */
+    public void addPendingDelete(Index index, @IndexSettings Settings settings) {
+        PendingDelete pendingDelete = new PendingDelete(null, settings, true);
+        addPendingDelete(index, pendingDelete);
+    }
+
+    private static final class PendingDelete implements Comparable<PendingDelete> {
         final ShardId shardId;
         final Settings settings;
+        final boolean deleteIndex;
 
-        public PendingDelete(ShardId shardId, Settings settings) {
+        public PendingDelete(ShardId shardId, Settings settings, boolean deleteIndex) {
             this.shardId = shardId;
             this.settings = settings;
+            this.deleteIndex = deleteIndex;
+            assert deleteIndex || shardId != null;
         }
 
         @Override
         public String toString() {
             return shardId.toString();
+        }
+
+        @Override
+        public int compareTo(PendingDelete o) {
+            int left = deleteIndex ? -1 : shardId.id();
+            int right = o.deleteIndex ? -1 : o.shardId.id();
+            return Integer.compare(left, right);
         }
     }
 
@@ -652,40 +689,54 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             synchronized (pendingDeletes) {
                  remove = pendingDeletes.remove(index);
             }
-            final long maxSleepTimeMs = 10 * 1000; // ensure we retry after 10 sec
-            long sleepTime = 10;
-            do {
-                if (remove == null || remove.isEmpty()) {
-                    break;
-                }
-                Iterator<PendingDelete> iterator = remove.iterator();
-                while (iterator.hasNext()) {
-                    PendingDelete delete = iterator.next();
-                    ShardLock shardLock = locks.get(delete.shardId);
-                    if (shardLock != null) {
-                        try {
-                            deleteShardStore("pending delete", shardLock, delete.settings);
-                            iterator.remove();
-                        } catch (IOException ex) {
-                            logger.debug("{} retry pending delete", ex, shardLock.getShardId());
+            if (remove != null && remove.isEmpty() == false) {
+                CollectionUtil.timSort(remove); // make sure we delete indices first
+                final long maxSleepTimeMs = 10 * 1000; // ensure we retry after 10 sec
+                long sleepTime = 10;
+                do {
+                    if (remove.isEmpty()) {
+                        break;
+                    }
+                    Iterator<PendingDelete> iterator = remove.iterator();
+                    while (iterator.hasNext()) {
+                        PendingDelete delete = iterator.next();
+
+                        if (delete.deleteIndex) {
+                            logger.debug("{} deleting index store reason [{}]", index, "pending delete");
+                            try {
+                                nodeEnv.deleteIndexDirectoryUnderLock(index, indexSettings);
+                                iterator.remove();
+                            } catch (IOException ex) {
+                                logger.debug("{} retry pending delete", ex, index);
+                            }
+                        } else {
+                            ShardLock shardLock = locks.get(delete.shardId);
+                            if (shardLock != null) {
+                                try {
+                                    deleteShardStore("pending delete", shardLock, delete.settings);
+                                    iterator.remove();
+                                } catch (IOException ex) {
+                                    logger.debug("{} retry pending delete", ex, shardLock.getShardId());
+                                }
+                            } else {
+                                logger.warn("{} no shard lock for pending delete", delete.shardId);
+                                iterator.remove();
+                            }
                         }
-                    } else {
-                        logger.warn("{} no shard lock for pending delete", delete.shardId);
-                        iterator.remove();
                     }
-                }
-                if (remove.isEmpty() == false) {
-                    logger.warn("{} still pending deletes present for shards {} - retrying", index, remove.toString());
-                    try {
-                        Thread.sleep(sleepTime);
-                        sleepTime = Math.min(maxSleepTimeMs, sleepTime * 2); // increase the sleep time gradually
-                        logger.debug("{} schedule pending delete retry after {} ms", index, sleepTime);
-                    } catch (InterruptedException e) {
-                        Thread.interrupted();
-                        return;
+                    if (remove.isEmpty() == false) {
+                        logger.warn("{} still pending deletes present for shards {} - retrying", index, remove.toString());
+                        try {
+                            Thread.sleep(sleepTime);
+                            sleepTime = Math.min(maxSleepTimeMs, sleepTime * 2); // increase the sleep time gradually
+                            logger.debug("{} schedule pending delete retry after {} ms", index, sleepTime);
+                        } catch (InterruptedException e) {
+                            Thread.interrupted();
+                            return;
+                        }
                     }
-                }
-            } while ((System.currentTimeMillis() - startTime) < timeout.millis());
+                } while ((System.currentTimeMillis() - startTime) < timeout.millis());
+            }
         } finally {
             IOUtils.close(shardLocks);
         }

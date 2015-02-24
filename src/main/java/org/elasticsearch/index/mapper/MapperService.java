@@ -196,7 +196,6 @@ public class MapperService extends AbstractIndexComponent  {
             defaultPercolatorMappingSource = "{\n" +
                     //"    \"" + PercolatorService.TYPE_NAME + "\":{\n" +
                     "    \"" + "_default_" + "\":{\n" +
-                    "        \"_id\" : {\"index\": \"not_analyzed\"}," +
                     "        \"properties\" : {\n" +
                     "            \"query\" : {\n" +
                     "                \"type\" : \"object\",\n" +

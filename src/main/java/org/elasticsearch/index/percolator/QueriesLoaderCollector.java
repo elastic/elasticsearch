@@ -32,7 +32,8 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fieldvisitor.JustSourceFieldsVisitor;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
 import java.util.Map;
@@ -44,17 +45,17 @@ final class QueriesLoaderCollector extends SimpleCollector {
     private final Map<BytesRef, Query> queries = Maps.newHashMap();
     private final JustSourceFieldsVisitor fieldsVisitor = new JustSourceFieldsVisitor();
     private final PercolatorQueriesRegistry percolator;
-    private final IndexFieldData<?> idFieldData;
+    private final IndexFieldData<?> uidFieldData;
     private final ESLogger logger;
 
-    private SortedBinaryDocValues idValues;
+    private SortedBinaryDocValues uidValues;
     private LeafReader reader;
 
     QueriesLoaderCollector(PercolatorQueriesRegistry percolator, ESLogger logger, MapperService mapperService, IndexFieldDataService indexFieldDataService) {
         this.percolator = percolator;
         this.logger = logger;
-        final FieldMapper<?> idMapper = mapperService.smartNameFieldMapper(IdFieldMapper.NAME);
-        this.idFieldData = indexFieldDataService.getForField(idMapper);
+        final FieldMapper<?> uidMapper = mapperService.smartNameFieldMapper(UidFieldMapper.NAME);
+        this.uidFieldData = indexFieldDataService.getForField(uidMapper);
     }
 
     public Map<BytesRef, Query> queries() {
@@ -65,10 +66,11 @@ final class QueriesLoaderCollector extends SimpleCollector {
     public void collect(int doc) throws IOException {
         // the _source is the query
 
-        idValues.setDocument(doc);
-        if (idValues.count() > 0) {
-            assert idValues.count() == 1;
-            BytesRef id = idValues.valueAt(0);
+        uidValues.setDocument(doc);
+        if (uidValues.count() > 0) {
+            assert uidValues.count() == 1;
+            final BytesRef uid = uidValues.valueAt(0);
+            final BytesRef id = Uid.splitUidIntoTypeAndId(uid)[1];
             fieldsVisitor.reset();
             reader.document(doc, fieldsVisitor);
 
@@ -90,7 +92,7 @@ final class QueriesLoaderCollector extends SimpleCollector {
     @Override
     protected void doSetNextReader(LeafReaderContext context) throws IOException {
         reader = context.reader();
-        idValues = idFieldData.load(context).getBytesValues();
+        uidValues = uidFieldData.load(context).getBytesValues();
     }
 
     @Override

@@ -1562,7 +1562,6 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         final boolean timestampDocValues = maybeDocValues();
         assertAcked(prepareCreate("test")
             .addMapping("type", XContentFactory.jsonBuilder().startObject().startObject("type")
-                        .startObject("_id").field("index", !idDocValues || randomBoolean() ? "not_analyzed" : "no").startObject("fielddata").field("format", idDocValues ? "doc_values" : null).endObject().endObject()
                         .startObject("_timestamp").field("enabled", true).field("store", true).field("index", !timestampDocValues || randomBoolean() ? "not_analyzed" : "no").startObject("fielddata").field("format", timestampDocValues ? "doc_values" : null).endObject().endObject()
                         .endObject().endObject()));
         ensureGreen();
@@ -1588,7 +1587,8 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
             previous = uid;
         }
 
-        /*searchResponse = client().prepareSearch()
+        /*
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(randomIntBetween(1, numDocs + 5))
                 .addSort("_id", order)

@@ -19,7 +19,6 @@
 package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.FloatArrayList;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
@@ -34,7 +33,8 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -54,7 +54,7 @@ import java.util.concurrent.ConcurrentMap;
  */
 abstract class QueryCollector extends SimpleCollector {
 
-    final IndexFieldData<?> idFieldData;
+    final IndexFieldData<?> uidFieldData;
     final IndexSearcher searcher;
     final ConcurrentMap<BytesRef, Query> queries;
     final ESLogger logger;
@@ -72,8 +72,8 @@ abstract class QueryCollector extends SimpleCollector {
         this.logger = logger;
         this.queries = context.percolateQueries();
         this.searcher = context.docSearcher();
-        final FieldMapper<?> idMapper = context.mapperService().smartNameFieldMapper(IdFieldMapper.NAME);
-        this.idFieldData = context.fieldData().getForField(idMapper);
+        final FieldMapper<?> uidMapper = context.mapperService().smartNameFieldMapper(UidFieldMapper.NAME);
+        this.uidFieldData = context.fieldData().getForField(uidMapper);
         this.isNestedDoc = isNestedDoc;
 
         List<Aggregator> aggregatorCollectors = new ArrayList<>();
@@ -111,7 +111,7 @@ abstract class QueryCollector extends SimpleCollector {
     @Override
     public void doSetNextReader(LeafReaderContext context) throws IOException {
         // we use the UID because id might not be indexed
-        values = idFieldData.load(context).getBytesValues();
+        values = uidFieldData.load(context).getBytesValues();
         aggregatorLeafCollector = aggregatorCollector.getLeafCollector(context);
     }
 
@@ -139,7 +139,7 @@ abstract class QueryCollector extends SimpleCollector {
             return null;
         }
         assert numValues == 1;
-        current = values.valueAt(0);
+        current = Uid.splitUidIntoTypeAndId(values.valueAt(0))[1];
         return queries.get(current);
     }
 

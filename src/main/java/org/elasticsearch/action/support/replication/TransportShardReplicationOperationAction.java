@@ -105,7 +105,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
     protected abstract String executor();
 
-    protected abstract PrimaryResponse<Response, ReplicaRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest);
+    protected abstract PrimaryResponse<Response, ReplicaRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) throws Throwable;
 
     protected abstract void shardOperationOnReplica(ReplicaOperationRequest shardRequest);
 

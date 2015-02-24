@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -54,33 +55,29 @@ import static org.hamcrest.Matchers.*;
 @Ignore
 public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase {
 
-    private static class Holder {
-        private static Node NODE = null;
+    private static Node NODE = null;
 
-        private static void reset() {
-            assert NODE != null;
-            node().close();
-            Holder.NODE = newNode();
-        }
+    private static void reset() {
+        assert NODE != null;
+        node().stop();
+        NODE = newNode();
+    }
 
-        private static void startNode() {
-            assert NODE == null;
-            NODE = newNode();
-        }
+    private static void startNode() {
+        assert NODE == null;
+        NODE = newNode();
+    }
 
-        private static void stopNode() {
-            if (NODE != null) {
-                Node node = NODE;
-                NODE = null;
-                node.close();
-            }
-        }
+    private static void stopNode() {
+        Node node = NODE;
+        NODE = null;
+        Releasables.close(node);
     }
 
     static void cleanup(boolean resetNode) {
         assertAcked(client().admin().indices().prepareDelete("*").get());
         if (resetNode) {
-            Holder.reset();
+            reset();
         }
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(),
@@ -97,13 +94,13 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     @BeforeClass
     public static void setUpClass() throws Exception {
-        Holder.stopNode();
-        Holder.startNode();
+        stopNode();
+        startNode();
     }
 
     @AfterClass
     public static void tearDownClass() {
-        Holder.stopNode();
+        stopNode();
     }
 
     /**
@@ -117,7 +114,7 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     private static Node newNode() {
         Node build = NodeBuilder.nodeBuilder().local(true).data(true).settings(ImmutableSettings.builder()
-                .put(ClusterName.SETTING, nodeName())
+                .put(ClusterName.SETTING, clusterName())
                 .put("node.name", nodeName())
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -135,35 +132,35 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
      * Returns a client to the single-node cluster.
      */
     public static Client client() {
-        return Holder.NODE.client();
+        return NODE.client();
     }
 
     /**
      * Returns the single test nodes name.
      */
     public static String nodeName() {
-        return ElasticsearchSingleNodeTest.class.getName();
+        return "node_s_0";
     }
 
     /**
      * Returns the name of the cluster used for the single test node.
      */
     public static String clusterName() {
-        return ElasticsearchSingleNodeTest.class.getName();
+        return InternalTestCluster.clusterName("single-node", Integer.toString(CHILD_JVM_ID), randomLong());
     }
 
     /**
      * Return a reference to the singleton node.
      */
     protected static Node node() {
-        return Holder.NODE;
+        return NODE;
     }
 
     /**
      * Get an instance for a particular class using the injector of the singleton node.
      */
     protected static <T> T getInstanceFromNode(Class<T> clazz) {
-        return ((InternalNode) Holder.NODE).injector().getInstance(clazz);
+        return ((InternalNode) NODE).injector().getInstance(clazz);
     }
 
     /**

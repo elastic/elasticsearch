@@ -92,7 +92,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public static final String INDEX_STORE_STATS_REFRESH_INTERVAL = "index.store.stats_refresh_interval";
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
-    private final DirectoryService directoryService;
     private final StoreDirectory directory;
     private final ReentrantReadWriteLock metadataLock = new ReentrantReadWriteLock();
     private final ShardLock shardLock;
@@ -114,7 +113,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     @Inject
     public Store(ShardId shardId, @IndexSettings Settings indexSettings, DirectoryService directoryService, Distributor distributor, ShardLock shardLock, OnClose onClose) throws IOException {
         super(shardId, indexSettings);
-        this.directoryService = directoryService;
         this.directory = new StoreDirectory(directoryService.newFromDistributor(distributor), Loggers.getLogger("index.store.deletes", indexSettings, shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;

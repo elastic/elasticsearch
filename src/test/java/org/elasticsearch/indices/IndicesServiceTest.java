@@ -21,18 +21,12 @@ package org.elasticsearch.indices;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayMetaState;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
@@ -130,10 +124,10 @@ public class IndicesServiceTest extends ElasticsearchSingleNodeTest {
     public void testPendingTasks() throws IOException {
         IndicesService indicesService = getIndicesService();
         IndexService test = createIndex("test");
-        NodeEnvironment nodeEnc = getInstanceFromNode(NodeEnvironment.class);
+        NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class);
 
         assertTrue(test.hasShard(0));
-        Path[] paths = nodeEnc.shardDataPaths(new ShardId(test.index(), 0), test.getIndexSettings());
+        Path[] paths = nodeEnv.shardDataPaths(new ShardId(test.index(), 0), test.getIndexSettings());
         try {
             indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
             fail("can't get lock");
@@ -143,23 +137,32 @@ public class IndicesServiceTest extends ElasticsearchSingleNodeTest {
         for (Path p : paths) {
             assertTrue(Files.exists(p));
         }
-        indicesService.addPendingDelete(test.index(), new ShardId(test.index(), 0), test.getIndexSettings());
+        int numPending = 1;
+        if (randomBoolean()) {
+            indicesService.addPendingDelete(new ShardId(test.index(), 0), test.getIndexSettings());
+        } else {
+            if (randomBoolean()) {
+                numPending++;
+                indicesService.addPendingDelete(new ShardId(test.index(), 0), test.getIndexSettings());
+            }
+            indicesService.addPendingDelete(test.index(), test.getIndexSettings());
+        }
         assertAcked(client().admin().indices().prepareClose("test"));
         for (Path p : paths) {
             assertTrue(Files.exists(p));
         }
-        assertEquals(indicesService.numPendingDeletes(test.index()), 1);
+        assertEquals(indicesService.numPendingDeletes(test.index()), numPending);
         // shard lock released... we can now delete
-        indicesService.processPendingDeletes(test.index(),  test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
+        indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
         assertEquals(indicesService.numPendingDeletes(test.index()), 0);
         for (Path p : paths) {
             assertFalse(Files.exists(p));
         }
 
         if (randomBoolean()) {
-            indicesService.addPendingDelete(test.index(), new ShardId(test.index(), 0), test.getIndexSettings());
-            indicesService.addPendingDelete(test.index(), new ShardId(test.index(), 1), test.getIndexSettings());
-            indicesService.addPendingDelete(new Index("bogus"), new ShardId("bogus", 1), test.getIndexSettings());
+            indicesService.addPendingDelete(new ShardId(test.index(), 0), test.getIndexSettings());
+            indicesService.addPendingDelete(new ShardId(test.index(), 1), test.getIndexSettings());
+            indicesService.addPendingDelete(new ShardId("bogus", 1), test.getIndexSettings());
             assertEquals(indicesService.numPendingDeletes(test.index()), 2);
             // shard lock released... we can now delete
             indicesService.processPendingDeletes(test.index(),  test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));

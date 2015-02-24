@@ -444,7 +444,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     indicesServices.deleteShardStore("delete index", lock, indexSettings);
                 }
             } catch (IOException e) {
-                indicesServices.addPendingDelete(index(), lock.getShardId(), indexSettings);
+                indicesServices.addPendingDelete(lock.getShardId(), indexSettings);
                 logger.debug("{} failed to delete shard content - scheduled a retry", e, lock.getShardId().id());
             }
         }

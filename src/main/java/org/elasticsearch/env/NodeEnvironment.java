@@ -230,16 +230,29 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
         assert indexSettings != ImmutableSettings.EMPTY;
         final List<ShardLock> locks = lockAllForIndex(index, indexSettings, lockTimeoutMS);
         try {
-            final Path[] indexPaths = indexPaths(index);
-            logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
-            IOUtils.rm(indexPaths);
-            if (hasCustomDataPath(indexSettings)) {
-                Path customLocation = resolveCustomLocation(indexSettings, index.name());
-                logger.trace("deleting custom index {} directory [{}]", index, customLocation);
-                IOUtils.rm(customLocation);
-            }
+            deleteIndexDirectoryUnderLock(index, indexSettings);
         } finally {
             IOUtils.closeWhileHandlingException(locks);
+        }
+    }
+
+    /**
+     * Deletes an indexes data directory recursively.
+     * Note: this method assumes that the shard lock is acquired
+     *
+     * @param index the index to delete
+     * @param indexSettings settings for the index being deleted
+     */
+    public void deleteIndexDirectoryUnderLock(Index index, @IndexSettings Settings indexSettings) throws IOException {
+        // This is to ensure someone doesn't use ImmutableSettings.EMPTY
+        assert indexSettings != ImmutableSettings.EMPTY;
+        final Path[] indexPaths = indexPaths(index);
+        logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
+        IOUtils.rm(indexPaths);
+        if (hasCustomDataPath(indexSettings)) {
+            Path customLocation = resolveCustomLocation(indexSettings, index.name());
+            logger.trace("deleting custom index {} directory [{}]", index, customLocation);
+            IOUtils.rm(customLocation);
         }
     }
 

@@ -120,22 +120,14 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("type")
                 .startObject("_index")
                 .field("enabled", enabled)
-                .field("store", true)
-                .startObject("fielddata")
-                .field("format", "fst")
-                .endObject()
                 .endObject()
                 .endObject()
                 .endObject();
         DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedString(indexMapping.string()), true);
         assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
-        assertTrue(documentMapper.indexMapper().fieldType().stored());
-        assertThat(documentMapper.indexMapper().fieldDataType().getFormat(null), equalTo("fst"));
         documentMapper.refreshSource();
         documentMapper = indexService.mapperService().parse("type", new CompressedString(documentMapper.mappingSource().string()), true);
         assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
-        assertTrue(documentMapper.indexMapper().fieldType().stored());
-        assertThat(documentMapper.indexMapper().fieldDataType().getFormat(null), equalTo("fst"));
     }
 
     @Test

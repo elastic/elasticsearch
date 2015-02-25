@@ -253,6 +253,7 @@ to provide special features.  They now have limited configuration options.
 
 * `_id` configuration can no longer be changed.  If you need to sort, use `_uid` instead.
 * `_type` configuration can no longer be changed.
+* `_index` configuration is limited to enabling the field.
 
 === Codecs
 

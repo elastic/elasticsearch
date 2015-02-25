@@ -603,18 +603,13 @@ public class ClusterState implements ToXContent {
         /**
          * @param data               input bytes
          * @param localNode          used to set the local node in the cluster state.
-         * @param defaultClusterName this cluster name will be used of if the deserialized cluster state does not have a name set
-         *                           (which is only introduced in version 1.1.1)
          */
-        public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode, ClusterName defaultClusterName) throws IOException {
-            return readFrom(new BytesStreamInput(data, false), localNode, defaultClusterName);
+        public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode) throws IOException {
+            return readFrom(new BytesStreamInput(data, false), localNode);
         }
 
         public static void writeTo(ClusterState state, StreamOutput out) throws IOException {
-            out.writeBoolean(state.clusterName != null);
-            if (state.clusterName != null) {
-                state.clusterName.writeTo(out);
-            }
+            state.clusterName.writeTo(out);
             out.writeLong(state.version());
             MetaData.Builder.writeTo(state.metaData(), out);
             RoutingTable.Builder.writeTo(state.routingTable(), out);
@@ -630,14 +625,9 @@ public class ClusterState implements ToXContent {
         /**
          * @param in                 input stream
          * @param localNode          used to set the local node in the cluster state. can be null.
-         * @param defaultClusterName this cluster name will be used of receiving a cluster state from a node on version older than 1.1.1
-         *                           or if the sending node did not set a cluster name
          */
-        public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode, @Nullable ClusterName defaultClusterName) throws IOException {
-            ClusterName clusterName = defaultClusterName;
-            if (in.readBoolean()) {
-                clusterName = ClusterName.readClusterName(in);
-            }
+        public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
+            ClusterName clusterName = ClusterName.readClusterName(in);
             Builder builder = new Builder(clusterName);
             builder.version = in.readLong();
             builder.metaData = MetaData.Builder.readFrom(in);

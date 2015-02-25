@@ -179,6 +179,8 @@ curl -XGET 'localhost:9200/index/_search'
 ---------------
 
 In 2.0, the query should look like the following:
+
+[source,sh]
 ---------------
 curl -XGET 'localhost:9200/index/t1,t2/_search'
 {

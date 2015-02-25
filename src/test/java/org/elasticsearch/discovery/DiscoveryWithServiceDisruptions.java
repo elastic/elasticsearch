@@ -180,9 +180,9 @@ public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTes
 
         if (discoveryConfig == null) {
             if (unicastHostsOrdinals == null) {
-                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, nodeSettings, Scope.TEST);
+                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, nodeSettings);
             } else {
-                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, nodeSettings, unicastHostsOrdinals, Scope.TEST);
+                discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(numberOfNodes, nodeSettings, unicastHostsOrdinals);
             }
         }
     }

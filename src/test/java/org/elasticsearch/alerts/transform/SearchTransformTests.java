@@ -8,11 +8,11 @@ package org.elasticsearch.alerts.transform;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.alerts.AbstractAlertingTests;
 import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.support.Variables;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
+import org.elasticsearch.alerts.test.AbstractAlertsSingleNodeTests;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableList;
@@ -43,7 +43,7 @@ import static org.mockito.Mockito.when;
 /**
  *
  */
-public class SearchTransformTests extends AbstractAlertingTests {
+public class SearchTransformTests extends AbstractAlertsSingleNodeTests {
 
     @Test
     public void testApply() throws Exception {

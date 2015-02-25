@@ -19,6 +19,11 @@
   - do:
       indices.create:
         index: test_index
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
   - do:
       cluster.health:
         wait_for_status: green
@@ -41,7 +46,7 @@
         index: test_index
   - do:
       cluster.health:
-        wait_for_status: green
+        wait_for_status: yellow
         level: indices
 
   - is_true: indices

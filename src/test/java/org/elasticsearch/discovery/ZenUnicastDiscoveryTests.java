@@ -59,7 +59,7 @@ public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < unicastHostOrdinals.length; i++) {
             unicastHostOrdinals[i] = i;
         }
-        discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(currentNumNodes, unicastHostOrdinals, Scope.TEST);
+        discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(currentNumNodes, unicastHostOrdinals);
 
         // start the unicast hosts
         internalCluster().startNodesAsync(unicastHostOrdinals.length).get();
@@ -81,7 +81,7 @@ public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
         int currentNumNodes = randomIntBetween(3, 5);
         int currentNumOfUnicastHosts = randomIntBetween(1, currentNumNodes);
         final Settings settings = ImmutableSettings.settingsBuilder().put("discovery.zen.minimum_master_nodes", currentNumNodes / 2 + 1).build();
-        discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(currentNumNodes, currentNumOfUnicastHosts, settings, Scope.TEST);
+        discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(currentNumNodes, currentNumOfUnicastHosts, settings);
 
         List<String> nodes = internalCluster().startNodesAsync(currentNumNodes).get();
 

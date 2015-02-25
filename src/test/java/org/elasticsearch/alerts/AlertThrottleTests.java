@@ -20,6 +20,7 @@ import org.elasticsearch.alerts.history.FiredAlert;
 import org.elasticsearch.alerts.history.HistoryStore;
 import org.elasticsearch.alerts.input.search.SearchInput;
 import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
+import org.elasticsearch.alerts.support.Script;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.transform.SearchTransform;
 import org.elasticsearch.alerts.transport.actions.ack.AckAlertResponse;
@@ -30,7 +31,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.junit.Test;
 
@@ -69,7 +69,7 @@ public class AlertThrottleTests extends AbstractAlertingTests {
                 new CronSchedule("0/5 * * * * ? *"),
                 new SearchInput(logger, scriptService(), ClientProxy.of(client()),
                         request),
-                new ScriptCondition(logger, scriptService(), "hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"),
+                new ScriptCondition(logger, scriptService(), new Script("hits.total > 0")),
                 new SearchTransform(logger, scriptService(), ClientProxy.of(client()), request), new Actions(actions), null, new Alert.Status(), new TimeValue(0)
         );
 
@@ -148,12 +148,9 @@ public class AlertThrottleTests extends AbstractAlertingTests {
                 "test-time-throttle",
                 new CronSchedule("0/5 * * * * ? *"),
                 new SearchInput(logger, scriptService(), ClientProxy.of(client()),  request),
-                new ScriptCondition(logger, scriptService(), "hits.total > 0", ScriptService.ScriptType.INLINE, "groovy"),
+                new ScriptCondition(logger, scriptService(), new Script("hits.total > 0")),
                 new SearchTransform(logger, scriptService(), ClientProxy.of(client()), request),
-                new Actions(actions), null, new Alert.Status(), new TimeValue(10, TimeUnit.SECONDS)
-        );
-
-
+                new Actions(actions), null, new Alert.Status(), new TimeValue(10, TimeUnit.SECONDS));
 
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
@@ -205,8 +202,8 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         while(System.currentTimeMillis() < start + value.getMillis()){
             try{
                 Thread.sleep(value.getMillis() - (System.currentTimeMillis() - start));
-            } catch (InterruptedException ie){
-
+            } catch (InterruptedException ie) {
+                logger.error("interrupted", ie);
             }
         }
     }

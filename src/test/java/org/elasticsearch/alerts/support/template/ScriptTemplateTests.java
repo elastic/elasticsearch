@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.alerts.support.template;
 
+import org.elasticsearch.alerts.support.Script;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableMap;
@@ -51,7 +52,8 @@ public class ScriptTemplateTests extends ElasticsearchTestCase {
         when(script.run()).thenReturn("rendered_text");
         when(proxy.executable(lang, templateText, scriptType, merged)).thenReturn(script);
 
-        ScriptTemplate template = new ScriptTemplate(proxy, templateText, lang, scriptType, params);
+        Script script = new Script(templateText, scriptType, lang, params);
+        ScriptTemplate template = new ScriptTemplate(proxy, script);
         assertThat(template.render(model), is("rendered_text"));
     }
 
@@ -67,7 +69,8 @@ public class ScriptTemplateTests extends ElasticsearchTestCase {
         when(script.run()).thenReturn("rendered_text");
         when(proxy.executable(lang, templateText, scriptType, model)).thenReturn(script);
 
-        ScriptTemplate template = new ScriptTemplate(proxy, templateText, lang, scriptType, params);
+        Script script = new Script(templateText, scriptType, lang, params);
+        ScriptTemplate template = new ScriptTemplate(proxy, script);
         assertThat(template.render(model), is("rendered_text"));
     }
 
@@ -87,13 +90,14 @@ public class ScriptTemplateTests extends ElasticsearchTestCase {
     public void testParser() throws Exception {
         ScriptTemplate.Parser templateParser = new ScriptTemplate.Parser(ImmutableSettings.EMPTY, proxy);
 
-        ScriptTemplate template = new ScriptTemplate(proxy, "_template", "_lang", randomScriptType(), ImmutableMap.<String, Object>of("param_key", "param_val"));
+        Script script = new Script("_template", randomScriptType(), "_lang", ImmutableMap.<String, Object>of("param_key", "param_val"));
+        ScriptTemplate template = new ScriptTemplate(proxy, script);
 
         XContentBuilder builder = jsonBuilder().startObject()
-                .field(randomFrom("lang", "script_lang"), template.lang())
-                .field(randomFrom("script", "text"), template.text())
-                .field(randomFrom("type", "script_type"), template.type().name())
-                .field(randomFrom("params", "model"), template.params())
+                .field(randomFrom("lang"), template.script().lang())
+                .field(randomFrom("script"), template.script().script())
+                .field(randomFrom("type"), template.script().type().name())
+                .field(randomFrom("params"), template.script().params())
                 .endObject();
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
@@ -107,10 +111,12 @@ public class ScriptTemplateTests extends ElasticsearchTestCase {
     public void testParser_ParserSelfGenerated() throws Exception {
         ScriptTemplate.Parser templateParser = new ScriptTemplate.Parser(ImmutableSettings.EMPTY, proxy);
 
-        ScriptTemplate template = new ScriptTemplate(proxy, "_template", "_lang", randomScriptType(), ImmutableMap.<String, Object>of("param_key", "param_val"));
+        Script script = new Script("_template", randomScriptType(), "_lang", ImmutableMap.<String, Object>of("param_key", "param_val"));
+        ScriptTemplate template = new ScriptTemplate(proxy, script);
 
         XContentBuilder builder = jsonBuilder().value(template);
         BytesReference bytes = builder.bytes();
+        System.out.println(bytes.toUtf8());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
         ScriptTemplate parsed = templateParser.parse(parser);

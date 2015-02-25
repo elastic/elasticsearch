@@ -36,6 +36,10 @@ public class Script implements ToXContent {
         this(script, ScriptService.ScriptType.INLINE, ScriptService.DEFAULT_LANG, Collections.<String, Object>emptyMap());
     }
 
+    public Script(String script, ScriptService.ScriptType type, String lang) {
+        this(script, type, lang, Collections.<String, Object>emptyMap());
+    }
+
     public Script(String script, ScriptService.ScriptType type, String lang, Map<String, Object> params) {
         this.script = script;
         this.type = type;
@@ -87,9 +91,9 @@ public class Script implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
                 .field(SCRIPT_FIELD.getPreferredName(), script)
-                .field(TYPE_FIELD.getPreferredName(), script)
+                .field(TYPE_FIELD.getPreferredName(), type)
                 .field(LANG_FIELD.getPreferredName(), lang)
-                .field(PARAMS_FIELD.getPreferredName(), params)
+                .field(PARAMS_FIELD.getPreferredName(), this.params)
                 .endObject();
     }
 

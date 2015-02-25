@@ -16,6 +16,7 @@ import org.elasticsearch.alerts.history.FiredAlert;
 import org.elasticsearch.alerts.history.HistoryStore;
 import org.elasticsearch.alerts.input.search.SearchInput;
 import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
+import org.elasticsearch.alerts.support.Script;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.transform.SearchTransform;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
@@ -27,7 +28,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
@@ -80,7 +80,7 @@ public class BootStrapTest extends AbstractAlertingTests {
                 "test-serialization",
                 new CronSchedule("0/5 * * * * ? 2035"), //Set this into the future so we don't get any extra runs
                 new SearchInput(logger, scriptService(), ClientProxy.of(client()), searchRequest),
-                new ScriptCondition(logger, scriptService(), "return true", ScriptService.ScriptType.INLINE, "groovy"),
+                new ScriptCondition(logger, scriptService(), new Script("return true")),
                 new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
                 new Actions(new ArrayList<Action>()), null, new Alert.Status(), new TimeValue(0)
 
@@ -139,7 +139,7 @@ public class BootStrapTest extends AbstractAlertingTests {
                         new CronSchedule("0/5 * * * * ? 2035"), //Set a cron schedule far into the future so this alert is never scheduled
                         new SearchInput(logger, scriptService(), ClientProxy.of(client()),
                                 searchRequest),
-                        new ScriptCondition(logger, scriptService(), "return true", ScriptService.ScriptType.INLINE, "groovy"),
+                        new ScriptCondition(logger, scriptService(), new Script("return true")),
                         new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
                         new Actions(new ArrayList<Action>()),
                         null,

@@ -13,6 +13,7 @@ import org.elasticsearch.alerts.actions.index.IndexAction;
 import org.elasticsearch.alerts.condition.script.ScriptCondition;
 import org.elasticsearch.alerts.input.search.SearchInput;
 import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
+import org.elasticsearch.alerts.support.Script;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.transform.SearchTransform;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
@@ -61,7 +62,7 @@ public class TransformSearchTest extends AbstractAlertingTests {
                 new CronSchedule("0/5 * * * * ? *"),
                 new SearchInput(logger, scriptService(), ClientProxy.of(client()),
                         conditionRequest),
-                new ScriptCondition(logger, scriptService(), "return true", ScriptService.ScriptType.INLINE, "groovy"),
+                new ScriptCondition(logger, scriptService(), new Script("return true")),
                 new SearchTransform(logger, scriptService(), ClientProxy.of(client()), transformRequest),
                 new Actions(actions), metadata, new Alert.Status(), new TimeValue(0)
         );

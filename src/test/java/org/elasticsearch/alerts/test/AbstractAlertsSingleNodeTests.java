@@ -42,7 +42,7 @@ public abstract class AbstractAlertsSingleNodeTests extends ElasticsearchSingleN
 
     @Override
     protected boolean resetNodeAfterTest() {
-        return true;
+        return false;
     }
 
     protected IndexResponse index(String index, String type, String id) {

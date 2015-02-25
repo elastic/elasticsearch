@@ -163,21 +163,21 @@ public class EmailActionTests extends ElasticsearchTestCase {
         }
         if (subject != null) {
             if (randomBoolean()) {
-                builder.field("subject", subject.text());
+                builder.field("subject", subject.script().script());
             } else {
                 builder.field("subject", subject);
             }
         }
         if (textBody != null) {
             if (randomBoolean()) {
-                builder.field("text_body", textBody.text());
+                builder.field("text_body", textBody.script().script());
             } else {
                 builder.field("text_body", textBody);
             }
         }
         if (htmlBody != null) {
             if (randomBoolean()) {
-                builder.field("html_body", htmlBody.text());
+                builder.field("html_body", htmlBody.script().script());
             } else {
                 builder.field("html_body", htmlBody);
             }

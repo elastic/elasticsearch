@@ -24,6 +24,7 @@ import org.elasticsearch.alerts.history.HistoryStore;
 import org.elasticsearch.alerts.input.search.SearchInput;
 import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
 import org.elasticsearch.alerts.support.AlertUtils;
+import org.elasticsearch.alerts.support.Script;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.support.template.ScriptTemplate;
@@ -206,7 +207,7 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
                 new CronSchedule("0/5 * * * * ? *"),
                 new SearchInput(logger, scriptService(), ClientProxy.of(client()),
                         conditionRequest),
-                new ScriptCondition(logger, scriptService(), "return true", ScriptService.ScriptType.INLINE, "groovy"),
+                new ScriptCondition(logger, scriptService(), new Script("return true")),
                 new SearchTransform(logger, scriptService(), ClientProxy.of(client()), transformRequest), new Actions(actions), metadata, new Alert.Status(), new TimeValue(0)
         );
     }

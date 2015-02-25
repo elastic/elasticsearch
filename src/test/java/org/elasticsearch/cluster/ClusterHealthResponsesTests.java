@@ -28,10 +28,14 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.Test;
+
+import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.empty;
@@ -176,7 +180,7 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testClusterHealth() {
+    public void testClusterHealth() throws IOException {
         ShardCounter counter = new ShardCounter();
         RoutingTable.Builder routingTable = RoutingTable.builder();
         MetaData.Builder metaData = MetaData.builder();
@@ -189,14 +193,26 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
             routingTable.add(indexRoutingTable);
         }
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
-        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[])null), clusterState);
+        int pendingTasks = randomIntBetween(0, 200);
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[]) null), clusterState, pendingTasks);
         logger.info("cluster status: {}, expected {}", clusterHealth.getStatus(), counter.status());
-
+        clusterHealth = maybeSerialize(clusterHealth);
         assertClusterHealth(clusterHealth, counter);
+        assertThat(clusterHealth.getNumberOfPendingTasks(), Matchers.equalTo(pendingTasks));
+    }
+
+    ClusterHealthResponse maybeSerialize(ClusterHealthResponse clusterHealth) throws IOException {
+        if (randomBoolean()) {
+            BytesStreamOutput out = new BytesStreamOutput();
+            clusterHealth.writeTo(out);
+            BytesStreamInput in = new BytesStreamInput(out.bytes());
+            clusterHealth = ClusterHealthResponse.readResponseFrom(in);
+        }
+        return clusterHealth;
     }
 
     @Test
-    public void testValidations() {
+    public void testValidations() throws IOException {
         IndexMetaData indexMetaData = IndexMetaData.builder("test").numberOfShards(2).numberOfReplicas(2).build();
         ShardCounter counter = new ShardCounter();
         IndexRoutingTable indexRoutingTable = genIndexRoutingTable(indexMetaData, counter);
@@ -210,7 +226,8 @@ public class ClusterHealthResponsesTests extends ElasticsearchTestCase {
         metaData.put(indexMetaData, true);
         routingTable.add(indexRoutingTable);
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
-        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[])null), clusterState);
+        ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), (String[]) null), clusterState, 0);
+        clusterHealth = maybeSerialize(clusterHealth);
         // currently we have no cluster level validation failures as index validation issues are reported per index.
         assertThat(clusterHealth.getValidationFailures(), Matchers.hasSize(0));
     }

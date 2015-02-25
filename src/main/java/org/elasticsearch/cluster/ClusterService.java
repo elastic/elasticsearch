@@ -113,4 +113,9 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
      */
     List<PendingClusterTask> pendingTasks();
 
+    /**
+     * Returns the number of currently pending tasks.
+     */
+    int numberOfPendingTasks();
+
 }

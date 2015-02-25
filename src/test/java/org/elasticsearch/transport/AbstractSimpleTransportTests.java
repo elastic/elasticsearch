@@ -20,10 +20,6 @@
 package org.elasticsearch.transport;
 
 import com.google.common.collect.ImmutableMap;
-import org.apache.log4j.AppenderSkeleton;
-import org.apache.log4j.Level;
-import org.apache.log4j.Logger;
-import org.apache.log4j.spi.LoggingEvent;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,7 +40,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.transport.TransportRequestOptions.options;
 import static org.hamcrest.Matchers.*;
@@ -655,29 +650,25 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
         serviceB.registerHandler("test", handler);
         serviceB.registerHandler("testError", handlerWithError);
 
-        TracerLogAppender mockAppender = new TracerLogAppender();
-        Logger rootLogger = Logger.getRootLogger();
-        Level savedLevel = rootLogger.getLevel();
-        rootLogger.addAppender(mockAppender);
-        rootLogger.setLevel(Level.TRACE);
-
-        try {
+        Tracer tracer = new Tracer();
+        serviceA.addTracer(tracer);
+        serviceB.addTracer(tracer);
             serviceA.sendRequest(nodeB, "test", new StringMessageRequest(""), noopResponseHandler);
             requestCompleted.acquire();
-            assertThat("didn't see request sent", mockAppender.sawRequestSent, equalTo(true));
-            assertThat("didn't see request received", mockAppender.sawRequestReceived, equalTo(true));
-            assertThat("didn't see response sent", mockAppender.sawResponseSent, equalTo(true));
-            assertThat("didn't see response received", mockAppender.sawResponseReceived, equalTo(true));
-            assertThat("saw error sent", mockAppender.sawErrorSent, equalTo(false));
+        assertThat("didn't see request sent", tracer.sawRequestSent, equalTo(true));
+        assertThat("didn't see request received", tracer.sawRequestReceived, equalTo(true));
+        assertThat("didn't see response sent", tracer.sawResponseSent, equalTo(true));
+        assertThat("didn't see response received", tracer.sawResponseReceived, equalTo(true));
+        assertThat("saw error sent", tracer.sawErrorSent, equalTo(false));
 
-            mockAppender.reset();
+        tracer.reset();
             serviceA.sendRequest(nodeB, "testError", new StringMessageRequest(""), noopResponseHandler);
             requestCompleted.acquire();
-            assertThat("didn't see request sent", mockAppender.sawRequestSent, equalTo(true));
-            assertThat("didn't see request received", mockAppender.sawRequestReceived, equalTo(true));
-            assertThat("saw response sent", mockAppender.sawResponseSent, equalTo(false));
-            assertThat("didn't see response received", mockAppender.sawResponseReceived, equalTo(true));
-            assertThat("didn't see error sent", mockAppender.sawErrorSent, equalTo(true));
+        assertThat("didn't see request sent", tracer.sawRequestSent, equalTo(true));
+        assertThat("didn't see request received", tracer.sawRequestReceived, equalTo(true));
+        assertThat("saw response sent", tracer.sawResponseSent, equalTo(false));
+        assertThat("didn't see response received", tracer.sawResponseReceived, equalTo(true));
+        assertThat("didn't see error sent", tracer.sawErrorSent, equalTo(true));
 
             String includeSettings;
             String excludeSettings;
@@ -694,59 +685,60 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
                     .put(TransportService.SETTING_TRACE_LOG_INCLUDE, includeSettings, TransportService.SETTING_TRACE_LOG_EXCLUDE, excludeSettings)
                     .build());
 
-            mockAppender.reset();
+        tracer.reset();
             serviceA.sendRequest(nodeB, "test", new StringMessageRequest(""), noopResponseHandler);
             requestCompleted.acquire();
-            assertThat("didn't see request sent", mockAppender.sawRequestSent, equalTo(true));
-            assertThat("didn't see request received", mockAppender.sawRequestReceived, equalTo(true));
-            assertThat("didn't see response sent", mockAppender.sawResponseSent, equalTo(true));
-            assertThat("didn't see response received", mockAppender.sawResponseReceived, equalTo(true));
-            assertThat("saw error sent", mockAppender.sawErrorSent, equalTo(false));
+        assertThat("didn't see request sent", tracer.sawRequestSent, equalTo(true));
+        assertThat("didn't see request received", tracer.sawRequestReceived, equalTo(true));
+        assertThat("didn't see response sent", tracer.sawResponseSent, equalTo(true));
+        assertThat("didn't see response received", tracer.sawResponseReceived, equalTo(true));
+        assertThat("saw error sent", tracer.sawErrorSent, equalTo(false));
 
-            mockAppender.reset();
+        tracer.reset();
             serviceA.sendRequest(nodeB, "testError", new StringMessageRequest(""), noopResponseHandler);
             requestCompleted.acquire();
-            assertThat("saw request sent", mockAppender.sawRequestSent, equalTo(false));
-            assertThat("didn't see request received", mockAppender.sawRequestReceived, equalTo(true));
-            assertThat("saw response sent", mockAppender.sawResponseSent, equalTo(false));
-            assertThat("saw response received", mockAppender.sawResponseReceived, equalTo(false));
-            assertThat("didn't see error sent", mockAppender.sawErrorSent, equalTo(true));
-
-
-        } finally {
-            rootLogger.removeAppender(mockAppender);
-            rootLogger.setLevel(savedLevel);
-        }
-
+        assertThat("saw request sent", tracer.sawRequestSent, equalTo(false));
+        assertThat("didn't see request received", tracer.sawRequestReceived, equalTo(true));
+        assertThat("saw response sent", tracer.sawResponseSent, equalTo(false));
+        assertThat("saw response received", tracer.sawResponseReceived, equalTo(false));
+        assertThat("didn't see error sent", tracer.sawErrorSent, equalTo(true));
     }
 
-    private static class TracerLogAppender extends AppenderSkeleton {
-        public boolean sawRequestSent;
-        public boolean sawRequestReceived;
-        public boolean sawResponseSent;
-        public boolean sawErrorSent;
-        public boolean sawResponseReceived;
+    private static class Tracer extends MockTransportService.Tracer {
+        public volatile boolean sawRequestSent;
+        public volatile boolean sawRequestReceived;
+        public volatile boolean sawResponseSent;
+        public volatile boolean sawErrorSent;
+        public volatile boolean sawResponseReceived;
 
         @Override
-        protected void append(LoggingEvent event) {
-            String message = event.getMessage().toString();
-            if (event.getLevel() == Level.TRACE && event.getLoggerName().endsWith("transport.tracer")) {
-                sawRequestSent |= Pattern.matches("\\[.*\\]\\[.*\\] sent to \\[.*", message);
-                sawRequestReceived |= Pattern.matches("\\[.*\\]\\[.*\\] received request", message);
-                sawResponseSent |= Pattern.matches("\\[.*\\]\\[.*\\] sent response", message);
-                sawErrorSent |= Pattern.matches("\\[.*\\]\\[.*\\] sent error response.*", message);
-                sawResponseReceived |= Pattern.matches("\\[.*\\]\\[.*\\] received response from \\[.*", message);
-            }
-
+        public void receivedRequest(long requestId, String action) {
+            super.receivedRequest(requestId, action);
+            sawRequestReceived = true;
         }
 
         @Override
-        public boolean requiresLayout() {
-            return false;
+        public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
+            super.requestSent(node, requestId, action, options);
+            sawRequestSent = true;
         }
 
         @Override
-        public void close() {
+        public void responseSent(long requestId, String action) {
+            super.responseSent(requestId, action);
+            sawResponseSent = true;
+        }
+
+        @Override
+        public void responseSent(long requestId, String action, Throwable t) {
+            super.responseSent(requestId, action, t);
+            sawErrorSent = true;
+        }
+
+        @Override
+        public void receivedResponse(long requestId, DiscoveryNode sourceNode, String action) {
+            super.receivedResponse(requestId, sourceNode, action);
+            sawResponseReceived = true;
         }
 
         public void reset() {

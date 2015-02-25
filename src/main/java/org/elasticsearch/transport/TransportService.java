@@ -80,7 +80,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
     });
 
-    private final TransportService.Adapter adapter = new Adapter();
+    private final TransportService.Adapter adapter;
 
     // tracer log
 
@@ -105,6 +105,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         this.tracerLogInclude = settings.getAsArray(SETTING_TRACE_LOG_INCLUDE, Strings.EMPTY_ARRAY, true);
         this.tracelLogExclude = settings.getAsArray(SETTING_TRACE_LOG_EXCLUDE, new String[]{"internal:discovery/zen/fd*"}, true);
         tracerLog = Loggers.getLogger(logger, ".tracer");
+        adapter = createAdapter();
+    }
+
+    protected Adapter createAdapter() {
+        return new Adapter();
     }
 
     // These need to be optional as they don't exist in the context of a transport client
@@ -326,7 +331,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         return serverHandlers.get(action);
     }
 
-    class Adapter implements TransportServiceAdapter {
+    protected class Adapter implements TransportServiceAdapter {
 
         final MeanMetric rxMetric = new MeanMetric();
         final MeanMetric txMetric = new MeanMetric();
@@ -343,28 +348,36 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
         @Override
         public void onRequestSent(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) {
-            if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
-                tracerLog.trace("[{}][{}] sent to [{}] (timeout: [{}])", requestId, action, node, options.timeout());
+            if (traceEnabled() && shouldTraceAction(action)) {
+                traceRequestSent(node, requestId, action, options);
             }
+        }
+
+        protected boolean traceEnabled() {
+            return tracerLog.isTraceEnabled();
         }
 
         @Override
         public void onResponseSent(long requestId, String action, TransportResponse response, TransportResponseOptions options) {
-            if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
-                tracerLog.trace("[{}][{}] sent response", requestId, action);
+            if (traceEnabled() && shouldTraceAction(action)) {
+                traceResponseSent(requestId, action);
             }
         }
 
         @Override
         public void onResponseSent(long requestId, String action, Throwable t) {
-            if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
-                tracerLog.trace("[{}][{}] sent error response (error: [{}])", requestId, action, t.getMessage());
+            if (traceEnabled() && shouldTraceAction(action)) {
+                traceResponseSent(requestId, action, t);
             }
+        }
+
+        protected void traceResponseSent(long requestId, String action, Throwable t) {
+            tracerLog.trace("[{}][{}] sent error response (error: [{}])", requestId, action, t.getMessage());
         }
 
         @Override
         public void onResponseReceived(long requestId) {
-            if (tracerLog.isTraceEnabled()) {
+            if (traceEnabled()) {
                 // try to resolve the request
                 DiscoveryNode sourceNode = null;
                 String action = null;
@@ -381,17 +394,17 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                     }
                 }
                 if (action == null) {
-                    tracerLog.trace("[{}] received response but can't resolve it to a request", requestId);
+                    traceUnresolvedResponse(requestId);
                 } else if (shouldTraceAction(action)) {
-                    tracerLog.trace("[{}][{}] received response from [{}]", requestId, action, sourceNode);
+                    traceReceivedResponse(requestId, sourceNode, action);
                 }
             }
         }
 
         @Override
         public void onRequestReceived(long requestId, String action) {
-            if (tracerLog.isTraceEnabled() && shouldTraceAction(action)) {
-                tracerLog.trace("[{}][{}] received request", requestId, action);
+            if (traceEnabled() && shouldTraceAction(action)) {
+                traceReceivedRequest(requestId, action);
             }
         }
 
@@ -461,6 +474,27 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 logger.debug("Rejected execution on NodeDisconnected", ex);
             }
         }
+
+        protected void traceReceivedRequest(long requestId, String action) {
+            tracerLog.trace("[{}][{}] received request", requestId, action);
+        }
+
+        protected void traceResponseSent(long requestId, String action) {
+            tracerLog.trace("[{}][{}] sent response", requestId, action);
+        }
+
+        protected void traceReceivedResponse(long requestId, DiscoveryNode sourceNode, String action) {
+            tracerLog.trace("[{}][{}] received response from [{}]", requestId, action, sourceNode);
+        }
+
+        protected void traceUnresolvedResponse(long requestId) {
+            tracerLog.trace("[{}] received response but can't resolve it to a request", requestId);
+        }
+
+        protected void traceRequestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
+            tracerLog.trace("[{}][{}] sent to [{}] (timeout: [{}])", requestId, action, node, options.timeout());
+        }
+
     }
 
     class TimeoutHandler implements Runnable {

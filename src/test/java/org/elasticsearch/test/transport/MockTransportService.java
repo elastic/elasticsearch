@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.transport;
 
+import com.sun.deploy.trace.Trace;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
@@ -39,8 +40,10 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * A mock transport service that allows to simulate different network topology failures.
@@ -404,4 +407,91 @@ public class MockTransportService extends TransportService {
             transport.close();
         }
     }
+
+
+    List<Tracer> activeTracers = new CopyOnWriteArrayList<>();
+
+    public static class Tracer {
+        public void receivedRequest(long requestId, String action) {
+        }
+
+        public void responseSent(long requestId, String action) {
+        }
+
+        public void responseSent(long requestId, String action, Throwable t) {
+        }
+
+        public void receivedResponse(long requestId, DiscoveryNode sourceNode, String action) {
+        }
+
+        public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
+        }
+    }
+
+    public void addTracer(Tracer tracer) {
+        activeTracers.add(tracer);
+    }
+
+    public boolean removeTracer(Trace tracer) {
+        return activeTracers.remove(tracer);
+    }
+
+    public void clearTracers() {
+        activeTracers.clear();
+    }
+
+    @Override
+    protected Adapter createAdapter() {
+        return new MockAdapter();
+    }
+
+    class MockAdapter extends Adapter {
+
+        @Override
+        protected boolean traceEnabled() {
+            return super.traceEnabled() || activeTracers.isEmpty() == false;
+        }
+
+        @Override
+        protected void traceReceivedRequest(long requestId, String action) {
+            super.traceReceivedRequest(requestId, action);
+            for (Tracer tracer : activeTracers) {
+                tracer.receivedRequest(requestId, action);
+            }
+        }
+
+        @Override
+        protected void traceResponseSent(long requestId, String action) {
+            super.traceResponseSent(requestId, action);
+            for (Tracer tracer : activeTracers) {
+                tracer.responseSent(requestId, action);
+            }
+        }
+
+        @Override
+        protected void traceResponseSent(long requestId, String action, Throwable t) {
+            super.traceResponseSent(requestId, action, t);
+            for (Tracer tracer : activeTracers) {
+                tracer.responseSent(requestId, action, t);
+            }
+        }
+
+        @Override
+        protected void traceReceivedResponse(long requestId, DiscoveryNode sourceNode, String action) {
+            super.traceReceivedResponse(requestId, sourceNode, action);
+            for (Tracer tracer : activeTracers) {
+                tracer.receivedResponse(requestId, sourceNode, action);
+            }
+        }
+
+        @Override
+        protected void traceRequestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
+            super.traceRequestSent(node, requestId, action, options);
+            for (Tracer tracer : activeTracers) {
+                tracer.requestSent(node, requestId, action, options);
+            }
+        }
+    }
+
+
 }

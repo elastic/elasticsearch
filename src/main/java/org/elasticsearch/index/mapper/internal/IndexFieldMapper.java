@@ -23,6 +23,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
@@ -97,7 +98,9 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             IndexFieldMapper.Builder builder = MapperBuilders.index();
-            parseField(builder, builder.name, node, parserContext);
+            if (parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                parseField(builder, builder.name, node, parserContext);
+            }
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -200,18 +203,19 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored()) {
+        if (writePre2xSettings && (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored())) {
             builder.field("store", fieldType().stored());
         }
         if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
 
-        if (customFieldDataSettings != null) {
-            builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
-        } else if (includeDefaults) {
-            builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
-
+        if (writePre2xSettings) {
+            if (customFieldDataSettings != null) {
+                builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
+            } else if (includeDefaults) {
+                builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
+            }
         }
         builder.endObject();
         return builder;

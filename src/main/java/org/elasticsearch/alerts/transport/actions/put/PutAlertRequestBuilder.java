@@ -7,6 +7,7 @@ package org.elasticsearch.alerts.transport.actions.put;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
+import org.elasticsearch.alerts.client.AlertSourceBuilder;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -28,19 +29,26 @@ public class PutAlertRequestBuilder extends MasterNodeOperationRequestBuilder<Pu
     /**
      * @param alertName The alert name to be created
      */
-    public PutAlertRequestBuilder setAlertName(String alertName){
+    public PutAlertRequestBuilder alertName(String alertName){
         request.setAlertName(alertName);
         return this;
     }
 
     /**
-     * @param alertSource the source of the alert to be created
+     * @param source the source of the alert to be created
      */
-    public PutAlertRequestBuilder setAlertSource(BytesReference alertSource) {
-        request.setAlertSource(alertSource);
+    public PutAlertRequestBuilder source(BytesReference source) {
+        request.source(source);
         return this;
     }
 
+    /**
+     * @param source the source of the alert to be created
+     */
+    public PutAlertRequestBuilder source(AlertSourceBuilder source) {
+        request.source(source);
+        return this;
+    }
 
     @Override
     protected void doExecute(ActionListener<PutAlertResponse> listener) {

@@ -7,6 +7,7 @@ package org.elasticsearch.alerts.support.template;
 
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
@@ -18,6 +19,7 @@ import java.util.Map;
 public class XContentTemplate implements Template {
 
     public static XContentTemplate YAML = new XContentTemplate(YamlXContent.yamlXContent);
+    public static XContentTemplate JSON = new XContentTemplate(JsonXContent.jsonXContent);
 
     private final XContent xContent;
 

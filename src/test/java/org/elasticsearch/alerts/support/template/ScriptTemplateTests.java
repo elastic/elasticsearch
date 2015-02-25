@@ -116,7 +116,6 @@ public class ScriptTemplateTests extends ElasticsearchTestCase {
 
         XContentBuilder builder = jsonBuilder().value(template);
         BytesReference bytes = builder.bytes();
-        System.out.println(bytes.toUtf8());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
         ScriptTemplate parsed = templateParser.parse(parser);

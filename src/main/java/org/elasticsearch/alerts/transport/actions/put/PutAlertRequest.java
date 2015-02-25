@@ -9,9 +9,12 @@ package org.elasticsearch.alerts.transport.actions.put;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
+import org.elasticsearch.alerts.client.AlertSourceBuilder;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
 
@@ -59,7 +62,14 @@ public class PutAlertRequest extends MasterNodeOperationRequest<PutAlertRequest>
     /**
      * Set the source of the alert
      */
-    public void setAlertSource(BytesReference alertSource) {
+    public void source(AlertSourceBuilder source) {
+        source(source.buildAsBytes(XContentType.JSON));
+    }
+
+    /**
+     * Set the source of the alert
+     */
+    public void source(BytesReference alertSource) {
         this.alertSource = alertSource;
         this.alertSourceUnsafe = false;
     }
@@ -67,7 +77,7 @@ public class PutAlertRequest extends MasterNodeOperationRequest<PutAlertRequest>
     /**
      * Set the source of the alert with boolean to control source safety
      */
-    public void setAlertSource(BytesReference alertSource, boolean alertSourceUnsafe) {
+    public void source(BytesReference alertSource, boolean alertSourceUnsafe) {
         this.alertSource = alertSource;
         this.alertSourceUnsafe = alertSourceUnsafe;
     }

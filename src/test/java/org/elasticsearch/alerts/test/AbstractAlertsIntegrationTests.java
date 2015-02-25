@@ -3,33 +3,24 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts;
+package org.elasticsearch.alerts.test;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.alerts.actions.Action;
-import org.elasticsearch.alerts.actions.Actions;
-import org.elasticsearch.alerts.actions.email.EmailAction;
+import org.elasticsearch.alerts.AlertsPlugin;
+import org.elasticsearch.alerts.AlertsService;
 import org.elasticsearch.alerts.actions.email.service.Authentication;
 import org.elasticsearch.alerts.actions.email.service.Email;
 import org.elasticsearch.alerts.actions.email.service.EmailService;
 import org.elasticsearch.alerts.actions.email.service.Profile;
 import org.elasticsearch.alerts.actions.webhook.HttpClient;
-import org.elasticsearch.alerts.actions.webhook.WebhookAction;
 import org.elasticsearch.alerts.client.AlertsClient;
-import org.elasticsearch.alerts.condition.script.ScriptCondition;
 import org.elasticsearch.alerts.history.FiredAlert;
 import org.elasticsearch.alerts.history.HistoryStore;
-import org.elasticsearch.alerts.input.search.SearchInput;
-import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
 import org.elasticsearch.alerts.support.AlertUtils;
-import org.elasticsearch.alerts.support.Script;
-import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.alerts.support.template.ScriptTemplate;
 import org.elasticsearch.alerts.support.template.Template;
-import org.elasticsearch.alerts.transform.SearchTransform;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,36 +28,34 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.TestCluster;
 import org.junit.After;
 import org.junit.Before;
 
-import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false)
-public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest {
+@ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false)
+public abstract class AbstractAlertsIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -129,10 +118,8 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
 
             builder.startObject("input");
             {
-                builder.startObject("search");
-                builder.field("request");
+                builder.field("search");
                 AlertUtils.writeSearchRequest(conditionRequest, builder, ToXContent.EMPTY_PARAMS);
-                builder.endObject();
             }
             builder.endObject();
 
@@ -162,56 +149,6 @@ public abstract class AbstractAlertingTests extends ElasticsearchIntegrationTest
 
         return builder.bytes();
     }
-
-    public static SearchRequest createConditionSearchRequest(String... indices) {
-        SearchRequest request = new SearchRequest(indices);
-        request.indicesOptions(AlertUtils.DEFAULT_INDICES_OPTIONS);
-        request.searchType(SearchInput.DEFAULT_SEARCH_TYPE);
-        return request;
-    }
-
-    protected Alert createTestAlert(String alertName) throws AddressException {
-        SearchRequest conditionRequest = createConditionSearchRequest("my-condition-index").source(searchSource().query(matchAllQuery()));
-        SearchRequest transformRequest = createConditionSearchRequest("my-payload-index").source(searchSource().query(matchAllQuery()));
-        transformRequest.searchType(SearchTransform.DEFAULT_SEARCH_TYPE);
-        conditionRequest.searchType(SearchInput.DEFAULT_SEARCH_TYPE);
-
-        List<Action> actions = new ArrayList<>();
-
-        Template url = new ScriptTemplate(scriptService(), "http://localhost/foobarbaz/{{alert_name}}");
-        Template body = new ScriptTemplate(scriptService(), "{{alert_name}} executed with {{response.hits.total}} hits");
-
-        actions.add(new WebhookAction(logger, httpClient(), HttpMethod.GET, url, body));
-
-        Email.Address from = new Email.Address("from@test.com");
-        List<Email.Address> emailAddressList = new ArrayList<>();
-        emailAddressList.add(new Email.Address("to@test.com"));
-        Email.AddressList to = new Email.AddressList(emailAddressList);
-
-
-        Email.Builder emailBuilder = Email.builder().id("prototype");
-        emailBuilder.from(from);
-        emailBuilder.to(to);
-
-
-        EmailAction emailAction = new EmailAction(logger, noopEmailService(), emailBuilder.build(),
-                new Authentication("testname", "testpassword"), Profile.STANDARD, "testaccount", body, body, null, true);
-
-        actions.add(emailAction);
-
-        Map<String, Object> metadata = new LinkedHashMap<>();
-        metadata.put("foo", "bar");
-
-        return new Alert(
-                alertName,
-                new CronSchedule("0/5 * * * * ? *"),
-                new SearchInput(logger, scriptService(), ClientProxy.of(client()),
-                        conditionRequest),
-                new ScriptCondition(logger, scriptService(), new Script("return true")),
-                new SearchTransform(logger, scriptService(), ClientProxy.of(client()), transformRequest), new Actions(actions), metadata, new Alert.Status(), new TimeValue(0)
-        );
-    }
-
 
     protected AlertsClient alertClient() {
         return internalTestCluster().getInstance(AlertsClient.class);

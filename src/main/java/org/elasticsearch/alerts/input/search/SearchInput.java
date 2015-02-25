@@ -13,6 +13,7 @@ import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.input.Input;
 import org.elasticsearch.alerts.input.InputException;
 import org.elasticsearch.alerts.support.AlertUtils;
+import org.elasticsearch.alerts.support.SearchRequestEquivalence;
 import org.elasticsearch.alerts.support.Variables;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
@@ -44,6 +45,7 @@ import static org.elasticsearch.alerts.support.AlertsDateUtils.formatDate;
 public class SearchInput extends Input<SearchInput.Result> {
 
     public static final String TYPE = "search";
+
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.COUNT;
 
     private final SearchRequest searchRequest;
@@ -86,12 +88,25 @@ public class SearchInput extends Input<SearchInput.Result> {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(Parser.REQUEST_FIELD.getPreferredName());
-        AlertUtils.writeSearchRequest(searchRequest, builder, params);
-        return builder.endObject();
+        return AlertUtils.writeSearchRequest(searchRequest, builder, params);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        SearchInput that = (SearchInput) o;
+
+        if (!SearchRequestEquivalence.INSTANCE.equivalent(searchRequest, that.searchRequest)) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return SearchRequestEquivalence.INSTANCE.hash(searchRequest);
+    }
 
     /**
      * Creates a new search request applying the scheduledFireTime and fireTime to the original request
@@ -136,11 +151,8 @@ public class SearchInput extends Input<SearchInput.Result> {
 
         @Override
         protected XContentBuilder toXContentBody(XContentBuilder builder, Params params) throws IOException {
-            if (request != null) {
-                builder.field(Parser.REQUEST_FIELD.getPreferredName());
-                AlertUtils.writeSearchRequest(request, builder, params);
-            }
-            return builder;
+            builder.field(Parser.REQUEST_FIELD.getPreferredName());
+            return AlertUtils.writeSearchRequest(request, builder, params);
         }
     }
 
@@ -164,27 +176,10 @@ public class SearchInput extends Input<SearchInput.Result> {
 
         @Override
         public SearchInput parse(XContentParser parser) throws IOException {
-            SearchRequest request = null;
-
-            String currentFieldName = null;
-            XContentParser.Token token;
-
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
-                    if (REQUEST_FIELD.match(currentFieldName)) {
-                        request = AlertUtils.readSearchRequest(parser, DEFAULT_SEARCH_TYPE);
-                    } else {
-                        throw new InputException("unable to parse [" + TYPE + "] input. unexpected field [" + currentFieldName + "]");
-                    }
-                }
-            }
-
+            SearchRequest request = AlertUtils.readSearchRequest(parser, DEFAULT_SEARCH_TYPE);
             if (request == null) {
-                throw new InputException("search request is missing or null for [" + TYPE + "] input");
+                throw new InputException("could not parse [search] input. search request is missing or null.");
             }
-
             return new SearchInput(logger, scriptService, client, request);
         }
 
@@ -220,6 +215,25 @@ public class SearchInput extends Input<SearchInput.Result> {
             }
 
             return new Result(TYPE, payload, request);
+        }
+    }
+
+    public static class SourceBuilder implements Input.SourceBuilder {
+
+        private final SearchRequest request;
+
+        public SourceBuilder(SearchRequest request) {
+            this.request = request;
+        }
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return AlertUtils.writeSearchRequest(request, builder, params);
         }
     }
 }

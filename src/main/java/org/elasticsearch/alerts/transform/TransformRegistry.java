@@ -32,7 +32,7 @@ public class TransformRegistry {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT && type != null) {
+            } else if (type != null) {
                 Transform.Parser transformParser = parsers.get(type);
                 if (transformParser == null) {
                     throw new AlertsSettingsException("unknown transform type [" + type + "]");

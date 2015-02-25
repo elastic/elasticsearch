@@ -24,9 +24,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -41,7 +39,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
         ScriptService.ScriptType type = randomFrom(ScriptService.ScriptType.values());
         Map<String, Object> params = Collections.emptyMap();
         Script script = new Script("_script", type, "_lang", params);
-        ScriptTransform transform = new ScriptTransform(script, service);
+        ScriptTransform transform = new ScriptTransform(service, script);
 
         DateTime now = new DateTime();
         ExecutionContext ctx = mock(ExecutionContext.class);

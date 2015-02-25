@@ -3,41 +3,37 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts;
+package org.elasticsearch.alerts.test.integration;
 
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.alerts.actions.Action;
-import org.elasticsearch.alerts.actions.Actions;
-import org.elasticsearch.alerts.actions.index.IndexAction;
+import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.actions.ActionBuilders;
 import org.elasticsearch.alerts.client.AlertsClient;
-import org.elasticsearch.alerts.condition.script.ScriptCondition;
 import org.elasticsearch.alerts.history.FiredAlert;
 import org.elasticsearch.alerts.history.HistoryStore;
-import org.elasticsearch.alerts.input.search.SearchInput;
-import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
-import org.elasticsearch.alerts.support.Script;
-import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
-import org.elasticsearch.alerts.transform.SearchTransform;
+import org.elasticsearch.alerts.test.AbstractAlertsIntegrationTests;
 import org.elasticsearch.alerts.transport.actions.ack.AckAlertResponse;
 import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.junit.Assert;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.alerts.client.AlertSourceBuilder.alertSourceBuilder;
+import static org.elasticsearch.alerts.condition.ConditionBuilders.scriptCondition;
+import static org.elasticsearch.alerts.input.InputBuilders.searchInput;
+import static org.elasticsearch.alerts.transform.TransformBuilders.searchTransform;
+import static org.elasticsearch.alerts.scheduler.schedule.Schedules.cron;
+import static org.elasticsearch.alerts.test.AlertsTestUtils.matchAllRequest;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.*;
@@ -45,7 +41,7 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
-public class AlertThrottleTests extends AbstractAlertingTests {
+public class AlertThrottleTests extends AbstractAlertsIntegrationTests {
 
     @Test
     public void testAckThrottle() throws Exception{
@@ -57,32 +53,22 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         assertTrue(dummyEventIndexResponse.isCreated());
         refresh();
 
+        PutAlertResponse putAlertResponse = alertsClient.preparePutAlert()
+                .alertName("throttled-alert")
+                .source(alertSourceBuilder()
+                        .schedule(cron("0/5 * * * * ? *"))
+                        .input(searchInput(matchAllRequest().indices("test-index")))
+                        .condition(scriptCondition("hits.total > 0"))
+                        .transform(searchTransform(matchAllRequest().indices("test-index")))
+                        .addAction(ActionBuilders.indexAction("action-index", "action-type"))
+                        .throttlePeriod(TimeValue.timeValueMillis(0)))
+                .get();
 
-        SearchRequest request = createConditionSearchRequest("test-index").source(searchSource().query(matchAllQuery()));
-
-        List<Action> actions = new ArrayList<>();
-
-        actions.add(new IndexAction(logger, ClientProxy.of(client()), "action-index", "action-type"));
-
-        Alert alert = new Alert(
-                "test-ack-throttle",
-                new CronSchedule("0/5 * * * * ? *"),
-                new SearchInput(logger, scriptService(), ClientProxy.of(client()),
-                        request),
-                new ScriptCondition(logger, scriptService(), new Script("hits.total > 0")),
-                new SearchTransform(logger, scriptService(), ClientProxy.of(client()), request), new Actions(actions), null, new Alert.Status(), new TimeValue(0)
-        );
-
-
-        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-        alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-
-        PutAlertResponse putAlertResponse = alertsClient.preparePutAlert().setAlertName("throttled-alert").setAlertSource(jsonBuilder.bytes()).get();
         assertTrue(putAlertResponse.indexResponse().isCreated());
 
         Thread.sleep(20000);
         AckAlertResponse ackResponse = alertsClient.prepareAckAlert("throttled-alert").get();
-        assertEquals(Alert.Status.AckStatus.State.ACKED, ackResponse.getStatus().ackStatus().state());
+        Assert.assertEquals(Alert.Status.AckStatus.State.ACKED, ackResponse.getStatus().ackStatus().state());
 
         refresh();
         SearchResponse searchResponse = client()
@@ -138,24 +124,16 @@ public class AlertThrottleTests extends AbstractAlertingTests {
         assertTrue(dummyEventIndexResponse.isCreated());
         refresh();
 
-        SearchRequest request = createConditionSearchRequest("test-index").source(searchSource().query(matchAllQuery()));
-
-        List<Action> actions = new ArrayList<>();
-
-        actions.add(new IndexAction(logger, ClientProxy.of(client()), "action-index", "action-type"));
-
-        Alert alert = new Alert(
-                "test-time-throttle",
-                new CronSchedule("0/5 * * * * ? *"),
-                new SearchInput(logger, scriptService(), ClientProxy.of(client()),  request),
-                new ScriptCondition(logger, scriptService(), new Script("hits.total > 0")),
-                new SearchTransform(logger, scriptService(), ClientProxy.of(client()), request),
-                new Actions(actions), null, new Alert.Status(), new TimeValue(10, TimeUnit.SECONDS));
-
-        XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
-        alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
-
-        PutAlertResponse putAlertResponse = alertsClient.preparePutAlert().setAlertName("throttled-alert").setAlertSource(jsonBuilder.bytes()).get();
+        PutAlertResponse putAlertResponse = alertsClient.preparePutAlert()
+                .alertName("throttled-alert")
+                .source(alertSourceBuilder()
+                        .schedule(cron("0/5 * * * * ? *"))
+                        .input(searchInput(matchAllRequest().indices("test-index")))
+                        .condition(scriptCondition("hits.total > 0"))
+                        .transform(searchTransform(matchAllRequest().indices("test-index")))
+                        .addAction(ActionBuilders.indexAction("action-index", "action-type"))
+                        .throttlePeriod(TimeValue.timeValueSeconds(10)))
+                .get();
         assertTrue(putAlertResponse.indexResponse().isCreated());
 
         forceFullSleepTime(new TimeValue(5, TimeUnit.SECONDS));

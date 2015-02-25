@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -23,6 +24,10 @@ public class ScheduleRegistry {
     @Inject
     public ScheduleRegistry(Map<String, Schedule.Parser> parsers) {
         this.parsers = ImmutableMap.copyOf(parsers);
+    }
+
+    public Set<String> types() {
+        return parsers.keySet();
     }
 
     public Schedule parse(XContentParser parser) throws IOException {

@@ -23,6 +23,10 @@ public class Actions implements Iterable<Action>, ToXContent {
         this.actions = actions;
     }
 
+    public int count() {
+        return actions.size();
+    }
+
     @Override
     public Iterator<Action> iterator() {
         return actions.iterator();
@@ -38,4 +42,20 @@ public class Actions implements Iterable<Action>, ToXContent {
         return builder;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Actions actions1 = (Actions) o;
+
+        if (!actions.equals(actions1.actions)) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return actions.hashCode();
+    }
 }

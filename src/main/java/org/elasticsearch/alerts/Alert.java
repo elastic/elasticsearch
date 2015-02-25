@@ -7,11 +7,13 @@ package org.elasticsearch.alerts;
 
 import org.elasticsearch.alerts.actions.ActionRegistry;
 import org.elasticsearch.alerts.actions.Actions;
-import org.elasticsearch.alerts.scheduler.Scheduler;
 import org.elasticsearch.alerts.condition.Condition;
 import org.elasticsearch.alerts.condition.ConditionRegistry;
+import org.elasticsearch.alerts.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.alerts.input.Input;
 import org.elasticsearch.alerts.input.InputRegistry;
+import org.elasticsearch.alerts.input.NoneInput;
+import org.elasticsearch.alerts.scheduler.Scheduler;
 import org.elasticsearch.alerts.scheduler.schedule.Schedule;
 import org.elasticsearch.alerts.scheduler.schedule.ScheduleRegistry;
 import org.elasticsearch.alerts.throttle.AlertThrottler;
@@ -27,6 +29,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -57,7 +60,7 @@ public class Alert implements Scheduler.Job, ToXContent {
     @Nullable
     private final Transform transform;
 
-    public Alert(String name, Schedule schedule, Input input, Condition condition, Transform transform, Actions actions, Map<String, Object> metadata, Status status, TimeValue throttlePeriod) {
+    public Alert(String name, Schedule schedule, Input input, Condition condition, @Nullable Transform transform, Actions actions, @Nullable Map<String, Object> metadata, @Nullable TimeValue throttlePeriod, @Nullable Status status) {
         this.name = name;
         this.schedule = schedule;
         this.input = input;
@@ -67,7 +70,6 @@ public class Alert implements Scheduler.Job, ToXContent {
         this.throttlePeriod = throttlePeriod;
         this.metadata = metadata;
         this.transform = transform != null ? transform : Transform.NOOP;
-
         throttler = new AlertThrottler(throttlePeriod);
     }
 
@@ -174,6 +176,9 @@ public class Alert implements Scheduler.Job, ToXContent {
         private final ActionRegistry actionRegistry;
         private final InputRegistry inputRegistry;
 
+        private final Input defaultInput;
+        private final Condition defaultCondition;
+
         @Inject
         public Parser(Settings settings, ConditionRegistry conditionRegistry, ScheduleRegistry scheduleRegistry,
                       TransformRegistry transformRegistry, ActionRegistry actionRegistry,
@@ -185,6 +190,9 @@ public class Alert implements Scheduler.Job, ToXContent {
             this.transformRegistry = transformRegistry;
             this.actionRegistry = actionRegistry;
             this.inputRegistry = inputRegistry;
+
+            this.defaultInput = new NoneInput(logger);
+            this.defaultCondition = new AlwaysTrueCondition(logger);
         }
 
         public Alert parse(String name, boolean includeStatus, BytesReference source) {
@@ -200,8 +208,8 @@ public class Alert implements Scheduler.Job, ToXContent {
 
         public Alert parse(String name, boolean includeStatus, XContentParser parser) throws IOException {
             Schedule schedule = null;
-            Input input = null;
-            Condition condition = null;
+            Input input = defaultInput;
+            Condition condition = defaultCondition;
             Actions actions = null;
             Transform transform = null;
             Map<String, Object> metatdata = null;
@@ -244,30 +252,24 @@ public class Alert implements Scheduler.Job, ToXContent {
             if (schedule == null) {
                 throw new AlertsSettingsException("could not parse alert [" + name + "]. missing alert schedule");
             }
-            if (input == null) {
-                throw new AlertsSettingsException("could not parse alert [" + name + "]. missing alert input");
-            }
-            if (condition == null) {
-                throw new AlertsSettingsException("could not parse alert [" + name + "]. missing alert condition");
-            }
             if (actions == null) {
                 throw new AlertsSettingsException("could not parse alert [" + name + "]. missing alert actions");
             }
 
-            return new Alert(name, schedule, input, condition, transform, actions, metatdata, status, throttlePeriod);
+            return new Alert(name, schedule, input, condition, transform, actions, metatdata, throttlePeriod, status);
         }
 
     }
 
     public static class Status implements ToXContent, Streamable {
 
-        public static final ParseField TIMESTAMP_FIELD = new ParseField("last_throttled");
         public static final ParseField LAST_CHECKED_FIELD = new ParseField("last_checked");
         public static final ParseField LAST_MET_CONDITION_FIELD = new ParseField("last_met_condition");
         public static final ParseField LAST_THROTTLED_FIELD = new ParseField("last_throttled");
         public static final ParseField LAST_EXECUTED_FIELD = new ParseField("last_executed");
         public static final ParseField ACK_FIELD = new ParseField("ack");
         public static final ParseField STATE_FIELD = new ParseField("state");
+        public static final ParseField TIMESTAMP_FIELD = new ParseField("timestamp");
         public static final ParseField REASON_FIELD = new ParseField("reason");
 
         private transient long version;
@@ -333,6 +335,38 @@ public class Alert implements Scheduler.Job, ToXContent {
 
         public AckStatus ackStatus() {
             return ackStatus;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            Status status = (Status) o;
+
+            if (version != status.version) return false;
+            if (!ackStatus.equals(status.ackStatus)) return false;
+            if (lastChecked != null ? !lastChecked.equals(status.lastChecked) : status.lastChecked != null)
+                return false;
+            if (lastExecuted != null ? !lastExecuted.equals(status.lastExecuted) : status.lastExecuted != null)
+                return false;
+            if (lastMetCondition != null ? !lastMetCondition.equals(status.lastMetCondition) : status.lastMetCondition != null)
+                return false;
+            if (lastThrottle != null ? !lastThrottle.equals(status.lastThrottle) : status.lastThrottle != null)
+                return false;
+
+            return true;
+        }
+
+        @Override
+        public int hashCode() {
+            int result = (int) (version ^ (version >>> 32));
+            result = 31 * result + (lastChecked != null ? lastChecked.hashCode() : 0);
+            result = 31 * result + (lastMetCondition != null ? lastMetCondition.hashCode() : 0);
+            result = 31 * result + (lastThrottle != null ? lastThrottle.hashCode() : 0);
+            result = 31 * result + (lastExecuted != null ? lastExecuted.hashCode() : 0);
+            result = 31 * result + ackStatus.hashCode();
+            return result;
         }
 
         /**
@@ -534,7 +568,7 @@ public class Alert implements Scheduler.Job, ToXContent {
             private final DateTime timestamp;
 
             public AckStatus() {
-                this(State.AWAITS_EXECUTION, new DateTime());
+                this(State.AWAITS_EXECUTION, new DateTime(DateTimeZone.UTC));
             }
 
             public AckStatus(State state, DateTime timestamp) {
@@ -550,6 +584,25 @@ public class Alert implements Scheduler.Job, ToXContent {
                 return timestamp;
             }
 
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+
+                AckStatus ackStatus = (AckStatus) o;
+
+                if (state != ackStatus.state) return false;
+                if (!timestamp.equals(ackStatus.timestamp)) return false;
+
+                return true;
+            }
+
+            @Override
+            public int hashCode() {
+                int result = state.hashCode();
+                result = 31 * result + timestamp.hashCode();
+                return result;
+            }
         }
 
         public static class Throttle {

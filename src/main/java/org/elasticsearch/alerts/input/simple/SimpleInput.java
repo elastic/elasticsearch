@@ -13,10 +13,14 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * This class just defines a simple xcontent map as an input
@@ -24,6 +28,7 @@ import java.io.IOException;
 public class SimpleInput extends Input<SimpleInput.Result> {
 
     public static final String TYPE = "simple";
+
     private final Payload payload;
 
     public SimpleInput(ESLogger logger, Payload payload) {
@@ -46,6 +51,23 @@ public class SimpleInput extends Input<SimpleInput.Result> {
         builder.startObject();
         builder.field(Input.Result.PAYLOAD_FIELD.getPreferredName(), payload);
         return builder.endObject();
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(payload);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        final SimpleInput other = (SimpleInput) obj;
+        return Objects.equals(this.payload.data(), other.payload.data());
     }
 
     public static class Result extends Input.Result {
@@ -120,6 +142,31 @@ public class SimpleInput extends Input<SimpleInput.Result> {
             }
 
             return new Result(TYPE, payload);
+        }
+    }
+
+    public static class SourceBuilder implements Input.SourceBuilder {
+
+        private Map<String, Object> data;
+
+        public SourceBuilder(Map<String, Object> data) {
+            this.data = data;
+        }
+
+        public Input.SourceBuilder put(String key, Object value) {
+            data.put(key, value);
+            return this;
+        }
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.map(data);
+
         }
     }
 }

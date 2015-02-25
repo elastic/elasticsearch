@@ -233,7 +233,32 @@ public class IndexAction extends Action<IndexAction.Result> {
             }
             return builder;
         }
+    }
 
+    public static class SourceBuilder implements Action.SourceBuilder {
+
+        private final String index;
+        private final String type;
+
+        public SourceBuilder(String index, String type) {
+            this.index = index;
+            this.type = type;
+        }
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject()
+                    .field(Parser.INDEX_FIELD.getPreferredName(), index)
+                    .field(Parser.TYPE_FIELD.getPreferredName(), type)
+                    .endObject();
+        }
     }
 
 }
+
+

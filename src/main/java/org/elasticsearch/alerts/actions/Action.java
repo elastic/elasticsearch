@@ -48,7 +48,7 @@ public abstract class Action<R extends Action.Result> implements ToXContent {
     /**
      * Parses xcontent to a concrete action of the same type.
      */
-    protected static interface Parser<R extends Result, T extends Action<R>> {
+    public static interface Parser<R extends Result, T extends Action<R>> {
 
         /**
          * @return  The type of the action
@@ -92,5 +92,12 @@ public abstract class Action<R extends Action.Result> implements ToXContent {
         }
 
         protected abstract XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException;
+
+    }
+
+    public static interface SourceBuilder extends ToXContent {
+
+        String type();
+
     }
 }

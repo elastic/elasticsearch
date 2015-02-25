@@ -75,4 +75,10 @@ public abstract class Condition<R extends Condition.Result> implements ToXConten
         public boolean met() { return met; }
 
     }
+
+    public static interface SourceBuilder extends ToXContent {
+
+        public String type();
+
+    }
 }

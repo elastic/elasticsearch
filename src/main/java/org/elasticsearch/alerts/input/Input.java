@@ -88,4 +88,10 @@ public abstract class Input<R extends Input.Result> implements ToXContent {
 
         protected abstract XContentBuilder toXContentBody(XContentBuilder builder, Params params) throws IOException;
     }
+
+    public static interface SourceBuilder extends ToXContent {
+
+        String type();
+
+    }
 }

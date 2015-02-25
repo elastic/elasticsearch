@@ -18,7 +18,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  */
-public class TestAlwaysTrueCondition extends ElasticsearchTestCase {
+public class AlwaysTrueConditionTests extends ElasticsearchTestCase {
 
     @Test
     public void testExecute() throws Exception {

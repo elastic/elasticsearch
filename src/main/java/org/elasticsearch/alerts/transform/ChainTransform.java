@@ -72,7 +72,11 @@ public class ChainTransform extends Transform {
 
         @Override
         public void init(Injector injector) {
-            this.registry = injector.getInstance(TransformRegistry.class);
+            init(injector.getInstance(TransformRegistry.class));
+        }
+
+        public void init(TransformRegistry registry) {
+            this.registry = registry;
         }
 
         @Override
@@ -106,8 +110,36 @@ public class ChainTransform extends Transform {
             }
             return new ChainTransform(builder.build());
         }
-
     }
 
+    public static class SourceBuilder implements Transform.SourceBuilder {
+
+        private final ImmutableList.Builder<Transform.SourceBuilder> builders = ImmutableList.builder();
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        public SourceBuilder(Transform.SourceBuilder... builders) {
+            this.builders.add(builders);
+        }
+
+        public SourceBuilder add(Transform.SourceBuilder builder) {
+            builders.add(builder);
+            return this;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startArray();
+            for (Transform.SourceBuilder transBuilder : builders.build()) {
+                builder.startObject()
+                        .field(TYPE, transBuilder)
+                        .endObject();
+            }
+            return builder.endArray();
+        }
+    }
 
 }

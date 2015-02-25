@@ -48,6 +48,7 @@ public class SearchTransform extends Transform {
     protected final ESLogger logger;
     protected final ScriptServiceProxy scriptService;
     protected final ClientProxy client;
+
     protected final SearchRequest request;
 
     public SearchTransform(ESLogger logger, ScriptServiceProxy scriptService, ClientProxy client, SearchRequest request) {
@@ -71,8 +72,7 @@ public class SearchTransform extends Transform {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-        AlertUtils.writeSearchRequest(request, builder, params);
-        return builder;
+        return AlertUtils.writeSearchRequest(request, builder, params);
     }
 
     public SearchRequest createRequest(SearchRequest requestPrototype, ExecutionContext ctx, Payload payload) throws IOException {
@@ -157,6 +157,25 @@ public class SearchTransform extends Transform {
         public SearchTransform parse(XContentParser parser) throws IOException {
             SearchRequest request = AlertUtils.readSearchRequest(parser, DEFAULT_SEARCH_TYPE);
             return new SearchTransform(logger, scriptService, client, request);
+        }
+    }
+
+    public static class SourceBuilder implements Transform.SourceBuilder {
+
+        private final SearchRequest request;
+
+        public SourceBuilder(SearchRequest request) {
+            this.request = request;
+        }
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return AlertUtils.writeSearchRequest(request, builder, params);
         }
     }
 

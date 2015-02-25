@@ -358,6 +358,68 @@ public class EmailAction extends Action<EmailAction.Result> {
         }
     }
 
+    public static class SourceBuilder implements Action.SourceBuilder {
 
+        private Email.Address from;
+        private Email.AddressList replyTo;
+        private Email.AddressList to;
+        private Email.AddressList cc;
+        private Email.AddressList bcc;
+        private Authentication auth = null;
+        private Profile profile = null;
+        private String account = null;
+        private Template subject;
+        private Template textBody;
+        private Template htmlBody;
+        private Boolean attachPayload;
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (from != null) {
+                builder.field(Email.FROM_FIELD.getPreferredName(), from);
+            }
+            if (replyTo != null && replyTo.size() != 0) {
+                builder.field(Email.REPLY_TO_FIELD.getPreferredName(), (ToXContent) replyTo);
+            }
+            if (to != null && to.size() != 0) {
+                builder.field(Email.TO_FIELD.getPreferredName(), (ToXContent) to);
+            }
+            if (cc != null && cc.size() != 0) {
+                builder.field(Email.CC_FIELD.getPreferredName(), (ToXContent) cc);
+            }
+            if (bcc != null && bcc.size() != 0) {
+                builder.field(Email.BCC_FIELD.getPreferredName(), (ToXContent) bcc);
+            }
+            if (auth != null) {
+                builder.field(Parser.USER_FIELD.getPreferredName(), auth.user());
+                builder.field(Parser.PASSWORD_FIELD.getPreferredName(), auth.password());
+            }
+            if (profile != null) {
+                builder.field(Parser.PROFILE_FIELD.getPreferredName(), profile);
+            }
+            if (account != null) {
+                builder.field(Parser.ACCOUNT_FIELD.getPreferredName(), account);
+            }
+            if (subject != null) {
+                builder.field(Email.SUBJECT_FIELD.getPreferredName(), subject);
+            }
+            if (textBody != null) {
+                builder.field(Email.TEXT_BODY_FIELD.getPreferredName(), textBody);
+            }
+            if (htmlBody != null) {
+                builder.field(Email.HTML_BODY_FIELD.getPreferredName(), htmlBody);
+            }
+            if (attachPayload != null) {
+                builder.field(Parser.ATTACH_PAYLOAD_FIELD.getPreferredName(), attachPayload);
+            }
+            return builder.endObject();
+        }
+    }
 
 }

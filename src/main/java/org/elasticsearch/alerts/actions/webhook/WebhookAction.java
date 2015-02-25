@@ -11,6 +11,7 @@ import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.ActionException;
 import org.elasticsearch.alerts.actions.ActionSettingsException;
+import org.elasticsearch.alerts.support.Script;
 import org.elasticsearch.alerts.support.template.Template;
 import org.elasticsearch.alerts.support.template.XContentTemplate;
 import org.elasticsearch.common.Nullable;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Locale;
 
 /**
  */
@@ -75,13 +77,12 @@ public class WebhookAction extends Action<WebhookAction.Result> {
             logger.error("failed to connect to [{}] for alert [{}]", ioe, urlText, ctx.alert().name());
             return new Result.Failure("failed to send http request. " + ioe.getMessage());
         }
-
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Parser.METHOD_FIELD.getPreferredName(), method.getName());
+        builder.field(Parser.METHOD_FIELD.getPreferredName(), method.getName().toLowerCase(Locale.ROOT));
         builder.field(Parser.URL_FIELD.getPreferredName(), url);
         if (body != null) {
             builder.field(Parser.BODY_FIELD.getPreferredName(), body);
@@ -96,7 +97,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
         WebhookAction that = (WebhookAction) o;
 
-        if (!body.equals(that.body)) return false;
+        if (body != null ? !body.equals(that.body) : that.body != null) return false;
         if (!method.equals(that.method)) return false;
         if (!url.equals(that.url)) return false;
 
@@ -107,7 +108,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
     public int hashCode() {
         int result = method.hashCode();
         result = 31 * result + url.hashCode();
-        result = 31 * result + body.hashCode();
+        result = 31 * result + (body != null ? body.hashCode() : 0);
         return result;
     }
 
@@ -205,7 +206,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
                     currentFieldName = parser.currentName();
                 } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT) && currentFieldName != null ) {
                     if (METHOD_FIELD.match(currentFieldName)) {
-                        method = HttpMethod.valueOf(parser.text());
+                        method = HttpMethod.valueOf(parser.text().toUpperCase(Locale.ROOT));
                         if (method != HttpMethod.POST && method != HttpMethod.GET && method != HttpMethod.PUT) {
                             throw new ActionSettingsException("could not parse webhook action. unsupported http method [" + method.getName() + "]");
                         }
@@ -279,4 +280,46 @@ public class WebhookAction extends Action<WebhookAction.Result> {
         }
     }
 
+    public static class SourceBuilder implements Action.SourceBuilder {
+
+        private final Script url;
+        private HttpMethod method;
+        private Script body = null;
+
+        public SourceBuilder(String url) {
+            this(new Script(url));
+        }
+
+        public SourceBuilder(Script url) {
+            this.url = url;
+        }
+
+        public SourceBuilder method(HttpMethod method) {
+            this.method = method;
+            return this;
+        }
+
+        public SourceBuilder body(Script body) {
+            this.body = body;
+            return this;
+        }
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(Parser.URL_FIELD.getPreferredName(), url);
+            if (method != null) {
+                builder.field(Parser.METHOD_FIELD.getPreferredName(), method.getName().toLowerCase(Locale.ROOT));
+            }
+            if (body != null) {
+                builder.field(Parser.BODY_FIELD.getPreferredName(), body);
+            }
+            return builder.endObject();
+        }
+    }
 }

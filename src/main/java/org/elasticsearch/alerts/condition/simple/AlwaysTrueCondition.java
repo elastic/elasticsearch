@@ -22,6 +22,7 @@ import java.io.IOException;
 public class AlwaysTrueCondition extends Condition<Condition.Result> {
 
     public static final String TYPE = "always_true";
+
     public static final Result RESULT = new Result(TYPE, true) {
 
         @Override
@@ -49,6 +50,10 @@ public class AlwaysTrueCondition extends Condition<Condition.Result> {
         return builder.startObject().endObject();
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        return obj instanceof AlwaysTrueCondition;
+    }
 
     public static class Parser extends AbstractComponent implements Condition.Parser<Result, AlwaysTrueCondition> {
 
@@ -87,4 +92,21 @@ public class AlwaysTrueCondition extends Condition<Condition.Result> {
         }
     }
 
+    public static class SourceBuilder implements Condition.SourceBuilder {
+
+        public static final SourceBuilder INSTANCE = new SourceBuilder();
+
+        private SourceBuilder() {
+        }
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return builder.startObject().endObject();
+        }
+    }
 }

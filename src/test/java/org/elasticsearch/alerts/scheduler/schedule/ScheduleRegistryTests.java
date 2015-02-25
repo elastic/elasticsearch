@@ -97,7 +97,6 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
                 .field(DailySchedule.TYPE, daily)
                 .endObject();
         BytesReference bytes = builder.bytes();
-        System.out.println(bytes.toUtf8());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
         Schedule schedule = registry.parse(parser);
@@ -114,7 +113,6 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
                 .field(WeeklySchedule.TYPE, weekly)
                 .endObject();
         BytesReference bytes = builder.bytes();
-        System.out.println(bytes.toUtf8());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
         Schedule schedule = registry.parse(parser);
@@ -131,7 +129,6 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
                 .field(MonthlySchedule.TYPE, monthly)
                 .endObject();
         BytesReference bytes = builder.bytes();
-        System.out.println(bytes.toUtf8());
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
         Schedule schedule = registry.parse(parser);

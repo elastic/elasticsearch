@@ -13,6 +13,8 @@ import org.elasticsearch.alerts.condition.simple.AlwaysFalseCondition;
 import org.elasticsearch.alerts.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.alerts.input.Input;
 import org.elasticsearch.alerts.input.simple.SimpleInput;
+import org.elasticsearch.alerts.test.AbstractAlertsIntegrationTests;
+import org.elasticsearch.alerts.test.AlertsTestUtils;
 import org.elasticsearch.alerts.throttle.Throttler;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -22,12 +24,12 @@ import org.junit.Test;
 
 /**
  */
-public class FiredAlertTest extends AbstractAlertingTests {
+public class FiredAlertTests extends AbstractAlertsIntegrationTests {
 
     @Test
     public void testParser() throws Exception {
 
-        Alert alert = createTestAlert("fired_test");
+        Alert alert = AlertsTestUtils.createTestAlert("fired_test", scriptService(), httpClient(), noopEmailService(), logger);
         FiredAlert firedAlert = new FiredAlert(alert, new DateTime(), new DateTime());
         XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
         firedAlert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
@@ -43,7 +45,7 @@ public class FiredAlertTest extends AbstractAlertingTests {
 
     @Test
     public void testParser_WithSealedFiredAlert() throws Exception {
-        Alert alert = createTestAlert("fired_test");
+        Alert alert = AlertsTestUtils.createTestAlert("fired_test", scriptService(), httpClient(), noopEmailService(), logger);
         FiredAlert firedAlert = new FiredAlert(alert, new DateTime(), new DateTime());
         ExecutionContext ctx = new ExecutionContext(firedAlert.id(), alert, new DateTime(), new DateTime());
         ctx.onActionResult(new EmailAction.Result.Failure("failed to send because blah"));
@@ -65,7 +67,7 @@ public class FiredAlertTest extends AbstractAlertingTests {
 
     @Test
     public void testParser_WithSealedFiredAlert_WithScriptSearchCondition() throws Exception {
-        Alert alert = createTestAlert("fired_test");
+        Alert alert = AlertsTestUtils.createTestAlert("fired_test", scriptService(), httpClient(), noopEmailService(), logger);
         FiredAlert firedAlert = new FiredAlert(alert, new DateTime(), new DateTime());
         ExecutionContext ctx = new ExecutionContext(firedAlert.id(), alert, new DateTime(), new DateTime());
         ctx.onActionResult(new EmailAction.Result.Failure("failed to send because blah"));

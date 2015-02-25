@@ -91,7 +91,7 @@ public class Script implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.startObject()
                 .field(SCRIPT_FIELD.getPreferredName(), script)
-                .field(TYPE_FIELD.getPreferredName(), type)
+                .field(TYPE_FIELD.getPreferredName(), type.name().toLowerCase(Locale.ROOT))
                 .field(LANG_FIELD.getPreferredName(), lang)
                 .field(PARAMS_FIELD.getPreferredName(), this.params)
                 .endObject();

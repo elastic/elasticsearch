@@ -19,6 +19,8 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -70,27 +72,21 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testParser_Valid() throws Exception {
-        SearchSourceBuilder searchSourceBuilder = searchSource().query(
-                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{" + Variables.SCHEDULED_FIRE_TIME + "}}||-30s").to("{{" + Variables.SCHEDULED_FIRE_TIME + "}}"))
-        );
-        SearchRequest request = client()
-                .prepareSearch()
+        SearchRequest request = client().prepareSearch()
                 .setSearchType(SearchInput.DEFAULT_SEARCH_TYPE)
                 .request()
-                .source(searchSourceBuilder);
+                .source(searchSource()
+                        .query(filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{" + Variables.SCHEDULED_FIRE_TIME + "}}||-30s").to("{{" + Variables.SCHEDULED_FIRE_TIME + "}}"))));
 
-        XContentBuilder jsonBuilder = jsonBuilder();
+        XContentBuilder builder = AlertUtils.writeSearchRequest(request, jsonBuilder(), ToXContent.EMPTY_PARAMS);
+        XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        parser.nextToken();
 
-        jsonBuilder.startObject();
-        jsonBuilder.field(SearchInput.Parser.REQUEST_FIELD.getPreferredName());
-        AlertUtils.writeSearchRequest(request, jsonBuilder, ToXContent.EMPTY_PARAMS);
-        jsonBuilder.endObject();
-
-        Input.Parser searchInputParser = new SearchInput.Parser(ImmutableSettings.settingsBuilder().build(),
+        Input.Parser searchInputParser = new SearchInput.Parser(ImmutableSettings.EMPTY,
                 ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
                 ClientProxy.of(client()));
 
-        Input searchInput = searchInputParser.parse(XContentFactory.xContent(jsonBuilder.bytes()).createParser(jsonBuilder.bytes()));
+        Input searchInput = searchInputParser.parse(parser);
         assertEquals(SearchInput.TYPE, searchInput.type());
     }
 

@@ -14,10 +14,10 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
-public class ActionHistoryIndexNameTest extends ElasticsearchTestCase {
+public class HistoryStoreTests extends ElasticsearchTestCase {
 
     @Test
-    public void testActionHistoryNameTest() {
+    public void testIndexNameGeneration() {
         assertThat(HistoryStore.getAlertHistoryIndexNameForTime(new DateTime(0, DateTimeZone.UTC)), equalTo(".alert_history_1970-01-01"));
         assertThat(HistoryStore.getAlertHistoryIndexNameForTime(new DateTime(100000000000L, DateTimeZone.UTC)), equalTo(".alert_history_1973-03-03"));
         assertThat(HistoryStore.getAlertHistoryIndexNameForTime(new DateTime(1416582852000L, DateTimeZone.UTC)), equalTo(".alert_history_2014-11-21"));

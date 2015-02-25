@@ -40,7 +40,7 @@ public class RestPutAlertAction extends BaseRestHandler {
     protected void handleRequest(RestRequest request, RestChannel channel, Client client) throws Exception {
         PutAlertRequest putAlertRequest = new PutAlertRequest();
         putAlertRequest.setAlertName(request.param("name"));
-        putAlertRequest.setAlertSource(request.content(), request.contentUnsafe());
+        putAlertRequest.source(request.content(), request.contentUnsafe());
         alertsClient.putAlert(putAlertRequest, new RestBuilderListener<PutAlertResponse>(channel) {
             @Override
             public RestResponse buildResponse(PutAlertResponse response, XContentBuilder builder) throws Exception {

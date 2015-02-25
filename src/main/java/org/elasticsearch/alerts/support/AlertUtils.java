@@ -155,13 +155,19 @@ public final class AlertUtils {
     /**
      * Writes the searchRequest to the specified builder.
      */
-    public static void writeSearchRequest(SearchRequest searchRequest, XContentBuilder builder, ToXContent.Params params) throws IOException {
+    public static XContentBuilder writeSearchRequest(SearchRequest searchRequest, XContentBuilder builder, ToXContent.Params params) throws IOException {
         if (searchRequest == null) {
             builder.nullValue();
-            return;
+            return builder;
         }
 
         builder.startObject();
+        if (searchRequest.searchType() != null) {
+            builder.field("search_type", searchRequest.searchType().toString().toLowerCase(Locale.ENGLISH));
+        }
+        if (searchRequest.indices() != null) {
+            builder.array("indices", searchRequest.indices());
+        }
         if (Strings.hasLength(searchRequest.source())) {
             XContentHelper.writeRawField("body", searchRequest.source(), builder, params);
         }
@@ -171,11 +177,6 @@ public final class AlertUtils {
         if (searchRequest.templateType() != null) {
             builder.field("template_type", searchRequest.templateType().name().toLowerCase(Locale.ROOT));
         }
-        builder.startArray("indices");
-        for (String index : searchRequest.indices()) {
-            builder.value(index);
-        }
-        builder.endArray();
         if (searchRequest.indicesOptions() != DEFAULT_INDICES_OPTIONS) {
             IndicesOptions options = searchRequest.indicesOptions();
             builder.startObject("indices_options");
@@ -194,10 +195,7 @@ public final class AlertUtils {
             builder.field("allow_no_indices", options.allowNoIndices());
             builder.endObject();
         }
-        if (searchRequest.searchType() != null) {
-            builder.field("search_type", searchRequest.searchType().toString().toLowerCase(Locale.ENGLISH));
-        }
-        builder.endObject();
+        return builder.endObject();
     }
 
 }

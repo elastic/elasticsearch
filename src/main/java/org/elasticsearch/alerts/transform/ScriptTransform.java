@@ -26,12 +26,12 @@ public class ScriptTransform extends Transform {
 
     public static final String TYPE = "script";
 
-    private final Script script;
     private final ScriptServiceProxy scriptService;
+    private final Script script;
 
-    public ScriptTransform(Script script, ScriptServiceProxy scriptService) {
-        this.script = script;
+    public ScriptTransform(ScriptServiceProxy scriptService, Script script) {
         this.scriptService = scriptService;
+        this.script = script;
     }
 
     @Override
@@ -83,7 +83,30 @@ public class ScriptTransform extends Transform {
             } catch (Script.ParseException pe) {
                 throw new AlertsSettingsException("could not parse [script] transform", pe);
             }
-            return new ScriptTransform(script, scriptService);
+            return new ScriptTransform(scriptService, script);
+        }
+    }
+
+    public static class SourceBuilder implements Transform.SourceBuilder {
+
+        private final Script script;
+
+        public SourceBuilder(String script) {
+            this(new Script(script));
+        }
+
+        public SourceBuilder(Script script) {
+            this.script = script;
+        }
+
+        @Override
+        public String type() {
+            return TYPE;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            return script.toXContent(builder, params);
         }
     }
 }

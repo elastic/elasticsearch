@@ -16,6 +16,7 @@ import org.elasticsearch.alerts.support.TemplateUtils;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
@@ -74,8 +75,9 @@ public class HistoryStore extends AbstractComponent {
     public void update(FiredAlert firedAlert) throws HistoryException {
         logger.debug("updating fired alert [{}]", firedAlert);
         try {
+            BytesReference bytes = XContentFactory.jsonBuilder().value(firedAlert).bytes();
             IndexResponse response = client.prepareIndex(getAlertHistoryIndexNameForTime(firedAlert.scheduledTime()), ALERT_HISTORY_TYPE, firedAlert.id())
-                    .setSource(XContentFactory.jsonBuilder().value(firedAlert))
+                    .setSource(bytes)
                     .setVersion(firedAlert.version())
                     .get();
             firedAlert.version(response.getVersion());

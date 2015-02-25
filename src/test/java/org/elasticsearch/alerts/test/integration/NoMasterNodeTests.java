@@ -3,10 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts;
+package org.elasticsearch.alerts.test.integration;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.alerts.AlertsService;
+import org.elasticsearch.alerts.test.AbstractAlertsIntegrationTests;
+import org.elasticsearch.alerts.test.AlertsTestUtils;
 import org.elasticsearch.alerts.transport.actions.delete.DeleteAlertResponse;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
 import org.elasticsearch.client.Client;
@@ -20,6 +23,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
@@ -28,14 +32,15 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.TEST;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
 /**
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 0)
-public class NoMasterNodeTests extends AbstractAlertingTests {
+@ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 0)
+public class NoMasterNodeTests extends AbstractAlertsIntegrationTests {
 
     private ClusterDiscoveryConfiguration.UnicastZen config;
 
@@ -60,10 +65,10 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
 
         // Have a sample document in the index, the alert is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
-        SearchRequest searchRequest = createConditionSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+        SearchRequest searchRequest = AlertsTestUtils.newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
         alertClient().preparePutAlert("my-first-alert")
-                .setAlertSource(alertSource)
+                .source(alertSource)
                 .get();
         assertAlertWithMinimumPerformedActionsCount("my-first-alert", 1);
 
@@ -88,7 +93,7 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
 
         // Add a new alert and wait for its condition to be met
         alertClient().preparePutAlert("my-second-alert")
-                .setAlertSource(alertSource)
+                .source(alertSource)
                 .get();
         assertAlertWithMinimumPerformedActionsCount("my-second-alert", 1);
     }
@@ -108,10 +113,10 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
         ensureAlertingStarted();
         for (int i = 1; i <= numberOfAlerts; i++) {
             String alertName = "alert" + i;
-            SearchRequest searchRequest = createConditionSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
+            SearchRequest searchRequest = AlertsTestUtils.newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
             BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "hits.total == 1");
             alertClient().preparePutAlert(alertName)
-                    .setAlertSource(alertSource)
+                    .source(alertSource)
                     .get();
         }
         ensureGreen();

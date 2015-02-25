@@ -319,6 +319,12 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         return pendingClusterTasks;
     }
 
+    @Override
+    public int numberOfPendingTasks() {
+        return updateTasksExecutor.getNumberOfPendingTasks();
+    }
+
+
     static abstract class TimedPrioritizedRunnable extends PrioritizedRunnable {
         private final long creationTime;
         protected final String source;

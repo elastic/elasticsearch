@@ -50,6 +50,12 @@ public class PrioritizedEsThreadPoolExecutor extends EsThreadPoolExecutor {
         return pending.toArray(new Pending[pending.size()]);
     }
 
+    public int getNumberOfPendingTasks() {
+        int size = current.size();
+        size += getQueue().size();
+        return size;
+    }
+
     private void addPending(List<Runnable> runnables, List<Pending> pending, boolean executing) {
         for (Runnable runnable : runnables) {
             if (runnable instanceof TieBreakingPrioritizedRunnable) {

@@ -79,7 +79,7 @@ public class RestHealthAction extends AbstractCatAction {
         t.addCell("relo", "alias:r,shards.relocating,shardsRelocating;text-align:right;desc:number of relocating nodes");
         t.addCell("init", "alias:i,shards.initializing,shardsInitializing;text-align:right;desc:number of initializing nodes");
         t.addCell("unassign", "alias:u,shards.unassigned,shardsUnassigned;text-align:right;desc:number of unassigned shards");
-        t.addCell("tasks", "alias:tsk,tasks,pendingTasks;text-align:right;desc:number of pending tasks");
+        t.addCell("pending_tasks", "alias:pt,pendingTasks;text-align:right;desc:number of pending tasks");
         t.endHeaders();
 
         return t;

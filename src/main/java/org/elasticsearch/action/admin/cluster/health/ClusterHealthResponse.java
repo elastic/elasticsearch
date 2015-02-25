@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -72,7 +73,9 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
     }
 
     public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState, int numberOfPendingTasks) {
-        assert numberOfPendingTasks >= 0 : "pending task should be non-negative. got [" + numberOfPendingTasks + "]";
+        if (numberOfPendingTasks < 0) {
+            throw new ElasticsearchIllegalArgumentException("pending task should be non-negative. got [" + numberOfPendingTasks + "]");
+        }
         this.clusterName = clusterName;
         this.numberOfPendingTasks = numberOfPendingTasks;
         RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());
@@ -207,9 +210,9 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         numberOfNodes = in.readVInt();
         numberOfDataNodes = in.readVInt();
         if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
-            numberOfPendingTasks = in.readVInt();
+            numberOfPendingTasks = in.readInt();
         } else {
-            numberOfPendingTasks = 0;
+            numberOfPendingTasks = -1;
         }
         status = ClusterHealthStatus.fromValue(in.readByte());
         int size = in.readVInt();
@@ -240,7 +243,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         out.writeVInt(numberOfNodes);
         out.writeVInt(numberOfDataNodes);
         if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
-            out.writeVInt(numberOfPendingTasks);
+            out.writeInt(numberOfPendingTasks);
         }
         out.writeByte(status.value());
         out.writeVInt(indices.size());

@@ -6,18 +6,18 @@
 
   - match:
       $body: |
-               /^  epoch      .+ \n
-                   timestamp  .+ \n
-                   cluster    .+ \n
-                   status     .+ \n
-                   node.total .+ \n
-                   node.data  .+ \n
-                   shards     .+ \n
-                   pri        .+ \n
-                   relo       .+ \n
-                   init       .+ \n
-                   unassign   .+ \n
-                   tasks      .+ \n
+               /^  epoch         .+ \n
+                   timestamp     .+ \n
+                   cluster       .+ \n
+                   status        .+ \n
+                   node.total    .+ \n
+                   node.data     .+ \n
+                   shards        .+ \n
+                   pri           .+ \n
+                   relo          .+ \n
+                   init          .+ \n
+                   unassign      .+ \n
+                   pending_tasks .+ \n
 
                $/
 
@@ -42,7 +42,7 @@
                 \d+            \s+ # relo
                 \d+            \s+ # init
                 \d+            \s+ # unassign
-                \d+            \s+ # tasks
+                \d+            \s+ # pending_tasks
                 \n
               )+
             $/

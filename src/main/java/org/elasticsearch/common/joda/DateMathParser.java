@@ -78,12 +78,14 @@ public class DateMathParser {
         if (mathString.isEmpty()) {
             return time;
         }
-
-        return parseMath(mathString, time, roundCeil);
+        return parseMath(mathString, time, roundCeil, timeZone);
     }
 
-    private long parseMath(String mathString, long time, boolean roundUp) throws ElasticsearchParseException {
-        MutableDateTime dateTime = new MutableDateTime(time, DateTimeZone.UTC);
+    private long parseMath(String mathString, long time, boolean roundUp, DateTimeZone timeZone) throws ElasticsearchParseException {
+        if (timeZone == null) {
+            timeZone = DateTimeZone.UTC;
+        }
+        MutableDateTime dateTime = new MutableDateTime(time, timeZone);
         for (int i = 0; i < mathString.length(); ) {
             char c = mathString.charAt(i++);
             final boolean round;

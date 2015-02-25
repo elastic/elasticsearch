@@ -71,8 +71,15 @@ grant {
   permission java.lang.RuntimePermission "getProtectionDomain";
 
   permission java.lang.RuntimePermission "loadLibrary.*";
-  permission java.lang.RuntimePermission "accessClassInPackage.*";
-  permission java.lang.RuntimePermission "defineClassInPackage.*";
+
+  // reflection hacks:
+  // needed for Striped64 (what is this doing), also enables unmap hack
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+  // needed for mock filesystems in tests (to capture implCloseChannel)
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.nio.ch";
+  // needed by percolation??? (what is going on here)
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
+
   permission java.lang.RuntimePermission "accessDeclaredMembers";
   permission java.lang.RuntimePermission "getStackTrace";
 

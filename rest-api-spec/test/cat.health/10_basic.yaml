@@ -26,7 +26,8 @@
 "Empty cluster":
 
   - do:
-      cat.health: {}
+      cat.health:
+        v: false
 
   - match:
       $body: |

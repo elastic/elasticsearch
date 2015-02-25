@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.transport;
 
-import com.sun.deploy.trace.Trace;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
@@ -432,7 +431,7 @@ public class MockTransportService extends TransportService {
         activeTracers.add(tracer);
     }
 
-    public boolean removeTracer(Trace tracer) {
+    public boolean removeTracer(Tracer tracer) {
         return activeTracers.remove(tracer);
     }
 

@@ -92,7 +92,7 @@ public class NoMasterNodeTests extends AbstractAlertingTests {
     }
 
     @Test
-    @TestLogging("alerts:TRACE")
+    @TestLogging("alerts:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
     public void testMultipleFailures() throws Exception {
         int numberOfFailures = scaledRandomIntBetween(2, 9);
         int numberOfAlerts = scaledRandomIntBetween(numberOfFailures, 12);

@@ -162,8 +162,8 @@ primary shards.
 Types can no longer be specified on fields within queries.  Instead, specify type restrictions in the search request.
 
 The following is an example query in 1.x over types `t1` and `t2`:
-`GET
-[source,sh]
+
+[source,json]
 ---------------
 curl -XGET 'localhost:9200/index/_search'
 {
@@ -180,7 +180,7 @@ curl -XGET 'localhost:9200/index/_search'
 
 In 2.0, the query should look like the following:
 
-[source,sh]
+[source,json]
 ---------------
 curl -XGET 'localhost:9200/index/t1,t2/_search'
 {
@@ -202,6 +202,8 @@ caused ambiguities in field lookups when the same name existed within multiple o
 The following example illustrates the difference between 1.x and 2.0.
 
 Given these mappings:
+
+[source,json]
 ---------------
 curl -XPUT 'localhost:9200/index'
 {
@@ -222,6 +224,8 @@ curl -XPUT 'localhost:9200/index'
 ---------------
 
 The following query was possible in 1.x:
+
+[source,json]
 ---------------
 curl -XGET 'localhost:9200/index/type/_search'
 {
@@ -232,6 +236,8 @@ curl -XGET 'localhost:9200/index/type/_search'
 ---------------
 
 In 2.0, the same query should now be:
+
+[source,json]
 ---------------
 curl -XGET 'localhost:9200/index/type/_search'
 {

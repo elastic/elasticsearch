@@ -105,7 +105,7 @@ public class AlertsStore extends AbstractComponent {
             started.set(true);
             callback.onSuccess(state);
         } else {
-            logger.warn("not all primary shards of the alerts index [{}] are started. scheduled to retry alert loading...", ALERT_INDEX);
+            logger.debug("not all primary shards of the alerts index [{}] are started. scheduled to retry alert loading...", ALERT_INDEX);
             retry(callback);
         }
     }

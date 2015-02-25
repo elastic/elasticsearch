@@ -85,6 +85,8 @@ public class ThreadPool extends AbstractComponent {
 
     private volatile ImmutableMap<String, ExecutorHolder> executors;
 
+    private volatile ImmutableMap<String, ExecutorHolder> customExecutors = ImmutableMap.of();
+
     private final ImmutableMap<String, Settings> defaultExecutorTypeSettings;
 
     private final Queue<ExecutorHolder> retiredExecutors = new ConcurrentLinkedQueue<>();
@@ -170,7 +172,7 @@ public class ThreadPool extends AbstractComponent {
 
     public ThreadPoolInfo info() {
         List<Info> infos = new ArrayList<>();
-        for (ExecutorHolder holder : executors.values()) {
+        for (ExecutorHolder holder : allExecutors().values()) {
             String name = holder.info.getName();
             // no need to have info on "same" thread pool
             if ("same".equals(name)) {
@@ -182,7 +184,7 @@ public class ThreadPool extends AbstractComponent {
     }
 
     public Info info(String name) {
-        ExecutorHolder holder = executors.get(name);
+        ExecutorHolder holder = allExecutors().get(name);
         if (holder == null) {
             return null;
         }
@@ -191,7 +193,7 @@ public class ThreadPool extends AbstractComponent {
 
     public ThreadPoolStats stats() {
         List<ThreadPoolStats.Stats> stats = new ArrayList<>();
-        for (ExecutorHolder holder : executors.values()) {
+        for (ExecutorHolder holder : allExecutors().values()) {
             String name = holder.info.getName();
             // no need to have info on "same" thread pool
             if ("same".equals(name)) {
@@ -225,7 +227,8 @@ public class ThreadPool extends AbstractComponent {
     }
 
     public Executor executor(String name) {
-        Executor executor = executors.get(name).executor();
+        // no push: should only non custom executors be accessable here? Should custum executors be accessed from whereever they are created?
+        Executor executor = allExecutors().get(name).executor();
         if (executor == null) {
             throw new ElasticsearchIllegalArgumentException("No executor found for [" + name + "]");
         }
@@ -251,7 +254,7 @@ public class ThreadPool extends AbstractComponent {
         estimatedTimeThread.running = false;
         estimatedTimeThread.interrupt();
         scheduler.shutdown();
-        for (ExecutorHolder executor : executors.values()) {
+        for (ExecutorHolder executor : allExecutors().values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
                 ((ThreadPoolExecutor) executor.executor()).shutdown();
             }
@@ -262,7 +265,7 @@ public class ThreadPool extends AbstractComponent {
         estimatedTimeThread.running = false;
         estimatedTimeThread.interrupt();
         scheduler.shutdownNow();
-        for (ExecutorHolder executor : executors.values()) {
+        for (ExecutorHolder executor : allExecutors().values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
                 ((ThreadPoolExecutor) executor.executor()).shutdownNow();
             }
@@ -274,7 +277,7 @@ public class ThreadPool extends AbstractComponent {
 
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         boolean result = scheduler.awaitTermination(timeout, unit);
-        for (ExecutorHolder executor : executors.values()) {
+        for (ExecutorHolder executor : allExecutors().values()) {
             if (executor.executor() instanceof ThreadPoolExecutor) {
                 result &= ((ThreadPoolExecutor) executor.executor()).awaitTermination(timeout, unit);
             }
@@ -452,6 +455,32 @@ public class ThreadPool extends AbstractComponent {
                 }
             }
         }
+    }
+
+    /**
+     * Adds an custom executor into the thread pool framework. It is up to the caller to provide a valid executor
+     * instance that is in a started state.
+     *
+     * This is useful in the case thread pools created by plugins that want their thread pools be included in the stats
+     * and info apis.
+     */
+    public void addCustomExecutor(Executor executor, Info info) {
+        if (executors.containsKey(info.getName())) {
+            throw new IllegalArgumentException("Can't add custom executor, because the name is already used i");
+        }
+        ExecutorHolder holder = new ExecutorHolder(executor, info);
+        customExecutors = newMapBuilder(customExecutors).put(holder.info.getName(), holder).immutableMap();
+    }
+
+    /**
+     * Removes an custom executor into the thread pool framework.
+     */
+    public void removeCustomExecutor(String name) {
+        customExecutors = newMapBuilder(customExecutors).remove(name).immutableMap();
+    }
+
+    private ImmutableMap<String, ExecutorHolder> allExecutors() {
+        return ImmutableMap.<String, ExecutorHolder>builder().putAll(executors).putAll(customExecutors).build();
     }
 
     /**

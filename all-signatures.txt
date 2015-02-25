@@ -1,3 +1,7 @@
 @defaultMessage Convert to URI
 java.net.URL#getPath()
 java.net.URL#getFile()
+
+@defaultMessage explicitly pass tableization parameter (use false if you do not know)
+dk.brics.automaton.RunAutomaton#<init>(dk.brics.automaton.Automaton)
+

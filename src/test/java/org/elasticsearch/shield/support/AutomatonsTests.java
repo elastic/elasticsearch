@@ -60,12 +60,12 @@ public class AutomatonsTests extends ElasticsearchTestCase {
     }
 
     private void assertMatch(Automaton automaton, String text) {
-        RunAutomaton runAutomaton = new RunAutomaton(automaton);
+        RunAutomaton runAutomaton = new RunAutomaton(automaton, false);
         assertThat(runAutomaton.run(text), is(true));
     }
 
     private void assertMismatch(Automaton automaton, String text) {
-        RunAutomaton runAutomaton = new RunAutomaton(automaton);
+        RunAutomaton runAutomaton = new RunAutomaton(automaton, false);
         assertThat(runAutomaton.run(text), is(false));
     }
 

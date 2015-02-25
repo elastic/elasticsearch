@@ -17,7 +17,7 @@ public class AutomatonPredicate implements Predicate<String> {
     private final RunAutomaton automaton;
 
     public AutomatonPredicate(Automaton automaton) {
-        this(new RunAutomaton(automaton));
+        this(new RunAutomaton(automaton, false));
     }
 
     public AutomatonPredicate(RunAutomaton automaton) {

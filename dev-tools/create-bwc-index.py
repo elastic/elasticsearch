@@ -213,6 +213,7 @@ def snapshot_index(client, cfg):
     }
   })
   client.snapshot.create(repository='test_repo', snapshot='test_1', wait_for_completion=True)
+  client.snapshot.delete_repository(repository='test_repo')
 
 def compress_index(version, tmp_dir, output_dir):
   compress(tmp_dir, output_dir, 'index-%s.zip' % version, 'data')

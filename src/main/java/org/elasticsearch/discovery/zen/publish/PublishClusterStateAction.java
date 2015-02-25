@@ -67,16 +67,14 @@ public class PublishClusterStateAction extends AbstractComponent {
     private final DiscoveryNodesProvider nodesProvider;
     private final NewClusterStateListener listener;
     private final DiscoverySettings discoverySettings;
-    private final ClusterName clusterName;
 
     public PublishClusterStateAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider,
-                                     NewClusterStateListener listener, DiscoverySettings discoverySettings, ClusterName clusterName) {
+                                     NewClusterStateListener listener, DiscoverySettings discoverySettings) {
         super(settings);
         this.transportService = transportService;
         this.nodesProvider = nodesProvider;
         this.listener = listener;
         this.discoverySettings = discoverySettings;
-        this.clusterName = clusterName;
         transportService.registerHandler(ACTION_NAME, new PublishClusterStateRequestHandler());
     }
 
@@ -189,7 +187,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                 in = request.bytes().streamInput();
             }
             in.setVersion(request.version());
-            ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode(), clusterName);
+            ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
             clusterState.status(ClusterState.ClusterStateStatus.RECEIVED);
             logger.debug("received cluster state version {}", clusterState.version());
             listener.onNewClusterState(clusterState, new NewClusterStateListener.NewStateProcessed() {

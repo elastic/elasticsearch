@@ -146,16 +146,25 @@ public class DateMathParserTests extends ElasticsearchTestCase {
         assertDateMathEquals("2014-11-18||/y", "2014-12-31T23:59:59.999", 0, true, null);
         assertDateMathEquals("2014||/y", "2014-01-01", 0, false, null);
         assertDateMathEquals("2014-01-01T00:00:00.001||/y", "2014-12-31T23:59:59.999", 0, true, null);
+        // rounding should also take into account time zone
+        assertDateMathEquals("2014-11-18||/y", "2013-12-31T23:00:00.000Z", 0, false, DateTimeZone.forID("CET"));
+        assertDateMathEquals("2014-11-18||/y", "2014-12-31T22:59:59.999Z", 0, true, DateTimeZone.forID("CET"));
         
         assertDateMathEquals("2014-11-18||/M", "2014-11-01", 0, false, null);
         assertDateMathEquals("2014-11-18||/M", "2014-11-30T23:59:59.999", 0, true, null);
         assertDateMathEquals("2014-11||/M", "2014-11-01", 0, false, null);
         assertDateMathEquals("2014-11||/M", "2014-11-30T23:59:59.999", 0, true, null);
+        assertDateMathEquals("2014-11-18||/M", "2014-10-31T23:00:00.000Z", 0, false, DateTimeZone.forID("CET"));
+        assertDateMathEquals("2014-11-18||/M", "2014-11-30T22:59:59.999Z", 0, true, DateTimeZone.forID("CET"));
         
         assertDateMathEquals("2014-11-18T14||/w", "2014-11-17", 0, false, null);
         assertDateMathEquals("2014-11-18T14||/w", "2014-11-23T23:59:59.999", 0, true, null);
         assertDateMathEquals("2014-11-18||/w", "2014-11-17", 0, false, null);
         assertDateMathEquals("2014-11-18||/w", "2014-11-23T23:59:59.999", 0, true, null);
+        assertDateMathEquals("2014-11-18||/w", "2014-11-16T23:00:00.000Z", 0, false, DateTimeZone.forID("+01:00"));
+        assertDateMathEquals("2014-11-18||/w", "2014-11-17T01:00:00.000Z", 0, false, DateTimeZone.forID("-01:00"));
+        assertDateMathEquals("2014-11-18||/w", "2014-11-16T23:00:00.000Z", 0, false, DateTimeZone.forID("CET"));
+        assertDateMathEquals("2014-07-22||/w", "2014-07-20T22:00:00.000Z", 0, false, DateTimeZone.forID("CET")); // with DST
         
         assertDateMathEquals("2014-11-18T14||/d", "2014-11-18", 0, false, null);
         assertDateMathEquals("2014-11-18T14||/d", "2014-11-18T23:59:59.999", 0, true, null);
@@ -181,7 +190,7 @@ public class DateMathParserTests extends ElasticsearchTestCase {
         assertDateMathEquals("2014-11-18T14:27:32||/s", "2014-11-18T14:27:32", 0, false, null);
         assertDateMathEquals("2014-11-18T14:27:32||/s", "2014-11-18T14:27:32.999", 0, true, null);
     }
-    
+
     public void testTimestamps() {
         assertDateMathEquals("1418248078000", "2014-12-10T21:47:58.000");
 

@@ -1138,7 +1138,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             int numChecksums = 0;
             int numNotFound = 0;
             for (String file : strings) {
-                assertTrue(firstMeta.contains(file) || Store.isChecksum(file));
+                assertTrue(firstMeta.contains(file) || Store.isChecksum(file) || file.equals("write.lock"));
                 if (Store.isChecksum(file)) {
                     numChecksums++;
                 } else  if (secondMeta.contains(file) == false) {
@@ -1154,7 +1154,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             int numChecksums = 0;
             int numNotFound = 0;
             for (String file : strings) {
-                assertTrue(secondMeta.contains(file) || Store.isChecksum(file));
+                assertTrue(file, secondMeta.contains(file) || Store.isChecksum(file) || file.equals("write.lock"));
                 if (Store.isChecksum(file)) {
                     numChecksums++;
                 } else  if (firstMeta.contains(file) == false) {

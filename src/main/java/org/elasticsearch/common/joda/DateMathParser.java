@@ -80,7 +80,7 @@ public class DateMathParser {
     }
 
     private long parseMath(String mathString, long time, boolean roundUp, DateTimeZone timeZone) throws ElasticsearchParseException {
-        if (timeZone==null) {
+        if (timeZone == null) {
             timeZone = DateTimeZone.UTC;
         }
         MutableDateTime dateTime = new MutableDateTime(time, timeZone);

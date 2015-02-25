@@ -42,13 +42,11 @@ public class LdapSessionFactoryTests extends LdapTest {
         SecuredString userPass = SecuredStringTests.build("pass");
 
         ldapServer.setProcessingDelayMillis(500L);
-        long start = System.currentTimeMillis();
         try (LdapSession session = sessionFactory.session(user, userPass)) {
             fail("expected connection timeout error here");
         } catch (Throwable t) {
-            long time = System.currentTimeMillis() - start;
-            assertThat(time, lessThan(1000l));
             assertThat(t, instanceOf(ShieldLdapException.class));
+            assertThat(t.getCause().getMessage(), containsString("A client-side timeout was encountered while waiting "));
         } finally {
             ldapServer.setProcessingDelayMillis(0L);
         }

@@ -141,9 +141,9 @@ public class ScriptScoreFunction extends ScoreFunction {
                 explanation += "\" and parameters: \n" + params.toString();
             }
             exp = new Explanation(CombineFunction.toFloat(score), explanation);
-            Explanation _scoreExp = new Explanation(subQueryScore.getValue(), "_score: ");
-            _scoreExp.addDetail(subQueryScore);
-            exp.addDetail(_scoreExp);
+            Explanation scoreExp = new Explanation(subQueryScore.getValue(), "_score: ");
+            scoreExp.addDetail(subQueryScore);
+            exp.addDetail(scoreExp);
         }
         return exp;
     }

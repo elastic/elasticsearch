@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -56,6 +57,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
     int activePrimaryShards = 0;
     int initializingShards = 0;
     int unassignedShards = 0;
+    int numberOfPendingTasks = 0;
     boolean timedOut = false;
     ClusterHealthStatus status = ClusterHealthStatus.RED;
     private List<String> validationFailures;
@@ -69,8 +71,10 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         this.validationFailures = validationFailures;
     }
 
-    public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
+    public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState, int numberOfPendingTasks) {
+        assert numberOfPendingTasks >= 0 : "pending task should be non-negative. got [" + numberOfPendingTasks + "]";
         this.clusterName = clusterName;
+        this.numberOfPendingTasks = numberOfPendingTasks;
         RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());
         validationFailures = validation.failures();
         numberOfNodes = clusterState.nodes().size();
@@ -160,6 +164,10 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         return this.numberOfDataNodes;
     }
 
+    public int getNumberOfPendingTasks() {
+        return this.numberOfPendingTasks;
+    }
+
     /**
      * <tt>true</tt> if the waitForXXX has timeout out and did not match.
      */
@@ -180,6 +188,13 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         return indices.values().iterator();
     }
 
+
+    public static ClusterHealthResponse readResponseFrom(StreamInput in) throws IOException {
+        ClusterHealthResponse response = new ClusterHealthResponse();
+        response.readFrom(in);
+        return response;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -191,6 +206,11 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         unassignedShards = in.readVInt();
         numberOfNodes = in.readVInt();
         numberOfDataNodes = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            numberOfPendingTasks = in.readVInt();
+        } else {
+            numberOfPendingTasks = 0;
+        }
         status = ClusterHealthStatus.fromValue(in.readByte());
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -219,6 +239,9 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         out.writeVInt(unassignedShards);
         out.writeVInt(numberOfNodes);
         out.writeVInt(numberOfDataNodes);
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            out.writeVInt(numberOfPendingTasks);
+        }
         out.writeByte(status.value());
         out.writeVInt(indices.size());
         for (ClusterIndexHealth indexHealth : this) {
@@ -252,6 +275,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         static final XContentBuilderString TIMED_OUT = new XContentBuilderString("timed_out");
         static final XContentBuilderString NUMBER_OF_NODES = new XContentBuilderString("number_of_nodes");
         static final XContentBuilderString NUMBER_OF_DATA_NODES = new XContentBuilderString("number_of_data_nodes");
+        static final XContentBuilderString NUMBER_OF_PENDING_TASKS = new XContentBuilderString("number_of_pending_tasks");
         static final XContentBuilderString ACTIVE_PRIMARY_SHARDS = new XContentBuilderString("active_primary_shards");
         static final XContentBuilderString ACTIVE_SHARDS = new XContentBuilderString("active_shards");
         static final XContentBuilderString RELOCATING_SHARDS = new XContentBuilderString("relocating_shards");
@@ -273,6 +297,7 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
         builder.field(Fields.RELOCATING_SHARDS, getRelocatingShards());
         builder.field(Fields.INITIALIZING_SHARDS, getInitializingShards());
         builder.field(Fields.UNASSIGNED_SHARDS, getUnassignedShards());
+        builder.field(Fields.NUMBER_OF_PENDING_TASKS, getNumberOfPendingTasks());
 
         String level = params.param("level", "cluster");
         boolean outputIndices = "indices".equals(level) || "shards".equals(level);

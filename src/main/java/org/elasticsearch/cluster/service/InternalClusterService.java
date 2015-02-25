@@ -166,12 +166,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             onGoingTimeout.cancel();
             onGoingTimeout.listener.onClose();
         }
-        updateTasksExecutor.shutdown();
-        try {
-            updateTasksExecutor.awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // ignore
-        }
+        ThreadPool.terminate(updateTasksExecutor, 10, TimeUnit.SECONDS);
         remove(localNodeMasterListeners);
     }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.alerts.support;
  */
 public final class Variables {
 
+    public static final String PAYLOAD = "payload";
     public static final String FIRE_TIME = "fire_time";
     public static final String SCHEDULED_FIRE_TIME = "scheduled_fire_time";
 

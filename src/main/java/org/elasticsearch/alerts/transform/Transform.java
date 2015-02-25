@@ -7,18 +7,21 @@ package org.elasticsearch.alerts.transform;
 
 import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
+import org.elasticsearch.alerts.support.Variables;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  *
  */
-public interface Transform extends ToXContent {
+public abstract class Transform implements ToXContent {
 
-    static final Transform NOOP = new Transform() {
+    public static final Transform NOOP = new Transform() {
         @Override
         public String type() {
             return "noop";
@@ -35,11 +38,19 @@ public interface Transform extends ToXContent {
         }
     };
 
-    String type();
+    public abstract String type();
 
-    Result apply(ExecutionContext context, Payload payload) throws IOException;
+    public abstract Result apply(ExecutionContext ctx, Payload payload) throws IOException;
 
-    static class Result {
+    protected static Map<String, Object> createModel(ExecutionContext ctx, Payload payload) {
+        Map<String, Object> model = new HashMap<>();
+        model.put(Variables.SCHEDULED_FIRE_TIME, ctx.scheduledTime());
+        model.put(Variables.FIRE_TIME, ctx.fireTime());
+        model.put(Variables.PAYLOAD, payload.data());
+        return model;
+    }
+
+    public static class Result {
 
         private final String type;
         private final Payload payload;

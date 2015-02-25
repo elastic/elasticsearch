@@ -137,7 +137,7 @@ public final class AlertUtils {
                         searchRequest.templateType(ScriptService.ScriptType.valueOf(parser.text().toUpperCase(Locale.ROOT)));
                         break;
                     case "search_type":
-                        searchType = SearchType.fromString(parser.text());
+                        searchType = SearchType.fromString(parser.text().toLowerCase(Locale.ROOT));
                         break;
                     default:
                         throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");

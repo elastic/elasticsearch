@@ -86,7 +86,7 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
     }
 
     /**
-     * Disables <tt>Similarity#coord(int,int)</tt> in scoring. Defualts to <tt>false</tt>.
+     * Disables <tt>Similarity#coord(int,int)</tt> in scoring. Defaults to <tt>false</tt>.
      */
     public BoolQueryBuilder disableCoord(boolean disableCoord) {
         this.disableCoord = disableCoord;

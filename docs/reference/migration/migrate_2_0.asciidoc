@@ -12,7 +12,9 @@ line with the other Indices APIs. The <<multi-index>> options can be used on a r
 to change this behavior
 
 `GetIndexRequest.features()` now returns an array of Feature Enums instead of an array of String values.
+
 The following deprecated methods have been removed:
+
 * `GetIndexRequest.addFeatures(String[])` - Please use `GetIndexRequest.addFeatures(Feature[])` instead
 * `GetIndexRequest.features(String[])` - Please use `GetIndexRequest.features(Feature[])` instead
 * `GetIndexRequestBuilder.addFeatures(String[])` - Please use `GetIndexRequestBuilder.addFeatures(Feature[])` instead

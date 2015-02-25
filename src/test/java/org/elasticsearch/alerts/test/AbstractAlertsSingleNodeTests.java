@@ -29,7 +29,7 @@ import static org.hamcrest.Matchers.equalTo;
 public abstract class AbstractAlertsSingleNodeTests extends ElasticsearchSingleNodeTest {
 
     @AfterClass
-    public static void cleaupSuite() throws Exception {
+    public static void cleanupSuite() throws Exception {
         node().stop();
     }
 

@@ -116,10 +116,10 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
                     assertThat(index.toString(), index.recoveredFileCount(), greaterThan(0));
                     assertThat(index.toString(), index.reusedBytes(), greaterThan(0l));
                     assertThat(index.toString(), index.recoveredBytesPercent(), greaterThan(0.0f));
-                    assertThat(index.toString(), index.recoveredBytesPercent(), lessThan(100.0f));
-                    assertThat(index.toString(), index.recoveredFilesPercent(), greaterThan(0.0f));
-                    assertThat(index.toString(), index.recoveredFilesPercent(), lessThan(100.0f));
+                    assertThat(index.toString(), index.recoveredBytesPercent(), equalTo(100.f));
+                    assertThat(index.toString(), index.recoveredFilesPercent(), equalTo(100.f));
                     assertThat(index.toString(), index.reusedBytes(), greaterThan(index.recoveredBytes()));
+                    assertThat(index.toString(), index.recoveredBytes(), lessThan(index.totalBytes()));
                 }
                 // TODO upgrade via optimize?
             }

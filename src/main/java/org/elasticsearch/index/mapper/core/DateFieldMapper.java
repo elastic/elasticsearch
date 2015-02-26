@@ -333,7 +333,6 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
 
     public long parseToMilliseconds(String value, boolean includeUpper, @Nullable DateTimeZone zone) {
         SearchContext sc = SearchContext.current();
-        long now = sc == null ? System.currentTimeMillis() : sc.nowInMillis();
         long time = includeUpper && roundCeil ? dateMathParser.parseRoundCeil(value, now(), zone) : dateMathParser.parse(value, now(), zone);
         return time;
     }

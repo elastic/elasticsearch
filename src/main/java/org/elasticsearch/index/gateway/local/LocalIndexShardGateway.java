@@ -170,8 +170,6 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 logger.debug("failed to list file details", e);
             }
 
-            indexShard.prepareForTranslogRecovery();
-
             File recoveringTranslogFile = null;
             if (translogId == -1) {
                 logger.trace("no translog id set (indexShouldExist [{}])", indexShouldExists);
@@ -206,11 +204,14 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                     }
                 }
             }
+            // we must do this *after* we capture translog name so the engine creation will not make a new one.
+            // also we have to do this regardless of whether we have a translog, to follow the recovery stages.
+            indexShard.prepareForTranslogRecovery();
 
             if (recoveringTranslogFile == null || !recoveringTranslogFile.exists()) {
                 // no translog to recovery from, start and bail
                 // no translog files, bail
-                indexShard.finalizeRecovery(true);
+                indexShard.finalizeRecovery(false);
                 indexShard.postRecovery("post recovery from gateway, no translog");
                 // no index, just start the shard and bail
                 return;

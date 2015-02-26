@@ -39,11 +39,11 @@ public abstract class AbstractAlertsSingleNodeTests extends ElasticsearchSingleN
     }
 
     protected IndexResponse index(String index, String type, String id) {
-        return index(index, type, id, Collections.EMPTY_MAP);
+        return index(index, type, id, Collections.<String, Object>emptyMap());
     }
 
     protected IndexResponse index(String index, String type, String id, Map<String, Object> doc) {
-        return client().prepareIndex("idx", "type", "1").setSource(doc).get();
+        return client().prepareIndex(index, type, id).setSource(doc).get();
     }
 
     protected ClusterHealthStatus ensureGreen(String... indices) {

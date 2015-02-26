@@ -1067,8 +1067,8 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void testUngeneratedFieldsNotPartOfSourceUnstored() throws IOException {
         indexSingleDocumentWithUngeneratedFieldsThatAreNeverPartOf_source(false, randomBoolean());
-        String[] fieldsList = {"_timestamp", "_size"};
-        String[] alwaysStoredFieldsList = {"_routing"};
+        String[] fieldsList = {"_timestamp"};
+        String[] alwaysStoredFieldsList = {"_routing", "_size"};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList, "1");
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", alwaysStoredFieldsList, "1");
@@ -1111,7 +1111,6 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "        \"enabled\": true\n" +
                 "      },\n" +
                 "      \"_size\": {\n" +
-                "        \"store\": \"" + storedString + "\",\n" +
                 "        \"enabled\": true\n" +
                 "      }\n" +
                 "    }\n" +

@@ -335,7 +335,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                             .field("compress", randomBoolean())
                             .endObject();
                 }
-                if (compatibilityVersion().onOrAfter(Version.V_1_3_0)) {
+                if (compatibilityVersion().onOrAfter(Version.V_1_3_0) && compatibilityVersion().before(Version.V_2_0_0)) {
                     // some tests rely on this BWC version behavior that we wanna keep
                     mappings.startObject(FieldNamesFieldMapper.NAME)
                             .startObject("fielddata")

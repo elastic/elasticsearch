@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.mapper.internal;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
@@ -114,7 +118,8 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
             .startObject("_field_names").field("index", "no").endObject()
             .endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
         FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.enabled());
 
@@ -127,12 +132,13 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
         assertNull(doc.rootDoc().get("_field_names"));
     }
 
-    public void testFieldTypeSettings() throws Exception {
+    public void testFieldTypeSettingsBackcompat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("_field_names").field("store", "yes").endObject()
             .endObject().endObject().string();
 
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
         FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
         assertTrue(fieldNamesMapper.fieldType().stored());
     }

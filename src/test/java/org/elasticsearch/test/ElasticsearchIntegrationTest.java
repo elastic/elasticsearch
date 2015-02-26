@@ -133,6 +133,7 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
@@ -1021,34 +1022,36 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public long waitForDocs(final long numDocs, int maxWaitTime, TimeUnit maxWaitTimeUnit, final @Nullable BackgroundIndexer indexer)
             throws InterruptedException {
-        final long[] lastKnownCount = {-1};
+        final AtomicLong lastKnownCount = new AtomicLong(-1);
         long lastStartCount = -1;
         Predicate<Object> testDocs = new Predicate<Object>() {
             public boolean apply(Object o) {
-                lastKnownCount[0] = indexer.totalIndexedDocs();
-                if (lastKnownCount[0] >= numDocs) {
+                if (indexer != null) {
+                    lastKnownCount.set(indexer.totalIndexedDocs());
+                }
+                if (lastKnownCount.get() >= numDocs) {
                     long count = client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount();
-                    if (count == lastKnownCount[0]) {
+                    if (count == lastKnownCount.get()) {
                         // no progress - try to refresh for the next time
                         client().admin().indices().prepareRefresh().get();
                     }
-                    lastKnownCount[0] = count;
-                    logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount[0], numDocs);
+                    lastKnownCount.set(count);
+                    logger.debug("[{}] docs visible for search. waiting for [{}]", lastKnownCount.get(), numDocs);
                 } else {
-                    logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount[0], numDocs);
+                    logger.debug("[{}] docs indexed. waiting for [{}]", lastKnownCount.get(), numDocs);
                 }
-                return lastKnownCount[0] >= numDocs;
+                return lastKnownCount.get() >= numDocs;
             }
         };
 
         while (!awaitBusy(testDocs, maxWaitTime, maxWaitTimeUnit)) {
-            if (lastStartCount == lastKnownCount[0]) {
+            if (lastStartCount == lastKnownCount.get()) {
                 // we didn't make any progress
                 fail("failed to reach " + numDocs + "docs");
             }
-            lastStartCount = lastKnownCount[0];
+            lastStartCount = lastKnownCount.get();
         }
-        return lastKnownCount[0];
+        return lastKnownCount.get();
     }
 
 

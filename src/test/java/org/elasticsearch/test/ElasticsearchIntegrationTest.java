@@ -248,8 +248,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     /**
      * The current cluster depending on the configured {@link Scope}.
-     * By default if no {@link ClusterScope} is configured this will hold a reference to the global cluster carried
-     * on across test suites.
+     * By default if no {@link ClusterScope} is configured this will hold a reference to the suite cluster.
      */
     private static TestCluster currentCluster;
 
@@ -626,10 +625,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             // TODO: it looks like CurrentTestFailedMarker is never set at this point, so testFailed() will always be false?
             if (!success || CurrentTestFailedMarker.testFailed()) {
                 // if we failed that means that something broke horribly so we should
-                // clear all clusters and if the current cluster is the global we shut that one
-                // down as well to prevent subsequent tests from failing due to the same problem.
-                // we also reset everything in the case we had a failure in the suite to make sure subsequent
-                // tests get a new / clean cluster
+                // clear all clusters. we also reset everything in the case we had a failure
+                // in the suite to make sure subsequent tests get a new / clean cluster
                 clearClusters();
                 currentCluster = null;
             }

@@ -125,7 +125,7 @@ public class RestTestExecutionContext implements Closeable {
             restClient = new RestClient(restSpec, settings, addresses);
         } else {
             //re-initialize the REST client if the addresses have changed
-            //happens if there's a failure since we restart the global cluster due to that
+            //happens if there's a failure since we restart the suite cluster due to that
             Set<InetSocketAddress> newAddresses = Sets.newHashSet(addresses);
             Set<InetSocketAddress> previousAddresses = Sets.newHashSet(restClient.httpAddresses());
             if (!newAddresses.equals(previousAddresses)) {

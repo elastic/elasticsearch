@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A {@link RunListener} that detects  test failures. We need it because we need
- * to reset the global / suite level cluster if a test fails but don't wanna reset it
+ * to reset the suite level cluster if a test fails but don't wanna reset it
  * for every subsequent test.
  */
 public class CurrentTestFailedMarker extends RunListener {

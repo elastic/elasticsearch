@@ -212,6 +212,7 @@ public class LuceneTest extends ElasticsearchLuceneTestCase {
     }
 
     public void testNeedsUpgrading() throws URISyntaxException, IOException {
+        boolean saveOldFormatImpersonationIsActive = OLD_FORMAT_IMPERSONATION_IS_ACTIVE;
         OLD_FORMAT_IMPERSONATION_IS_ACTIVE = false;
         try {
             File indexDir = createTempDir();
@@ -246,7 +247,7 @@ public class LuceneTest extends ElasticsearchLuceneTestCase {
                     assertEquals(key, after.getUserData().get(Translog.TRANSLOG_ID_KEY));
                 }
         } finally {
-            OLD_FORMAT_IMPERSONATION_IS_ACTIVE = true;
+            OLD_FORMAT_IMPERSONATION_IS_ACTIVE = saveOldFormatImpersonationIsActive;
         }
     }
 }

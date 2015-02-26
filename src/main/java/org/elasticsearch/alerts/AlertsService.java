@@ -64,6 +64,14 @@ public class AlertsService extends AbstractComponent {
         manuallyStopped = !settings.getAsBoolean("alerts.start_immediately",  true);
     }
 
+    // TODO: consider making this adding start/stop lock
+    // The currently mechanism isn't broken, but in tests it is annoying that if stop has been invoked concurrently
+    // and the first invocation sets the state to STOPPING then the second invocation will just return, because the
+    // first invocation will do the work to stop alerts plugin. If the second invocation was caused by a test teardown
+    // then the thread lead detection will fail, because it assumes that everything should have been stopped & closed.
+    // This isn't the case in the situation, although this will happen, but to late for the thread leak detection to
+    // not see it as a failure.
+
     /**
      * Manually starts alerting if not already started
      */

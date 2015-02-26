@@ -9,6 +9,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.alerts.AlertsService;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.client.Requests;
@@ -31,6 +32,12 @@ public abstract class AbstractAlertsSingleNodeTests extends ElasticsearchSingleN
     @AfterClass
     public static void cleanupSuite() throws Exception {
         node().stop();
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertThat(getInstanceFromNode(AlertsService.class).state(), equalTo(AlertsService.State.STOPPED));
+            }
+        });
     }
 
     @Override

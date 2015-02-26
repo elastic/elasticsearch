@@ -103,7 +103,9 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             RoutingFieldMapper.Builder builder = routing();
-            parseField(builder, builder.name, node, parserContext);
+            if (parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                parseField(builder, builder.name, node, parserContext);
+            }
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -227,10 +229,10 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (includeDefaults || indexed != indexedDefault) {
+        if (writePre2xSettings && (includeDefaults || indexed != indexedDefault)) {
             builder.field("index", indexTokenizeOptionToString(indexed, fieldType.tokenized()));
         }
-        if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+        if (writePre2xSettings && (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored())) {
             builder.field("store", fieldType.stored());
         }
         if (includeDefaults || required != Defaults.REQUIRED) {

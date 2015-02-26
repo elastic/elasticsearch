@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -66,15 +65,12 @@ public class ClusterHealthResponse extends ActionResponse implements Iterable<Cl
     ClusterHealthResponse() {
     }
 
-    public ClusterHealthResponse(String clusterName, List<String> validationFailures) {
-        this.clusterName = clusterName;
-        this.validationFailures = validationFailures;
+    /** needed for plugins BWC */
+    public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState) {
+        this(clusterName, concreteIndices, clusterState, -1);
     }
 
     public ClusterHealthResponse(String clusterName, String[] concreteIndices, ClusterState clusterState, int numberOfPendingTasks) {
-        if (numberOfPendingTasks < 0) {
-            throw new ElasticsearchIllegalArgumentException("pending task should be non-negative. got [" + numberOfPendingTasks + "]");
-        }
         this.clusterName = clusterName;
         this.numberOfPendingTasks = numberOfPendingTasks;
         RoutingTableValidation validation = clusterState.routingTable().validate(clusterState.metaData());

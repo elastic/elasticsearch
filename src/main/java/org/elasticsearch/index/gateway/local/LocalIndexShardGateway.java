@@ -175,59 +175,56 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             final RecoveryState.Start stateStart = recoveryState.getStart();
             stateStart.startTime(System.currentTimeMillis());
             recoveryState.setStage(RecoveryState.Stage.START);
-            if (translogId == -1) {
-                // no translog files, bail
-                indexShard.postRecovery("post recovery from gateway, no translog for id [" + translogId + "]");
-                // no index, just start the shard and bail
-                stateStart.stopTime(System.currentTimeMillis());
-                stateStart.checkIndexTime(indexShard.checkIndexTook());
-                return;
-            }
+            indexShard.performRecoveryPrepareForTranslog();
+            stateStart.stopTime(System.currentTimeMillis());
+            stateStart.checkIndexTime(indexShard.checkIndexTook());
+            recoveryState.getTranslog().startTime(System.currentTimeMillis());
+            recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
 
-            // move an existing translog, if exists, to "recovering" state, and start reading from it
-            FsTranslog translog = (FsTranslog) indexShard.translog();
-            String translogName = "translog-" + translogId;
-            String recoverTranslogName = translogName + ".recovering";
-
-            logger.trace("try recover from translog file {} locations: {}", translogName, Arrays.toString(translog.locations()));
             File recoveringTranslogFile = null;
-            for (File translogLocation : translog.locations()) {
-                File tmpRecoveringFile = new File(translogLocation, recoverTranslogName);
-                if (!tmpRecoveringFile.exists()) {
-                    File tmpTranslogFile = new File(translogLocation, translogName);
-                    if (tmpTranslogFile.exists()) {
-                        logger.trace("Translog file found in {} - renaming", translogLocation);
+            if (translogId == -1) {
+                logger.trace("no translog id set (indexShouldExist [{}])", indexShouldExists);
+            } else {
 
-                        for (int i = 0; i < RECOVERY_TRANSLOG_RENAME_RETRIES; i++) {
-                            if (tmpTranslogFile.renameTo(tmpRecoveringFile)) {
-                                recoveringTranslogFile = tmpRecoveringFile;
-                                logger.trace("Renamed translog from {} to {}", tmpTranslogFile.getName(), recoveringTranslogFile.getName());
-                                break;
+                // move an existing translog, if exists, to "recovering" state, and start reading from it
+                FsTranslog translog = (FsTranslog) indexShard.translog();
+                String translogName = "translog-" + translogId;
+                String recoverTranslogName = translogName + ".recovering";
+
+                logger.trace("try recover from translog file {} locations: {}", translogName, Arrays.toString(translog.locations()));
+                for (File translogLocation : translog.locations()) {
+                    File tmpRecoveringFile = new File(translogLocation, recoverTranslogName);
+                    if (!tmpRecoveringFile.exists()) {
+                        File tmpTranslogFile = new File(translogLocation, translogName);
+                        if (tmpTranslogFile.exists()) {
+                            logger.trace("Translog file found in {} - renaming", translogLocation);
+
+                            for (int i = 0; i < RECOVERY_TRANSLOG_RENAME_RETRIES; i++) {
+                                if (tmpTranslogFile.renameTo(tmpRecoveringFile)) {
+                                    recoveringTranslogFile = tmpRecoveringFile;
+                                    logger.trace("Renamed translog from {} to {}", tmpTranslogFile.getName(), recoveringTranslogFile.getName());
+                                    break;
+                                }
                             }
+                        } else {
+                            logger.trace("Translog file NOT found in {} - continue", translogLocation);
                         }
                     } else {
-                        logger.trace("Translog file NOT found in {} - continue", translogLocation);
+                        recoveringTranslogFile = tmpRecoveringFile;
+                        break;
                     }
-                } else {
-                    recoveringTranslogFile = tmpRecoveringFile;
-                    break;
                 }
             }
 
             if (recoveringTranslogFile == null || !recoveringTranslogFile.exists()) {
                 // no translog to recovery from, start and bail
                 // no translog files, bail
+                recoveryState.getTranslog().time(System.currentTimeMillis() - recoveryState.getTranslog().startTime());
+                indexShard.performRecoveryFinalization(true);
                 indexShard.postRecovery("post recovery from gateway, no translog");
                 // no index, just start the shard and bail
-                stateStart.stopTime(System.currentTimeMillis());
-                stateStart.checkIndexTime(0);
                 return;
             }
-
-            // recover from the translog file
-            indexShard.performRecoveryPrepareForTranslog();
-            stateStart.stopTime(System.currentTimeMillis());
-            stateStart.checkIndexTime(indexShard.checkIndexTook());
 
             recoveryState.getTranslog().startTime(System.currentTimeMillis());
             recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
@@ -286,7 +283,9 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             } finally {
                 IOUtils.closeWhileHandlingException(in);
             }
+            recoveryState.getTranslog().time(System.currentTimeMillis() - recoveryState.getTranslog().startTime());
             indexShard.performRecoveryFinalization(true);
+            indexShard.postRecovery("post recovery from gateway, no translog");
 
             try {
                 Files.deleteIfExists(recoveringTranslogFile.toPath());
@@ -326,7 +325,6 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             });
 
         }
-        recoveryState.getTranslog().time(System.currentTimeMillis() - recoveryState.getTranslog().startTime());
     }
 
     @Override

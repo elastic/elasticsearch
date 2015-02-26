@@ -560,7 +560,7 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
     @Test
     public void percolateWithSizeField() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("_size").field("enabled", true).field("store", "yes").endObject()
+                .startObject("_size").field("enabled", true).endObject()
                 .startObject("properties").startObject("field1").field("type", "string").endObject().endObject()
                 .endObject().endObject().string();
 

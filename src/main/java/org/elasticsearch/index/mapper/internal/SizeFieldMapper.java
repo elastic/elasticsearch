@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -55,6 +56,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         public static final FieldType SIZE_FIELD_TYPE = new FieldType(IntegerFieldMapper.Defaults.FIELD_TYPE);
 
         static {
+            SIZE_FIELD_TYPE.setStored(true);
             SIZE_FIELD_TYPE.freeze();
         }
     }
@@ -90,7 +92,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
                 if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                     iterator.remove();
-                } else if (fieldName.equals("store")) {
+                } else if (fieldName.equals("store") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                     builder.store(parseStore(fieldName, fieldNode.toString()));
                     iterator.remove();
                 }
@@ -162,14 +164,14 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // all are defaults, no need to write it at all
-        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE && fieldType().stored() == Defaults.SIZE_FIELD_TYPE.stored()) {
+        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE && (writePre2xSettings == false || fieldType().stored() == false)) {
             return builder;
         }
         builder.startObject(contentType());
         if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (includeDefaults || fieldType().stored() != Defaults.SIZE_FIELD_TYPE.stored()) {
+        if (writePre2xSettings && (includeDefaults || fieldType().stored() == true)) {
             builder.field("store", fieldType().stored());
         }
         builder.endObject();

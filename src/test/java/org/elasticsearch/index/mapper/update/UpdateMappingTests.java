@@ -166,7 +166,6 @@ public class UpdateMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject("type")
                 .startObject("_size")
                 .field("enabled", enabled)
-                .field("store", true)
                 .endObject()
                 .endObject()
                 .endObject();

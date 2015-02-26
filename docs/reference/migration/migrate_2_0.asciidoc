@@ -257,6 +257,7 @@ to provide special features.  They now have limited configuration options.
 * `_routing` configuration is limited to requiring the field.
 * `_boost` has been removed.
 * `_field_names` configuration is limited to disabling the field.
+* `_size` configuration is limited to enabling the field.
 
 === Codecs
 

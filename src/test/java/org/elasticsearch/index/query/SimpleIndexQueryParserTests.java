@@ -121,8 +121,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(queryStringQuery("test").defaultField("content").phraseSlop(1)).query();
 
-        assertThat(parsedQuery, instanceOf(TermQuery.class));
-        TermQuery termQuery = (TermQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(org.apache.lucene.search.TermQuery.class));
+        org.apache.lucene.search.TermQuery termQuery = (org.apache.lucene.search.TermQuery) parsedQuery;
         assertThat(termQuery.getTerm(), equalTo(new Term("content", "test")));
     }
 
@@ -131,8 +131,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/query.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(TermQuery.class));
-        TermQuery termQuery = (TermQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(org.apache.lucene.search.TermQuery.class));
+        org.apache.lucene.search.TermQuery termQuery = (org.apache.lucene.search.TermQuery) parsedQuery;
         assertThat(termQuery.getTerm(), equalTo(new Term("content", "test")));
     }
 
@@ -141,8 +141,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         QueryStringQueryBuilder builder = queryStringQuery("field:boosted^2");
         Query parsedQuery = queryParser.parse(builder).query();
-        assertThat(parsedQuery, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) parsedQuery).getTerm(), equalTo(new Term("field", "boosted")));
+        assertThat(parsedQuery, instanceOf(org.apache.lucene.search.TermQuery.class));
+        assertThat(((org.apache.lucene.search.TermQuery) parsedQuery).getTerm(), equalTo(new Term("field", "boosted")));
         assertThat(parsedQuery.getBoost(), equalTo(2.0f));
         builder.boost(2.0f);
         parsedQuery = queryParser.parse(builder).query();
@@ -151,10 +151,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         builder = queryStringQuery("((field:boosted^2) AND (field:foo^1.5))^3");
         parsedQuery = queryParser.parse(builder).query();
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 0).getTerm(), equalTo(new Term("field", "boosted")));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 0).getBoost(), equalTo(2.0f));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 1).getTerm(), equalTo(new Term("field", "foo")));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 1).getBoost(), equalTo(1.5f));
+        assertThat(assertBooleanSubQuery(parsedQuery, org.apache.lucene.search.TermQuery.class, 0).getTerm(), equalTo(new Term("field", "boosted")));
+        assertThat(assertBooleanSubQuery(parsedQuery, org.apache.lucene.search.TermQuery.class, 0).getBoost(), equalTo(2.0f));
+        assertThat(assertBooleanSubQuery(parsedQuery, org.apache.lucene.search.TermQuery.class, 1).getTerm(), equalTo(new Term("field", "foo")));
+        assertThat(assertBooleanSubQuery(parsedQuery, org.apache.lucene.search.TermQuery.class, 1).getBoost(), equalTo(1.5f));
         assertThat(parsedQuery.getBoost(), equalTo(3.0f));
         builder.boost(2.0f);
         parsedQuery = queryParser.parse(builder).query();
@@ -168,8 +168,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
         BooleanQuery bQuery = (BooleanQuery) parsedQuery;
         assertThat(bQuery.clauses().size(), equalTo(2));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 0).getTerm(), equalTo(new Term("content", "test")));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 1).getTerm(), equalTo(new Term("name", "test")));
+        assertThat(assertBooleanSubQuery(parsedQuery, org.apache.lucene.search.TermQuery.class, 0).getTerm(), equalTo(new Term("content", "test")));
+        assertThat(assertBooleanSubQuery(parsedQuery, org.apache.lucene.search.TermQuery.class, 1).getTerm(), equalTo(new Term("name", "test")));
     }
 
     @Test
@@ -180,8 +180,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
         BooleanQuery bQuery = (BooleanQuery) parsedQuery;
         assertThat(bQuery.clauses().size(), equalTo(2));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 0).getTerm(), equalTo(new Term("content", "test")));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 1).getTerm(), equalTo(new Term("name", "test")));
+        assertThat(assertBooleanSubQuery(parsedQuery, org.apache.lucene.search.TermQuery.class, 0).getTerm(), equalTo(new Term("content", "test")));
+        assertThat(assertBooleanSubQuery(parsedQuery, org.apache.lucene.search.TermQuery.class, 1).getTerm(), equalTo(new Term("name", "test")));
     }
 
     @Test
@@ -193,8 +193,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         BooleanQuery bQuery = (BooleanQuery) parsedQuery;
         assertThat(bQuery.clauses().size(), equalTo(2));
         assertEquals(Sets.newHashSet(new Term("name.first", "test"), new Term("name.last", "test")),
-                Sets.newHashSet(assertBooleanSubQuery(parsedQuery, TermQuery.class, 0).getTerm(),
-                        assertBooleanSubQuery(parsedQuery, TermQuery.class, 1).getTerm()));
+                Sets.newHashSet(assertBooleanSubQuery(parsedQuery, org.apache.lucene.search.TermQuery.class, 0).getTerm(),
+                        assertBooleanSubQuery(parsedQuery, org.apache.lucene.search.TermQuery.class, 1).getTerm()));
     }
 
     @Test
@@ -204,8 +204,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) parsedQuery;
         List<Query> disjuncts = disMaxQuery.getDisjuncts();
-        assertThat(((TermQuery) disjuncts.get(0)).getTerm(), equalTo(new Term("content", "test")));
-        assertThat(((TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term("name", "test")));
+        assertThat(((org.apache.lucene.search.TermQuery) disjuncts.get(0)).getTerm(), equalTo(new Term("content", "test")));
+        assertThat(((org.apache.lucene.search.TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term("name", "test")));
     }
 
     @Test
@@ -216,8 +216,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) parsedQuery;
         List<Query> disjuncts = disMaxQuery.getDisjuncts();
-        assertThat(((TermQuery) disjuncts.get(0)).getTerm(), equalTo(new Term("content", "test")));
-        assertThat(((TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term("name", "test")));
+        assertThat(((org.apache.lucene.search.TermQuery) disjuncts.get(0)).getTerm(), equalTo(new Term("content", "test")));
+        assertThat(((org.apache.lucene.search.TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term("name", "test")));
     }
 
     @Test
@@ -227,9 +227,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) parsedQuery;
         List<Query> disjuncts = disMaxQuery.getDisjuncts();
-        assertThat(((TermQuery) disjuncts.get(0)).getTerm(), equalTo(new Term("content", "test")));
+        assertThat(((org.apache.lucene.search.TermQuery) disjuncts.get(0)).getTerm(), equalTo(new Term("content", "test")));
         assertThat((double) disjuncts.get(0).getBoost(), closeTo(2.2, 0.01));
-        assertThat(((TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term("name", "test")));
+        assertThat(((org.apache.lucene.search.TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term("name", "test")));
         assertThat((double) disjuncts.get(1).getBoost(), closeTo(1, 0.01));
     }
 
@@ -241,9 +241,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) parsedQuery;
         List<Query> disjuncts = disMaxQuery.getDisjuncts();
-        assertThat(((TermQuery) disjuncts.get(0)).getTerm(), equalTo(new Term("content", "test")));
+        assertThat(((org.apache.lucene.search.TermQuery) disjuncts.get(0)).getTerm(), equalTo(new Term("content", "test")));
         assertThat((double) disjuncts.get(0).getBoost(), closeTo(2.2, 0.01));
-        assertThat(((TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term("name", "test")));
+        assertThat(((org.apache.lucene.search.TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term("name", "test")));
         assertThat((double) disjuncts.get(1).getBoost(), closeTo(1, 0.01));
     }
 
@@ -346,12 +346,12 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(disjuncts.size(), equalTo(2));
 
         Query firstQ = disjuncts.get(0);
-        assertThat(firstQ, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) firstQ).getTerm(), equalTo(new Term("name.first", "first")));
+        assertThat(firstQ, instanceOf(org.apache.lucene.search.TermQuery.class));
+        assertThat(((org.apache.lucene.search.TermQuery) firstQ).getTerm(), equalTo(new Term("name.first", "first")));
 
         Query secondsQ = disjuncts.get(1);
-        assertThat(secondsQ, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) secondsQ).getTerm(), equalTo(new Term("name.last", "last")));
+        assertThat(secondsQ, instanceOf(org.apache.lucene.search.TermQuery.class));
+        assertThat(((org.apache.lucene.search.TermQuery) secondsQ).getTerm(), equalTo(new Term("name.last", "last")));
     }
 
     @Test
@@ -367,12 +367,12 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(disjuncts.size(), equalTo(2));
 
         Query firstQ = disjuncts.get(0);
-        assertThat(firstQ, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) firstQ).getTerm(), equalTo(new Term("name.first", "first")));
+        assertThat(firstQ, instanceOf(org.apache.lucene.search.TermQuery.class));
+        assertThat(((org.apache.lucene.search.TermQuery) firstQ).getTerm(), equalTo(new Term("name.first", "first")));
 
         Query secondsQ = disjuncts.get(1);
-        assertThat(secondsQ, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) secondsQ).getTerm(), equalTo(new Term("name.last", "last")));
+        assertThat(secondsQ, instanceOf(org.apache.lucene.search.TermQuery.class));
+        assertThat(((org.apache.lucene.search.TermQuery) secondsQ).getTerm(), equalTo(new Term("name.last", "last")));
     }
 
     @Test
@@ -475,7 +475,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testTermWithBoostQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(termQuery("age", 34).boost(2.0f)).query();
+        TermQuery age = termQuery("age", 34);
+        age.setBoost(2.0f);
+        Query parsedQuery = queryParser.parse(age).query();
         assertThat(parsedQuery, instanceOf(NumericRangeQuery.class));
         NumericRangeQuery fieldQuery = (NumericRangeQuery) parsedQuery;
         assertThat(fieldQuery.getMin().intValue(), equalTo(34));
@@ -1025,7 +1027,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
+        assertThat(((org.apache.lucene.search.TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
 
         NotFilter notFilter = (NotFilter) filteredQuery.getFilter();
         assertThat(getTerm(notFilter.filter()), equalTo(new Term("name.first", "shay1")));
@@ -1038,7 +1040,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
+        assertThat(((org.apache.lucene.search.TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
 
         NotFilter notFilter = (NotFilter) filteredQuery.getFilter();
         assertThat(getTerm(notFilter.filter()), equalTo(new Term("name.first", "shay1")));
@@ -1051,7 +1053,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
+        assertThat(((org.apache.lucene.search.TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
 
         NotFilter notFilter = (NotFilter) filteredQuery.getFilter();
         assertThat(getTerm(notFilter.filter()), equalTo(new Term("name.first", "shay1")));
@@ -1093,16 +1095,16 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
 
         assertThat(clauses.length, equalTo(4));
 
-        assertThat(((TermQuery) clauses[0].getQuery()).getTerm(), equalTo(new Term("content", "test1")));
+        assertThat(((org.apache.lucene.search.TermQuery) clauses[0].getQuery()).getTerm(), equalTo(new Term("content", "test1")));
         assertThat(clauses[0].getOccur(), equalTo(BooleanClause.Occur.MUST));
 
-        assertThat(((TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("content", "test4")));
+        assertThat(((org.apache.lucene.search.TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("content", "test4")));
         assertThat(clauses[1].getOccur(), equalTo(BooleanClause.Occur.MUST));
 
-        assertThat(((TermQuery) clauses[2].getQuery()).getTerm(), equalTo(new Term("content", "test2")));
+        assertThat(((org.apache.lucene.search.TermQuery) clauses[2].getQuery()).getTerm(), equalTo(new Term("content", "test2")));
         assertThat(clauses[2].getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
 
-        assertThat(((TermQuery) clauses[3].getQuery()).getTerm(), equalTo(new Term("content", "test3")));
+        assertThat(((org.apache.lucene.search.TermQuery) clauses[3].getQuery()).getTerm(), equalTo(new Term("content", "test3")));
         assertThat(clauses[3].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
     }
 
@@ -1118,16 +1120,16 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
 
         assertThat(clauses.length, equalTo(4));
 
-        assertThat(((TermQuery) clauses[0].getQuery()).getTerm(), equalTo(new Term("content", "test1")));
+        assertThat(((org.apache.lucene.search.TermQuery) clauses[0].getQuery()).getTerm(), equalTo(new Term("content", "test1")));
         assertThat(clauses[0].getOccur(), equalTo(BooleanClause.Occur.MUST));
 
-        assertThat(((TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("content", "test4")));
+        assertThat(((org.apache.lucene.search.TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("content", "test4")));
         assertThat(clauses[1].getOccur(), equalTo(BooleanClause.Occur.MUST));
 
-        assertThat(((TermQuery) clauses[2].getQuery()).getTerm(), equalTo(new Term("content", "test2")));
+        assertThat(((org.apache.lucene.search.TermQuery) clauses[2].getQuery()).getTerm(), equalTo(new Term("content", "test2")));
         assertThat(clauses[2].getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
 
-        assertThat(((TermQuery) clauses[3].getQuery()).getTerm(), equalTo(new Term("content", "test3")));
+        assertThat(((org.apache.lucene.search.TermQuery) clauses[3].getQuery()).getTerm(), equalTo(new Term("content", "test3")));
         assertThat(clauses[3].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
     }
 
@@ -1141,10 +1143,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
 
         assertThat(clauses.length, equalTo(2));
 
-        assertThat(((TermQuery) clauses[0].getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
+        assertThat(((org.apache.lucene.search.TermQuery) clauses[0].getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
         assertThat(clauses[0].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
 
-        assertThat(((TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("name.first", "test")));
+        assertThat(((org.apache.lucene.search.TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("name.first", "test")));
         assertThat(clauses[1].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
     }
 
@@ -1159,10 +1161,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
 
         assertThat(clauses.length, equalTo(2));
 
-        assertThat(((TermQuery) clauses[0].getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
+        assertThat(((org.apache.lucene.search.TermQuery) clauses[0].getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
         assertThat(clauses[0].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
 
-        assertThat(((TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("name.first", "test")));
+        assertThat(((org.apache.lucene.search.TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("name.first", "test")));
         assertThat(clauses[1].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
     }
 
@@ -1208,13 +1210,13 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
 
         assertThat(clauses.length, equalTo(3));
 
-        assertThat(((TermQuery) clauses[0].getQuery()).getTerm(), equalTo(new Term("name.first", "test1")));
+        assertThat(((org.apache.lucene.search.TermQuery) clauses[0].getQuery()).getTerm(), equalTo(new Term("name.first", "test1")));
         assertThat(clauses[0].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
 
-        assertThat(((TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("name.first", "test2")));
+        assertThat(((org.apache.lucene.search.TermQuery) clauses[1].getQuery()).getTerm(), equalTo(new Term("name.first", "test2")));
         assertThat(clauses[1].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
 
-        assertThat(((TermQuery) clauses[2].getQuery()).getTerm(), equalTo(new Term("name.first", "test3")));
+        assertThat(((org.apache.lucene.search.TermQuery) clauses[2].getQuery()).getTerm(), equalTo(new Term("name.first", "test3")));
         assertThat(clauses[2].getOccur(), equalTo(BooleanClause.Occur.SHOULD));
     }
 
@@ -1224,7 +1226,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termFilter("name.last", "banon"))).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
+        assertThat(((org.apache.lucene.search.TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
         assertThat(getTerm(filteredQuery.getFilter()), equalTo(new Term("name.last", "banon")));
     }
 
@@ -1235,7 +1237,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
+        assertThat(((org.apache.lucene.search.TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
         assertThat(getTerm(filteredQuery.getFilter()), equalTo(new Term("name.last", "banon")));
     }
 
@@ -1246,7 +1248,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
+        assertThat(((org.apache.lucene.search.TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
         assertThat(getTerm(filteredQuery.getFilter()), equalTo(new Term("name.last", "banon")));
     }
 
@@ -1257,7 +1259,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(FilteredQuery.class));
         FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
+        assertThat(((org.apache.lucene.search.TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
 
         Filter filter = filteredQuery.getFilter();
         assertThat(filter, instanceOf(NumericRangeFilter.class));
@@ -1291,8 +1293,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(filteredQuery.getFilter(), instanceOf(LimitFilter.class));
         assertThat(((LimitFilter) filteredQuery.getFilter()).getLimit(), equalTo(2));
 
-        assertThat(filteredQuery.getQuery(), instanceOf(TermQuery.class));
-        assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
+        assertThat(filteredQuery.getQuery(), instanceOf(org.apache.lucene.search.TermQuery.class));
+        assertThat(((org.apache.lucene.search.TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
     }
 
     @Test
@@ -1387,7 +1389,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         Query parsedQuery = queryParser.parse(functionScoreQuery(termQuery("name.last", "banon"), factorFunction(1.3f))).query();
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
-        assertThat(((TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));
+        assertThat(((org.apache.lucene.search.TermQuery) functionScoreQuery.getSubQuery()).getTerm(), equalTo(new Term("name.last", "banon")));
         assertThat((double) ((BoostScoreFunction) functionScoreQuery.getFunction()).getBoost(), closeTo(1.3, 0.001));
     }
 
@@ -1629,8 +1631,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         Field field = QueryWrapperFilter.class.getDeclaredField("query");
         field.setAccessible(true);
         Query wrappedQuery = (Query) field.get(queryWrapperFilter);
-        assertThat(wrappedQuery, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) wrappedQuery).getTerm(), equalTo(new Term("name.last", "banon")));
+        assertThat(wrappedQuery, instanceOf(org.apache.lucene.search.TermQuery.class));
+        assertThat(((org.apache.lucene.search.TermQuery) wrappedQuery).getTerm(), equalTo(new Term("name.last", "banon")));
     }
 
     @Test
@@ -1644,8 +1646,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         Field field = QueryWrapperFilter.class.getDeclaredField("query");
         field.setAccessible(true);
         Query wrappedQuery = (Query) field.get(queryWrapperFilter);
-        assertThat(wrappedQuery, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) wrappedQuery).getTerm(), equalTo(new Term("name.last", "banon")));
+        assertThat(wrappedQuery, instanceOf(org.apache.lucene.search.TermQuery.class));
+        assertThat(((org.apache.lucene.search.TermQuery) wrappedQuery).getTerm(), equalTo(new Term("name.last", "banon")));
     }
 
     @Test
@@ -1660,8 +1662,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         Field field = QueryWrapperFilter.class.getDeclaredField("query");
         field.setAccessible(true);
         Query wrappedQuery = (Query) field.get(queryWrapperFilter);
-        assertThat(wrappedQuery, instanceOf(TermQuery.class));
-        assertThat(((TermQuery) wrappedQuery).getTerm(), equalTo(new Term("name.last", "banon")));
+        assertThat(wrappedQuery, instanceOf(org.apache.lucene.search.TermQuery.class));
+        assertThat(((org.apache.lucene.search.TermQuery) wrappedQuery).getTerm(), equalTo(new Term("name.last", "banon")));
     }
 
     @Test
@@ -2539,7 +2541,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     @Deprecated
     private Term getTerm(Query query) {
         TermFilter filter = (TermFilter) query;
-        TermQuery wrapped = (TermQuery) filter.getQuery();
+        org.apache.lucene.search.TermQuery wrapped = (org.apache.lucene.search.TermQuery) filter.getQuery();
         return wrapped.getTerm();
     }
 }

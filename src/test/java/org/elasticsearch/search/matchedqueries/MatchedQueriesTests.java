@@ -21,6 +21,7 @@ package org.elasticsearch.search.matchedqueries;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.TermQuery;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -109,8 +110,8 @@ public class MatchedQueriesTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setPostFilter(queryFilter(boolQuery()
-                        .should(termQuery("name", "test").queryName("name"))
-                        .should(termQuery("title", "title1").queryName("title")))).get();
+                        .should(new TermQuery("name", "test", "name"))
+                        .should(new TermQuery("title", "title1", "title")))).get();
 
         assertHitCount(searchResponse, 3l);
         for (SearchHit hit : searchResponse.getHits()) {

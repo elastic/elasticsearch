@@ -114,8 +114,8 @@ public abstract class QueryBuilders {
      * @param name  The name of the field
      * @param value The value of the term
      */
-    public static TermQueryBuilder termQuery(String name, String value) {
-        return new TermQueryBuilder(name, value);
+    public static TermQuery termQuery(String name, String value) {
+        return new TermQuery(name, value);
     }
 
     /**
@@ -124,8 +124,8 @@ public abstract class QueryBuilders {
      * @param name  The name of the field
      * @param value The value of the term
      */
-    public static TermQueryBuilder termQuery(String name, int value) {
-        return new TermQueryBuilder(name, value);
+    public static TermQuery termQuery(String name, int value) {
+        return new TermQuery(name, value);
     }
 
     /**
@@ -134,8 +134,8 @@ public abstract class QueryBuilders {
      * @param name  The name of the field
      * @param value The value of the term
      */
-    public static TermQueryBuilder termQuery(String name, long value) {
-        return new TermQueryBuilder(name, value);
+    public static TermQuery termQuery(String name, long value) {
+        return new TermQuery(name, value);
     }
 
     /**
@@ -144,8 +144,8 @@ public abstract class QueryBuilders {
      * @param name  The name of the field
      * @param value The value of the term
      */
-    public static TermQueryBuilder termQuery(String name, float value) {
-        return new TermQueryBuilder(name, value);
+    public static TermQuery termQuery(String name, float value) {
+        return new TermQuery(name, value);
     }
 
     /**
@@ -154,8 +154,8 @@ public abstract class QueryBuilders {
      * @param name  The name of the field
      * @param value The value of the term
      */
-    public static TermQueryBuilder termQuery(String name, double value) {
-        return new TermQueryBuilder(name, value);
+    public static TermQuery termQuery(String name, double value) {
+        return new TermQuery(name, value);
     }
 
     /**
@@ -164,8 +164,8 @@ public abstract class QueryBuilders {
      * @param name  The name of the field
      * @param value The value of the term
      */
-    public static TermQueryBuilder termQuery(String name, boolean value) {
-        return new TermQueryBuilder(name, value);
+    public static TermQuery termQuery(String name, boolean value) {
+        return new TermQuery(name, value);
     }
 
     /**
@@ -174,9 +174,10 @@ public abstract class QueryBuilders {
      * @param name  The name of the field
      * @param value The value of the term
      */
-    public static TermQueryBuilder termQuery(String name, Object value) {
-        return new TermQueryBuilder(name, value);
+    public static TermQuery termQuery(String name, Object value) {
+        return new TermQuery(name, value);
     }
+
 
     /**
      * A Query that matches documents using fuzzy query.

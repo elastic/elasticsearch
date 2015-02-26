@@ -369,7 +369,7 @@ public class CountQueryTests extends ElasticsearchIntegrationTest {
         WrapperQueryBuilder wrapper = new WrapperQueryBuilder("{ \"term\" : { \"field1\" : \"value1_1\" } }");
         assertHitCount(client().prepareCount().setQuery(wrapper).get(), 1l);
 
-        BoolQueryBuilder bool = boolQuery().must(wrapper).must(new TermQueryBuilder("field2", "value2_1"));
+        BoolQueryBuilder bool = boolQuery().must(wrapper).must(new TermQuery("field2", "value2_1"));
         assertHitCount(client().prepareCount().setQuery(bool).get(), 1l);
     }
 

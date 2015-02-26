@@ -19,7 +19,6 @@
 
 package org.elasticsearch.nested;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQuery;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -231,9 +231,9 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = client().prepareSearch("test")
                 .setQuery(nestedQuery("nested1", boolQuery()
-                        .should(termQuery("nested1.n_field1", "n_value1_1").queryName("test1"))
-                        .should(termQuery("nested1.n_field1", "n_value1_3").queryName("test2"))
-                        .should(termQuery("nested1.n_field2", "n_value2_2").queryName("test3"))
+                                .should(new TermQuery("nested1.n_field1", "n_value1_1", "test1"))
+                                .should(new TermQuery("nested1.n_field1", "n_value1_3", "test2"))
+                                .should(new TermQuery("nested1.n_field2", "n_value2_2", "test3"))
                 ))
                 .setSize(numDocs)
                 .addSort("field1", SortOrder.ASC)

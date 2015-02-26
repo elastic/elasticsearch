@@ -24,7 +24,8 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.index.query.TermQueryBuilder;
+import org.elasticsearch.index.query.TermQuery;
+import org.elasticsearch.index.query.TermQuery;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory.ExecutionMode;
@@ -117,7 +118,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     public void structuredAnalysis() throws Exception {
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQuery("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("fact_category").executionHint(randomExecutionHint())
                            .minDocCount(2))
@@ -134,7 +135,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         long[] excludeTerms = { MUSIC_CATEGORY };
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "paul"))
+                .setQuery(new TermQuery("_all", "paul"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("fact_category").executionHint(randomExecutionHint())
                            .minDocCount(1).exclude(excludeTerms))
@@ -149,7 +150,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     @Test
     public void includeExclude() throws Exception {
         SearchResponse response = client().prepareSearch("test")
-                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .setQuery(new TermQuery("_all", "weller"))
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint())
                         .exclude("weller"))
                 .get();
@@ -168,7 +169,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         assertThat(terms.contains("the"), is(true));
 
         response = client().prepareSearch("test")
-                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .setQuery(new TermQuery("_all", "weller"))
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint())
                         .include("weller"))
                 .get();
@@ -186,7 +187,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     public void includeExcludeExactValues() throws Exception {
         String []incExcTerms={"weller","nosuchterm"};
         SearchResponse response = client().prepareSearch("test")
-                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .setQuery(new TermQuery("_all", "weller"))
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint())
                         .exclude(incExcTerms))
                 .get();
@@ -199,7 +200,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         assertEquals(new HashSet<String>(Arrays.asList("jam", "council", "style", "paul", "of", "the")), terms);
 
         response = client().prepareSearch("test")
-                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .setQuery(new TermQuery("_all", "weller"))
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint())
                         .include(incExcTerms))
                 .get();
@@ -217,7 +218,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     public void unmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQuery("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("fact_category").executionHint(randomExecutionHint())
                         .minDocCount(2))
@@ -232,7 +233,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     public void textAnalysis() throws Exception {
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQuery("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint())
                            .minDocCount(2))
@@ -247,7 +248,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     public void textAnalysisGND() throws Exception {
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQuery("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint()).significanceHeuristic(new GND.GNDBuilder(true))
                         .minDocCount(2))
@@ -262,7 +263,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     public void textAnalysisChiSquare() throws Exception {
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQuery("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description").executionHint(randomExecutionHint()).significanceHeuristic(new ChiSquare.ChiSquareBuilder(false,true))
                         .minDocCount(2))
@@ -278,7 +279,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQuery("_all", "terje"))
                 .setFrom(0)
                 .setSize(60)
                 .setExplain(true)
@@ -298,7 +299,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
         // as the background source of term statistics.
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQuery("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)                
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description")
                            .minDocCount(2).backgroundFilter(FilterBuilders.termFilter("fact_category", 1)))
@@ -324,7 +325,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     public void filteredAnalysis() throws Exception {
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "weller"))
+                .setQuery(new TermQuery("_all", "weller"))
                 .setFrom(0).setSize(60).setExplain(true)                
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description")
                            .minDocCount(1).backgroundFilter(FilterBuilders.termsFilter("description",  "paul")))
@@ -377,7 +378,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     public void partiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped", "test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQuery("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms").field("description")
                             .executionHint(randomExecutionHint())
@@ -408,7 +409,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     public void testDefaultSignificanceHeuristic() throws Exception {
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQuery("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms")
                         .field("description")
@@ -426,7 +427,7 @@ public class SignificantTermsTests extends ElasticsearchIntegrationTest {
     public void testMutualInformation() throws Exception {
         SearchResponse response = client().prepareSearch("test")
                 .setSearchType(SearchType.QUERY_AND_FETCH)
-                .setQuery(new TermQueryBuilder("_all", "terje"))
+                .setQuery(new TermQuery("_all", "terje"))
                 .setFrom(0).setSize(60).setExplain(true)
                 .addAggregation(new SignificantTermsBuilder("mySignificantTerms")
                         .field("description")

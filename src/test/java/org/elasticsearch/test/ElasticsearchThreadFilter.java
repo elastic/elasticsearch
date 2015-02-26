@@ -27,8 +27,7 @@ import java.util.regex.Pattern;
 
 /**
  * Simple thread filter for randomized runner
- * This filter rejectes all threads that are known to leak across
- * tests / suites ie. the global test cluster threads etc.
+ * This filter rejectes all threads that are known to leak across tests / suites
  * It will cause threads leaking from threadpools / executors in unittests
  * to fail the test.
  */

@@ -90,7 +90,7 @@ public class MapperService extends AbstractIndexComponent  {
 
     public static final String DEFAULT_MAPPING = "_default_";
     private static ObjectOpenHashSet<String> META_FIELDS = ObjectOpenHashSet.from(
-            "_uid", "_id", "_type", "_all", "_analyzer", "_boost", "_parent", "_routing", "_index",
+            "_uid", "_id", "_type", "_all", "_analyzer", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );
     private final AnalysisService analysisService;

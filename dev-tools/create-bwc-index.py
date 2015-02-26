@@ -181,7 +181,10 @@ def generate_index(client, version):
       },
       '_routing': {
         'path': 'myrouting'
-      } 
+      },
+      '_boost': {
+        'null_value': 2.0
+      }     
     }
     mappings['custom_formats'] = {
       'properties': {
@@ -195,7 +198,6 @@ def generate_index(client, version):
         }
       }
     }
-
 
   client.indices.create(index='test', body={
       'settings': {

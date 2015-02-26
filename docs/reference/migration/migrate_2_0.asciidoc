@@ -247,7 +247,7 @@ curl -XGET 'localhost:9200/index/type/_search'
 }
 ---------------
 
-==== Meta fields have limited confiugration
+==== Meta fields have limited configuration
 Meta fields (those beginning with underscore) are fields used by elasticsearch
 to provide special features.  They now have limited configuration options.
 
@@ -255,6 +255,7 @@ to provide special features.  They now have limited configuration options.
 * `_type` configuration can no longer be changed.
 * `_index` configuration is limited to enabling the field.
 * `_routing` configuration is limited to requiring the field.
+* `_boost` has been removed.
 
 === Codecs
 

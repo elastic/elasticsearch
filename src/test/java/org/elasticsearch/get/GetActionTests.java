@@ -1008,7 +1008,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void testUngeneratedFieldsPartOfSourceUnstoredSourceDisabled() throws IOException {
         indexSingleDocumentWithUngeneratedFieldsThatArePartOf_source(false, false);
-        String[] fieldsList = {"my_boost"};
+        String[] fieldsList = {};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
         refresh();
@@ -1027,7 +1027,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
             sourceEnabled = randomBoolean();
         }
         indexSingleDocumentWithUngeneratedFieldsThatArePartOf_source(stored, sourceEnabled);
-        String[] fieldsList = {"my_boost"};
+        String[] fieldsList = {};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
         refresh();
@@ -1049,11 +1049,6 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "    \"doc\": {\n" +
                 "      \"_source\": {\n" +
                 "        \"enabled\": " + sourceEnabled + "\n" +
-                "      },\n" +
-                "      \"_boost\": {\n" +
-                "        \"name\": \"my_boost\",\n" +
-                "        \"null_value\": 1,\n" +
-                "        \"store\": \"" + storedString + "\"\n" +
                 "      }\n" +
                 "    }\n" +
                 "  }\n" +

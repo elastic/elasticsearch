@@ -22,9 +22,7 @@ package org.elasticsearch.index.mapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
@@ -33,7 +31,6 @@ import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -50,10 +47,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.mapper.internal.BoostFieldMapper;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
@@ -194,7 +189,6 @@ public class DocumentMapper implements ToXContent {
             this.rootMappers.put(SourceFieldMapper.class, new SourceFieldMapper(indexSettings));
             this.rootMappers.put(TypeFieldMapper.class, new TypeFieldMapper(indexSettings));
             this.rootMappers.put(AllFieldMapper.class, new AllFieldMapper(indexSettings));
-            this.rootMappers.put(BoostFieldMapper.class, new BoostFieldMapper(indexSettings));
             this.rootMappers.put(TimestampFieldMapper.class, new TimestampFieldMapper(indexSettings));
             this.rootMappers.put(TTLFieldMapper.class, new TTLFieldMapper(indexSettings));
             this.rootMappers.put(VersionFieldMapper.class, new VersionFieldMapper(indexSettings));
@@ -409,10 +403,6 @@ public class DocumentMapper implements ToXContent {
 
     public SizeFieldMapper SizeFieldMapper() {
         return rootMapper(SizeFieldMapper.class);
-    }
-
-    public BoostFieldMapper boostFieldMapper() {
-        return rootMapper(BoostFieldMapper.class);
     }
 
     public Filter typeFilter() {

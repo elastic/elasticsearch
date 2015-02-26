@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.geo;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
@@ -380,6 +381,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(locationMap.size(), equalTo(2));
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9904")
     @Test
     public void testShapeFilterWithRandomGeoCollection() throws Exception {
         // Create a random geometry collection.

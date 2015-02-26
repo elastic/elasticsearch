@@ -168,7 +168,7 @@ public class RecoveryTarget extends AbstractComponent {
         final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
         try {
             logger.trace("[{}][{}] starting recovery from {}", request.shardId().index().name(), request.shardId().id(), request.sourceNode());
-
+            recoveryStatus.indexShard().prepareForStoreRecovery();
             recoveryStatus.CancellableThreads().execute(new CancellableThreads.Interruptable() {
                 @Override
                 public void run() throws InterruptedException {
@@ -349,7 +349,6 @@ public class RecoveryTarget extends AbstractComponent {
         public void messageReceived(RecoveryFilesInfoRequest request, TransportChannel channel) throws Exception {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
-                recoveryStatus.indexShard().prepareForStoreRecovery();
                 final RecoveryState.Index index = recoveryStatus.state().getIndex();
                 for (int i = 0; i < request.phase1ExistingFileNames.size(); i++) {
                     index.addFileDetail(request.phase1ExistingFileNames.get(i), request.phase1ExistingFileSizes.get(i), true);

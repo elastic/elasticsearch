@@ -213,36 +213,40 @@ public class LuceneTest extends ElasticsearchLuceneTestCase {
 
     public void testNeedsUpgrading() throws URISyntaxException, IOException {
         OLD_FORMAT_IMPERSONATION_IS_ACTIVE = false;
-        File indexDir = createTempDir();
-        File backwardsIndex = new File(getClass().getResource("/org/elasticsearch/bwcompat/index-0.20.6.zip").toURI());
-        TestUtil.unzip(backwardsIndex, indexDir);
-        File luceneIndex = new File(indexDir, "data/bwc_index_0.20.6/nodes/0/indices/test/0/index");
-        try (Directory dir = newFSDirectory(luceneIndex)) {
-            SegmentInfos before = Lucene.readSegmentInfos(dir);
-            assertTrue(before.getUserData().containsKey(Translog.TRANSLOG_ID_KEY));
-            String key = before.getUserData().get(Translog.TRANSLOG_ID_KEY);
-            assertNotNull(key);
+        try {
+            File indexDir = createTempDir();
+            File backwardsIndex = new File(getClass().getResource("/org/elasticsearch/bwcompat/index-0.20.6.zip").toURI());
+            TestUtil.unzip(backwardsIndex, indexDir);
+            File luceneIndex = new File(indexDir, "data/bwc_index_0.20.6/nodes/0/indices/test/0/index");
+            try (Directory dir = newFSDirectory(luceneIndex)) {
+                    SegmentInfos before = Lucene.readSegmentInfos(dir);
+                    assertTrue(before.getUserData().containsKey(Translog.TRANSLOG_ID_KEY));
+                    String key = before.getUserData().get(Translog.TRANSLOG_ID_KEY);
+                    assertNotNull(key);
 
-            for (int i = 0; i < 2; i++) {
-                assertTrue(Lucene.indexNeeds3xUpgrading(dir));
-            }
+                    for (int i = 0; i < 2; i++) {
+                        assertTrue(Lucene.indexNeeds3xUpgrading(dir));
+                    }
 
-            for (int i = 0; i < 2; i++) {
-                boolean upgraded = Lucene.upgradeLucene3xSegmentsMetadata(dir);
-                if (i == 0) {
-                    assertTrue(upgraded);
-                } else {
-                    assertFalse(upgraded);
+                    for (int i = 0; i < 2; i++) {
+                        boolean upgraded = Lucene.upgradeLucene3xSegmentsMetadata(dir);
+                        if (i == 0) {
+                            assertTrue(upgraded);
+                        } else {
+                            assertFalse(upgraded);
+                        }
+                    }
+
+                    for (int i = 0; i < 2; i++) {
+                        assertFalse(Lucene.indexNeeds3xUpgrading(dir));
+                    }
+
+                    SegmentInfos after = Lucene.readSegmentInfos(dir);
+                    assertEquals(after.getUserData(), before.getUserData());
+                    assertEquals(key, after.getUserData().get(Translog.TRANSLOG_ID_KEY));
                 }
-            }
-
-            for (int i = 0; i < 2; i++) {
-                assertFalse(Lucene.indexNeeds3xUpgrading(dir));
-            }
-
-            SegmentInfos after = Lucene.readSegmentInfos(dir);
-            assertEquals(after.getUserData(), before.getUserData());
-            assertEquals(key, after.getUserData().get(Translog.TRANSLOG_ID_KEY));
+        } finally {
+            OLD_FORMAT_IMPERSONATION_IS_ACTIVE = true;
         }
     }
 }

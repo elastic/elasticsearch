@@ -10,7 +10,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
-import org.elasticsearch.alerts.AlertsService;
+import org.elasticsearch.alerts.AlertBootstrap;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -24,12 +24,12 @@ import org.elasticsearch.transport.TransportService;
  */
 public class TransportAlertsServiceAction extends TransportMasterNodeOperationAction<AlertsServiceRequest, AlertsServiceResponse> {
 
-    private final AlertsService alertsService;
+    private final AlertBootstrap alertBootstrap;
 
     @Inject
-    public TransportAlertsServiceAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters, AlertsService alertsService) {
+    public TransportAlertsServiceAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters, AlertBootstrap alertBootstrap) {
         super(settings, actionName, transportService, clusterService, threadPool, actionFilters);
-        this.alertsService = alertsService;
+        this.alertBootstrap = alertBootstrap;
     }
 
     @Override
@@ -51,14 +51,14 @@ public class TransportAlertsServiceAction extends TransportMasterNodeOperationAc
     protected void masterOperation(AlertsServiceRequest request, ClusterState state, ActionListener<AlertsServiceResponse> listener) throws ElasticsearchException {
         switch (request.getCommand()) {
             case "start":
-                alertsService.start();
+                alertBootstrap.start();
                 break;
             case "stop":
-                alertsService.stop();
+                alertBootstrap.stop();
                 break;
             case "restart":
-                alertsService.start();
-                alertsService.stop();
+                alertBootstrap.start();
+                alertBootstrap.stop();
                 break;
             default:
                 listener.onFailure(new ElasticsearchIllegalArgumentException("Command [" + request.getCommand() + "] is undefined"));

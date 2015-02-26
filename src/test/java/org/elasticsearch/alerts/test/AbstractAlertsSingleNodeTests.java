@@ -31,6 +31,12 @@ public abstract class AbstractAlertsSingleNodeTests extends ElasticsearchSingleN
 
     @AfterClass
     public static void cleanupSuite() throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertThat(getInstanceFromNode(AlertsService.class).state(), equalTo(AlertsService.State.STARTED));
+            }
+        });
         node().stop();
         assertBusy(new Runnable() {
             @Override

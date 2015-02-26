@@ -26,8 +26,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
-import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -50,6 +49,7 @@ import org.elasticsearch.index.merge.policy.ElasticsearchMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.search.nested.IncludeNestedDocsQuery;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -114,6 +114,11 @@ public class InternalEngine extends Engine {
         SearcherManager manager = null;
         boolean success = false;
         try {
+            try {
+                upgrade3xSegments(store);
+            } catch (IOException ex) {
+                throw new EngineCreationFailureException(shardId, "failed to upgrade 3x segments", ex);
+            }
             this.onGoingRecoveries = new FlushingRecoveryCounter(this, store, logger);
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
             this.indexingService = engineConfig.getIndexingService();
@@ -1022,6 +1027,19 @@ public class InternalEngine extends Engine {
             boolean isLocked = IndexWriter.isLocked(store.directory());
             logger.warn("Could not lock IndexWriter isLocked [{}]", ex, isLocked);
             throw ex;
+        }
+    }
+
+    protected void upgrade3xSegments(Store store) throws IOException {
+        store.incRef();
+        try {
+            if (Lucene.upgradeLucene3xSegmentsMetadata(store.directory())) {
+                logger.debug("upgraded pending 3.x segments on startup");
+            } else {
+                logger.debug("no 3.x segments needed upgrading");
+            }
+        } finally {
+            store.decRef();
         }
     }
 

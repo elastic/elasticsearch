@@ -23,6 +23,7 @@ import com.google.common.collect.Iterables;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.codecs.lucene3x.Lucene3xSegmentInfoFormat;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.*;
@@ -40,6 +41,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.store.Store;
 
 import java.io.IOException;
 import java.text.ParseException;
@@ -723,5 +725,38 @@ public class Lucene {
         public void delete() {
             throw new UnsupportedOperationException("This IndexCommit does not support deletions");
         }
+    }
+
+    /**
+     * Returns <code>true</code> iff the store contains an index that contains segments that were
+     * not upgraded to the lucene 4.x format.
+     */
+    static boolean indexNeeds3xUpgrading(Directory directory) throws IOException {
+        final String si =  SegmentInfos.getLastCommitSegmentsFileName(directory);
+        if (si != null) {
+            try (IndexInput input = directory.openInput(si, IOContext.READONCE)) {
+                return input.readInt() != CodecUtil.CODEC_MAGIC; // check if it's a 4.x commit point
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Upgrades the segments metadata of the index to match a lucene 4.x index format. In particular it ensures that each
+     * segment has a .si file even if it was written with lucene 3.x
+     */
+    public static boolean upgradeLucene3xSegmentsMetadata(Directory directory) throws IOException {
+        if (indexNeeds3xUpgrading(directory)) {
+            try (final IndexWriter iw = new IndexWriter(directory, new IndexWriterConfig(Version.LATEST, Lucene.STANDARD_ANALYZER)
+                    .setMergePolicy(NoMergePolicy.INSTANCE)
+                    .setOpenMode(IndexWriterConfig.OpenMode.APPEND))) {
+                Map<String, String> commitData = iw.getCommitData(); // this is a trick to make IW to actually do a commit - we have to preserve the last committed data as well
+                // for ES to get the translog ID back
+                iw.setCommitData(commitData);
+                iw.commit();
+            }
+            return true;
+        }
+        return false;
     }
 }

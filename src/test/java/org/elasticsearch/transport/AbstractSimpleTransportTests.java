@@ -29,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -586,6 +587,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
 
     @Test
+    @TestLogging(value = "test. transport.tracer:TRACE")
     public void testTracerLog() throws InterruptedException {
         TransportRequestHandler handler = new BaseTransportRequestHandler<StringMessageRequest>() {
             @Override
@@ -650,20 +652,24 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
         serviceB.registerHandler("test", handler);
         serviceB.registerHandler("testError", handlerWithError);
 
-        Tracer tracer = new Tracer();
+        final Tracer tracer = new Tracer();
         serviceA.addTracer(tracer);
         serviceB.addTracer(tracer);
+
+        tracer.reset(4);
         serviceA.sendRequest(nodeB, "test", new StringMessageRequest(""), noopResponseHandler);
         requestCompleted.acquire();
+        tracer.expectedEvents.get().await();
         assertThat("didn't see request sent", tracer.sawRequestSent, equalTo(true));
         assertThat("didn't see request received", tracer.sawRequestReceived, equalTo(true));
         assertThat("didn't see response sent", tracer.sawResponseSent, equalTo(true));
         assertThat("didn't see response received", tracer.sawResponseReceived, equalTo(true));
         assertThat("saw error sent", tracer.sawErrorSent, equalTo(false));
 
-        tracer.reset();
+        tracer.reset(4);
         serviceA.sendRequest(nodeB, "testError", new StringMessageRequest(""), noopResponseHandler);
         requestCompleted.acquire();
+        tracer.expectedEvents.get().await();
         assertThat("didn't see request sent", tracer.sawRequestSent, equalTo(true));
         assertThat("didn't see request received", tracer.sawRequestReceived, equalTo(true));
         assertThat("saw response sent", tracer.sawResponseSent, equalTo(false));
@@ -685,18 +691,20 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
                 .put(TransportService.SETTING_TRACE_LOG_INCLUDE, includeSettings, TransportService.SETTING_TRACE_LOG_EXCLUDE, excludeSettings)
                 .build());
 
-        tracer.reset();
+        tracer.reset(4);
         serviceA.sendRequest(nodeB, "test", new StringMessageRequest(""), noopResponseHandler);
         requestCompleted.acquire();
+        tracer.expectedEvents.get().await();
         assertThat("didn't see request sent", tracer.sawRequestSent, equalTo(true));
         assertThat("didn't see request received", tracer.sawRequestReceived, equalTo(true));
         assertThat("didn't see response sent", tracer.sawResponseSent, equalTo(true));
         assertThat("didn't see response received", tracer.sawResponseReceived, equalTo(true));
         assertThat("saw error sent", tracer.sawErrorSent, equalTo(false));
 
-        tracer.reset();
+        tracer.reset(2);
         serviceA.sendRequest(nodeB, "testError", new StringMessageRequest(""), noopResponseHandler);
         requestCompleted.acquire();
+        tracer.expectedEvents.get().await();
         assertThat("saw request sent", tracer.sawRequestSent, equalTo(false));
         assertThat("didn't see request received", tracer.sawRequestReceived, equalTo(true));
         assertThat("saw response sent", tracer.sawResponseSent, equalTo(false));
@@ -711,42 +719,51 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
         public volatile boolean sawErrorSent;
         public volatile boolean sawResponseReceived;
 
+        public AtomicReference<CountDownLatch> expectedEvents = new AtomicReference<>();
+
+
         @Override
         public void receivedRequest(long requestId, String action) {
             super.receivedRequest(requestId, action);
             sawRequestReceived = true;
+            expectedEvents.get().countDown();
         }
 
         @Override
         public void requestSent(DiscoveryNode node, long requestId, String action, TransportRequestOptions options) {
             super.requestSent(node, requestId, action, options);
             sawRequestSent = true;
+            expectedEvents.get().countDown();
         }
 
         @Override
         public void responseSent(long requestId, String action) {
             super.responseSent(requestId, action);
             sawResponseSent = true;
+            expectedEvents.get().countDown();
         }
 
         @Override
         public void responseSent(long requestId, String action, Throwable t) {
             super.responseSent(requestId, action, t);
             sawErrorSent = true;
+            expectedEvents.get().countDown();
         }
 
         @Override
         public void receivedResponse(long requestId, DiscoveryNode sourceNode, String action) {
             super.receivedResponse(requestId, sourceNode, action);
             sawResponseReceived = true;
+            expectedEvents.get().countDown();
         }
 
-        public void reset() {
+        public void reset(int expectedCount) {
             sawRequestSent = false;
             sawRequestReceived = false;
             sawResponseSent = false;
             sawErrorSent = false;
             sawResponseReceived = false;
+            expectedEvents.set(new CountDownLatch(expectedCount));
         }
     }
 

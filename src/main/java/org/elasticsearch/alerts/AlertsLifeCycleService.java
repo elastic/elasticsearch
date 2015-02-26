@@ -18,16 +18,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 /**
  */
-public class AlertBootstrap extends AbstractComponent implements ClusterStateListener {
+public class AlertsLifeCycleService extends AbstractComponent implements ClusterStateListener {
 
     private final ThreadPool threadPool;
     private final AlertsService alertsService;
     private final ClusterService clusterService;
 
+    // Maybe this should be a setting in the cluster settings?
     private volatile boolean manuallyStopped;
 
     @Inject
-    public AlertBootstrap(Settings settings, ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool, AlertsService alertsService) {
+    public AlertsLifeCycleService(Settings settings, ClusterService clusterService, IndicesService indicesService, ThreadPool threadPool, AlertsService alertsService) {
         super(settings);
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -38,18 +39,18 @@ public class AlertBootstrap extends AbstractComponent implements ClusterStateLis
         indicesService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void beforeStop() {
-                AlertBootstrap.this.alertsService.stop();
+                AlertsLifeCycleService.this.alertsService.stop();
             }
         });
         manuallyStopped = !settings.getAsBoolean("alerts.start_immediately",  true);
     }
 
-    public void start() {
+    public synchronized void start() {
         manuallyStopped = false;
         alertsService.start(clusterService.state());
     }
 
-    public void stop() {
+    public synchronized void stop() {
         manuallyStopped = true;
         alertsService.stop();
     }

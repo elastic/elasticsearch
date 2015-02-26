@@ -1144,16 +1144,20 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void testGeneratedStringFieldsStored() throws IOException {
         indexSingleDocumentWithStringFieldsGeneratedFromText(true, randomBoolean());
-        String[] fieldsList = {"_all", "_field_names"};
+        String[] fieldsList = {"_all"};
+        String[] alwaysNotStoredFieldsList = {"_field_names"};
         // before refresh - document is only in translog
         assertGetFieldsNull(indexOrAlias(), "doc", "1", fieldsList);
         assertGetFieldsException(indexOrAlias(), "doc", "1", fieldsList);
+        assertGetFieldsNull(indexOrAlias(), "doc", "1", alwaysNotStoredFieldsList);
         refresh();
         //after refresh - document is in translog and also indexed
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
+        assertGetFieldsNull(indexOrAlias(), "doc", "1", alwaysNotStoredFieldsList);
         flush();
         //after flush - document is in not anymore translog - only indexed
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
+        assertGetFieldsNull(indexOrAlias(), "doc", "1", alwaysNotStoredFieldsList);
     }
 
     void indexSingleDocumentWithStringFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
@@ -1167,8 +1171,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "  \"mappings\": {\n" +
                 "    \"doc\": {\n" +
                 "      \"_source\" : {\"enabled\" : " + sourceEnabled + "}," +
-                "      \"_all\" : {\"enabled\" : true, \"store\":\"" + storedString + "\" }," +
-                "      \"_field_names\" : {\"store\":\"" + storedString + "\" }" +
+                "      \"_all\" : {\"enabled\" : true, \"store\":\"" + storedString + "\" }" +
                 "    }\n" +
                 "  }\n" +
                 "}";

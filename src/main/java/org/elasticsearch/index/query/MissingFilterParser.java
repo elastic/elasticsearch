@@ -95,7 +95,8 @@ public class MissingFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "missing must have either existence, or null_value, or both set to true");
         }
 
-        final FieldMappers fieldNamesMapper = parseContext.mapperService().indexName(FieldNamesFieldMapper.NAME);
+        final FieldMappers fieldNamesMappers = parseContext.mapperService().indexName(FieldNamesFieldMapper.NAME);
+        final FieldNamesFieldMapper fieldNamesMapper = (FieldNamesFieldMapper)fieldNamesMappers.mapper();
         MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
         if (smartNameObjectMapper != null && smartNameObjectMapper.hasMapper()) {
             // automatic make the object mapper pattern
@@ -124,14 +125,14 @@ public class MissingFilterParser implements FilterParser {
                     nonNullFieldMappers = smartNameFieldMappers;
                 }
                 Filter filter = null;
-                if (fieldNamesMapper != null && fieldNamesMapper.mapper().fieldType().indexOptions() != IndexOptions.NONE) {
+                if (fieldNamesMapper != null && fieldNamesMapper.enabled()) {
                     final String f;
                     if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
                         f = smartNameFieldMappers.mapper().names().indexName();
                     } else {
                         f = field;
                     }
-                    filter = fieldNamesMapper.mapper().termFilter(f, parseContext);
+                    filter = fieldNamesMapper.termFilter(f, parseContext);
                 }
                 // if _field_names are not indexed, we need to go the slow way
                 if (filter == null && smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {

@@ -89,6 +89,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
         }
 
         @Override
+        @Deprecated
         public Builder index(boolean index) {
             enabled(index);
             return super.index(index);
@@ -113,7 +114,9 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
             }
             
             FieldNamesFieldMapper.Builder builder = fieldNames();
-            parseField(builder, builder.name, node, parserContext);
+            if (parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                parseField(builder, builder.name, node, parserContext);
+            }
 
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -260,7 +263,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
         if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (includeDefaults || fieldType().equals(Defaults.FIELD_TYPE) == false) {
+        if (writePre2xSettings && (includeDefaults || fieldType().equals(Defaults.FIELD_TYPE) == false)) {
             super.doXContentBody(builder, includeDefaults, params);
         }
         

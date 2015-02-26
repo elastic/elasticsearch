@@ -54,7 +54,6 @@ import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.mapper.internal.BoostFieldMapper;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
@@ -139,7 +138,6 @@ public class DocumentMapperParser extends AbstractIndexComponent {
                 .put(SourceFieldMapper.NAME, new SourceFieldMapper.TypeParser())
                 .put(TypeFieldMapper.NAME, new TypeFieldMapper.TypeParser())
                 .put(AllFieldMapper.NAME, new AllFieldMapper.TypeParser())
-                .put(BoostFieldMapper.NAME, new BoostFieldMapper.TypeParser())
                 .put(ParentFieldMapper.NAME, new ParentFieldMapper.TypeParser())
                 .put(RoutingFieldMapper.NAME, new RoutingFieldMapper.TypeParser())
                 .put(TimestampFieldMapper.NAME, new TimestampFieldMapper.TypeParser())

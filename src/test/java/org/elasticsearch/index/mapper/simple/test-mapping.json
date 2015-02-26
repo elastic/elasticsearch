@@ -8,9 +8,6 @@
         enabled:true,
         _source:{
         },
-        _boost:{
-            null_value:2.0
-        },
         properties:{
             name:{
                 type:"object",

@@ -73,7 +73,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                         .startObject()
                         .startObject("type1")
                         .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
-                        .startObject("_ttl").field("enabled", true).field("store", "yes").endObject()
+                        .startObject("_ttl").field("enabled", true).endObject()
                         .endObject()
                         .endObject()));
     }
@@ -474,7 +474,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                         .startObject("subtype1")
                         .startObject("_parent").field("type", "type1").endObject()
                         .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
-                        .startObject("_ttl").field("enabled", true).field("store", "yes").endObject()
+                        .startObject("_ttl").field("enabled", true).endObject()
                         .endObject()
                         .endObject())
                 .execute().actionGet();
@@ -624,7 +624,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                         .startObject()
                         .startObject("type1")
                         .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
-                        .startObject("_ttl").field("enabled", true).field("store", "yes").endObject()
+                        .startObject("_ttl").field("enabled", true).endObject()
                         .endObject()
                         .endObject())
                 .setSettings(ImmutableSettings.builder().put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)));

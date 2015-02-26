@@ -272,7 +272,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             switch (currentClusterScope) {
                 case SUITE:
                     assert SUITE_SEED != null : "Suite seed was not initialized";
-                    currentCluster = buildAndPutCluster(currentClusterScope, SUITE_SEED.longValue());
+                    currentCluster = buildAndPutCluster(currentClusterScope, SUITE_SEED);
                     break;
                 case TEST:
                     currentCluster = buildAndPutCluster(currentClusterScope, randomLong());
@@ -1307,7 +1307,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         Set<Tuple<String, String>> bogusIds = new HashSet<>();
         if (random.nextBoolean() && !builders.isEmpty() && dummyDocuments) {
             builders = new ArrayList<>(builders);
-            final String[] indices = indicesSet.toArray(new String[0]);
+            final String[] indices = indicesSet.toArray(new String[indicesSet.size()]);
             // inject some bogus docs
             final int numBogusDocs = scaledRandomIntBetween(1, builders.size() * 2);
             final int unicodeLen = between(1, 10);
@@ -1590,7 +1590,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private boolean randomDynamicTemplates() {
         ClusterScope annotation = getAnnotation(this.getClass());
-        return annotation == null ? true : annotation.randomDynamicTemplates();
+        return annotation == null || annotation.randomDynamicTemplates();
     }
 
     /**
@@ -1620,12 +1620,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
-        int numClientNodes = InternalTestCluster.DEFAULT_NUM_CLIENT_NODES;
-        boolean enableRandomBenchNodes = InternalTestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES;
-        boolean enableHttpPipelining = InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING;
-        int minNumDataNodes = InternalTestCluster.DEFAULT_MIN_NUM_DATA_NODES;
-        int maxNumDataNodes = InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES;
-        SettingsSource settingsSource = InternalTestCluster.DEFAULT_SETTINGS_SOURCE;
         final String nodePrefix;
         switch (scope) {
             case TEST:
@@ -1637,7 +1631,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             default:
                 throw new ElasticsearchException("Scope not supported: " + scope);
         }
-        settingsSource = new SettingsSource() {
+        SettingsSource settingsSource = new SettingsSource() {
             @Override
             public Settings node(int nodeOrdinal) {
                 return ImmutableSettings.builder().put(InternalNode.HTTP_ENABLED, false).
@@ -1651,19 +1645,18 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         };
         
         int numDataNodes = getNumDataNodes();
+        int minNumDataNodes;
+        int maxNumDataNodes;
         if (numDataNodes >= 0) {
             minNumDataNodes = maxNumDataNodes = numDataNodes;
         } else {
             minNumDataNodes = getMinNumDataNodes();
             maxNumDataNodes = getMaxNumDataNodes();
         }
-        
-        numClientNodes = getNumClientNodes();
-        enableRandomBenchNodes = enableRandomBenchNodes();
-        
+
         return new InternalTestCluster(seed, minNumDataNodes, maxNumDataNodes,
-                clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), seed), settingsSource, numClientNodes,
-                enableRandomBenchNodes, enableHttpPipelining, CHILD_JVM_ID, nodePrefix);
+                clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), seed), settingsSource, getNumClientNodes(),
+                enableRandomBenchNodes(), InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, CHILD_JVM_ID, nodePrefix);
     }
 
     /**

@@ -107,8 +107,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
     @Override
     public void recover(boolean indexShouldExists, RecoveryState recoveryState) throws IndexShardGatewayRecoveryException {
-        recoveryState.getIndex().startTime(System.currentTimeMillis());
-        recoveryState.setStage(RecoveryState.Stage.INDEX);
+        indexShard.prepareForStoreRecovery();
         long version = -1;
         long translogId = -1;
         SegmentInfos si = null;
@@ -156,7 +155,6 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 throw new IndexShardGatewayRecoveryException(shardId(), "failed to fetch index version after copying it over", e);
             }
             recoveryState.getIndex().updateVersion(version);
-            recoveryState.getIndex().stopTime(System.currentTimeMillis());
 
             // since we recover from local, just fill the files and size
             try {
@@ -172,14 +170,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 logger.debug("failed to list file details", e);
             }
 
-            final RecoveryState.Start stateStart = recoveryState.getStart();
-            stateStart.startTime(System.currentTimeMillis());
-            recoveryState.setStage(RecoveryState.Stage.START);
-            indexShard.performRecoveryPrepareForTranslog();
-            stateStart.stopTime(System.currentTimeMillis());
-            stateStart.checkIndexTime(indexShard.checkIndexTook());
-            recoveryState.getTranslog().startTime(System.currentTimeMillis());
-            recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
+            indexShard.prepareForTranslogRecovery();
 
             File recoveringTranslogFile = null;
             if (translogId == -1) {
@@ -219,15 +210,12 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             if (recoveringTranslogFile == null || !recoveringTranslogFile.exists()) {
                 // no translog to recovery from, start and bail
                 // no translog files, bail
-                recoveryState.getTranslog().time(System.currentTimeMillis() - recoveryState.getTranslog().startTime());
-                indexShard.performRecoveryFinalization(true);
+                indexShard.finalizeRecovery(true);
                 indexShard.postRecovery("post recovery from gateway, no translog");
                 // no index, just start the shard and bail
                 return;
             }
 
-            recoveryState.getTranslog().startTime(System.currentTimeMillis());
-            recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
             StreamInput in = null;
             if (logger.isTraceEnabled()) {
                 logger.trace("recovering translog file: {} length: {}", recoveringTranslogFile, recoveringTranslogFile.length());
@@ -283,9 +271,8 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             } finally {
                 IOUtils.closeWhileHandlingException(in);
             }
-            recoveryState.getTranslog().time(System.currentTimeMillis() - recoveryState.getTranslog().startTime());
-            indexShard.performRecoveryFinalization(true);
-            indexShard.postRecovery("post recovery from gateway, no translog");
+            indexShard.finalizeRecovery(true);
+            indexShard.postRecovery("post recovery from gateway");
 
             try {
                 Files.deleteIfExists(recoveringTranslogFile.toPath());

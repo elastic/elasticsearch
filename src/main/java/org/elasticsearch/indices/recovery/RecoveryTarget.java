@@ -278,9 +278,7 @@ public class RecoveryTarget extends AbstractComponent {
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
-                recoveryStatus.indexShard().performRecoveryPrepareForTranslog();
-                recoveryStatus.stage(RecoveryState.Stage.TRANSLOG);
-                recoveryStatus.state().getStart().checkIndexTime(recoveryStatus.indexShard().checkIndexTook());
+                recoveryStatus.indexShard().prepareForTranslogRecovery();
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -302,7 +300,7 @@ public class RecoveryTarget extends AbstractComponent {
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
-                recoveryStatus.indexShard().performRecoveryFinalization(false);
+                recoveryStatus.indexShard().finalizeRecovery(false);
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -351,6 +349,7 @@ public class RecoveryTarget extends AbstractComponent {
         public void messageReceived(RecoveryFilesInfoRequest request, TransportChannel channel) throws Exception {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
+                recoveryStatus.indexShard().prepareForStoreRecovery();
                 final RecoveryState.Index index = recoveryStatus.state().getIndex();
                 for (int i = 0; i < request.phase1ExistingFileNames.size(); i++) {
                     index.addFileDetail(request.phase1ExistingFileNames.get(i), request.phase1ExistingFileSizes.get(i), true);
@@ -359,7 +358,6 @@ public class RecoveryTarget extends AbstractComponent {
                     index.addFileDetail(request.phase1FileNames.get(i), request.phase1FileSizes.get(i), false);
                 }
                 // recoveryBytesCount / recoveryFileCount will be set as we go...
-                recoveryStatus.stage(RecoveryState.Stage.INDEX);
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             }
         }

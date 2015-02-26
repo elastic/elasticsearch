@@ -98,15 +98,12 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
             return;
         }
 
-        final RecoveryState recoveryState = indexShard.recoveryState();
-
         threadPool.generic().execute(new Runnable() {
             @Override
             public void run() {
-                recoveryState.getTimer().startTime(System.currentTimeMillis());
-                recoveryState.setStage(RecoveryState.Stage.INIT);
 
                 try {
+                    final RecoveryState recoveryState = indexShard.recoveryState();
                     if (indexShard.routingEntry().restoreSource() != null) {
                         logger.debug("restoring from {} ...", indexShard.routingEntry().restoreSource());
                         snapshotService.restore(recoveryState);
@@ -122,8 +119,6 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                     // 3) Master will mark shard as started and this will be processed locally.
                     IndexShardState shardState = indexShard.state();
                     assert shardState == IndexShardState.POST_RECOVERY || shardState == IndexShardState.STARTED : "recovery process didn't call post_recovery. shardState [" + shardState + "]";
-
-                    recoveryState.setStage(RecoveryState.Stage.DONE);
 
                     if (logger.isTraceEnabled()) {
                         StringBuilder sb = new StringBuilder();

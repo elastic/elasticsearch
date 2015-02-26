@@ -153,7 +153,6 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final Object mutex = new Object();
     private final String checkIndexOnStartup;
-    private long checkIndexTook = 0;
 
     private TimeValue refreshInterval;
     private final TimeValue mergeInterval;
@@ -721,14 +720,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    public long checkIndexTook() {
-        return this.checkIndexTook;
-    }
-
-
     public IndexShard postRecovery(String reason) throws IndexShardStartedException, IndexShardRelocatedException, IndexShardClosedException {
-        assert currentEngineReference.get() != null : "post recovery but engine is null. did you call performRecoveryPrepareForTranslog?";
-        assert config.isEnableGcDeletes() : "post recovery but GC deletes are not enable. did you call performRecoveryFinalization?";
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(shardId);
@@ -739,19 +731,30 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (state == IndexShardState.RELOCATED) {
                 throw new IndexShardRelocatedException(shardId);
             }
+            recoveryState.setStage(RecoveryState.Stage.DONE);
             changeState(IndexShardState.POST_RECOVERY, reason);
         }
         indicesLifecycle.afterIndexShardPostRecovery(this);
         return this;
     }
 
-    /**
-     * After the store has been recovered, we need to start the engine in order to apply operations
-     */
-    public void performRecoveryPrepareForTranslog() throws ElasticsearchException {
+    /** called before starting to copy files over for store recovery */
+    public void prepareForStoreRecovery() throws ElasticsearchException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
+        recoveryState.setStage(RecoveryState.Stage.INDEX);
+        assert currentEngineReference.get() == null;
+    }
+
+    /**
+     * After the store has been recovered, we need to start the engine in order to apply operations
+     */
+    public void prepareForTranslogRecovery() throws ElasticsearchException {
+        if (state != IndexShardState.RECOVERING) {
+            throw new IndexShardNotRecoveringException(shardId, state);
+        }
+        recoveryState.setStage(RecoveryState.Stage.START);
         // also check here, before we apply the translog
         if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
             checkIndex(true);
@@ -760,6 +763,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         // but we need to make sure we don't loose deletes until we are done recovering
         config.setEnableGcDeletes(false);
         createNewEngine();
+        recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
     }
 
     /** called if recovery has to be restarted after network error / delay ** */
@@ -770,6 +774,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
             final Engine engine = this.currentEngineReference.getAndSet(null);
             IOUtils.close(engine);
+            recoveryState().setStage(RecoveryState.Stage.INIT);
         }
     }
 
@@ -781,8 +786,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         return this.recoveryState;
     }
 
-    public void performRecoveryFinalization(boolean withFlush) throws ElasticsearchException {
-        assert currentEngineReference.get() != null : "recovery is finalized but engine is null. did you call performRecoveryPrepareForTranslog?";
+    public void finalizeRecovery(boolean withFlush) throws ElasticsearchException {
+        recoveryState().setStage(RecoveryState.Stage.FINALIZE);
         if (withFlush) {
             engine().flush();
         }
@@ -1150,7 +1155,6 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private void checkIndex(boolean throwException) throws IndexShardException {
         try {
-            checkIndexTook = 0;
             long time = System.currentTimeMillis();
             if (!Lucene.indexExists(store.directory())) {
                 return;
@@ -1186,7 +1190,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                     logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
                 }
             }
-            checkIndexTook = System.currentTimeMillis() - time;
+            recoveryState.getStart().checkIndexTime(Math.max(0, System.currentTimeMillis() - time));
         } catch (Exception e) {
             logger.warn("failed to check index", e);
         }

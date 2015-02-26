@@ -115,14 +115,15 @@ public class IndexShardSnapshotAndRestoreService extends AbstractIndexShardCompo
             logger.trace("[{}] restoring shard  [{}]", restoreSource.snapshotId(), shardId);
         }
         try {
+            indexShard.prepareForStoreRecovery();
             IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(restoreSource.snapshotId().getRepository());
             ShardId snapshotShardId = shardId;
             if (!shardId.getIndex().equals(restoreSource.index())) {
                 snapshotShardId = new ShardId(restoreSource.index(), shardId.id());
             }
             indexShardRepository.restore(restoreSource.snapshotId(), shardId, snapshotShardId, recoveryState);
-            indexShard.performRecoveryPrepareForTranslog();
-            indexShard.performRecoveryFinalization(false);
+            indexShard.prepareForTranslogRecovery();
+            indexShard.finalizeRecovery(false);
             indexShard.postRecovery("restore done");
             restoreService.indexShardRestoreCompleted(restoreSource.snapshotId(), shardId);
         } catch (Throwable t) {

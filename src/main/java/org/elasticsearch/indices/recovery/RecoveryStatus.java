@@ -81,9 +81,7 @@ public class RecoveryStatus extends AbstractRefCounted {
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
         this.shardId = indexShard.shardId();
-        final RecoveryState.Timer timer = this.indexShard.recoveryState().getTimer();
-        timer.startTime(System.currentTimeMillis());
-        this.tempFilePrefix = RECOVERY_PREFIX + timer.startTime() + ".";
+        this.tempFilePrefix = RECOVERY_PREFIX + indexShard.recoveryState().getTimer().startTime() + ".";
         this.store = indexShard.store();
         // make sure the store is not released until we are done.
         store.incRef();
@@ -129,10 +127,6 @@ public class RecoveryStatus extends AbstractRefCounted {
     public Store store() {
         ensureRefCount();
         return store;
-    }
-
-    public void stage(RecoveryState.Stage stage) {
-        state().setStage(stage);
     }
 
     public RecoveryState.Stage stage() {
@@ -194,8 +188,6 @@ public class RecoveryStatus extends AbstractRefCounted {
         if (finished.compareAndSet(false, true)) {
             assert tempFileNames.isEmpty() : "not all temporary files are renamed";
             indexShard.postRecovery("peer recovery done");
-            state.getTimer().time(System.currentTimeMillis() - state.getTimer().startTime());
-            stage(RecoveryState.Stage.DONE);
             // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
             decRef();
             listener.onRecoveryDone(state());

@@ -21,6 +21,7 @@ package org.elasticsearch.indices.recovery;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RestoreSource;
@@ -114,7 +115,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
     }
 
-    private volatile Stage stage = Stage.INIT;
+    private volatile Stage stage;
 
     private final Index index = new Index();
     private final Translog translog = new Translog();
@@ -147,6 +148,8 @@ public class RecoveryState implements ToXContent, Streamable {
         this.sourceNode = sourceNode;
         this.restoreSource = restoreSource;
         this.targetNode = targetNode;
+        stage = Stage.INIT;
+        timer.start();
     }
 
     public ShardId getShardId() {
@@ -157,10 +160,48 @@ public class RecoveryState implements ToXContent, Streamable {
         return this.stage;
     }
 
-    public RecoveryState setStage(Stage stage) {
-        this.stage = stage;
-        if (stage == Stage.DONE) {
-            timer.stopTime(System.currentTimeMillis());
+
+    private void validateAndSetStage(Stage expected, Stage next) {
+        if (stage != expected) {
+            throw new ElasticsearchIllegalStateException("can't move recovery to stage [" + next + "]. current stage is [" + stage + "]");
+        }
+        stage = next;
+    }
+
+    // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe
+    public synchronized RecoveryState setStage(Stage stage) {
+        switch (stage) {
+            case INIT:
+                // reinitializing stop remove all state except for start time
+                this.stage = Stage.INIT;
+                getIndex().reset();
+                getStart().reset();
+                getTranslog().reset();
+                break;
+            case INDEX:
+                validateAndSetStage(Stage.INIT, stage);
+                getIndex().start();
+                break;
+            case START:
+                validateAndSetStage(Stage.INDEX, stage);
+                getIndex().stop();
+                getStart().start();
+                break;
+            case TRANSLOG:
+                validateAndSetStage(Stage.START, stage);
+                getStart().stop();
+                getTranslog().start();
+                break;
+            case FINALIZE:
+                validateAndSetStage(Stage.TRANSLOG, stage);
+                getTranslog().stop();
+                break;
+            case DONE:
+                validateAndSetStage(Stage.FINALIZE, stage);
+                getTimer().stop();
+                break;
+            default:
+                throw new ElasticsearchIllegalArgumentException("unknown RecoveryState.Stage [" + stage + "]");
         }
         return this;
     }
@@ -209,9 +250,7 @@ public class RecoveryState implements ToXContent, Streamable {
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        timer.startTime(in.readVLong());
-        timer.stopTime(in.readVLong());
-        timer.time = in.readVLong();
+        timer.readFrom(in);
         type = Type.fromId(in.readByte());
         stage = Stage.fromId(in.readByte());
         shardId = ShardId.readShardId(in);
@@ -232,9 +271,7 @@ public class RecoveryState implements ToXContent, Streamable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(timer.startTime());
-        out.writeVLong(timer.stopTime());
-        out.writeVLong(timer.time());
+        timer.writeTo(out);
         out.writeByte(type.id());
         out.writeByte(stage.id());
         shardId.writeTo(out);
@@ -339,24 +376,25 @@ public class RecoveryState implements ToXContent, Streamable {
         static final XContentBuilderString SIZE = new XContentBuilderString("size");
     }
 
-    public static class Timer {
-        private volatile long startTime = 0;
-        private volatile long time = 0;
-        private volatile long stopTime = 0;
+    public static class Timer implements Streamable {
+        protected volatile long startTime = 0;
+        protected volatile long time = -1;
+        protected volatile long stopTime = 0;
+
+        public void start() {
+            assert startTime == 0 : "already started";
+            startTime = System.currentTimeMillis();
+        }
 
         public long startTime() {
             return startTime;
-        }
-
-        public void startTime(long startTime) {
-            this.startTime = startTime;
         }
 
         public long time() {
             if (startTime == 0) {
                 return 0;
             }
-            if (time > 0) {
+            if (time >= 0) {
                 return time;
             }
             return Math.max(0, System.currentTimeMillis() - startTime);
@@ -366,31 +404,43 @@ public class RecoveryState implements ToXContent, Streamable {
             return stopTime;
         }
 
-        public void stopTime(long stopTime) {
-            this.time = Math.max(0, stopTime - startTime);
-            this.stopTime = stopTime;
+        public void stop() {
+            assert stopTime == 0 : "already stopped";
+            stopTime = Math.max(System.currentTimeMillis(), startTime);
+            time = stopTime - startTime;
         }
+
+        public void reset() {
+            startTime = 0;
+            time = -1;
+            stopTime = 0;
+        }
+
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            startTime = in.readVLong();
+            stopTime = in.readVLong();
+            time = in.readVLong();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(startTime);
+            out.writeVLong(stopTime);
+            // write a snapshot of current time, which is not per se the time field
+            out.writeVLong(time());
+        }
+
     }
 
-    public static class Start implements ToXContent, Streamable {
-        private volatile long startTime;
-        private volatile long time;
+    public static class Start extends Timer implements ToXContent, Streamable {
         private volatile long checkIndexTime;
 
-        public long startTime() {
-            return this.startTime;
-        }
 
-        public void startTime(long startTime) {
-            this.startTime = startTime;
-        }
-
-        public long time() {
-            return this.time;
-        }
-
-        public void stopTime(long time) {
-            this.time = Math.max(0, time - startTime);
+        public void reset() {
+            super.reset();
+            checkIndexTime = 0;
         }
 
         public long checkIndexTime() {
@@ -403,45 +453,41 @@ public class RecoveryState implements ToXContent, Streamable {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            startTime = in.readVLong();
-            time = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+                super.readFrom(in);
+            } else {
+                startTime = in.readVLong();
+                long time = in.readVLong();
+                stopTime = startTime + time;
+            }
             checkIndexTime = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(startTime);
-            out.writeVLong(time);
+            if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+                super.writeTo(out);
+            } else {
+                out.writeVLong(startTime);
+                out.writeVLong(time());
+            }
             out.writeVLong(checkIndexTime);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.timeValueField(Fields.CHECK_INDEX_TIME_IN_MILLIS, Fields.CHECK_INDEX_TIME, checkIndexTime);
-            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time);
+            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time());
             return builder;
         }
     }
 
-    public static class Translog implements ToXContent, Streamable {
-        private volatile long startTime = 0;
-        private volatile long time;
+    public static class Translog extends Timer implements ToXContent, Streamable {
         private final AtomicInteger currentTranslogOperations = new AtomicInteger();
 
-        public long startTime() {
-            return this.startTime;
-        }
-
-        public void startTime(long startTime) {
-            this.startTime = startTime;
-        }
-
-        public long time() {
-            return this.time;
-        }
-
-        public void time(long time) {
-            this.time = time;
+        public void reset() {
+            super.reset();
+            currentTranslogOperations.set(0);
         }
 
         public void addTranslogOperations(int count) {
@@ -458,22 +504,31 @@ public class RecoveryState implements ToXContent, Streamable {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            startTime = in.readVLong();
-            time = in.readVLong();
+            if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+                super.readFrom(in);
+            } else {
+                startTime = in.readVLong();
+                long time = in.readVLong();
+                stopTime = startTime + time;
+            }
             currentTranslogOperations.set(in.readVInt());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(startTime);
-            out.writeVLong(time);
+            if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+                super.writeTo(out);
+            } else {
+                out.writeVLong(startTime);
+                out.writeVLong(time());
+            }
             out.writeVInt(currentTranslogOperations.get());
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.RECOVERED, currentTranslogOperations.get());
-            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time);
+            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time());
             return builder;
         }
     }
@@ -578,10 +633,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
     }
 
-    public static class Index implements ToXContent, Streamable {
-
-        private volatile long startTime = 0;
-        private volatile long time = 0;
+    public static class Index extends Timer implements ToXContent, Streamable {
 
         private Map<String, File> fileDetails = ConcurrentCollections.newConcurrentMap();
 
@@ -590,6 +642,13 @@ public class RecoveryState implements ToXContent, Streamable {
         public List<File> fileDetails() {
             return ImmutableList.copyOf(fileDetails.values());
         }
+
+        public void reset() {
+            super.reset();
+            version = -1;
+            fileDetails.clear();
+        }
+
 
         public void addFileDetail(String name, long length, boolean reused) {
             File file = new File(name, length, reused);
@@ -600,23 +659,6 @@ public class RecoveryState implements ToXContent, Streamable {
         public void addRecoveredBytesToFile(String name, long bytes) {
             File file = fileDetails.get(name);
             file.addRecoveredBytes(bytes);
-        }
-
-        public long startTime() {
-            return this.startTime;
-        }
-
-        public void startTime(long startTime) {
-            this.startTime = startTime;
-        }
-
-        public long time() {
-            return this.time;
-        }
-
-        public void stopTime(long stopTime) {
-            assert stopTime >= 0;
-            this.time = Math.max(0, stopTime - startTime);
         }
 
         public long version() {
@@ -760,9 +802,10 @@ public class RecoveryState implements ToXContent, Streamable {
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            startTime = in.readVLong();
-            time = in.readVLong();
             if (in.getVersion().before(Version.V_1_5_0)) {
+                startTime = in.readVLong();
+                long time = in.readVLong();
+                stopTime = startTime + time;
                 // This may result in skewed reports as we didn't report all files in advance, relying on this totals
                 in.readVInt(); // totalFileCount
                 in.readVLong(); // totalBytes
@@ -781,6 +824,7 @@ public class RecoveryState implements ToXContent, Streamable {
                     fileDetails.put(file.name, file);
                 }
             } else {
+                super.readFrom(in);
                 int size = in.readVInt();
                 for (int i = 0; i < size; i++) {
                     File file = File.readFile(in);
@@ -791,9 +835,9 @@ public class RecoveryState implements ToXContent, Streamable {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(startTime);
-            out.writeVLong(time);
             if (out.getVersion().before(Version.V_1_5_0)) {
+                out.writeVLong(startTime);
+                out.writeVLong(time());
                 out.writeVInt(totalFileCount());
                 out.writeVLong(totalBytes());
                 out.writeVInt(reusedFileCount());
@@ -823,6 +867,7 @@ public class RecoveryState implements ToXContent, Streamable {
                     }
                 }
             } else {
+                super.writeTo(out);
                 final File[] files = fileDetails.values().toArray(new File[0]);
                 out.writeVInt(files.length);
                 for (File file : files) {
@@ -854,7 +899,7 @@ public class RecoveryState implements ToXContent, Streamable {
                 builder.endArray();
             }
             builder.endObject();
-            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time);
+            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time());
             return builder;
         }
 
@@ -870,6 +915,5 @@ public class RecoveryState implements ToXContent, Streamable {
                 return "{ \"error\" : \"" + e.getMessage() + "\"}";
             }
         }
-
     }
 }

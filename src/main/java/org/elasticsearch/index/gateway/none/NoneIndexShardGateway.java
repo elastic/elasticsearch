@@ -53,7 +53,7 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
 
     @Override
     public void recover(boolean indexShouldExists, RecoveryState recoveryState) throws IndexShardGatewayRecoveryException {
-        recoveryState.getIndex().startTime(System.currentTimeMillis());
+        indexShard.prepareForStoreRecovery();
         // in the none case, we simply start the shard
         // clean the store, there should be nothing there...
         indexShard.store().incRef();
@@ -65,12 +65,8 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
         } finally {
             indexShard.store().decRef();
         }
-        // TODO: fold all stages and timing to index shard.
-        recoveryState.getIndex().stopTime(System.currentTimeMillis());
-        indexShard.performRecoveryPrepareForTranslog();
-        recoveryState.getTranslog().startTime(System.currentTimeMillis());
-        indexShard.performRecoveryFinalization(false);
-        recoveryState.getTranslog().time(System.currentTimeMillis() - recoveryState.getTranslog().startTime());
+        indexShard.prepareForTranslogRecovery();
+        indexShard.finalizeRecovery(false);
         indexShard.postRecovery("post recovery from gateway");
     }
 

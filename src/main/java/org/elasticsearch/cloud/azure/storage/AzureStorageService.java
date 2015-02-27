@@ -32,17 +32,19 @@ import java.net.URISyntaxException;
  * @see AzureStorageServiceImpl for Azure REST API implementation
  */
 public interface AzureStorageService {
-    static public final class Fields {
+    static public final class Storage {
         @Deprecated
-        public static final String ACCOUNT_DEPRECATED = "storage_account";
+        public static final String ACCOUNT_DEPRECATED = "cloud.azure.storage_account";
         @Deprecated
-        public static final String KEY_DEPRECATED = "storage_key";
-        public static final String ACCOUNT = "account";
-        public static final String KEY = "key";
-        public static final String CONTAINER = "container";
-        public static final String BASE_PATH = "base_path";
-        public static final String CHUNK_SIZE = "chunk_size";
-        public static final String COMPRESS = "compress";
+        public static final String KEY_DEPRECATED = "cloud.azure.storage_key";
+
+        public static final String API_IMPLEMENTATION = "cloud.azure.storage.api.impl";
+        public static final String ACCOUNT = "cloud.azure.storage.account";
+        public static final String KEY = "cloud.azure.storage.key";
+        public static final String CONTAINER = "repositories.azure.container";
+        public static final String BASE_PATH = "repositories.azure.base_path";
+        public static final String CHUNK_SIZE = "repositories.azure.chunk_size";
+        public static final String COMPRESS = "repositories.azure.compress";
     }
 
     boolean doesContainerExist(String container);

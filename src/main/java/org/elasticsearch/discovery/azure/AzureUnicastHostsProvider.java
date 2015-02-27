@@ -24,7 +24,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cloud.azure.AzureServiceDisableException;
 import org.elasticsearch.cloud.azure.AzureServiceRemoteException;
 import org.elasticsearch.cloud.azure.management.AzureComputeService;
-import org.elasticsearch.cloud.azure.management.AzureComputeService.Fields;
+import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
+import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -111,38 +112,40 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
         this.networkService = networkService;
         this.version = version;
 
-        this.refreshInterval = componentSettings.getAsTime(Fields.REFRESH,
-                settings.getAsTime("cloud.azure." + Fields.REFRESH, TimeValue.timeValueSeconds(0)));
+        this.refreshInterval = settings.getAsTime(Discovery.REFRESH, settings.getAsTime(Discovery.REFRESH_DEPRECATED,
+                TimeValue.timeValueSeconds(0)));
 
-        String strHostType = componentSettings.get(Fields.HOST_TYPE,
-                settings.get("cloud.azure." + Fields.HOST_TYPE_DEPRECATED, HostType.PRIVATE_IP.name())).toUpperCase();
+        String strHostType = settings.get(Discovery.HOST_TYPE, settings.get(Discovery.HOST_TYPE_DEPRECATED,
+                HostType.PRIVATE_IP.name())).toUpperCase();
         HostType tmpHostType = HostType.fromString(strHostType);
         if (tmpHostType == null) {
-            logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", Fields.HOST_TYPE,
+            logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", Discovery.HOST_TYPE,
                     strHostType, HostType.PRIVATE_IP.name().toLowerCase());
             tmpHostType = HostType.PRIVATE_IP;
         }
         this.hostType = tmpHostType;
 
         // TODO Remove in 3.0.0
-        String portName = settings.get("cloud.azure." + Fields.PORT_NAME_DEPRECATED);
+        String portName = settings.get(Discovery.PORT_NAME_DEPRECATED);
         if (portName != null) {
-            logger.warn("setting [{}] has been deprecated. please replace with [{}].", Fields.PORT_NAME_DEPRECATED, Fields.ENDPOINT_NAME);
+            logger.warn("setting [{}] has been deprecated. please replace with [{}].", Discovery.PORT_NAME_DEPRECATED,
+                    Discovery.ENDPOINT_NAME);
             this.publicEndpointName = portName;
         } else {
-            this.publicEndpointName = componentSettings.get(Fields.ENDPOINT_NAME, "elasticsearch");
+            this.publicEndpointName = settings.get(Discovery.ENDPOINT_NAME, "elasticsearch");
         }
 
-        this.deploymentName = componentSettings.get(Fields.DEPLOYMENT_NAME,
-                settings.get("cloud.azure.management." + Fields.SERVICE_NAME,
-                        settings.get("cloud.azure." + Fields.SERVICE_NAME_DEPRECATED)));
+        // Deployment name could be set with discovery.azure.deployment.name
+        // Default to cloud.azure.management.cloud.service.name
+        this.deploymentName = settings.get(Discovery.DEPLOYMENT_NAME,
+                settings.get(Management.SERVICE_NAME, settings.get(Management.SERVICE_NAME_DEPRECATED)));
 
         // Reading deployment_slot
-        String strDeployment = componentSettings.get(Fields.DEPLOYMENT_SLOT, Deployment.PRODUCTION.deployment);
+        String strDeployment = settings.get(Discovery.DEPLOYMENT_SLOT, Deployment.PRODUCTION.deployment);
         Deployment tmpDeployment = Deployment.fromString(strDeployment);
         if (tmpDeployment == null) {
-            logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", Fields.DEPLOYMENT_SLOT,
-                    strDeployment, Deployment.PRODUCTION.deployment);
+            logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", Discovery.DEPLOYMENT_SLOT, strDeployment,
+                    Deployment.PRODUCTION.deployment);
             tmpDeployment = Deployment.PRODUCTION;
         }
         this.deploymentSlot = tmpDeployment.slot;

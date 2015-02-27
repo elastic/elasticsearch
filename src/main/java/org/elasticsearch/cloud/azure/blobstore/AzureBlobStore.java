@@ -29,9 +29,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoryName;
 import org.elasticsearch.repositories.RepositorySettings;
-import org.elasticsearch.repositories.azure.AzureRepository;
 
 import java.net.URISyntaxException;
+
+import static org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage.CONTAINER;
+import static org.elasticsearch.repositories.azure.AzureRepository.CONTAINER_DEFAULT;
 
 /**
  *
@@ -48,8 +50,7 @@ public class AzureBlobStore extends AbstractComponent implements BlobStore {
                           AzureStorageService client) throws URISyntaxException, StorageException {
         super(settings);
         this.client = client;
-        this.container = repositorySettings.settings().get(AzureStorageService.Fields.CONTAINER,
-                componentSettings.get(AzureStorageService.Fields.CONTAINER, AzureRepository.CONTAINER_DEFAULT));
+        this.container = repositorySettings.settings().get("container", settings.get(CONTAINER, CONTAINER_DEFAULT));
         this.repositoryName = name.getName();
     }
 

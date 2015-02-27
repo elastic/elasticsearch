@@ -21,6 +21,8 @@ package org.elasticsearch.discovery.azure;
 
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cloud.azure.management.AzureComputeService;
+import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
+import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.PluginsService;
@@ -39,7 +41,7 @@ public abstract class AbstractAzureComputeServiceTest extends ElasticsearchInteg
     protected Settings nodeSettings(int nodeOrdinal) {
         ImmutableSettings.Builder settings = ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true);
+                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true);
         return settings.build();
     }
 
@@ -53,15 +55,25 @@ public abstract class AbstractAzureComputeServiceTest extends ElasticsearchInteg
     protected Settings settingsBuilder() {
         ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder()
                 .put("discovery.type", "azure")
-                .put("cloud.azure.api.impl", mock)
-                // We add a fake subscription_id to start mock compute service
-                .put("cloud.azure.subscription_id", "fake")
-                .put("cloud.azure.refresh_interval", "5s")
-                .put("cloud.azure.keystore", "dummy")
-                .put("cloud.azure.password", "dummy")
-                .put("cloud.azure.service_name", "dummy")
+                .put(Management.API_IMPLEMENTATION, mock)
                 // We need the network to make the mock working
                 .put("node.mode", "network");
+
+        // We add a fake subscription_id to start mock compute service
+        if (rarely()) {
+            // We use sometime deprecated settings in tests
+            builder.put(Management.SUBSCRIPTION_ID_DEPRECATED, "fake")
+                    .put(Discovery.REFRESH_DEPRECATED, "5s")
+                    .put(Management.KEYSTORE_DEPRECATED, "dummy")
+                    .put(Management.PASSWORD_DEPRECATED, "dummy")
+                    .put(Management.SERVICE_NAME_DEPRECATED, "dummy");
+        } else {
+            builder.put(Management.SUBSCRIPTION_ID, "fake")
+                    .put(Discovery.REFRESH, "5s")
+                    .put(Management.KEYSTORE_PATH, "dummy")
+                    .put(Management.KEYSTORE_PASSWORD, "dummy")
+                    .put(Management.SERVICE_NAME, "dummy");
+        }
 
         return builder.build();
     }

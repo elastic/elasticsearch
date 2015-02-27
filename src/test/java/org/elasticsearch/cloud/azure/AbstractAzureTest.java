@@ -57,7 +57,7 @@ public abstract class AbstractAzureTest extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
+                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
                 .put(readSettingsFromFile())
                 .build();
     }

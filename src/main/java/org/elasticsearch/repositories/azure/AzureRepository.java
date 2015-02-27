@@ -20,8 +20,8 @@
 package org.elasticsearch.repositories.azure;
 
 import com.microsoft.azure.storage.StorageException;
-import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.blobstore.AzureBlobStore;
+import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.Strings;
@@ -57,6 +57,13 @@ public class AzureRepository extends BlobStoreRepository {
     public final static String TYPE = "azure";
     public final static String CONTAINER_DEFAULT = "elasticsearch-snapshots";
 
+    static public final class Repository {
+        public static final String CONTAINER = "container";
+        public static final String CHUNK_SIZE = "chunk_size";
+        public static final String COMPRESS = "compress";
+        public static final String BASE_PATH = "base_path";
+    }
+
     private final AzureBlobStore blobStore;
 
     private final BlobPath basePath;
@@ -71,21 +78,21 @@ public class AzureRepository extends BlobStoreRepository {
                            AzureBlobStore azureBlobStore) throws IOException, URISyntaxException, StorageException {
         super(name.getName(), repositorySettings, indexShardRepository);
 
-        String container = repositorySettings.settings().get(AzureStorageService.Fields.CONTAINER,
-                componentSettings.get(AzureStorageService.Fields.CONTAINER, CONTAINER_DEFAULT));
+        String container = repositorySettings.settings().get(Repository.CONTAINER,
+                settings.get(Storage.CONTAINER, CONTAINER_DEFAULT));
 
         this.blobStore = azureBlobStore;
-        this.chunkSize = repositorySettings.settings().getAsBytesSize(AzureStorageService.Fields.CHUNK_SIZE,
-                componentSettings.getAsBytesSize(AzureStorageService.Fields.CHUNK_SIZE, new ByteSizeValue(64, ByteSizeUnit.MB)));
+        this.chunkSize = repositorySettings.settings().getAsBytesSize(Repository.CHUNK_SIZE,
+                settings.getAsBytesSize(Storage.CHUNK_SIZE, new ByteSizeValue(64, ByteSizeUnit.MB)));
 
         if (this.chunkSize.getMb() > 64) {
             logger.warn("azure repository does not support yet size > 64mb. Fall back to 64mb.");
             this.chunkSize = new ByteSizeValue(64, ByteSizeUnit.MB);
         }
 
-        this.compress = repositorySettings.settings().getAsBoolean(AzureStorageService.Fields.COMPRESS,
-                componentSettings.getAsBoolean(AzureStorageService.Fields.COMPRESS, false));
-        String basePath = repositorySettings.settings().get(AzureStorageService.Fields.BASE_PATH, null);
+        this.compress = repositorySettings.settings().getAsBoolean(Repository.COMPRESS,
+                settings.getAsBoolean(Storage.COMPRESS, false));
+        String basePath = repositorySettings.settings().get(Repository.BASE_PATH, null);
 
         if (Strings.hasLength(basePath)) {
             // Remove starting / if any

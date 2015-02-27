@@ -19,6 +19,8 @@
 
 package org.elasticsearch.discovery.azure;
 
+import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
+import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
 import org.elasticsearch.cloud.azure.management.AzureComputeServiceTwoNodesMock;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -39,8 +41,8 @@ public class AzureTwoStartedNodesTest extends AbstractAzureComputeServiceTest {
     @Test
     public void two_nodes_should_run_using_private_ip() {
         ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder()
-                .put("cloud.azure.service_name", "dummy")
-                .put("cloud.azure.host_type", "private_ip")
+                .put(Management.SERVICE_NAME, "dummy")
+                .put(Discovery.HOST_TYPE, "private_ip")
                 .put(super.settingsBuilder());
 
         logger.info("--> start first node");
@@ -58,8 +60,8 @@ public class AzureTwoStartedNodesTest extends AbstractAzureComputeServiceTest {
     @Test
     public void two_nodes_should_run_using_public_ip() {
         ImmutableSettings.Builder settings = ImmutableSettings.settingsBuilder()
-                .put("cloud.azure.service_name", "dummy")
-                .put("cloud.azure.host_type", "public_ip")
+                .put(Management.SERVICE_NAME, "dummy")
+                .put(Discovery.HOST_TYPE, "public_ip")
                 .put(super.settingsBuilder());
 
         logger.info("--> start first node");

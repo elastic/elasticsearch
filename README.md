@@ -64,13 +64,13 @@ How to start (short story)
 Azure credential API settings
 -----------------------------
 
-The following are a list of settings (prefixed with `cloud.azure.management`) that can further control the discovery:
+The following are a list of settings that can further control the credential API:
 
-* `keystore.path`: /path/to/keystore
-* `keystore.type`: `pkcs12`, `jceks` or `jks`. Defaults to `pkcs12`.
-* `keystore.password`: your_password for the keystore
-* `subscription.id`: your_azure_subscription_id
-* `cloud.service.name`: your_azure_cloud_service_name
+* `cloud.azure.management.keystore.path`: /path/to/keystore
+* `cloud.azure.management.keystore.type`: `pkcs12`, `jceks` or `jks`. Defaults to `pkcs12`.
+* `cloud.azure.management.keystore.password`: your_password for the keystore
+* `cloud.azure.management.subscription.id`: your_azure_subscription_id
+* `cloud.azure.management.cloud.service.name`: your_azure_cloud_service_name
 
 Note that in previous versions, it was:
 
@@ -86,16 +86,16 @@ cloud:
 Advanced settings
 -----------------
 
-The following are a list of settings (prefixed with `discovery.azure`) that can further control the discovery:
+The following are a list of settings that can further control the discovery:
 
-* `host.type`: either `public_ip` or `private_ip` (default). Azure discovery will use the one you set to ping
+* `discovery.azure.host.type`: either `public_ip` or `private_ip` (default). Azure discovery will use the one you set to ping
 other nodes. This feature was not documented before but was existing under `cloud.azure.host_type`.
-* `endpoint.name`: when using `public_ip` this setting is used to identify the endpoint name used to forward requests
+* `discovery.azure.endpoint.name`: when using `public_ip` this setting is used to identify the endpoint name used to forward requests
 to elasticsearch (aka transport port name). Defaults to `elasticsearch`. In Azure management console, you could define
 an endpoint `elasticsearch` forwarding for example requests on public IP on port 8100 to the virtual machine on port 9300.
 This feature was not documented before but was existing under `cloud.azure.port_name`.
-* `deployment.name`: deployment name if any. Defaults to the value set with `cloud.azure.management.cloud.service.name`.
-* `deployment.slot`: either `staging` or `production` (default).
+* `discovery.azure.deployment.name`: deployment name if any. Defaults to the value set with `cloud.azure.management.cloud.service.name`.
+* `discovery.azure.deployment.slot`: either `staging` or `production` (default).
 
 For example:
 
@@ -476,10 +476,10 @@ Example using Java:
 
 ```java
 client.admin().cluster().preparePutRepository("my_backup3")
-        .setType("azure").setSettings(ImmutableSettings.settingsBuilder()
-                .put(AzureStorageService.Fields.CONTAINER, "backup_container")
-                .put(AzureStorageService.Fields.CHUNK_SIZE, new ByteSizeValue(32, ByteSizeUnit.MB))
-        ).get();
+    .setType("azure").setSettings(ImmutableSettings.settingsBuilder()
+        .put(Storage.CONTAINER, "backup_container")
+        .put(Storage.CHUNK_SIZE, new ByteSizeValue(32, ByteSizeUnit.MB))
+    ).get();
 ```
 
 Repository validation rules

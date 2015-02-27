@@ -112,8 +112,8 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
             }
         }
 
-        this.concurrentConnects = componentSettings.getAsInt("concurrent_connects", 10);
-        String[] hostArr = componentSettings.getAsArray("hosts");
+        this.concurrentConnects = this.settings.getAsInt("discovery.zen.ping.unicast.concurrent_connects", 10);
+        String[] hostArr = this.settings.getAsArray("discovery.zen.ping.unicast.hosts");
         // trim the hosts
         for (int i = 0; i < hostArr.length; i++) {
             hostArr[i] = hostArr[i].trim();

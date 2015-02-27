@@ -69,7 +69,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.scanAction = scanAction;
         this.countAction = countAction;
 
-        this.optimizeSingleShard = componentSettings.getAsBoolean("optimize_single_shard", true);
+        this.optimizeSingleShard = this.settings.getAsBoolean("action.search.optimize_single_shard", true);
 
 
     }

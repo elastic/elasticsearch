@@ -127,7 +127,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
         this.nodeMappingRefreshAction = nodeMappingRefreshAction;
 
-        this.sendRefreshMapping = componentSettings.getAsBoolean("send_refresh_mapping", true);
+        this.sendRefreshMapping = this.settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
     }
 
     @Override

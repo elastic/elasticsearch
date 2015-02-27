@@ -97,14 +97,14 @@ public class ShardSlowLogIndexingService extends AbstractIndexShardComponent {
     public ShardSlowLogIndexingService(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService) {
         super(shardId, indexSettings);
 
-        this.reformat = componentSettings.getAsBoolean("reformat", true);
+        this.reformat = indexSettings.getAsBoolean(INDEX_INDEXING_SLOWLOG_REFORMAT, true);
 
-        this.indexWarnThreshold = componentSettings.getAsTime("threshold.index.warn", TimeValue.timeValueNanos(-1)).nanos();
-        this.indexInfoThreshold = componentSettings.getAsTime("threshold.index.info", TimeValue.timeValueNanos(-1)).nanos();
-        this.indexDebugThreshold = componentSettings.getAsTime("threshold.index.debug", TimeValue.timeValueNanos(-1)).nanos();
-        this.indexTraceThreshold = componentSettings.getAsTime("threshold.index.trace", TimeValue.timeValueNanos(-1)).nanos();
+        this.indexWarnThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_WARN, TimeValue.timeValueNanos(-1)).nanos();
+        this.indexInfoThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_INFO, TimeValue.timeValueNanos(-1)).nanos();
+        this.indexDebugThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_DEBUG, TimeValue.timeValueNanos(-1)).nanos();
+        this.indexTraceThreshold = indexSettings.getAsTime(INDEX_INDEXING_SLOWLOG_THRESHOLD_INDEX_TRACE, TimeValue.timeValueNanos(-1)).nanos();
 
-        this.level = componentSettings.get("level", "TRACE").toUpperCase(Locale.ROOT);
+        this.level = indexSettings.get(INDEX_INDEXING_SLOWLOG_LEVEL, "TRACE").toUpperCase(Locale.ROOT);
 
         this.indexLogger = Loggers.getLogger(logger, ".index");
         this.deleteLogger = Loggers.getLogger(logger, ".delete");

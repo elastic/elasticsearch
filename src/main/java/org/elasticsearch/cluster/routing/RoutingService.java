@@ -70,7 +70,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        this.schedule = componentSettings.getAsTime("schedule", timeValueSeconds(10));
+        this.schedule = settings.getAsTime("cluster.routing.schedule", timeValueSeconds(10));
         clusterService.addFirst(this);
     }
 

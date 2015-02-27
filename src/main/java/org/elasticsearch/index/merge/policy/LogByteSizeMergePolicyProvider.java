@@ -29,9 +29,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.store.Store;
 
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
-
 /**
  *
  */
@@ -50,11 +47,11 @@ public class LogByteSizeMergePolicyProvider extends AbstractMergePolicyProvider<
         Preconditions.checkNotNull(store, "Store must be provided to merge policy");
         this.indexSettingsService = indexSettingsService;
 
-        ByteSizeValue minMergeSize = componentSettings.getAsBytesSize("min_merge_size", DEFAULT_MIN_MERGE_SIZE);
-        ByteSizeValue maxMergeSize = componentSettings.getAsBytesSize("max_merge_size", DEFAULT_MAX_MERGE_SIZE);
-        int mergeFactor = componentSettings.getAsInt("merge_factor", LogByteSizeMergePolicy.DEFAULT_MERGE_FACTOR);
-        int maxMergeDocs = componentSettings.getAsInt("max_merge_docs", LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_DOCS);
-        boolean calibrateSizeByDeletes = componentSettings.getAsBoolean("calibrate_size_by_deletes", true);
+        ByteSizeValue minMergeSize = indexSettings.getAsBytesSize("index.merge.policy.min_merge_size", DEFAULT_MIN_MERGE_SIZE);
+        ByteSizeValue maxMergeSize = indexSettings.getAsBytesSize("index.merge.policy.max_merge_size", DEFAULT_MAX_MERGE_SIZE);
+        int mergeFactor = indexSettings.getAsInt("index.merge.policy.merge_factor", LogByteSizeMergePolicy.DEFAULT_MERGE_FACTOR);
+        int maxMergeDocs = indexSettings.getAsInt("index.merge.policy.max_merge_docs", LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_DOCS);
+        boolean calibrateSizeByDeletes = indexSettings.getAsBoolean("index.merge.policy.calibrate_size_by_deletes", true);
 
         mergePolicy.setMinMergeMB(minMergeSize.mbFrac());
         mergePolicy.setMaxMergeMB(maxMergeSize.mbFrac());

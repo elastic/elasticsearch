@@ -82,9 +82,9 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        TimeValue interval = componentSettings.getAsTime("interval", TimeValue.timeValueSeconds(60));
+        TimeValue interval = this.settings.getAsTime("indices.ttl.interval", TimeValue.timeValueSeconds(60));
         this.bulkAction = bulkAction;
-        this.bulkSize = componentSettings.getAsInt("bulk_size", 10000);
+        this.bulkSize = this.settings.getAsInt("indices.ttl.bulk_size", 10000);
         this.purgerThread = new PurgerThread(EsExecutors.threadName(settings, "[ttl_expire]"), interval);
 
         nodeSettingsService.addListener(new ApplySettings());

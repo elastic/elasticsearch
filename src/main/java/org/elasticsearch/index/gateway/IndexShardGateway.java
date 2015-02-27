@@ -84,8 +84,8 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
         this.indexService = indexService;
         this.indexShard = indexShard;
 
-        this.waitForMappingUpdatePostRecovery = componentSettings.getAsTime("wait_for_mapping_update_post_recovery", TimeValue.timeValueSeconds(30));
-        syncInterval = componentSettings.getAsTime("sync", TimeValue.timeValueSeconds(5));
+        this.waitForMappingUpdatePostRecovery = indexSettings.getAsTime("index.gateway.wait_for_mapping_update_post_recovery", TimeValue.timeValueSeconds(30));
+        syncInterval = indexSettings.getAsTime("index.gateway.sync", TimeValue.timeValueSeconds(5));
         if (syncInterval.millis() > 0) {
             this.indexShard.translog().syncOnEachOperation(false);
             flushScheduler = threadPool.schedule(syncInterval, ThreadPool.Names.SAME, new Sync());

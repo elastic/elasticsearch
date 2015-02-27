@@ -66,6 +66,7 @@ public class SearchPhaseController extends AbstractComponent {
     };
 
     public static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
+    public static final String SEARCH_CONTROLLER_OPTIMIZE_SINGLE_SHARD_KEY = "search.controller.optimize_single_shard";
 
     private final BigArrays bigArrays;
     private final boolean optimizeSingleShard;
@@ -77,7 +78,7 @@ public class SearchPhaseController extends AbstractComponent {
         super(settings);
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
-        this.optimizeSingleShard = componentSettings.getAsBoolean("optimize_single_shard", true);
+        this.optimizeSingleShard = settings.getAsBoolean(SEARCH_CONTROLLER_OPTIMIZE_SINGLE_SHARD_KEY, true);
     }
 
     public boolean optimizeSingleShard() {

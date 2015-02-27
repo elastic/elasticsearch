@@ -112,9 +112,9 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         transportService.registerHandler(ACTION_SHARD_EXISTS, new ShardActiveRequestHandler());
 
         // we don't limit by default (we default to CMS's auto throttle instead):
-        this.rateLimitingType = componentSettings.get("throttle.type", StoreRateLimiting.Type.NONE.name());
+        this.rateLimitingType = settings.get("indices.store.throttle.type", StoreRateLimiting.Type.NONE.name());
         rateLimiting.setType(rateLimitingType);
-        this.rateLimitingThrottle = componentSettings.getAsBytesSize("throttle.max_bytes_per_sec", new ByteSizeValue(10240, ByteSizeUnit.MB));
+        this.rateLimitingThrottle = settings.getAsBytesSize("indices.store.throttle.max_bytes_per_sec", new ByteSizeValue(10240, ByteSizeUnit.MB));
         rateLimiting.setMaxRate(rateLimitingThrottle);
 
         logger.debug("using indices.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimitingType, rateLimitingThrottle);

@@ -61,7 +61,14 @@ public class XPostingsHighlighter {
     // unnecessary.
 
     /** for rewriting: we don't want slow processing from MTQs */
-    private static final IndexReader EMPTY_INDEXREADER = new MultiReader();
+    private static final IndexReader EMPTY_INDEXREADER;
+    static {
+      try {
+        EMPTY_INDEXREADER = new MultiReader();
+      } catch (IOException bogus) {
+        throw new RuntimeException(bogus);
+      }
+    }
 
     /** Default maximum content size to process. Typically snippets
      *  closer to the beginning of the document better summarize its content */

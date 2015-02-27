@@ -87,7 +87,9 @@ public class ChildrenConstantScoreQuery extends Query {
 
     @Override
     public void extractTerms(Set<Term> terms) {
-        rewrittenChildQuery.extractTerms(terms);
+        if (rewrittenChildQuery != null) {
+            rewrittenChildQuery.extractTerms(terms);
+        }
     }
 
     @Override

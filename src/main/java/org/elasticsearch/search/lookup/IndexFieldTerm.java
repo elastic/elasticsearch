@@ -20,6 +20,7 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -50,8 +51,6 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
     private final Term identifier;
 
     private final TermStatistics termStats;
-
-    static private EmptyScorer EMPTY_SCORER = new EmptyScorer(null);
 
     // get the document frequency of the term
     public long df() throws IOException {
@@ -129,7 +128,53 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
             }
 
             if (postings == null) {
-                postings = EMPTY_SCORER;
+                final DocIdSetIterator empty = DocIdSetIterator.empty();
+                postings = new PostingsEnum() {
+                    @Override
+                    public int docID() {
+                        return empty.docID();
+                    }
+
+                    @Override
+                    public int nextDoc() throws IOException {
+                        return empty.nextDoc();
+                    }
+
+                    @Override
+                    public int advance(int target) throws IOException {
+                        return empty.advance(target);
+                    }
+
+                    @Override
+                    public long cost() {
+                        return empty.cost();
+                    }
+                    
+                    @Override
+                    public int freq() throws IOException {
+                        return 1;
+                    }
+
+                    @Override
+                    public int nextPosition() throws IOException {
+                        return -1;
+                    }
+
+                    @Override
+                    public int startOffset() throws IOException {
+                        return -1;
+                    }
+
+                    @Override
+                    public int endOffset() throws IOException {
+                        return -1;
+                    }
+
+                    @Override
+                    public BytesRef getPayload() throws IOException {
+                        return null;
+                    }
+                };
             }
 
         } catch (IOException e) {

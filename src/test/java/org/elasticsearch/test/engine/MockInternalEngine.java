@@ -162,7 +162,7 @@ public class MockInternalEngine extends InternalEngine {
     public static abstract class DirectoryReaderWrapper extends FilterDirectoryReader {
         protected final SubReaderWrapper subReaderWrapper;
 
-        public DirectoryReaderWrapper(DirectoryReader in, SubReaderWrapper subReaderWrapper) {
+        public DirectoryReaderWrapper(DirectoryReader in, SubReaderWrapper subReaderWrapper) throws IOException {
             super(in, subReaderWrapper);
             this.subReaderWrapper = subReaderWrapper;
         }

@@ -224,6 +224,11 @@ abstract class QueryCollector extends SimpleCollector {
         }
 
         @Override
+        public boolean needsScores() {
+            return super.needsScores() || topDocsCollector.needsScores();
+        }
+
+        @Override
         public void collect(int doc) throws IOException {
             final Query query = getQuery(doc);
             if (query == null) {
@@ -284,6 +289,11 @@ abstract class QueryCollector extends SimpleCollector {
             this.size = context.size();
             this.context = context;
             this.highlightPhase = highlightPhase;
+        }
+
+        @Override
+        public boolean needsScores() {
+            return true;
         }
 
         @Override

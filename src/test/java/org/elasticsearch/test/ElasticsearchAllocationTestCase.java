@@ -34,6 +34,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.lang.reflect.Constructor;
@@ -64,6 +65,7 @@ public abstract class ElasticsearchAllocationTestCase extends ElasticsearchTestC
 
     public static AllocationDeciders randomAllocationDeciders(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
         final ImmutableSet<Class<? extends AllocationDecider>> defaultAllocationDeciders = AllocationDecidersModule.DEFAULT_ALLOCATION_DECIDERS;
+        final RecoverySettings recoverySettings = new RecoverySettings(settings, nodeSettingsService);
         final List<AllocationDecider> list = new ArrayList<>();
         for (Class<? extends AllocationDecider> deciderClass : defaultAllocationDeciders) {
             try {
@@ -71,9 +73,13 @@ public abstract class ElasticsearchAllocationTestCase extends ElasticsearchTestC
                     Constructor<? extends AllocationDecider> constructor = deciderClass.getConstructor(Settings.class, NodeSettingsService.class);
                     list.add(constructor.newInstance(settings, nodeSettingsService));
                 } catch (NoSuchMethodException e) {
-                    Constructor<? extends AllocationDecider> constructor = null;
-                    constructor = deciderClass.getConstructor(Settings.class);
-                    list.add(constructor.newInstance(settings));
+                    try {
+                        Constructor<? extends AllocationDecider> constructor  = deciderClass.getConstructor(Settings.class);
+                        list.add(constructor.newInstance(settings));
+                    } catch (NoSuchMethodException e1) {
+                        Constructor<? extends AllocationDecider> constructor  = deciderClass.getConstructor(Settings.class, RecoverySettings.class);
+                        list.add(constructor.newInstance(settings, recoverySettings));
+                    }
                 }
             } catch (Exception ex) {
                 throw new RuntimeException(ex);

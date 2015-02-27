@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -26,6 +27,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 
 /**
  * An allocation decider that prevents relocation or allocation from nodes
@@ -37,10 +39,12 @@ import org.elasticsearch.common.settings.Settings;
 public class NodeVersionAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "node_version";
+    private final RecoverySettings recoverySettings;
 
     @Inject
-    public NodeVersionAllocationDecider(Settings settings) {
+    public NodeVersionAllocationDecider(Settings settings, RecoverySettings recoverySettings) {
         super(settings);
+        this.recoverySettings = recoverySettings;
     }
 
     @Override
@@ -65,6 +69,10 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
 
     private Decision isVersionCompatible(final RoutingNodes routingNodes, final String sourceNodeId, final RoutingNode target, RoutingAllocation allocation) {
         final RoutingNode source = routingNodes.node(sourceNodeId);
+        if (source.node().version().before(Version.V_1_3_2) && recoverySettings.compress()) { // never recover from pre 1.3.2 with compression enabled
+            return allocation.decision(Decision.NO, NAME, "source node version [%s] is prone to corruption bugs with %s = true see issue #7210 for details",
+                    source.node().version(), RecoverySettings.INDICES_RECOVERY_COMPRESS);
+        }
         if (target.node().version().onOrAfter(source.node().version())) {
             /* we can allocate if we can recover from a node that is younger or on the same version
              * if the primary is already running on a newer version that won't work due to possible

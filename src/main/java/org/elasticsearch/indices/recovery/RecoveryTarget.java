@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -149,18 +150,36 @@ public class RecoveryTarget extends AbstractComponent {
         threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(recoveryStatus.recoveryId()));
     }
 
+    // pkd private for testing
+    Map<String, StoreFileMetaData> existingFiles(DiscoveryNode sourceNode, Store store) throws IOException {
+        final Version sourceNodeVersion = sourceNode.version();
+        if (sourceNodeVersion.onOrAfter(Version.V_1_4_0)) {
+                return store.getMetadataOrEmpty().asMap();
+        } else {
+            logger.debug("Force full recovery source node version {}", sourceNodeVersion);
+            // force full recovery if we recover from nodes < 1.4.0
+            return Collections.EMPTY_MAP;
+        }
+    }
+
     private void doRecovery(final RecoveryStatus recoveryStatus) {
         assert recoveryStatus.sourceNode() != null : "can't do a recovery without a source node";
 
         logger.trace("collecting local files for {}", recoveryStatus);
         final Map<String, StoreFileMetaData> existingFiles;
         try {
-            existingFiles = recoveryStatus.store().getMetadataOrEmpty().asMap();
+            existingFiles = existingFiles(recoveryStatus.sourceNode(), recoveryStatus.store());
         } catch (Exception e) {
-            logger.debug("error while listing local files, recovery as if there are none", e);
+            logger.debug("error while listing local files", e);
             onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(),
                     new RecoveryFailedException(recoveryStatus.state(), "failed to list local files", e), true);
             return;
+        }
+        final Version sourceNodeVersion = recoveryStatus.sourceNode().version();
+        if (sourceNodeVersion.before(Version.V_1_3_2) && recoverySettings.compress()) { // don't recover from pre 1.3.2 if compression is on?
+            throw new ElasticsearchIllegalStateException("Can't recovery from node "
+                    + recoveryStatus.sourceNode() + " with [" + RecoverySettings.INDICES_RECOVERY_COMPRESS
+                    + " : true] due to compression bugs -  see issue #7210 for details" );
         }
         final StartRecoveryRequest request = new StartRecoveryRequest(recoveryStatus.shardId(), recoveryStatus.sourceNode(), clusterService.localNode(),
                 false, existingFiles, recoveryStatus.state().getType(), recoveryStatus.recoveryId());

@@ -81,7 +81,6 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-@TestLogging("index.translog.fs:TRACE")
 public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompatIntegrationTest {
 
     /**

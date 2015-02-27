@@ -1,9 +1,6 @@
 ---
 "Indices recovery test":
 
-  - skip:
-      features: gtelte
-
   - do:
       indices.create:
         index:  test_1
@@ -39,4 +36,45 @@
   - gte:   { test_1.shards.0.start.check_index_time_in_millis:  0                       }
   - gte:   { test_1.shards.0.start.total_time_in_millis:        0                       }
 
+---
+"Indices recovery test index name not matching":
+
+  - do:
+      indices.create:
+        index:  test_1
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+
+      catch: missing
+      indices.recovery:
+        index: [foobar]
+
+---
+"Indices recovery test, wildcard not matching any index":
+
+  - do:
+      indices.create:
+        index:  test_1
+        body:
+          settings:
+            index:
+              number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      indices.recovery:
+        index: [v*]
+
+  - match: { $body: {} }
 

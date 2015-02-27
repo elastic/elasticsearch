@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.structure;
 
+import java.util.Iterator;
+
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.ClusterName;
@@ -323,5 +325,112 @@ public class RoutingIteratorTests extends ElasticsearchAllocationTestCase {
         assertThat(shardIterators.size(), equalTo(1));
         assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
         assertThat(shardIterators.iterator().next().nextOrNull().currentNodeId(), equalTo("node1"));
+    }
+
+    @Test
+    public void testShardsAndPreferNodeRoutingWithIndividualIndex() {
+        AllocationService strategy = createAllocationService(settingsBuilder()
+                .put("cluster.routing.allocation.concurrent_recoveries", 10)
+                .build());
+
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder("test").numberOfShards(5).numberOfReplicas(1))
+                .put(IndexMetaData.builder("extra").numberOfShards(5).numberOfReplicas(1))
+                .build();
+
+        RoutingTable routingTable = RoutingTable.builder()
+                .addAsNew(metaData.index("test"))
+                .addAsNew(metaData.index("extra"))
+                .build();
+
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
+                .put(newNode("node1"))
+                .put(newNode("node2"))
+                .localNodeId("node1")
+        ).build();
+        routingTable = strategy.reroute(clusterState).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        PlainOperationRouting operationRouting = new PlainOperationRouting(ImmutableSettings.Builder.EMPTY_SETTINGS, new DjbHashFunction(), new AwarenessAllocationDecider());
+
+        GroupShardsIterator shardIterators = operationRouting.searchShards(clusterState, new String[]{"test", "extra"}, new String[]{"test", "extra"}, null, "_shards:0");
+        assertThat(shardIterators.size(), equalTo(2));
+        Iterator<ShardIterator> iterator = shardIterators.iterator();
+        assertThat(iterator.next().shardId().id(), equalTo(0));
+        assertThat(iterator.next().shardId().id(), equalTo(0));
+
+        shardIterators = operationRouting.searchShards(clusterState, new String[]{"test", "extra"}, new String[]{"test", "extra"}, null, "_shards:test[0]");
+        assertThat(shardIterators.size(), equalTo(1));
+        ShardId shardId = shardIterators.iterator().next().shardId();
+        assertThat(shardId.id(), equalTo(0));
+        assertThat(shardId.getIndex(), equalTo("test"));
+
+        shardIterators = operationRouting.searchShards(clusterState, new String[]{"test", "extra"}, new String[]{"test", "extra"}, null, "_shards:test[1],extra[1]");
+        assertThat(shardIterators.size(), equalTo(2));
+        iterator = shardIterators.iterator();
+        shardId = iterator.next().shardId();
+        assertThat(shardId.id(), equalTo(1));
+        assertThat(shardId.getIndex(), equalTo("extra"));
+        shardId = iterator.next().shardId();
+        assertThat(shardId.id(), equalTo(1));
+        assertThat(shardId.getIndex(), equalTo("test"));
+
+        // check pattern match on index name
+        shardIterators = operationRouting.searchShards(clusterState, new String[]{"test", "extra"}, new String[]{"test", "extra"}, null, "_shards:t*[1],ex*a[1]");
+        assertThat(shardIterators.size(), equalTo(2));
+        iterator = shardIterators.iterator();
+        shardId = iterator.next().shardId();
+        assertThat(shardId.id(), equalTo(1));
+        assertThat(shardId.getIndex(), equalTo("extra"));
+        shardId = iterator.next().shardId();
+        assertThat(shardId.id(), equalTo(1));
+        assertThat(shardId.getIndex(), equalTo("test"));
+
+        // check pattern match on index name
+        shardIterators = operationRouting.searchShards(clusterState, new String[]{"test", "extra"}, new String[]{"test", "extra"}, null, "_shards:extra[*]");
+        assertThat(shardIterators.size(), equalTo(5));
+        iterator = shardIterators.iterator();
+        shardId = iterator.next().shardId();
+        assertThat(shardId.id(), equalTo(0));
+        assertThat(shardId.getIndex(), equalTo("extra"));
+        shardId = iterator.next().shardId();
+        assertThat(shardId.id(), equalTo(1));
+        assertThat(shardId.getIndex(), equalTo("extra"));
+        shardId = iterator.next().shardId();
+        assertThat(shardId.id(), equalTo(2));
+        assertThat(shardId.getIndex(), equalTo("extra"));
+
+        //check node preference, first without preference to see they switch
+        shardIterators = operationRouting.searchShards(clusterState, new String[]{"test", "extra"}, new String[]{"test", "extra"}, null, "_shards:test[0];");
+        assertThat(shardIterators.size(), equalTo(1));
+        assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
+        String firstRoundNodeId = shardIterators.iterator().next().nextOrNull().currentNodeId();
+
+        shardIterators = operationRouting.searchShards(clusterState, new String[]{"test", "extra"}, new String[]{"test", "extra"}, null, "_shards:test[0]");
+        assertThat(shardIterators.size(), equalTo(1));
+        assertThat(shardIterators.iterator().next().shardId().id(), equalTo(0));
+        assertThat(shardIterators.iterator().next().nextOrNull().currentNodeId(), not(equalTo(firstRoundNodeId)));
+
+        shardIterators = operationRouting.searchShards(clusterState, new String[]{"test", "extra"}, new String[]{"test", "extra"}, null, "_shards:extra[0];_prefer_node:node1");
+        assertThat(shardIterators.size(), equalTo(1));
+        shardId = shardIterators.iterator().next().shardId();
+        assertThat(shardId.id(), equalTo(0));
+        assertThat(shardId.getIndex(), equalTo("extra"));
+        assertThat(shardIterators.iterator().next().nextOrNull().currentNodeId(), equalTo("node1"));
+
+        shardIterators = operationRouting.searchShards(clusterState, new String[]{"test", "extra"}, new String[]{"test", "extra"}, null, "_shards:extra[1];_prefer_node:node2");
+        assertThat(shardIterators.size(), equalTo(1));
+        shardId = shardIterators.iterator().next().shardId();
+        assertThat(shardId.id(), equalTo(1));
+        assertThat(shardId.getIndex(), equalTo("extra"));
+        assertThat(shardIterators.iterator().next().nextOrNull().currentNodeId(), equalTo("node2"));
     }
 }

@@ -19,8 +19,9 @@
 
 package org.elasticsearch.cluster.routing.operation.plain;
 
+import org.elasticsearch.common.regex.Regex;
+
 import com.google.common.collect.Lists;
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -43,7 +44,10 @@ import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexMissingException;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -177,12 +181,34 @@ public class PlainOperationRouting extends AbstractComponent implements Operatio
                 } else {
                     shards = preference.substring(Preference.SHARDS.type().length() + 1, index);
                 }
-                String[] ids = Strings.splitStringByCommaToArray(shards);
+                String[] tokens = Strings.splitStringByCommaToArray(shards);
                 boolean found = false;
-                for (String id : ids) {
-                    if (Integer.parseInt(id) == indexShard.shardId().id()) {
-                        found = true;
-                        break;
+                for (String token : tokens) {
+                    // check whether it contains an index
+                    int bracket = token.indexOf('[');
+                    if (bracket > -1) {
+                        int closingBracket = token.indexOf(']');
+                        // basic validation: the index and id require at least one char each
+                        if (bracket > 0 && closingBracket > bracket + 1) {
+                            String prefId = token.substring(bracket + 1, closingBracket);
+                            String prefIndex = token.substring(0, bracket);
+                            // check id first
+                            if ((Regex.isMatchAllPattern(prefId) || Integer.parseInt(prefId) == indexShard.shardId().id()) &&
+                                   // followed by index name
+                                   Regex.simpleMatch(prefIndex, indexShard.shardId().getIndex())) {
+                                found = true;
+                                break;
+                            }
+                        }
+                        else {
+                            throw new ElasticsearchIllegalArgumentException(String.format("Invalid shard option [%s]", token));
+                        }
+                    }
+                    else {
+                        if (Integer.parseInt(token) == indexShard.shardId().id()) {
+                            found = true;
+                            break;
+                        }
                     }
                 }
                 if (!found) {

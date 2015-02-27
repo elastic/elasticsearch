@@ -395,6 +395,11 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
+        public boolean needsScores() {
+            return true;
+        }
+
+        @Override
         protected void newParent(long parentIdx) throws IOException {
             scores = bigArrays.grow(scores, parentIdx + 1);
             scores.set(parentIdx, scorer.score());
@@ -641,26 +646,6 @@ public class ChildrenQuery extends Query {
         @Override
         public long cost() {
             return parentsIterator.cost();
-        }
-
-        @Override
-        public int nextPosition() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public int startOffset() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public int endOffset() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public BytesRef getPayload() throws IOException {
-            return null;
         }
     }
 

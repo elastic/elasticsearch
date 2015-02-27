@@ -416,26 +416,6 @@ public class TopChildrenQuery extends Query {
         public final long cost() {
             return docs.length;
         }
-
-        @Override
-        public int nextPosition() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public int startOffset() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public int endOffset() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public BytesRef getPayload() throws IOException {
-            return null;
-        }
     }
 
     private static class ParentDocComparator implements Comparator<ParentDoc> {

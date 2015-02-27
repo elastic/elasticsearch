@@ -24,6 +24,7 @@ import com.carrotsearch.randomizedtesting.annotations.*;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 
@@ -38,6 +39,7 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
+@SuppressFileSystems("ExtrasFS") // we aren't ready for this yet.
 public abstract class ElasticsearchLuceneTestCase extends LuceneTestCase {
 
     private static final Codec DEFAULT_CODEC = Codec.getDefault();

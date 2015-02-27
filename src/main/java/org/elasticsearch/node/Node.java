@@ -274,7 +274,7 @@ public class Node implements Releasable {
         return this;
     }
 
-    public Node stop() {
+    private Node stop() {
         if (!lifecycle.moveToStopped()) {
             return this;
         }

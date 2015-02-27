@@ -186,13 +186,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
 
     @Override
     protected void doStop() throws ElasticsearchException {
-        for (Node node : nodes) {
-            try {
-                node.stop();
-            } catch (Throwable t) {
-                logger.warn("failed to stop node {}", t, node);
-            }
-        }
+        doClose();
     }
 
     @Override
@@ -208,11 +202,9 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
 
     class TribeClusterStateListener implements ClusterStateListener {
 
-        private final Node tribeNode;
         private final String tribeName;
 
         TribeClusterStateListener(Node tribeNode) {
-            this.tribeNode = tribeNode;
             this.tribeName = tribeNode.settings().get(TRIBE_NAME);
         }
 

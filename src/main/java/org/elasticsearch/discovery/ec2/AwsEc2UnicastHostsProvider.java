@@ -75,16 +75,16 @@ public class AwsEc2UnicastHostsProvider extends AbstractComponent implements Uni
         this.client = awsEc2Service.client();
         this.version = version;
 
-        this.hostType = HostType.valueOf(componentSettings.get("host_type", "private_ip").toUpperCase());
+        this.hostType = HostType.valueOf(settings.get("discovery.ec2.host_type", "private_ip").toUpperCase());
 
-        this.bindAnyGroup = componentSettings.getAsBoolean("any_group", true);
-        this.groups = ImmutableSet.copyOf(componentSettings.getAsArray("groups"));
+        this.bindAnyGroup = settings.getAsBoolean("discovery.ec2.any_group", true);
+        this.groups = ImmutableSet.copyOf(settings.getAsArray("discovery.ec2.groups"));
 
-        this.tags = componentSettings.getByPrefix("tag.").getAsMap();
+        this.tags = settings.getByPrefix("discovery.ec2.tag.").getAsMap();
 
-        Set<String> availabilityZones = Sets.newHashSet(componentSettings.getAsArray("availability_zones"));
-        if (componentSettings.get("availability_zones") != null) {
-            availabilityZones.addAll(Strings.commaDelimitedListToSet(componentSettings.get("availability_zones")));
+        Set<String> availabilityZones = Sets.newHashSet(settings.getAsArray("discovery.ec2.availability_zones"));
+        if (settings.get("discovery.ec2.availability_zones") != null) {
+            availabilityZones.addAll(Strings.commaDelimitedListToSet(settings.get("discovery.ec2.availability_zones")));
         }
         this.availabilityZones = ImmutableSet.copyOf(availabilityZones);
 

@@ -64,11 +64,11 @@ public class TestAmazonS3 extends AmazonS3Wrapper {
         return 1;
     }
 
-    public TestAmazonS3(AmazonS3 delegate, Settings componentSettings) {
+    public TestAmazonS3(AmazonS3 delegate, Settings settings) {
         super(delegate);
-        randomPrefix = componentSettings.get("test.random");
-        writeFailureRate = componentSettings.getAsDouble("test.write_failures", 0.0);
-        readFailureRate = componentSettings.getAsDouble("test.read_failures", 0.0);
+        randomPrefix = settings.get("cloud.aws.test.random");
+        writeFailureRate = settings.getAsDouble("cloud.aws.test.write_failures", 0.0);
+        readFailureRate = settings.getAsDouble("cloud.aws.test.read_failures", 0.0);
     }
 
     @Override

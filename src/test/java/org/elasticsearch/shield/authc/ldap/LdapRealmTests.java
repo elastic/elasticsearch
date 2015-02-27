@@ -45,7 +45,7 @@ public class LdapRealmTests extends LdapTest {
     @Before
     public void init() throws Exception {
         restController = mock(RestController.class);
-        threadPool = new ThreadPool("test");
+        threadPool = new ThreadPool("ldap realm tests");
         resourceWatcherService = new ResourceWatcherService(ImmutableSettings.EMPTY, threadPool);
     }
 

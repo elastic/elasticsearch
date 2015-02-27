@@ -1,0 +1,4 @@
+group_role:
+  - "CN=Avengers,CN=users,DC=ad,DC=test,DC=elasticsearch,DC=com"
+user_role:
+  - "CN=Thor,CN=Users,DC=ad,DC=test,DC=elasticsearch,DC=com"

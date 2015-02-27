@@ -964,7 +964,6 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testUngeneratedFieldsThatAreAlwaysStored() throws IOException {
-        String storedString = randomBoolean() ? "yes" : "no";
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
                 "    \"index.translog.disable_flush\": true,\n" +
@@ -980,8 +979,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "        \"type\": \"parentdoc\"\n" +
                 "      },\n" +
                 "      \"_ttl\": {\n" +
-                "        \"enabled\": true,\n" +
-                "        \"store\": \"" + storedString + "\"\n" +
+                "        \"enabled\": true\n" +
                 "      }\n" +
                 "    }\n" +
                 "  }\n" +

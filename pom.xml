@@ -53,11 +53,6 @@
             <name>Codehaus Snapshots</name>
             <url>http://repository.codehaus.org/</url>
         </repository>
-        <repository>
-            <id>lucene-snapshots</id>
-            <name>Lucene Snapshots</name>
-            <url>https://download.elasticsearch.org/lucenesnapshots/1657571</url>
-        </repository>
     </repositories>
 
     <dependencies>

@@ -168,6 +168,9 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         replicaEngine.close();
         storeReplica.close();
 
+        translog.close();
+        replicaTranslog.close();
+
         engine.close();
         store.close();
         terminate(threadPool);

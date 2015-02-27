@@ -22,7 +22,6 @@ import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 
 import java.util.IdentityHashMap;
 
@@ -57,7 +56,7 @@ public class TestAwsS3Service extends InternalAwsS3Service {
     private AmazonS3 cachedWrapper(AmazonS3 client) {
         TestAmazonS3 wrapper = clients.get(client);
         if (wrapper == null) {
-            wrapper = new TestAmazonS3(client, componentSettings);
+            wrapper = new TestAmazonS3(client, settings);
             clients.put(client, wrapper);
         }
         return wrapper;

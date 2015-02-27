@@ -63,8 +63,8 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
         }
 
         ClientConfiguration clientConfiguration = new ClientConfiguration();
-        String protocol = componentSettings.get("protocol", "https").toLowerCase();
-        protocol = componentSettings.get("ec2.protocol", protocol).toLowerCase();
+        String protocol = settings.get("cloud.aws.protocol", "https").toLowerCase();
+        protocol = settings.get("cloud.aws.ec2.protocol", protocol).toLowerCase();
         if ("http".equals(protocol)) {
             clientConfiguration.setProtocol(Protocol.HTTP);
         } else if ("https".equals(protocol)) {
@@ -72,12 +72,12 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
         } else {
             throw new ElasticsearchIllegalArgumentException("No protocol supported [" + protocol + "], can either be [http] or [https]");
         }
-        String account = componentSettings.get("access_key", settings.get("cloud.account"));
-        String key = componentSettings.get("secret_key", settings.get("cloud.key"));
+        String account = settings.get("cloud.aws.access_key", settings.get("cloud.account"));
+        String key = settings.get("cloud.aws.secret_key", settings.get("cloud.key"));
 
-        String proxyHost = componentSettings.get("proxy_host");
+        String proxyHost = settings.get("cloud.aws.proxy_host");
         if (proxyHost != null) {
-            String portString = componentSettings.get("proxy_port", "80");
+            String portString = settings.get("cloud.aws.proxy_port", "80");
             Integer proxyPort;
             try {
                 proxyPort = Integer.parseInt(portString, 10);
@@ -103,12 +103,12 @@ public class AwsEc2Service extends AbstractLifecycleComponent<AwsEc2Service> {
 
         this.client = new AmazonEC2Client(credentials, clientConfiguration);
 
-        if (componentSettings.get("ec2.endpoint") != null) {
-            String endpoint = componentSettings.get("ec2.endpoint");
+        if (settings.get("cloud.aws.ec2.endpoint") != null) {
+            String endpoint = settings.get("cloud.aws.ec2.endpoint");
             logger.debug("using explicit ec2 endpoint [{}]", endpoint);
             client.setEndpoint(endpoint);
-        } else if (componentSettings.get("region") != null) {
-            String region = componentSettings.get("region").toLowerCase();
+        } else if (settings.get("cloud.aws.region") != null) {
+            String region = settings.get("cloud.aws.region").toLowerCase();
             String endpoint;
             if (region.equals("us-east-1") || region.equals("us-east")) {
                 endpoint = "ec2.us-east-1.amazonaws.com";

@@ -32,7 +32,6 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -55,8 +54,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
     @Override
     public synchronized AmazonS3 client() {
         String endpoint = getDefaultEndpoint();
-        String account = componentSettings.get("access_key", settings.get("cloud.account"));
-        String key = componentSettings.get("secret_key", settings.get("cloud.key"));
+        String account = settings.get("cloud.aws.access_key", settings.get("cloud.account"));
+        String key = settings.get("cloud.aws.secret_key", settings.get("cloud.key"));
 
         return getClient(endpoint, null, account, key, null);
     }
@@ -75,8 +74,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             endpoint = getDefaultEndpoint();
         }
         if (account == null || key == null) {
-            account = componentSettings.get("access_key", settings.get("cloud.account"));
-            key = componentSettings.get("secret_key", settings.get("cloud.key"));
+            account = settings.get("cloud.aws.access_key", settings.get("cloud.account"));
+            key = settings.get("cloud.aws.secret_key", settings.get("cloud.key"));
         }
 
         return getClient(endpoint, protocol, account, key, maxRetries);
@@ -92,8 +91,8 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
 
         ClientConfiguration clientConfiguration = new ClientConfiguration();
         if (protocol == null) {
-            protocol = componentSettings.get("protocol", "https").toLowerCase();
-            protocol = componentSettings.get("s3.protocol", protocol).toLowerCase();
+            protocol = settings.get("cloud.aws.protocol", "https").toLowerCase();
+            protocol = settings.get("cloud.aws.s3.protocol", protocol).toLowerCase();
         }
 
         if ("http".equals(protocol)) {
@@ -104,9 +103,9 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
             throw new ElasticsearchIllegalArgumentException("No protocol supported [" + protocol + "], can either be [http] or [https]");
         }
 
-        String proxyHost = componentSettings.get("proxy_host");
+        String proxyHost = settings.get("cloud.aws.proxy_host");
         if (proxyHost != null) {
-            String portString = componentSettings.get("proxy_port", "80");
+            String portString = settings.get("cloud.aws.proxy_port", "80");
             Integer proxyPort;
             try {
                 proxyPort = Integer.parseInt(portString, 10);
@@ -145,11 +144,11 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
 
     private String getDefaultEndpoint() {
         String endpoint = null;
-        if (componentSettings.get("s3.endpoint") != null) {
-            endpoint = componentSettings.get("s3.endpoint");
+        if (settings.get("cloud.aws.s3.endpoint") != null) {
+            endpoint = settings.get("cloud.aws.s3.endpoint");
             logger.debug("using explicit s3 endpoint [{}]", endpoint);
-        } else if (componentSettings.get("region") != null) {
-            String region = componentSettings.get("region").toLowerCase();
+        } else if (settings.get("cloud.aws.region") != null) {
+            String region = settings.get("cloud.aws.region").toLowerCase();
             endpoint = getEndpoint(region);
             logger.debug("using s3 region [{}], with endpoint [{}]", region, endpoint);
         }

@@ -87,6 +87,7 @@ public class ScriptService extends AbstractComponent {
     public static final String DISABLE_DYNAMIC_SCRIPTING_DEFAULT = "sandbox";
     public static final String SCRIPT_INDEX = ".scripts";
     public static final String DEFAULT_LANG = "groovy";
+    public static final String SCRIPT_AUTO_RELOAD_ENABLED_SETTING = "script.auto_reload_enabled";
 
     private final String defaultLang;
 
@@ -264,7 +265,7 @@ public class ScriptService extends AbstractComponent {
         this.fileWatcher = new FileWatcher(scriptsDirectory);
         fileWatcher.addListener(new ScriptChangesListener());
 
-        if (componentSettings.getAsBoolean("auto_reload_enabled", true)) {
+        if (settings.getAsBoolean(SCRIPT_AUTO_RELOAD_ENABLED_SETTING, true)) {
             // automatic reload is enabled - register scripts
             resourceWatcherService.add(fileWatcher);
         } else {

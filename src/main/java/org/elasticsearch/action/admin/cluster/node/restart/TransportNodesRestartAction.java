@@ -61,7 +61,7 @@ public class TransportNodesRestartAction extends TransportNodesOperationAction<N
                                        Node node, ActionFilters actionFilters) {
         super(settings, NodesRestartAction.NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
         this.node = node;
-        disabled = componentSettings.getAsBoolean("disabled", false);
+        disabled = this.settings.getAsBoolean("admin.cluster.node.restart.disabled", false);
     }
 
     @Override

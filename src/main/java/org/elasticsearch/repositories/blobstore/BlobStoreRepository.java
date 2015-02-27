@@ -444,7 +444,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      */
     private RateLimiter getRateLimiter(RepositorySettings repositorySettings, String setting, ByteSizeValue defaultRate) {
         ByteSizeValue maxSnapshotBytesPerSec = repositorySettings.settings().getAsBytesSize(setting,
-                componentSettings.getAsBytesSize(setting, defaultRate));
+                settings.getAsBytesSize(setting, defaultRate));
         if (maxSnapshotBytesPerSec.bytes() <= 0) {
             return null;
         } else {

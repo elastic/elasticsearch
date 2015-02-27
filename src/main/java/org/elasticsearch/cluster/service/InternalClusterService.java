@@ -117,7 +117,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
         this.nodeSettingsService.setClusterService(this);
 
-        this.reconnectInterval = componentSettings.getAsTime("reconnect_interval", TimeValue.timeValueSeconds(10));
+        this.reconnectInterval = this.settings.getAsTime("cluster.service.reconnect_interval", TimeValue.timeValueSeconds(10));
 
         localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
 

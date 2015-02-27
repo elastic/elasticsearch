@@ -138,8 +138,8 @@ public class MapperService extends AbstractIndexComponent  {
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
         this.searchQuoteAnalyzer = new SmartIndexNameSearchQuoteAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
 
-        this.dynamic = componentSettings.getAsBoolean("dynamic", true);
-        String defaultMappingLocation = componentSettings.get("default_mapping_location");
+        this.dynamic = indexSettings.getAsBoolean("index.mapper.dynamic", true);
+        String defaultMappingLocation = indexSettings.get("index.mapper.default_mapping_location");
         final URL defaultMappingUrl;
         if (index.getName().equals(ScriptService.SCRIPT_INDEX)){
             defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation, "script-mapping.json", "org/elasticsearch/index/mapper/script-mapping.json");
@@ -172,7 +172,7 @@ public class MapperService extends AbstractIndexComponent  {
             }
         }
 
-        String percolatorMappingLocation = componentSettings.get("default_percolator_mapping_location");
+        String percolatorMappingLocation = indexSettings.get("index.mapper.default_percolator_mapping_location");
         URL percolatorMappingUrl = null;
         if (percolatorMappingLocation != null) {
             try {

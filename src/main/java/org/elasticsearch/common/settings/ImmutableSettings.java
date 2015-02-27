@@ -188,27 +188,6 @@ public class ImmutableSettings implements Settings {
         return map;
     }
 
-
-    @Override
-    public Settings getComponentSettings(Class component) {
-        if (component.getName().startsWith("org.elasticsearch")) {
-            return getComponentSettings("org.elasticsearch", component);
-        }
-        // not starting with org.elasticsearch, just remove the first package part (probably org/net/com)
-        return getComponentSettings(component.getName().substring(0, component.getName().indexOf('.')), component);
-    }
-
-    @Override
-    public Settings getComponentSettings(String prefix, Class component) {
-        String type = component.getName();
-        if (!type.startsWith(prefix)) {
-            throw new SettingsException("Component [" + type + "] does not start with prefix [" + prefix + "]");
-        }
-        String settingPrefix = type.substring(prefix.length() + 1); // 1 for the '.'
-        settingPrefix = settingPrefix.substring(0, settingPrefix.length() - component.getSimpleName().length()); // remove the simple class name (keep the dot)
-        return getByPrefix(settingPrefix);
-    }
-
     @Override
     public Settings getByPrefix(String prefix) {
         Builder builder = new Builder();

@@ -79,11 +79,11 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
         super(settings);
         this.threadPool = threadPool;
 
-        this.enabled = componentSettings.getAsBoolean("enabled", true);
-        this.interval = componentSettings.getAsTime("interval", timeValueSeconds(1));
+        this.enabled = this.settings.getAsBoolean("monitor.jvm.enabled", true);
+        this.interval = this.settings.getAsTime("monitor.jvm.interval", timeValueSeconds(1));
 
         MapBuilder<String, GcThreshold> gcThresholds = MapBuilder.newMapBuilder();
-        Map<String, Settings> gcThresholdGroups = componentSettings.getGroups("gc");
+        Map<String, Settings> gcThresholdGroups = this.settings.getGroups("monitor.jvm.gc");
         for (Map.Entry<String, Settings> entry : gcThresholdGroups.entrySet()) {
             String name = entry.getKey();
             TimeValue warn = entry.getValue().getAsTime("warn", null);

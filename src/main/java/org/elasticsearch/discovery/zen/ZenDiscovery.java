@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -103,7 +102,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private final ClusterService clusterService;
     private AllocationService allocationService;
     private final ClusterName clusterName;
-    private final DiscoveryNodeService discoveryNodeService;
     private final DiscoverySettings discoverySettings;
     private final ZenPingService pingService;
     private final MasterFaultDetection masterFD;
@@ -150,20 +148,17 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                         TransportService transportService, final ClusterService clusterService, NodeSettingsService nodeSettingsService,
-                        DiscoveryNodeService discoveryNodeService, ZenPingService pingService, ElectMasterService electMasterService,
+                        ZenPingService pingService, ElectMasterService electMasterService,
                         DiscoverySettings discoverySettings, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
         super(settings);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.discoveryNodeService = discoveryNodeService;
         this.discoverySettings = discoverySettings;
         this.pingService = pingService;
         this.electMaster = electMasterService;
-
-        // keep using componentSettings for BWC, in case this class gets extended.
-        TimeValue pingTimeout = componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3));
-        pingTimeout = componentSettings.getAsTime("ping_timeout", pingTimeout);
+        TimeValue pingTimeout = this.settings.getAsTime("discovery.zen.initial_ping_timeout", timeValueSeconds(3));
+        pingTimeout = this.settings.getAsTime("discovery.zen.ping_timeout", pingTimeout);
         pingTimeout = settings.getAsTime("discovery.zen.ping_timeout", pingTimeout);
         this.pingTimeout = settings.getAsTime(SETTING_PING_TIMEOUT, pingTimeout);
 

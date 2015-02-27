@@ -194,7 +194,7 @@ public class ImmutableSettings implements Settings {
         for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
             if (entry.getKey().startsWith(prefix)) {
                 if (entry.getKey().length() < prefix.length()) {
-                    // ignore this one
+                    // ignore this. one
                     continue;
                 }
                 builder.put(entry.getKey().substring(prefix.length()), entry.getValue());

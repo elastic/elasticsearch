@@ -33,10 +33,6 @@ import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartAction;
-import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest;
-import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartResponse;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownAction;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequestBuilder;
@@ -235,21 +231,6 @@ public abstract class AbstractClusterAdminClient implements ClusterAdminClient {
     @Override
     public NodesHotThreadsRequestBuilder prepareNodesHotThreads(String... nodesIds) {
         return new NodesHotThreadsRequestBuilder(this).setNodesIds(nodesIds);
-    }
-
-    @Override
-    public ActionFuture<NodesRestartResponse> nodesRestart(final NodesRestartRequest request) {
-        return execute(NodesRestartAction.INSTANCE, request);
-    }
-
-    @Override
-    public void nodesRestart(final NodesRestartRequest request, final ActionListener<NodesRestartResponse> listener) {
-        execute(NodesRestartAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public NodesRestartRequestBuilder prepareNodesRestart(String... nodesIds) {
-        return new NodesRestartRequestBuilder(this).setNodesIds(nodesIds);
     }
 
     @Override

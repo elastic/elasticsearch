@@ -26,6 +26,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -63,14 +64,13 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.service.IndexShard;
 import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.*;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.io.IOException;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -724,8 +724,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 store.incRef();
                 try {
                     store.failIfCorrupted();
+                    final Map<String, StoreFileMetaData> existingFiles = existingFiles(sourceNode, store);
                     request = new StartRecoveryRequest(indexShard.shardId(), sourceNode, nodes.localNode(),
-                            false, store.getMetadataOrEmpty().asMap(), type, recoveryIdGenerator.incrementAndGet());
+                            false, existingFiles, type, recoveryIdGenerator.incrementAndGet());
                 } finally {
                     store.decRef();
                 }
@@ -754,6 +755,17 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     handleRecoveryFailure(indexService, indexMetaData, shardRouting, true, e);
                 }
             });
+        }
+    }
+
+    Map<String, StoreFileMetaData> existingFiles(DiscoveryNode sourceNode, Store store) throws IOException {
+        final Version sourceNodeVersion = sourceNode.version();
+        if (sourceNodeVersion.onOrAfter(Version.V_1_4_0)) {
+            return store.getMetadataOrEmpty().asMap();
+        } else {
+            logger.debug("Force full recovery source node version {}", sourceNodeVersion);
+            // force full recovery if we recover from nodes < 1.4.0
+            return Collections.EMPTY_MAP;
         }
     }
 

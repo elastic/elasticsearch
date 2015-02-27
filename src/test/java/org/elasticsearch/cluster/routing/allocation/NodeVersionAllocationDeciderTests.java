@@ -25,13 +25,11 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.MutableShardRouting;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
 import org.junit.Test;
 
@@ -83,7 +81,6 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
 
         logger.info("start two nodes and fully start the shards");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
-        RoutingTable prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
@@ -91,15 +88,12 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(3));
             assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(INITIALIZING));
             assertThat(routingTable.index("test").shard(i).replicaShardsWithState(UNASSIGNED).size(), equalTo(2));
-
         }
 
         logger.info("start all the primary shards, replicas will start initializing");
         RoutingNodes routingNodes = clusterState.routingNodes();
-        prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        routingNodes = clusterState.routingNodes();
 
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(3));
@@ -109,10 +103,8 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
         }
 
         routingNodes = clusterState.routingNodes();
-        prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        routingNodes = clusterState.routingNodes();
 
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(3));
@@ -124,10 +116,8 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node3", getPreviousVersion())))
                 .build();
-        prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        routingNodes = clusterState.routingNodes();
 
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(3));
@@ -140,10 +130,8 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node4")))
                 .build();
-        prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        routingNodes = clusterState.routingNodes();
 
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(3));
@@ -153,10 +141,8 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
         }
 
         routingNodes = clusterState.routingNodes();
-        prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
-        routingNodes = clusterState.routingNodes();
 
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
             assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(3));
@@ -335,7 +321,79 @@ public class NodeVersionAllocationDeciderTests extends ElasticsearchAllocationTe
                 assertTrue(routingNodes.node(toId).node().version().onOrAfter(routingNodes.node(fromId).node().version()));
             }
         }
+    }
+
+    public void testFailRecoverFromPre132WithCompression() {
+        final boolean compress = randomBoolean();
+        AllocationService service = createAllocationService(settingsBuilder()
+                .put("cluster.routing.allocation.concurrent_recoveries", 10)
+                .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "INDICES_ALL_ACTIVE")
+                .put("cluster.routing.allocation.cluster_concurrent_rebalance", -1)
+                .put(RecoverySettings.INDICES_RECOVERY_COMPRESS, compress)
+                .build());
+
+        logger.info("Building initial routing table");
+
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
+                .build();
+
+        RoutingTable routingTable = RoutingTable.builder()
+                .addAsNew(metaData.index("test"))
+                .build();
+
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+
+        assertThat(routingTable.index("test").shards().size(), equalTo(1));
+        for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
+            assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(2));
+            for (ShardRouting shard : routingTable.index("test").shard(i).shards()) {
+                assertEquals(shard.state(), UNASSIGNED);
+                assertNull(shard.currentNodeId());
+            }
+        }
+        Version version = randomVersion();
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
+                .put(newNode("old0", version))).build();
+        clusterState = stabilize(clusterState, service);
+        routingTable = clusterState.routingTable();
+        for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
+            assertEquals(routingTable.index("test").shard(i).shards().size(), 2);
+            for (ShardRouting shard : routingTable.index("test").shard(i).shards()) {
+                if (shard.primary()) {
+                    assertEquals(shard.state(), STARTED);
+                    assertEquals(shard.currentNodeId(), "old0");
+                } else {
+                    assertEquals(shard.state(), UNASSIGNED);
+                    assertNull(shard.currentNodeId());
+                }
+            }
+        }
+
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
+                .put(newNode("old0",  version))
+                .put(newNode("new0"))).build();
+
+        clusterState = stabilize(clusterState, service);
+        routingTable = clusterState.routingTable();
+        for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
+            assertEquals(routingTable.index("test").shard(i).shards().size(), 2);
+            for (ShardRouting shard : routingTable.index("test").shard(i).shards()) {
+                if (shard.primary()) {
+                    assertEquals(shard.state(), STARTED);
+                    assertEquals(shard.currentNodeId(), "old0");
+                } else {
+                    if (version.before(Version.V_1_3_2) && compress) { // can't recover from pre 1.3.2 with compression enabled
+                        assertEquals(shard.state(), UNASSIGNED);
+                        assertNull(shard.currentNodeId());
+                    } else {
+                        assertEquals(shard.state(), STARTED);
+                        assertEquals(shard.currentNodeId(), "new0");
+                    }
+                }
+            }
 
 
+        }
     }
 }

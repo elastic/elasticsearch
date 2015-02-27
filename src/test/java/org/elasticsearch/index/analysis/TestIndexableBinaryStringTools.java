@@ -17,19 +17,16 @@ package org.elasticsearch.index.analysis;
  * limitations under the License.
  */
 
+import com.carrotsearch.randomizedtesting.annotations.Listeners;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.TimeUnits;
-import org.elasticsearch.test.ElasticsearchThreadFilter;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.junit.BeforeClass;
-
-import com.carrotsearch.randomizedtesting.annotations.Listeners;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
-import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 
 import java.util.Locale;
 
@@ -40,7 +37,6 @@ import java.util.Locale;
 @Listeners({
   ReproduceInfoPrinter.class
 })
-@ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
 @ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")

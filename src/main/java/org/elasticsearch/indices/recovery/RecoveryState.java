@@ -49,10 +49,19 @@ public class RecoveryState implements ToXContent, Streamable {
 
     public static enum Stage {
         INIT((byte) 0),
+
+        /** recovery of lucene files, either reusing local ones are copying new ones */
         INDEX((byte) 1),
+
+        /** starting up the engine, potentially running checks */
         START((byte) 2),
+
+        /** replaying the translog */
         TRANSLOG((byte) 3),
+
+        /** performing final task after all translog ops have been done */
         FINALIZE((byte) 4),
+
         DONE((byte) 5);
 
         private static final Stage[] STAGES = new Stage[Stage.values().length];
@@ -115,7 +124,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
     }
 
-    private volatile Stage stage;
+    private Stage stage;
 
     private final Index index = new Index();
     private final Translog translog = new Translog();
@@ -127,8 +136,7 @@ public class RecoveryState implements ToXContent, Streamable {
     private RestoreSource restoreSource;
     private DiscoveryNode sourceNode;
     private DiscoveryNode targetNode;
-
-    private volatile boolean primary = false;
+    private boolean primary = false;
 
     private RecoveryState() {
     }
@@ -156,14 +164,15 @@ public class RecoveryState implements ToXContent, Streamable {
         return shardId;
     }
 
-    public Stage getStage() {
+    public synchronized Stage getStage() {
         return this.stage;
     }
 
 
     private void validateAndSetStage(Stage expected, Stage next) {
         if (stage != expected) {
-            throw new ElasticsearchIllegalStateException("can't move recovery to stage [" + next + "]. current stage is [" + stage + "]");
+            throw new ElasticsearchIllegalStateException("can't move recovery to stage [" + next + "]. current stage: ["
+                    + stage + "] (expected [" + expected + "])");
         }
         stage = next;
     }
@@ -249,7 +258,7 @@ public class RecoveryState implements ToXContent, Streamable {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
+    public synchronized void readFrom(StreamInput in) throws IOException {
         timer.readFrom(in);
         type = Type.fromId(in.readByte());
         stage = Stage.fromId(in.readByte());
@@ -408,6 +417,7 @@ public class RecoveryState implements ToXContent, Streamable {
             assert stopTime == 0 : "already stopped";
             stopTime = Math.max(System.currentTimeMillis(), startTime);
             time = stopTime - startTime;
+            assert time >= 0;
         }
 
         public void reset() {

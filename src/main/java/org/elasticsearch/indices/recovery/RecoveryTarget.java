@@ -168,7 +168,7 @@ public class RecoveryTarget extends AbstractComponent {
         final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
         try {
             logger.trace("[{}][{}] starting recovery from {}", request.shardId().index().name(), request.shardId().id(), request.sourceNode());
-            recoveryStatus.indexShard().prepareForStoreRecovery();
+            recoveryStatus.indexShard().prepareForIndexRecovery();
             recoveryStatus.CancellableThreads().execute(new CancellableThreads.Interruptable() {
                 @Override
                 public void run() throws InterruptedException {
@@ -202,7 +202,6 @@ public class RecoveryTarget extends AbstractComponent {
                 logger.trace(sb.toString());
             } else {
                 logger.debug("{} recovery done from [{}], took [{}]", request.shardId(), recoveryStatus.sourceNode(), recoveryTime);
-
             }
         } catch (CancellableThreads.ExecutionCancelledException e) {
             logger.trace("recovery cancelled", e);
@@ -300,7 +299,7 @@ public class RecoveryTarget extends AbstractComponent {
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
-                recoveryStatus.indexShard().finalizeRecovery(false);
+                recoveryStatus.indexShard().finalizeRecovery();
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }

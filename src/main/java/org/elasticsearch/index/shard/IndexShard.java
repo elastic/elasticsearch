@@ -738,8 +738,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         return this;
     }
 
-    /** called before starting to copy files over for store recovery */
-    public void prepareForStoreRecovery() throws ElasticsearchException {
+    /** called before starting to copy index files over */
+    public void prepareForIndexRecovery() throws ElasticsearchException {
         if (state != IndexShardState.RECOVERING) {
             throw new IndexShardNotRecoveringException(shardId, state);
         }
@@ -786,11 +786,12 @@ public class IndexShard extends AbstractIndexShardComponent {
         return this.recoveryState;
     }
 
-    public void finalizeRecovery(boolean withFlush) throws ElasticsearchException {
+    /**
+     * perform the last stages of recovery once all translog operations are done.
+     * note that you should still call {@link #postRecovery(String)}.
+     */
+    public void finalizeRecovery() {
         recoveryState().setStage(RecoveryState.Stage.FINALIZE);
-        if (withFlush) {
-            engine().flush();
-        }
         // clear unreferenced files
         translog.clearUnreferenced();
         engine().refresh("recovery_finalization");

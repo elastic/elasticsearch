@@ -27,6 +27,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
 import org.elasticsearch.index.gateway.IndexShardGateway;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -107,7 +109,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
 
     @Override
     public void recover(boolean indexShouldExists, RecoveryState recoveryState) throws IndexShardGatewayRecoveryException {
-        indexShard.prepareForStoreRecovery();
+        indexShard.prepareForIndexRecovery();
         long version = -1;
         long translogId = -1;
         SegmentInfos si = null;
@@ -211,7 +213,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             if (recoveringTranslogFile == null || !recoveringTranslogFile.exists()) {
                 // no translog to recovery from, start and bail
                 // no translog files, bail
-                indexShard.finalizeRecovery(false);
+                indexShard.finalizeRecovery();
                 indexShard.postRecovery("post recovery from gateway, no translog");
                 // no index, just start the shard and bail
                 return;
@@ -272,7 +274,17 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             } finally {
                 IOUtils.closeWhileHandlingException(in);
             }
-            indexShard.finalizeRecovery(true);
+            // we flush to trim the translog, in case it was big.
+            try {
+                FlushRequest flushRequest = new FlushRequest();
+                flushRequest.force(false);
+                flushRequest.waitIfOngoing(false);
+                indexShard.flush(flushRequest);
+            } catch (FlushNotAllowedEngineException e) {
+                // to be safe we catch the FNAEX , at this point no one can recover
+                logger.debug("skipping flush at end of recovery (not allowed)", e);
+            }
+            indexShard.finalizeRecovery();
             indexShard.postRecovery("post recovery from gateway");
 
             try {

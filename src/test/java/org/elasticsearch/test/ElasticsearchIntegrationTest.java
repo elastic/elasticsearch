@@ -1032,8 +1032,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     public void setMinimumMasterNodes(int n) {
         assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, n))
-                .get().isAcknowledged());
+            settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, n))
+            .get().isAcknowledged());
     }
 
     /**
@@ -1593,8 +1593,34 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     protected Settings transportClientSettings() {
         return ImmutableSettings.EMPTY;
     }
+    
+    private ExternalTestCluster buildExternalCluster(String clusterAddresses) {
+        String[] stringAddresses = clusterAddresses.split(",");
+        TransportAddress[] transportAddresses = new TransportAddress[stringAddresses.length];
+        int i = 0;
+        for (String stringAddress : stringAddresses) {
+            String[] split = stringAddress.split(":");
+            if (split.length < 2) {
+                throw new IllegalArgumentException("address [" + clusterAddresses + "] not valid");
+            }
+            try {
+                transportAddresses[i++] = new InetSocketTransportAddress(split[0], Integer.valueOf(split[1]));
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("port is not valid, expected number but was [" + split[1] + "]");
+            }
+        }
+        return new ExternalTestCluster(transportAddresses);
+    }
 
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
+        String clusterAddresses = System.getProperty(TESTS_CLUSTER);
+        if (Strings.hasLength(clusterAddresses)) {
+            if (scope == Scope.TEST) {
+                throw new IllegalArgumentException("Cannot run TEST scope test with " + TESTS_CLUSTER);
+            }
+            return buildExternalCluster(clusterAddresses);
+        }
+
         final String nodePrefix;
         switch (scope) {
             case TEST:

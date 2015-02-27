@@ -395,6 +395,11 @@ public class ChildrenQuery extends Query {
         }
 
         @Override
+        public boolean needsScores() {
+            return true;
+        }
+
+        @Override
         protected void newParent(long parentIdx) throws IOException {
             scores = bigArrays.grow(scores, parentIdx + 1);
             scores.set(parentIdx, scorer.score());

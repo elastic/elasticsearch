@@ -642,26 +642,6 @@ public class ChildrenQuery extends Query {
         public long cost() {
             return parentsIterator.cost();
         }
-
-        @Override
-        public int nextPosition() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public int startOffset() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public int endOffset() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public BytesRef getPayload() throws IOException {
-            return null;
-        }
     }
 
     private static class ParentCountScorer extends ParentScorer {

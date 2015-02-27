@@ -236,26 +236,6 @@ public class IncludeNestedDocsQuery extends Query {
         }
 
         @Override
-        public int nextPosition() throws IOException {
-            return parentScorer.nextPosition();
-        }
-
-        @Override
-        public int startOffset() throws IOException {
-            return parentScorer.startOffset();
-        }
-
-        @Override
-        public int endOffset() throws IOException {
-            return parentScorer.endOffset();
-        }
-
-        @Override
-        public BytesRef getPayload() throws IOException {
-            return parentScorer.getPayload();
-        }
-
-        @Override
         public int docID() {
             return currentDoc;
         }

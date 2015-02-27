@@ -20,10 +20,13 @@
 package org.elasticsearch.cloud.azure;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cloud.azure.storage.AzureStorageService;
-import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
 import org.elasticsearch.cloud.azure.management.AzureComputeService;
+import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
+import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
 import org.elasticsearch.cloud.azure.management.AzureComputeServiceImpl;
+import org.elasticsearch.cloud.azure.storage.AzureStorageService;
+import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
+import org.elasticsearch.cloud.azure.storage.AzureStorageServiceImpl;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
@@ -63,7 +66,7 @@ public class AzureModule extends AbstractModule {
         if (isDiscoveryReady(settings, logger)) {
             logger.debug("starting azure discovery service");
             bind(AzureComputeService.class)
-                    .to(settings.getAsClass("cloud.azure.api.impl", AzureComputeServiceImpl.class))
+                    .to(settings.getAsClass(Management.API_IMPLEMENTATION, AzureComputeServiceImpl.class))
                     .asEagerSingleton();
         }
 
@@ -71,7 +74,7 @@ public class AzureModule extends AbstractModule {
         if (isSnapshotReady(settings, logger)) {
             logger.debug("starting azure repository service");
             bind(AzureStorageService.class)
-                .to(settings.getAsClass("repositories.azure.api.impl", AzureStorageServiceImpl.class))
+                .to(settings.getAsClass(Storage.API_IMPLEMENTATION, AzureStorageServiceImpl.class))
                 .asEagerSingleton();
         }
     }
@@ -102,22 +105,22 @@ public class AzureModule extends AbstractModule {
         }
 
         if (    // We check new parameters
-                (isPropertyMissing(settings, "cloud.azure.management." + AzureComputeService.Fields.SUBSCRIPTION_ID) ||
-                        isPropertyMissing(settings, "cloud.azure.management." + AzureComputeService.Fields.SERVICE_NAME) ||
-                        isPropertyMissing(settings, "cloud.azure.management." + AzureComputeService.Fields.KEYSTORE_PATH) ||
-                        isPropertyMissing(settings, "cloud.azure.management." + AzureComputeService.Fields.KEYSTORE_PASSWORD))
+                (isPropertyMissing(settings, Management.SUBSCRIPTION_ID) ||
+                        isPropertyMissing(settings, Management.SERVICE_NAME) ||
+                        isPropertyMissing(settings, Management.KEYSTORE_PATH) ||
+                        isPropertyMissing(settings, Management.KEYSTORE_PASSWORD))
                 // We check deprecated
-                && (isPropertyMissing(settings, "cloud.azure." + AzureComputeService.Fields.SUBSCRIPTION_ID_DEPRECATED) ||
-                        isPropertyMissing(settings, "cloud.azure." + AzureComputeService.Fields.SERVICE_NAME_DEPRECATED) ||
-                        isPropertyMissing(settings, "cloud.azure." + AzureComputeService.Fields.KEYSTORE_DEPRECATED) ||
-                        isPropertyMissing(settings, "cloud.azure." + AzureComputeService.Fields.PASSWORD_DEPRECATED))
+                && (isPropertyMissing(settings, Management.SUBSCRIPTION_ID_DEPRECATED) ||
+                        isPropertyMissing(settings, Management.SERVICE_NAME_DEPRECATED) ||
+                        isPropertyMissing(settings, Management.KEYSTORE_DEPRECATED) ||
+                        isPropertyMissing(settings, Management.PASSWORD_DEPRECATED))
                 ) {
             logger.debug("one or more azure discovery settings are missing. " +
-                            "Check elasticsearch.yml file and `cloud.azure.management`. Should have [{}], [{}], [{}] and [{}].",
-                    AzureComputeService.Fields.SUBSCRIPTION_ID,
-                    AzureComputeService.Fields.SERVICE_NAME,
-                    AzureComputeService.Fields.KEYSTORE_PATH,
-                    AzureComputeService.Fields.KEYSTORE_PASSWORD);
+                            "Check elasticsearch.yml file. Should have [{}], [{}], [{}] and [{}].",
+                    Management.SUBSCRIPTION_ID,
+                    Management.SERVICE_NAME,
+                    Management.KEYSTORE_PATH,
+                    Management.KEYSTORE_PASSWORD);
             return false;
         }
 
@@ -137,13 +140,13 @@ public class AzureModule extends AbstractModule {
             return false;
         }
 
-        if ((isPropertyMissing(settings, "cloud.azure.storage." + AzureStorageService.Fields.ACCOUNT) ||
-                isPropertyMissing(settings, "cloud.azure.storage." + AzureStorageService.Fields.KEY)) &&
-                (isPropertyMissing(settings, "cloud.azure." + AzureStorageService.Fields.ACCOUNT_DEPRECATED) ||
-                isPropertyMissing(settings, "cloud.azure." + AzureStorageService.Fields.KEY_DEPRECATED))) {
-            logger.debug("azure repository is not set [using cloud.azure.storage.{}] and [cloud.azure.storage.{}] properties",
-                    AzureStorageService.Fields.ACCOUNT,
-                    AzureStorageService.Fields.KEY);
+        if ((isPropertyMissing(settings, Storage.ACCOUNT) ||
+                isPropertyMissing(settings, Storage.KEY)) &&
+                (isPropertyMissing(settings, Storage.ACCOUNT_DEPRECATED) ||
+                isPropertyMissing(settings, Storage.KEY_DEPRECATED))) {
+            logger.debug("azure repository is not set using [{}] and [{}] properties",
+                    Storage.ACCOUNT,
+                    Storage.KEY);
             return false;
         }
 
@@ -171,24 +174,16 @@ public class AzureModule extends AbstractModule {
     public static void checkDeprecated(Settings settings, ESLogger logger) {
         // Cloud services are disabled
         if (isCloudReady(settings)) {
-            checkDeprecatedSettings(settings, "cloud.azure." + AzureStorageService.Fields.ACCOUNT_DEPRECATED,
-                    "cloud.azure.storage." + AzureStorageService.Fields.ACCOUNT, logger);
-            checkDeprecatedSettings(settings, "cloud.azure." + AzureStorageService.Fields.KEY_DEPRECATED,
-                    "cloud.azure.storage." + AzureStorageService.Fields.KEY, logger);
+            checkDeprecatedSettings(settings, Storage.ACCOUNT_DEPRECATED, Storage.ACCOUNT, logger);
+            checkDeprecatedSettings(settings, Storage.KEY_DEPRECATED, Storage.KEY, logger);
 
             // TODO Remove in 3.0.0
-            checkDeprecatedSettings(settings, "cloud.azure." + AzureComputeService.Fields.KEYSTORE_DEPRECATED,
-                    "cloud.azure.management." + AzureComputeService.Fields.KEYSTORE_PATH, logger);
-            checkDeprecatedSettings(settings, "cloud.azure." + AzureComputeService.Fields.PASSWORD_DEPRECATED,
-                    "cloud.azure.management." + AzureComputeService.Fields.KEYSTORE_PASSWORD, logger);
-            checkDeprecatedSettings(settings, "cloud.azure." + AzureComputeService.Fields.SERVICE_NAME_DEPRECATED,
-                    "cloud.azure.management." + AzureComputeService.Fields.SERVICE_NAME, logger);
-            checkDeprecatedSettings(settings, "cloud.azure." + AzureComputeService.Fields.SUBSCRIPTION_ID_DEPRECATED,
-                    "cloud.azure.management." + AzureComputeService.Fields.SUBSCRIPTION_ID, logger);
-            checkDeprecatedSettings(settings, "cloud.azure." + AzureComputeService.Fields.HOST_TYPE_DEPRECATED,
-                    "discovery.azure." + AzureComputeService.Fields.HOST_TYPE, logger);
-            checkDeprecatedSettings(settings, "cloud.azure." + AzureComputeService.Fields.PORT_NAME_DEPRECATED,
-                    "discovery.azure." + AzureComputeService.Fields.ENDPOINT_NAME, logger);
+            checkDeprecatedSettings(settings, Management.KEYSTORE_DEPRECATED, Management.KEYSTORE_PATH, logger);
+            checkDeprecatedSettings(settings, Management.PASSWORD_DEPRECATED, Management.KEYSTORE_PASSWORD, logger);
+            checkDeprecatedSettings(settings, Management.SERVICE_NAME_DEPRECATED, Management.SERVICE_NAME, logger);
+            checkDeprecatedSettings(settings, Management.SUBSCRIPTION_ID_DEPRECATED, Management.SUBSCRIPTION_ID, logger);
+            checkDeprecatedSettings(settings, Discovery.HOST_TYPE_DEPRECATED, Discovery.HOST_TYPE, logger);
+            checkDeprecatedSettings(settings, Discovery.PORT_NAME_DEPRECATED, Discovery.ENDPOINT_NAME, logger);
         }
     }
 

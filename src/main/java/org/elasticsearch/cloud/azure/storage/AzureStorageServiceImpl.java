@@ -23,20 +23,20 @@ import com.microsoft.azure.storage.CloudStorageAccount;
 import com.microsoft.azure.storage.StorageException;
 import com.microsoft.azure.storage.blob.*;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cloud.azure.AzureSettingsFilter;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.repositories.RepositoryException;
 
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+
+import static org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage.*;
 
 /**
  *
@@ -51,13 +51,11 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     private CloudBlobClient client;
 
     @Inject
-    public AzureStorageServiceImpl(Settings settings, SettingsFilter settingsFilter) {
+    public AzureStorageServiceImpl(Settings settings) {
         super(settings);
-        settingsFilter.addFilter(new AzureSettingsFilter());
-
-        // We try to load storage API settings from `repositories.azure.`
-        account = componentSettings.get(Fields.ACCOUNT, settings.get("cloud.azure." + Fields.ACCOUNT_DEPRECATED));
-        key = componentSettings.get(Fields.KEY, settings.get("cloud.azure." + Fields.KEY_DEPRECATED));
+        // We try to load storage API settings from `cloud.azure.`
+        account = settings.get(ACCOUNT, settings.get(ACCOUNT_DEPRECATED));
+        key = settings.get(KEY, settings.get(KEY_DEPRECATED));
         blob = "http://" + account + ".blob.core.windows.net/";
 
         try {

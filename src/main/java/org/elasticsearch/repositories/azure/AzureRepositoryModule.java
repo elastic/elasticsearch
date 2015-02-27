@@ -20,8 +20,8 @@
 package org.elasticsearch.repositories.azure;
 
 import org.elasticsearch.cloud.azure.AzureModule;
+import org.elasticsearch.cloud.azure.storage.AzureStorageSettingsFilter;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -37,7 +37,6 @@ public class AzureRepositoryModule extends AbstractModule {
     protected final ESLogger logger;
     private Settings settings;
 
-    @Inject
     public AzureRepositoryModule(Settings settings) {
         super();
         this.logger = Loggers.getLogger(getClass(), settings);
@@ -49,6 +48,7 @@ public class AzureRepositoryModule extends AbstractModule {
      */
     @Override
     protected void configure() {
+        bind(AzureStorageSettingsFilter.class).asEagerSingleton();
         if (AzureModule.isSnapshotReady(settings, logger)) {
             bind(Repository.class).to(AzureRepository.class).asEagerSingleton();
             bind(IndexShardRepository.class).to(BlobStoreIndexShardRepository.class).asEagerSingleton();

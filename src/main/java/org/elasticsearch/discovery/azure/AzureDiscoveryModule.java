@@ -20,7 +20,7 @@
 package org.elasticsearch.discovery.azure;
 
 import org.elasticsearch.cloud.azure.AzureModule;
-import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.cloud.azure.management.AzureComputeSettingsFilter;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -35,7 +35,6 @@ public class AzureDiscoveryModule extends ZenDiscoveryModule {
     protected final ESLogger logger;
     private Settings settings;
 
-    @Inject
     public AzureDiscoveryModule(Settings settings) {
         super();
         this.logger = Loggers.getLogger(getClass(), settings);
@@ -47,6 +46,7 @@ public class AzureDiscoveryModule extends ZenDiscoveryModule {
 
     @Override
     protected void bindDiscovery() {
+        bind(AzureComputeSettingsFilter.class).asEagerSingleton();
         if (AzureModule.isDiscoveryReady(settings, logger)) {
             bind(Discovery.class).to(AzureDiscovery.class).asEagerSingleton();
         } else {

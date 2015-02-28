@@ -58,7 +58,7 @@ The specified field must be of type `geo_point` (which can only be set explicitl
 * String format: `"52.3760, 4.894"` - where the first number is the `lat` and the second is the `lon`
 * Array format: `[4.894, 52.3760]` - which is based on the `GeoJson` standard and where the first number is the `lon` and the second one is the `lat`
 
-By default, the distance unit is `km` but it can also accept: `mi` (miles), `in` (inch), `yd` (yards), `m` (meters), `cm` (centimeters), `mm` (millimeters).
+By default, the distance unit is `m` (metres) but it can also accept: `mi` (miles), `in` (inches), `yd` (yards), `km` (kilometers), `cm` (centimeters), `mm` (millimeters).
 
 [source,js]
 --------------------------------------------------

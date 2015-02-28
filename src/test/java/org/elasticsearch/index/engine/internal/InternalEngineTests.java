@@ -88,6 +88,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -101,8 +102,8 @@ import static org.hamcrest.Matchers.*;
  */
 public class InternalEngineTests extends ElasticsearchTestCase {
 
-    public static final String TRANSLOG_PRIMARY_LOCATION = "work/fs-translog/primary";
-    public static final String TRANSLOG_REPLICA_LOCATION = "work/fs-translog/replica";
+    public static final String TRANSLOG_PRIMARY_LOCATION = "work/fs-translog/JVM_" + CHILD_JVM_ID + "/primary";
+    public static final String TRANSLOG_REPLICA_LOCATION = "work/fs-translog/JVM_" + CHILD_JVM_ID + "/replica";
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
     protected ThreadPool threadPool;
@@ -122,12 +123,25 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     private Settings defaultSettings;
 
+    private void deleteIfExists(String path) throws Exception {
+        final File file = new File(path);
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                if (file.exists() && FileSystemUtils.deleteRecursively(file) == false) {
+                    fail("failed to delete [ " + file + "] before tests.");
+                }
+            }
+        }, 30, TimeUnit.SECONDS);
+    }
+
     @Before
     public void setUp() throws Exception {
         super.setUp();
         // clean up shared directory
-        FileSystemUtils.deleteRecursively(new File(TRANSLOG_PRIMARY_LOCATION));
-        FileSystemUtils.deleteRecursively(new File(TRANSLOG_REPLICA_LOCATION));
+        deleteIfExists(TRANSLOG_PRIMARY_LOCATION);
+        deleteIfExists(TRANSLOG_REPLICA_LOCATION);
+
         defaultSettings = ImmutableSettings.builder()
                 .put(InternalEngine.INDEX_COMPOUND_ON_FLUSH, getRandom().nextBoolean())
                 .put(InternalEngine.INDEX_CHECKSUM_ON_MERGE, getRandom().nextBoolean())

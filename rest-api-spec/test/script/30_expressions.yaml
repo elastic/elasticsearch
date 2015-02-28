@@ -1,6 +1,14 @@
 ---
-"Expressions scripting test":
-
+setup:
+  - do:
+      indices.create:
+        index: test123
+        body:
+          mappings:
+            test:
+              properties:
+                age:
+                  type: long
   - do:
       index:
         index:  test123
@@ -11,5 +19,9 @@
   - do:
       indices.refresh: {}
 
+---
+"Expressions scripting test":
+
   - do: { search: { body: { script_fields : { my_field : { lang: expression, script: 'doc["age"].value' } } } } }
-  - match:  { hits.hits.0.fields.my_field: [ 23.0 ] }
+  - match:  { hits.hits.0.fields.my_field: [ 23 ] }
+

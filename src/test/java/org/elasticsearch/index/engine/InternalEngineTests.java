@@ -37,6 +37,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.XIOUtils;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
@@ -85,11 +86,14 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
+import static org.apache.lucene.util.AbstractRandomizedTest.CHILD_JVM_ID;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
+import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.ElasticsearchTestCase.terminate;
 import static org.hamcrest.Matchers.*;
 
@@ -98,8 +102,8 @@ import static org.hamcrest.Matchers.*;
  */
 public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
-    public static final String TRANSLOG_PRIMARY_LOCATION = "work/fs-translog/primary";
-    public static final String TRANSLOG_REPLICA_LOCATION = "work/fs-translog/replica";
+    public static final String TRANSLOG_PRIMARY_LOCATION = "work/fs-translog/JVM_" + CHILD_JVM_ID + "/primary";
+    public static final String TRANSLOG_REPLICA_LOCATION = "work/fs-translog/JVM_" + CHILD_JVM_ID + "/replica";
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
     protected ThreadPool threadPool;
@@ -121,8 +125,17 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     public void setUp() throws Exception {
         super.setUp();
         // clean up shared directory
-        XIOUtils.rm(Paths.get(TRANSLOG_PRIMARY_LOCATION));
-        XIOUtils.rm(Paths.get(TRANSLOG_REPLICA_LOCATION));
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    XIOUtils.rm(Paths.get(TRANSLOG_PRIMARY_LOCATION));
+                    XIOUtils.rm(Paths.get(TRANSLOG_REPLICA_LOCATION));
+                } catch (IOException e) {
+                    fail("failed to delete translogs before tests." + ExceptionsHelper.detailedMessage(e));
+                }
+            }
+        }, 30, TimeUnit.SECONDS);
         CodecService codecService = new CodecService(shardId.index());
         indexConcurrency = randomIntBetween(1, 20);
         String name = Codec.getDefault().getName();
@@ -148,7 +161,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         Lucene.cleanLuceneIndex(storeReplica.directory());
         translog = createTranslog();
         engine = createEngine(store, translog);
-        LiveIndexWriterConfig currentIndexWriterConfig = ((InternalEngine)engine).getCurrentIndexWriterConfig();
+        LiveIndexWriterConfig currentIndexWriterConfig = ((InternalEngine) engine).getCurrentIndexWriterConfig();
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
         assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
@@ -157,12 +170,12 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         }
         replicaTranslog = createTranslogReplica();
         replicaEngine = createEngine(storeReplica, replicaTranslog);
-        currentIndexWriterConfig = ((InternalEngine)replicaEngine).getCurrentIndexWriterConfig();
+        currentIndexWriterConfig = ((InternalEngine) replicaEngine).getCurrentIndexWriterConfig();
 
-        assertEquals(((InternalEngine)replicaEngine).config().getCodec().getName(), codecService.codec(codecName).getName());
+        assertEquals(((InternalEngine) replicaEngine).config().getCodec().getName(), codecService.codec(codecName).getName());
         assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
         if (randomBoolean()) {
-            ((InternalEngine)engine).config().setEnableGcDeletes(false);
+            ((InternalEngine) engine).config().setEnableGcDeletes(false);
 
         }
     }
@@ -201,7 +214,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     }
 
     protected Store createStore() throws IOException {
-       return createStore(newDirectory());
+        return createStore(newDirectory());
     }
 
     protected Store createStore(final Directory directory) throws IOException {
@@ -214,7 +227,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
             @Override
             public Directory[] build() throws IOException {
-                return new Directory[]{ directory };
+                return new Directory[]{directory};
             }
 
             @Override
@@ -262,7 +275,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         IndexWriterConfig iwc = newIndexWriterConfig(Lucene.STANDARD_ANALYZER);
         EngineConfig config = new EngineConfig(shardId, false/*per default optimization for auto generated ids is disabled*/, threadPool, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), indexSettingsService
                 , null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), mergeSchedulerProvider,
-                iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(shardId.index()), new Engine.FailedEngineListener() {
+                iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(shardId.index()), new Engine.FailedEngineListener() {
             @Override
             public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
@@ -313,7 +326,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
         assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
-        ((InternalEngine)engine).config().setCompoundOnFlush(false);
+        ((InternalEngine) engine).config().setCompoundOnFlush(false);
 
         ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_3, false);
         engine.create(new Engine.Create(null, newUid("3"), doc3));
@@ -1405,7 +1418,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             wrapper.setRandomIOExceptionRateOnOpen(randomDouble());
             try (Store store = createStore(wrapper)) {
                 int refCount = store.refCount();
-                assertTrue("refCount: "+ store.refCount(), store.refCount() > 0);
+                assertTrue("refCount: " + store.refCount(), store.refCount() > 0);
                 Translog translog = createTranslog();
                 InternalEngine holder;
                 try {
@@ -1415,7 +1428,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                     continue;
                 }
                 holder.config().setFailEngineOnCorruption(true);
-                assertEquals(store.refCount(), refCount+1);
+                assertEquals(store.refCount(), refCount + 1);
                 final int numStarts = scaledRandomIntBetween(1, 5);
                 for (int j = 0; j < numStarts; j++) {
                     try {

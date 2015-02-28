@@ -53,7 +53,7 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     public JavaScriptScriptEngineService(Settings settings) {
         super(settings);
 
-        this.optimizationLevel = componentSettings.getAsInt("optimization_level", 1);
+        this.optimizationLevel = settings.getAsInt("script.javascript.optimization_level", 1);
 
         Context ctx = Context.enter();
         try {

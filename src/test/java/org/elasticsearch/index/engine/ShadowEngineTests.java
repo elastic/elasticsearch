@@ -154,6 +154,9 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
         super.tearDown();
         replicaEngine.close();
         storeReplica.close();
+        
+        translog.close();
+        replicaTranslog.close();
 
         primaryEngine.close();
         store.close();

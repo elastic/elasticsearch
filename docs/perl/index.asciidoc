@@ -63,7 +63,7 @@ $e->index(
     body    => {
         title   => 'Elasticsearch clients',
         content => 'Interesting content...',
-        date    => '2013-09-24'
+        date    => '2014-09-24'
     }
 );
 

@@ -35,6 +35,7 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
@@ -82,18 +83,21 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
+import static org.apache.lucene.util.AbstractRandomizedTest.CHILD_JVM_ID;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
+import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.ElasticsearchTestCase.terminate;
 import static org.hamcrest.Matchers.*;
 
 public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
-    public static final String TRANSLOG_PRIMARY_LOCATION = "work/fs-translog/primary";
-    public static final String TRANSLOG_REPLICA_LOCATION = "work/fs-translog/replica";
+    public static final String TRANSLOG_PRIMARY_LOCATION = "work/fs-translog/JVM_" + CHILD_JVM_ID + "/primary";
+    public static final String TRANSLOG_REPLICA_LOCATION = "work/fs-translog/JVM_" + CHILD_JVM_ID + "/replica";
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
     protected ThreadPool threadPool;
@@ -116,8 +120,17 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     public void setUp() throws Exception {
         super.setUp();
         // clean up shared directory
-        IOUtils.rm(Paths.get(TRANSLOG_PRIMARY_LOCATION));
-        IOUtils.rm(Paths.get(TRANSLOG_REPLICA_LOCATION));
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    IOUtils.rm(Paths.get(TRANSLOG_PRIMARY_LOCATION));
+                    IOUtils.rm(Paths.get(TRANSLOG_REPLICA_LOCATION));
+                } catch (IOException e) {
+                    fail("failed to delete translogs before tests." + ExceptionsHelper.detailedMessage(e));
+                }
+            }
+        }, 30, TimeUnit.SECONDS);
         CodecService codecService = new CodecService(shardId.index());
         indexConcurrency = randomIntBetween(1, 20);
         String name = Codec.getDefault().getName();
@@ -157,7 +170,6 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
         if (randomBoolean()) {
             engine.config().setEnableGcDeletes(false);
-
         }
     }
 

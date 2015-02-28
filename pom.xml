@@ -979,7 +979,7 @@
                 <artifactId>rpm-maven-plugin</artifactId>
                 <version>2.1-alpha-3</version>
                 <configuration>
-                    <copyright>2013, Elasticsearch</copyright>
+                    <copyright>2015, Elasticsearch</copyright>
                     <distribution>Elasticsearch</distribution>
                     <group>Application/Internet</group>
                     <packager>Elasticsearch</packager>

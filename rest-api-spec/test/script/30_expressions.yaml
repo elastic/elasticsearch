@@ -1,5 +1,8 @@
 ---
 setup:
+  - skip:
+       version:     "0 - 100"
+       reason:      Java returns floating point, but JSON returns integer
   - do:
       indices.create:
         index: test123

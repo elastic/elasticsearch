@@ -176,11 +176,12 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         replicaEngine.close();
         storeReplica.close();
 
+        engine.close();
+        store.close();
+
         translog.close();
         replicaTranslog.close();
 
-        engine.close();
-        store.close();
         terminate(threadPool);
     }
 
@@ -781,7 +782,9 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             }
         });
         // post recovery should flush the translog
-        MatcherAssert.assertThat(translog.snapshot(), TranslogSizeMatcher.translogSize(0));
+        try (Translog.Snapshot snapshot = translog.snapshot()) {
+            MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
+        }
         // and we should not leak files
         assertThat("there are unreferenced translog files left", translog.clearUnreferenced(), equalTo(0));
 

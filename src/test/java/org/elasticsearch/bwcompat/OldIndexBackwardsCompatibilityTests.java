@@ -45,12 +45,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
@@ -168,14 +163,12 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
 
     void assertNewReplicasWork() throws Exception {
         final int numReplicas = randomIntBetween(2, 3);
-        for (int i = 0; i < numReplicas; ++i) {
-            logger.debug("Creating another node for replica " + i);
-            internalCluster().startNode(ImmutableSettings.builder()
+        logger.debug("Creating [{}] nodes for replicas", numReplicas);
+        internalCluster().startNodesAsync(numReplicas, ImmutableSettings.builder()
                 .put("data.node", true)
                 .put("master.node", false)
                 .put(InternalNode.HTTP_ENABLED, true) // for _upgrade
-                .build());
-        }
+                .build()).get();
         client().admin().cluster().prepareHealth("test").setWaitForNodes("" + (numReplicas + 1));
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
             .put("number_of_replicas", numReplicas)).execute().actionGet());

@@ -98,9 +98,7 @@ import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
 import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
+@TestLogging("index.translog:TRACE")
 public class InternalEngineTests extends ElasticsearchTestCase {
 
     public static final String TRANSLOG_PRIMARY_LOCATION = "work/fs-translog/JVM_" + CHILD_JVM_ID + "/primary";
@@ -359,31 +357,36 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     public void testStartAndAcquireConcurrently() throws Exception {
         ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
-        Store store = createStore();
-        final Engine engine = createEngine(engineSettingsService, store, createTranslog(), mergeSchedulerProvider);
-        final AtomicBoolean startPending = new AtomicBoolean(true);
-        Thread thread = new Thread() {
-            public void run() {
-                try {
-                    Thread.yield();
-                    engine.start();
-                } finally {
-                    startPending.set(false);
-                }
+        final Store store = createStore();
+        final Translog translog = createTranslog();
+        final Engine engine = createEngine(engineSettingsService, store, translog, mergeSchedulerProvider);
+        try {
+            final AtomicBoolean startPending = new AtomicBoolean(true);
+            Thread thread = new Thread() {
+                public void run() {
+                    try {
+                        Thread.yield();
+                        engine.start();
+                    } finally {
+                        startPending.set(false);
+                    }
 
+                }
+            };
+            thread.start();
+            while (startPending.get()) {
+                try {
+                    engine.acquireSearcher("foobar").close();
+                    break;
+                } catch (EngineClosedException ex) {
+                    // all good
+                }
             }
-        };
-        thread.start();
-        while (startPending.get()) {
-            try {
-                engine.acquireSearcher("foobar").close();
-                break;
-            } catch (EngineClosedException ex) {
-                // all good
-            }
+        } finally {
+            engine.close();
+            store.close();
+            translog.close();
         }
-        engine.close();
-        store.close();
     }
 
 
@@ -414,77 +417,81 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         });
 
         final Store store = createStore();
-        final Engine engine = createEngine(engineSettingsService, store, createTranslog(), mergeSchedulerProvider);
-        engine.start();
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), Lucene.STANDARD_ANALYZER, B_1, false);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        engine.flush(new Engine.Flush());
-        assertThat(engine.segments().size(), equalTo(1));
-        index = new Engine.Index(null, newUid("2"), doc);
-        engine.index(index);
-        engine.flush(new Engine.Flush());
-        assertThat(engine.segments().size(), equalTo(2));
-        for (Segment segment : engine.segments()) {
-            assertThat(segment.getMergeId(), nullValue());
-        }
-        index = new Engine.Index(null, newUid("3"), doc);
-        engine.index(index);
-        engine.flush(new Engine.Flush());
-        assertThat(engine.segments().size(), equalTo(3));
-        for (Segment segment : engine.segments()) {
-            assertThat(segment.getMergeId(), nullValue());
-        }
+        final Translog translog = createTranslog();
+        final Engine engine = createEngine(engineSettingsService, store, translog, mergeSchedulerProvider);
+        try {
+            engine.start();
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), Lucene.STANDARD_ANALYZER, B_1, false);
+            Engine.Index index = new Engine.Index(null, newUid("1"), doc);
+            engine.index(index);
+            engine.flush(new Engine.Flush());
+            assertThat(engine.segments().size(), equalTo(1));
+            index = new Engine.Index(null, newUid("2"), doc);
+            engine.index(index);
+            engine.flush(new Engine.Flush());
+            assertThat(engine.segments().size(), equalTo(2));
+            for (Segment segment : engine.segments()) {
+                assertThat(segment.getMergeId(), nullValue());
+            }
+            index = new Engine.Index(null, newUid("3"), doc);
+            engine.index(index);
+            engine.flush(new Engine.Flush());
+            assertThat(engine.segments().size(), equalTo(3));
+            for (Segment segment : engine.segments()) {
+                assertThat(segment.getMergeId(), nullValue());
+            }
 
-        waitTillMerge.set(new CountDownLatch(1));
-        waitForMerge.set(new CountDownLatch(1));
-        engine.optimize(new Engine.Optimize().maxNumSegments(1).waitForMerge(false));
-        waitTillMerge.get().await();
+            waitTillMerge.set(new CountDownLatch(1));
+            waitForMerge.set(new CountDownLatch(1));
+            engine.optimize(new Engine.Optimize().maxNumSegments(1).waitForMerge(false));
+            waitTillMerge.get().await();
 
-        for (Segment segment : engine.segments()) {
-            assertThat(segment.getMergeId(), notNullValue());
-        }
+            for (Segment segment : engine.segments()) {
+                assertThat(segment.getMergeId(), notNullValue());
+            }
 
-        waitForMerge.get().countDown();
+            waitForMerge.get().countDown();
 
-        index = new Engine.Index(null, newUid("4"), doc);
-        engine.index(index);
-        engine.flush(new Engine.Flush());
-        final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
-        // now, optimize and wait for merges, see that we have no merge flag
-        engine.optimize(new Engine.Optimize().flush(true).maxNumSegments(1).waitForMerge(true));
+            index = new Engine.Index(null, newUid("4"), doc);
+            engine.index(index);
+            engine.flush(new Engine.Flush());
+            final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
+            // now, optimize and wait for merges, see that we have no merge flag
+            engine.optimize(new Engine.Optimize().flush(true).maxNumSegments(1).waitForMerge(true));
 
-        for (Segment segment : engine.segments()) {
-            assertThat(segment.getMergeId(), nullValue());
-        }
-        // we could have multiple underlying merges, so the generation may increase more than once
-        assertTrue(store.readLastCommittedSegmentsInfo().getGeneration() > gen1);
+            for (Segment segment : engine.segments()) {
+                assertThat(segment.getMergeId(), nullValue());
+            }
+            // we could have multiple underlying merges, so the generation may increase more than once
+            assertTrue(store.readLastCommittedSegmentsInfo().getGeneration() > gen1);
 
-        final boolean flush = randomBoolean();
-        final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
-        engine.optimize(new Engine.Optimize().flush(flush).maxNumSegments(1).waitForMerge(false));
-        waitTillMerge.get().await();
-        for (Segment segment : engine.segments()) {
-            assertThat(segment.getMergeId(), nullValue());
-        }
-        waitForMerge.get().countDown();
+            final boolean flush = randomBoolean();
+            final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
+            engine.optimize(new Engine.Optimize().flush(flush).maxNumSegments(1).waitForMerge(false));
+            waitTillMerge.get().await();
+            for (Segment segment : engine.segments()) {
+                assertThat(segment.getMergeId(), nullValue());
+            }
+            waitForMerge.get().countDown();
 
-        if (flush) {
-            awaitBusy(new Predicate<Object>() {
-                @Override
-                public boolean apply(Object o) {
-                    try {
-                        // we should have had just 1 merge, so last generation should be exact
-                        return store.readLastCommittedSegmentsInfo().getLastGeneration() == gen2;
-                    } catch (IOException e) {
-                        throw ExceptionsHelper.convertToRuntime(e);
+            if (flush) {
+                awaitBusy(new Predicate<Object>() {
+                    @Override
+                    public boolean apply(Object o) {
+                        try {
+                            // we should have had just 1 merge, so last generation should be exact
+                            return store.readLastCommittedSegmentsInfo().getLastGeneration() == gen2;
+                        } catch (IOException e) {
+                            throw ExceptionsHelper.convertToRuntime(e);
+                        }
                     }
-                }
-            });
+                });
+            }
+        } finally {
+            engine.close();
+            store.close();
+            translog.close();
         }
-
-        engine.close();
-        store.close();
     }
 
     @Test
@@ -1378,68 +1385,73 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 .build();
 
         Store store = createStore();
+        final Translog translog = createTranslog();
         Engine engine = new InternalEngine(shardId, settings, threadPool,
                 engineSettingsService,
                 new ShardIndexingService(shardId, settings,
                         new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, engineSettingsService)),
-                null, store, createSnapshotDeletionPolicy(), createTranslog(), createMergePolicy(), createMergeScheduler(),
+                null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), createMergeScheduler(),
                 new AnalysisService(shardId.index(), engineSettingsService.getSettings()), new SimilarityService(shardId.index()), new CodecService(shardId.index()));
-        engine.start();
-        engine.enableGcDeletes(false);
-
-        // Add document
-        Document document = testDocument();
-        document.add(new TextField("value", "test1", Field.Store.YES));
-
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, Lucene.STANDARD_ANALYZER, B_2, false);
-        engine.index(new Engine.Index(null, newUid("1"), doc, 1, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
-
-        // Delete document we just added:
-        engine.delete(new Engine.Delete("test", "1", newUid("1"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
-
-        // Get should not find the document
-        Engine.GetResult getResult = engine.get(new Engine.Get(true, newUid("1")));
-        assertThat(getResult.exists(), equalTo(false));
-
-        // Give the gc pruning logic a chance to kick in
-        Thread.sleep(1000);
-
-        if (randomBoolean()) {
-            engine.refresh(new Engine.Refresh("test"));
-        }
-
-        // Delete non-existent document
-        engine.delete(new Engine.Delete("test", "2", newUid("2"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
-
-        // Get should not find the document (we never indexed uid=2):
-        getResult = engine.get(new Engine.Get(true, newUid("2")));
-        assertThat(getResult.exists(), equalTo(false));
-
-        // Try to index uid=1 with a too-old version, should fail:
         try {
-            engine.index(new Engine.Index(null, newUid("1"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
-            fail("did not hit expected exception");
-        } catch (VersionConflictEngineException vcee) {
-            // expected
+            engine.start();
+            engine.enableGcDeletes(false);
+
+            // Add document
+            Document document = testDocument();
+            document.add(new TextField("value", "test1", Field.Store.YES));
+
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, Lucene.STANDARD_ANALYZER, B_2, false);
+            engine.index(new Engine.Index(null, newUid("1"), doc, 1, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
+
+            // Delete document we just added:
+            engine.delete(new Engine.Delete("test", "1", newUid("1"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
+
+            // Get should not find the document
+            Engine.GetResult getResult = engine.get(new Engine.Get(true, newUid("1")));
+            assertThat(getResult.exists(), equalTo(false));
+
+            // Give the gc pruning logic a chance to kick in
+            Thread.sleep(1000);
+
+            if (randomBoolean()) {
+                engine.refresh(new Engine.Refresh("test"));
+            }
+
+            // Delete non-existent document
+            engine.delete(new Engine.Delete("test", "2", newUid("2"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
+
+            // Get should not find the document (we never indexed uid=2):
+            getResult = engine.get(new Engine.Get(true, newUid("2")));
+            assertThat(getResult.exists(), equalTo(false));
+
+            // Try to index uid=1 with a too-old version, should fail:
+            try {
+                engine.index(new Engine.Index(null, newUid("1"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
+                fail("did not hit expected exception");
+            } catch (VersionConflictEngineException vcee) {
+                // expected
+            }
+
+            // Get should still not find the document
+            getResult = engine.get(new Engine.Get(true, newUid("1")));
+            assertThat(getResult.exists(), equalTo(false));
+
+            // Try to index uid=2 with a too-old version, should fail:
+            try {
+                engine.index(new Engine.Index(null, newUid("2"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
+                fail("did not hit expected exception");
+            } catch (VersionConflictEngineException vcee) {
+                // expected
+            }
+
+            // Get should not find the document
+            getResult = engine.get(new Engine.Get(true, newUid("2")));
+            assertThat(getResult.exists(), equalTo(false));
+        } finally {
+            engine.close();
+            store.close();
+            translog.close();
         }
-
-        // Get should still not find the document
-        getResult = engine.get(new Engine.Get(true, newUid("1")));
-        assertThat(getResult.exists(), equalTo(false));
-
-        // Try to index uid=2 with a too-old version, should fail:
-        try {
-            engine.index(new Engine.Index(null, newUid("2"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
-            fail("did not hit expected exception");
-        } catch (VersionConflictEngineException vcee) {
-            // expected
-        }
-
-        // Get should not find the document
-        getResult = engine.get(new Engine.Get(true, newUid("2")));
-        assertThat(getResult.exists(), equalTo(false));
-        engine.close();
-        store.close();
     }
 
     protected Term newUid(String id) {

@@ -70,15 +70,6 @@ Same as "Query And Fetch", except for an initial scatter phase which
 goes and computes the distributed term frequencies for more accurate
 scoring.
 
-[[dfs-query-then-fetch]]
-==== Dfs, Query Then Fetch
-
-Parameter value: *dfs_query_then_fetch*.
-
-Same as "Query Then Fetch", except for an initial scatter phase which
-goes and computes the distributed term frequencies for more accurate
-scoring.
-
 [[count]]
 ==== Count
 

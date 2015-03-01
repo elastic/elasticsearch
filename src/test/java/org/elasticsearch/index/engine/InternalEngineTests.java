@@ -75,6 +75,7 @@ import org.elasticsearch.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -132,7 +133,8 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                     XIOUtils.rm(Paths.get(TRANSLOG_PRIMARY_LOCATION));
                     XIOUtils.rm(Paths.get(TRANSLOG_REPLICA_LOCATION));
                 } catch (IOException e) {
-                    fail("failed to delete translogs before tests." + ExceptionsHelper.detailedMessage(e));
+                    fail("failed to delete translogs before tests."
+                            + ExceptionsHelper.detailedMessage(e) + "\n" + ExceptionsHelper.stackTrace(e));
                 }
             }
         }, 30, TimeUnit.SECONDS);
@@ -186,11 +188,12 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         replicaEngine.close();
         storeReplica.close();
 
+        engine.close();
+        store.close();
+
         translog.close();
         replicaTranslog.close();
 
-        engine.close();
-        store.close();
         terminate(threadPool);
     }
 
@@ -706,6 +709,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
 
     @Test
+    @TestLogging("index.translog:TRACE")
     public void testSimpleRecover() throws Exception {
         final ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
@@ -749,7 +753,9 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             }
         });
         // post recovery should flush the translog
-        MatcherAssert.assertThat(translog.snapshot(), TranslogSizeMatcher.translogSize(0));
+        try (Translog.Snapshot snapshot = translog.snapshot()) {
+            MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
+        }
         // and we should not leak files
         assertThat("there are unreferenced translog files left", translog.clearUnreferenced(), equalTo(0));
 

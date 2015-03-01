@@ -98,9 +98,7 @@ import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.ElasticsearchTestCase.terminate;
 import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
+@TestLogging("index.translog:TRACE")
 public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     public static final String TRANSLOG_PRIMARY_LOCATION = "work/fs-translog/JVM_" + CHILD_JVM_ID + "/primary";
@@ -185,14 +183,9 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        replicaEngine.close();
-        storeReplica.close();
-
-        engine.close();
-        store.close();
-
-        translog.close();
-        replicaTranslog.close();
+        XIOUtils.close(
+                replicaEngine, storeReplica, replicaTranslog,
+                engine, store, translog);
 
         terminate(threadPool);
     }
@@ -403,59 +396,57 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     @Test
     public void testSegmentsWithMergeFlag() throws Exception {
-
         ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        final Store store = createStore();
-        final Engine engine = createEngine(indexSettingsService, store, createTranslog(), mergeSchedulerProvider);
+        try (Store store = createStore();
+             Translog translog = createTranslog();
+             Engine engine = createEngine(indexSettingsService, store, translog, mergeSchedulerProvider)) {
 
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), Lucene.STANDARD_ANALYZER, B_1, false);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        engine.flush();
-        assertThat(engine.segments().size(), equalTo(1));
-        index = new Engine.Index(null, newUid("2"), doc);
-        engine.index(index);
-        engine.flush();
-        assertThat(engine.segments().size(), equalTo(2));
-        for (Segment segment : engine.segments()) {
-            assertThat(segment.getMergeId(), nullValue());
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), Lucene.STANDARD_ANALYZER, B_1, false);
+            Engine.Index index = new Engine.Index(null, newUid("1"), doc);
+            engine.index(index);
+            engine.flush();
+            assertThat(engine.segments().size(), equalTo(1));
+            index = new Engine.Index(null, newUid("2"), doc);
+            engine.index(index);
+            engine.flush();
+            assertThat(engine.segments().size(), equalTo(2));
+            for (Segment segment : engine.segments()) {
+                assertThat(segment.getMergeId(), nullValue());
+            }
+            index = new Engine.Index(null, newUid("3"), doc);
+            engine.index(index);
+            engine.flush();
+            assertThat(engine.segments().size(), equalTo(3));
+            for (Segment segment : engine.segments()) {
+                assertThat(segment.getMergeId(), nullValue());
+            }
+
+            index = new Engine.Index(null, newUid("4"), doc);
+            engine.index(index);
+            engine.flush();
+            final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
+            // now, optimize and wait for merges, see that we have no merge flag
+            engine.forceMerge(true);
+
+            for (Segment segment : engine.segments()) {
+                assertThat(segment.getMergeId(), nullValue());
+            }
+            // we could have multiple underlying merges, so the generation may increase more than once
+            assertTrue(store.readLastCommittedSegmentsInfo().getGeneration() > gen1);
+
+            final boolean flush = randomBoolean();
+            final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
+            engine.forceMerge(flush);
+            for (Segment segment : engine.segments()) {
+                assertThat(segment.getMergeId(), nullValue());
+            }
+
+            if (flush) {
+                // we should have had just 1 merge, so last generation should be exact
+                assertEquals(gen2 + 1, store.readLastCommittedSegmentsInfo().getLastGeneration());
+            }
         }
-        index = new Engine.Index(null, newUid("3"), doc);
-        engine.index(index);
-        engine.flush();
-        assertThat(engine.segments().size(), equalTo(3));
-        for (Segment segment : engine.segments()) {
-            assertThat(segment.getMergeId(), nullValue());
-        }
-
-        index = new Engine.Index(null, newUid("4"), doc);
-        engine.index(index);
-        engine.flush();
-        final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
-        // now, optimize and wait for merges, see that we have no merge flag
-        engine.forceMerge(true);
-
-        for (Segment segment : engine.segments()) {
-            assertThat(segment.getMergeId(), nullValue());
-        }
-        // we could have multiple underlying merges, so the generation may increase more than once
-        assertTrue(store.readLastCommittedSegmentsInfo().getGeneration() > gen1);
-
-        final boolean flush = randomBoolean();
-        final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
-        engine.forceMerge(flush);
-        for (Segment segment : engine.segments()) {
-            assertThat(segment.getMergeId(), nullValue());
-        }
-
-        if (flush) {
-            // we should have had just 1 merge, so last generation should be exact
-            assertEquals(gen2 + 1, store.readLastCommittedSegmentsInfo().getLastGeneration());
-        }
-
-        engine.close();
-        store.close();
     }
 
     @Test
@@ -709,7 +700,6 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
 
     @Test
-    @TestLogging("index.translog:TRACE")
     public void testSimpleRecover() throws Exception {
         final ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), Lucene.STANDARD_ANALYZER, B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));

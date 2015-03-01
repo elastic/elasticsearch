@@ -1368,66 +1368,64 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     @Slow
     @Test
     public void testEnableGcDeletes() throws Exception {
-
-        Store store = createStore();
-
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        Engine engine = new InternalEngine(config(indexSettingsService, store, createTranslog(), createMergeScheduler(indexSettingsService)));
-        engine.config().setEnableGcDeletes(false);
+        try (Store store = createStore();
+             Translog translog = createTranslog();
+             Engine engine = new InternalEngine(config(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService)))) {
+            engine.config().setEnableGcDeletes(false);
 
-        // Add document
-        Document document = testDocument();
-        document.add(new TextField("value", "test1", Field.Store.YES));
+            // Add document
+            Document document = testDocument();
+            document.add(new TextField("value", "test1", Field.Store.YES));
 
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_2, false);
-        engine.index(new Engine.Index(null, newUid("1"), doc, 1, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_2, false);
+            engine.index(new Engine.Index(null, newUid("1"), doc, 1, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
 
-        // Delete document we just added:
-        engine.delete(new Engine.Delete("test", "1", newUid("1"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
+            // Delete document we just added:
+            engine.delete(new Engine.Delete("test", "1", newUid("1"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
 
-        // Get should not find the document
-        Engine.GetResult getResult = engine.get(new Engine.Get(true, newUid("1")));
-        assertThat(getResult.exists(), equalTo(false));
+            // Get should not find the document
+            Engine.GetResult getResult = engine.get(new Engine.Get(true, newUid("1")));
+            assertThat(getResult.exists(), equalTo(false));
 
-        // Give the gc pruning logic a chance to kick in
-        Thread.sleep(1000);
+            // Give the gc pruning logic a chance to kick in
+            Thread.sleep(1000);
 
-        if (randomBoolean()) {
-            engine.refresh("test");
+            if (randomBoolean()) {
+                engine.refresh("test");
+            }
+
+            // Delete non-existent document
+            engine.delete(new Engine.Delete("test", "2", newUid("2"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
+
+            // Get should not find the document (we never indexed uid=2):
+            getResult = engine.get(new Engine.Get(true, newUid("2")));
+            assertThat(getResult.exists(), equalTo(false));
+
+            // Try to index uid=1 with a too-old version, should fail:
+            try {
+                engine.index(new Engine.Index(null, newUid("1"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
+                fail("did not hit expected exception");
+            } catch (VersionConflictEngineException vcee) {
+                // expected
+            }
+
+            // Get should still not find the document
+            getResult = engine.get(new Engine.Get(true, newUid("1")));
+            assertThat(getResult.exists(), equalTo(false));
+
+            // Try to index uid=2 with a too-old version, should fail:
+            try {
+                engine.index(new Engine.Index(null, newUid("2"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
+                fail("did not hit expected exception");
+            } catch (VersionConflictEngineException vcee) {
+                // expected
+            }
+
+            // Get should not find the document
+            getResult = engine.get(new Engine.Get(true, newUid("2")));
+            assertThat(getResult.exists(), equalTo(false));
         }
-
-        // Delete non-existent document
-        engine.delete(new Engine.Delete("test", "2", newUid("2"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
-
-        // Get should not find the document (we never indexed uid=2):
-        getResult = engine.get(new Engine.Get(true, newUid("2")));
-        assertThat(getResult.exists(), equalTo(false));
-
-        // Try to index uid=1 with a too-old version, should fail:
-        try {
-            engine.index(new Engine.Index(null, newUid("1"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
-            fail("did not hit expected exception");
-        } catch (VersionConflictEngineException vcee) {
-            // expected
-        }
-
-        // Get should still not find the document
-        getResult = engine.get(new Engine.Get(true, newUid("1")));
-        assertThat(getResult.exists(), equalTo(false));
-
-        // Try to index uid=2 with a too-old version, should fail:
-        try {
-            engine.index(new Engine.Index(null, newUid("2"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
-            fail("did not hit expected exception");
-        } catch (VersionConflictEngineException vcee) {
-            // expected
-        }
-
-        // Get should not find the document
-        getResult = engine.get(new Engine.Get(true, newUid("2")));
-        assertThat(getResult.exists(), equalTo(false));
-        engine.close();
-        store.close();
     }
 
     protected Term newUid(String id) {

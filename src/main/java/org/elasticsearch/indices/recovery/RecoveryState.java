@@ -377,20 +377,20 @@ public class RecoveryState implements ToXContent, Streamable {
     }
 
     public static class Timer implements Streamable {
-        protected volatile long startTime = 0;
-        protected volatile long time = -1;
-        protected volatile long stopTime = 0;
+        protected long startTime = 0;
+        protected long time = -1;
+        protected long stopTime = 0;
 
-        public void start() {
+        public synchronized void start() {
             assert startTime == 0 : "already started";
             startTime = System.currentTimeMillis();
         }
 
-        public long startTime() {
+        public synchronized long startTime() {
             return startTime;
         }
 
-        public long time() {
+        public synchronized long time() {
             if (startTime == 0) {
                 return 0;
             }
@@ -400,18 +400,18 @@ public class RecoveryState implements ToXContent, Streamable {
             return Math.max(0, System.currentTimeMillis() - startTime);
         }
 
-        public long stopTime() {
+        public synchronized long stopTime() {
             return stopTime;
         }
 
-        public void stop() {
+        public synchronized void stop() {
             assert stopTime == 0 : "already stopped";
             stopTime = Math.max(System.currentTimeMillis(), startTime);
             time = stopTime - startTime;
             assert time >= 0;
         }
 
-        public void reset() {
+        public synchronized void reset() {
             startTime = 0;
             time = -1;
             stopTime = 0;
@@ -419,14 +419,14 @@ public class RecoveryState implements ToXContent, Streamable {
 
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
+        public synchronized void readFrom(StreamInput in) throws IOException {
             startTime = in.readVLong();
             stopTime = in.readVLong();
             time = in.readVLong();
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public synchronized void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(startTime);
             out.writeVLong(stopTime);
             // write a snapshot of current time, which is not per se the time field

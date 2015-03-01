@@ -30,8 +30,11 @@ the response.
 
 The `order` option can have the following values:
 [horizontal]
-`asc`:: (Default) Sort in ascending order
+`asc`:: Sort in ascending order
 `desc`:: Sort in descending order
+
+When the `sort` array entry is just a field identifier (such as `"user"` and `"_score"`, above), 
+the default ordering is `desc` for `_score` and `asc` for all others. 
 
 ==== Sort mode option
 

@@ -187,14 +187,14 @@ public abstract class MetaDataStateFormat<T> {
         return new SimpleFSDirectory(dir);
     }
 
-    private void cleanupOldFiles(final String prefix, final String currentStateFile, Path[] locations) throws IOException {
+    protected void cleanupOldFiles(final String prefix, final String currentStateFile, Path[] locations) throws IOException {
         final DirectoryStream.Filter<Path> filter = new DirectoryStream.Filter<Path>() {
             @Override
             public boolean accept(Path entry) throws IOException {
                 final String entryFileName = entry.getFileName().toString();
                 return Files.isRegularFile(entry)
                         && entryFileName.startsWith(prefix) // only state files
-                        && currentStateFile.equals(entryFileName) == false; // keep the current state file around
+                        && entryFileName.equals(currentStateFile) == false; // keep the current state file around
             }
         };
         // now clean up the old files

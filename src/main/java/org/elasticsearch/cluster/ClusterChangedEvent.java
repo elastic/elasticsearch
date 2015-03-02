@@ -25,6 +25,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;
@@ -105,6 +106,9 @@ public class ClusterChangedEvent {
      * Returns the indices deleted in this event
      */
     public List<String> indicesDeleted() {
+        if (newMaster()) {
+            return ImmutableList.of();
+        }
         if (previousState == null) {
             return ImmutableList.of();
         }
@@ -164,5 +168,17 @@ public class ClusterChangedEvent {
 
     public boolean nodesChanged() {
         return nodesRemoved() || nodesAdded();
+    }
+
+    public boolean newMaster() {
+        String oldMaster = previousState().getNodes().masterNodeId();
+        String newMaster = state().getNodes().masterNodeId();
+        if (oldMaster == null && newMaster == null) {
+            return false;
+        }
+        if (oldMaster == null && newMaster != null) {
+            return true;
+        }
+        return previousState().getNodes().masterNodeId().equals(state().getNodes().masterNodeId()) == false;
     }
 }

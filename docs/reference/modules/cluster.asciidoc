@@ -28,7 +28,7 @@ The following settings may be used:
        Allow to control specifically the number of initial recoveries
        of primaries that are allowed per node. Since most times local
        gateway is used, those should be fast and we can handle more of
-       those per node without creating load.
+       those per node without creating load.  Defaults to `4`.
 
 
 `cluster.routing.allocation.node_concurrent_recoveries`::

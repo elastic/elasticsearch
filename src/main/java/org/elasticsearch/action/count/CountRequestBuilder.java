@@ -19,12 +19,14 @@
 
 package org.elasticsearch.action.count;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilder;
 
 /**
@@ -151,5 +153,20 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
             sourceBuilder = new QuerySourceBuilder();
         }
         return sourceBuilder;
+    }
+
+    @Override
+    public String toString() {
+        if (sourceBuilder != null) {
+            return sourceBuilder.toString();
+        }
+        if (request.source() != null) {
+            try {
+                return XContentHelper.convertToJson(request.source().toBytesArray(), false, true);
+            } catch(Exception e) {
+                return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
+            }
+        }
+        return new QuerySourceBuilder().toString();
     }
 }

@@ -34,41 +34,24 @@ to execute on a *per search request* basis. The type can be configured
 by setting the *search_type* parameter in the query string. The types
 are:
 
-[[query-and-fetch]]
-==== Query And Fetch
-
-Parameter value: *query_and_fetch*.
-
-The most naive (and possibly fastest) implementation is to simply
-execute the query on all relevant shards and return the results. Each
-shard returns `size` results. Since each shard already returns `size`
-hits, this type actually returns `size` times `number of shards` results
-back to the caller.
-
 [[query-then-fetch]]
 ==== Query Then Fetch
 
 Parameter value: *query_then_fetch*.
 
-The query is executed against all shards, but only enough information is
-returned (*not the document content*). The results are then sorted and
-ranked, and based on it, *only the relevant shards* are asked for the
-actual document content. The return number of hits is exactly as
-specified in `size`, since they are the only ones that are fetched. This
-is very handy when the index has a lot of shards (not replicas, shard id
-groups).
+The request is processed in two phases. In the first phase, the query
+is forwarded to *all involved shards*. Each shard executes the search
+and generates a sorted list of results, local to that shard. Each
+shard returns *just enough information* to the coordinating node
+to allow it merge and re-sort the shard level results into a globally
+sorted set of results, of maximum length `size`. 
+
+During the second phase, the coordinating node requests the document
+content (and highlighted snippets, if any) from *only the relevant
+shards*.
 
 NOTE: This is the default setting, if you do not specify a `search_type`
       in your request.
-
-[[dfs-query-and-fetch]]
-==== Dfs, Query And Fetch
-
-Parameter value: *dfs_query_and_fetch*.
-
-Same as "Query And Fetch", except for an initial scatter phase which
-goes and computes the distributed term frequencies for more accurate
-scoring.
 
 [[dfs-query-then-fetch]]
 ==== Dfs, Query Then Fetch
@@ -96,4 +79,24 @@ Parameter value: *scan*.
 
 The `scan` search type disables sorting in order to allow very efficient
 scrolling through large result sets.  See <<scroll-scan>> for more.
+
+[[query-and-fetch]]
+==== Query And Fetch
+
+Parameter value: *query_and_fetch*.
+
+The `query_and_fetch` mode is an *internal* optimization which
+is chosen automatically when a `query_then_fetch` request
+targets a single shard only.  Both phases of `query_then_fetch`
+are executed in a single pass.  This mode should not be
+explicitly specified by the user.
+
+[[dfs-query-and-fetch]]
+==== Dfs, Query And Fetch
+
+Parameter value: *dfs_query_and_fetch*.
+
+Same as `query_and_fetch`, except for an initial scatter phase which
+goes and computes the distributed term frequencies for more accurate
+scoring. This mode should not be explicitly specified by the user.
 

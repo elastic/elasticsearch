@@ -871,7 +871,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
         callers may already have acquired the read-write lock so we have to be consistent and always lock it first.
         */
         try (InternalLock _ = lockNeeded.acquire(); InternalLock flock = flushLock.acquire()) {
-            if (onGoingRecoveries.get() > 0) {
+            if (onGoingRecoveries.get() > 0 && flush.type() != Flush.Type.COMMIT) {
                 throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
             }
             ensureOpen();

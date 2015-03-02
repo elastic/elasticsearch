@@ -44,13 +44,13 @@ public class DateHistogramParser implements Aggregator.Parser {
 
     static final ParseField EXTENDED_BOUNDS = new ParseField("extended_bounds");
     static final ParseField OFFSET = new ParseField("offset");
-    static final ParseField PRE_OFFSET = new ParseField("", "pre_offset");
-    static final ParseField POST_OFFSET = new ParseField("", "post_offset");
-    static final ParseField PRE_ZONE = new ParseField("", "pre_zone");
-    static final ParseField POST_ZONE = new ParseField("", "post_zone");
+    static final ParseField PRE_OFFSET = new ParseField("pre_offset").withAllDeprecated("offset");
+    static final ParseField POST_OFFSET = new ParseField("post_offset").withAllDeprecated("offset");
+    static final ParseField PRE_ZONE = new ParseField("pre_zone").withAllDeprecated("time_zone");
+    static final ParseField POST_ZONE = new ParseField("post_zone").withAllDeprecated("time_zone");
     static final ParseField TIME_ZONE = new ParseField("time_zone");
     static final ParseField INTERVAL = new ParseField("interval");
-    static final ParseField PRE_ZONE_ADJUST = new ParseField("", "pre_zone_adjust_large_interval");
+    static final ParseField PRE_ZONE_ADJUST = new ParseField("pre_zone_adjust_large_interval").withAllDeprecated("");
 
 
     private final ImmutableMap<String, DateTimeUnit> dateFieldUnits;

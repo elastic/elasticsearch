@@ -30,7 +30,7 @@ import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.junit.Test;
 import static org.hamcrest.Matchers.*;
 
-public class ClusterStateBackwardsCompat extends ElasticsearchBackwardsCompatIntegrationTest {
+public class ClusterStateBackwardsCompatTests extends ElasticsearchBackwardsCompatIntegrationTest {
 
     @Test
     public void testClusterState() throws Exception {

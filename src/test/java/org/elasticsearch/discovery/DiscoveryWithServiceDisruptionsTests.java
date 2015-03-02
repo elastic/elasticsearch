@@ -907,7 +907,8 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
             ClusterState state = getNodeClusterState(node);
             String failMsgSuffix = "cluster_state:\n" + state.prettyPrint();
             assertThat("wrong node count on [" + node + "]. " + failMsgSuffix, state.nodes().size(), equalTo(nodes.size()));
-            assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, state.nodes().masterNode().name(), equalTo(masterNode));
+            String otherMasterNodeName = state.nodes().masterNode() != null ? state.nodes().masterNode().name() : null;
+            assertThat("wrong master on node [" + node + "]. " + failMsgSuffix, otherMasterNodeName, equalTo(masterNode));
         }
     }
 

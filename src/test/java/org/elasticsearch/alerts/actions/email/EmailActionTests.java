@@ -17,6 +17,7 @@ import org.elasticsearch.alerts.support.template.Template;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -75,16 +76,23 @@ public class EmailActionTests extends ElasticsearchTestCase {
             }
         };
 
+        DateTime now = new DateTime(DateTimeZone.UTC);
+
         String ctxId = randomAsciiOfLength(5);
         ExecutionContext ctx = mock(ExecutionContext.class);
         when(ctx.id()).thenReturn(ctxId);
         Alert alert = mock(Alert.class);
         when(alert.name()).thenReturn("alert1");
         when(ctx.alert()).thenReturn(alert);
+        when(ctx.fireTime()).thenReturn(now);
+        when(ctx.scheduledTime()).thenReturn(now);
 
         Map<String, Object> expectedModel = ImmutableMap.<String, Object>builder()
-                .put("alert_name", "alert1")
-                .put("payload", data)
+                .put("ctx", ImmutableMap.<String, Object>builder()
+                    .put("alert_name", "alert1")
+                    .put("payload", data)
+                    .put("fire_time", now)
+                    .put("scheduled_fire_time", now).build())
                 .build();
 
         when(subject.render(expectedModel)).thenReturn("_subject");

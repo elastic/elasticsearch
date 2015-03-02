@@ -12,11 +12,11 @@ import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.ActionException;
 import org.elasticsearch.alerts.actions.ActionSettingsException;
 import org.elasticsearch.alerts.support.Script;
+import org.elasticsearch.alerts.support.Variables;
 import org.elasticsearch.alerts.support.template.Template;
 import org.elasticsearch.alerts.support.template.XContentTemplate;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  */
@@ -55,10 +56,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
     @Override
     public Result execute(ExecutionContext ctx, Payload payload) throws IOException {
-        ImmutableMap<String, Object> model = ImmutableMap.<String, Object>builder()
-                .put(ALERT_NAME_VARIABLE, ctx.alert().name())
-                .put(PAYLOAD_VARIABLE, payload.data())
-                .build();
+        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
         String urlText = url.render(model);
         String bodyText = body != null ? body.render(model) : XContentTemplate.YAML.render(model);
         try {

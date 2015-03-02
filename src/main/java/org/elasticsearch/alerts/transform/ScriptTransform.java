@@ -19,6 +19,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.alerts.support.Variables.createCtxModel;
+
 /**
  *
  */
@@ -47,7 +49,7 @@ public class ScriptTransform extends Transform {
     public Result apply(ExecutionContext ctx, Payload payload) throws IOException {
         Map<String, Object> model = new HashMap<>();
         model.putAll(script.params());
-        model.putAll(createModel(ctx, payload));
+        model.putAll(createCtxModel(ctx, payload));
         ExecutableScript executable = scriptService.executable(script.lang(), script.script(), script.type(), model);
         Object value = executable.run();
         if (!(value instanceof Map)) {

@@ -7,6 +7,7 @@ package org.elasticsearch.alerts.condition.script;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertsSettingsException;
 import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
@@ -14,6 +15,7 @@ import org.elasticsearch.alerts.condition.ConditionException;
 import org.elasticsearch.alerts.support.Script;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -58,9 +60,14 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
     @Test
     public void testExecute() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
-        ScriptCondition condition = new ScriptCondition(logger, scriptService, new Script("payload.hits.total > 1"));
+        ScriptCondition condition = new ScriptCondition(logger, scriptService, new Script("ctx.payload.hits.total > 1"));
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
         ExecutionContext ctx = mock(ExecutionContext.class);
+        Alert alert = mock(Alert.class);
+        when(alert.name()).thenReturn("_name");
+        when(ctx.alert()).thenReturn(alert);
+        when(ctx.scheduledTime()).thenReturn(new DateTime());
+        when(ctx.fireTime()).thenReturn(new DateTime());
         when(ctx.payload()).thenReturn(new Payload.ActionResponse(response));
         assertFalse(condition.execute(ctx).met());
     }
@@ -68,10 +75,15 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
     @Test
     public void testExecute_MergedParams() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
-        Script script = new Script("payload.hits.total > threshold", ScriptService.ScriptType.INLINE, ScriptService.DEFAULT_LANG, ImmutableMap.<String, Object>of("threshold", 1));
+        Script script = new Script("ctx.payload.hits.total > threshold", ScriptService.ScriptType.INLINE, ScriptService.DEFAULT_LANG, ImmutableMap.<String, Object>of("threshold", 1));
         ScriptCondition condition = new ScriptCondition(logger, scriptService, script);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
         ExecutionContext ctx = mock(ExecutionContext.class);
+        Alert alert = mock(Alert.class);
+        when(alert.name()).thenReturn("_name");
+        when(ctx.alert()).thenReturn(alert);
+        when(ctx.scheduledTime()).thenReturn(new DateTime());
+        when(ctx.fireTime()).thenReturn(new DateTime());
         when(ctx.payload()).thenReturn(new Payload.ActionResponse(response));
         assertFalse(condition.execute(ctx).met());
     }
@@ -80,13 +92,18 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
     public void testParser_Valid() throws Exception {
         ScriptCondition.Parser conditionParser = new ScriptCondition.Parser(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
 
-        XContentBuilder builder = createConditionContent("payload.hits.total > 1", null, null);
+        XContentBuilder builder = createConditionContent("ctx.payload.hits.total > 1", null, null);
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         ScriptCondition condition = conditionParser.parse(parser);
 
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
         ExecutionContext ctx = mock(ExecutionContext.class);
+        Alert alert = mock(Alert.class);
+        when(alert.name()).thenReturn("_name");
+        when(ctx.alert()).thenReturn(alert);
+        when(ctx.scheduledTime()).thenReturn(new DateTime());
+        when(ctx.fireTime()).thenReturn(new DateTime());
         when(ctx.payload()).thenReturn(new Payload.ActionResponse(response));
 
         assertFalse(condition.execute(ctx).met());
@@ -98,6 +115,9 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         condition = conditionParser.parse(parser);
 
         reset(ctx);
+        when(ctx.alert()).thenReturn(alert);
+        when(ctx.scheduledTime()).thenReturn(new DateTime());
+        when(ctx.fireTime()).thenReturn(new DateTime());
         when(ctx.payload()).thenReturn(new Payload.ActionResponse(response));
 
         assertTrue(condition.execute(ctx).met());

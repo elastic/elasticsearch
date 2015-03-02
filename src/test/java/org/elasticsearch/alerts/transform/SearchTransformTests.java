@@ -8,6 +8,7 @@ package org.elasticsearch.alerts.transform;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.support.Variables;
@@ -63,6 +64,10 @@ public class SearchTransformTests extends AbstractAlertsSingleNodeTests {
         DateTime now = new DateTime();
         when(ctx.scheduledTime()).thenReturn(now);
         when(ctx.fireTime()).thenReturn(now);
+        Alert alert = mock(Alert.class);
+        when(alert.name()).thenReturn("_name");
+        when(ctx.alert()).thenReturn(alert);
+
 
         Payload payload = new Payload.Simple(new HashMap<String, Object>());
 
@@ -115,15 +120,18 @@ public class SearchTransformTests extends AbstractAlertsSingleNodeTests {
         refresh();
 
         SearchRequest request = Requests.searchRequest("idx").source(searchSource().query(filteredQuery(matchAllQuery(), boolFilter()
-                .must(rangeFilter("date").gt("{{" + Variables.SCHEDULED_FIRE_TIME + "}}"))
-                .must(rangeFilter("date").lt("{{" + Variables.FIRE_TIME + "}}"))
-                .must(termFilter("value", "{{" + Variables.PAYLOAD + ".value}}")))));
+                .must(rangeFilter("date").gt("{{" + Variables.CTX + "." + Variables.SCHEDULED_FIRE_TIME + "}}"))
+                .must(rangeFilter("date").lt("{{" + Variables.CTX + "." + Variables.FIRE_TIME + "}}"))
+                .must(termFilter("value", "{{" + Variables.CTX + "." + Variables.PAYLOAD + ".value}}")))));
 
         SearchTransform transform = new SearchTransform(logger, scriptService(), ClientProxy.of(client()), request);
 
         ExecutionContext ctx = mock(ExecutionContext.class);
         when(ctx.scheduledTime()).thenReturn(parseDate("2015-01-01T00:00:00"));
         when(ctx.fireTime()).thenReturn(parseDate("2015-01-04T00:00:00"));
+        Alert alert = mock(Alert.class);
+        when(alert.name()).thenReturn("_name");
+        when(ctx.alert()).thenReturn(alert);
 
         Payload payload = new Payload.Simple(ImmutableMap.<String, Object>builder()
                 .put("value", "val_3")

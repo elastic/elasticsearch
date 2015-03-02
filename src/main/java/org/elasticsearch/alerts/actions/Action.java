@@ -8,7 +8,6 @@ package org.elasticsearch.alerts.actions;
 import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -19,9 +18,6 @@ import java.io.IOException;
 /**
  */
 public abstract class Action<R extends Action.Result> implements ToXContent {
-
-    public static final String ALERT_NAME_VARIABLE = "alert_name";
-    public static final String PAYLOAD_VARIABLE = "payload";
 
     protected final ESLogger logger;
 
@@ -39,12 +35,6 @@ public abstract class Action<R extends Action.Result> implements ToXContent {
      */
     public abstract R execute(ExecutionContext context, Payload payload) throws IOException;
 
-    protected static ImmutableMap<String, Object> templateModel(ExecutionContext ctx, Payload payload) {
-        return ImmutableMap.<String, Object>builder()
-                .put(ALERT_NAME_VARIABLE, ctx.alert().name())
-                .put(PAYLOAD_VARIABLE, payload.data())
-                .build();
-    }
     /**
      * Parses xcontent to a concrete action of the same type.
      */

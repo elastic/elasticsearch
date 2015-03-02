@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.alerts.transform;
 
+import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.support.Script;
@@ -45,14 +46,13 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
         ExecutionContext ctx = mock(ExecutionContext.class);
         when(ctx.scheduledTime()).thenReturn(now);
         when(ctx.fireTime()).thenReturn(now);
+        Alert alert = mock(Alert.class);
+        when(alert.name()).thenReturn("_name");
+        when(ctx.alert()).thenReturn(alert);
 
         Payload payload = new Payload.Simple(ImmutableMap.<String, Object>builder().put("key", "value").build());
 
-        Map<String, Object> model = ImmutableMap.<String, Object>builder()
-                .put(Variables.PAYLOAD, payload.data())
-                .put(Variables.FIRE_TIME, now)
-                .put(Variables.SCHEDULED_FIRE_TIME, now)
-                .build();
+        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
         Map<String, Object> transformed = ImmutableMap.<String, Object>builder()
                 .put("key", "value")

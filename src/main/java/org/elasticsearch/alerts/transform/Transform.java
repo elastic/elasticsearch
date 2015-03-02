@@ -7,14 +7,11 @@ package org.elasticsearch.alerts.transform;
 
 import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
-import org.elasticsearch.alerts.support.Variables;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  *
@@ -41,14 +38,6 @@ public abstract class Transform implements ToXContent {
     public abstract String type();
 
     public abstract Result apply(ExecutionContext ctx, Payload payload) throws IOException;
-
-    protected static Map<String, Object> createModel(ExecutionContext ctx, Payload payload) {
-        Map<String, Object> model = new HashMap<>();
-        model.put(Variables.SCHEDULED_FIRE_TIME, ctx.scheduledTime());
-        model.put(Variables.FIRE_TIME, ctx.fireTime());
-        model.put(Variables.PAYLOAD, payload.data());
-        return model;
-    }
 
     public static class Result {
 

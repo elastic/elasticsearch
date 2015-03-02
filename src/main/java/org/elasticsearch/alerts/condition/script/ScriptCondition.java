@@ -55,7 +55,7 @@ public class ScriptCondition extends Condition<ScriptCondition.Result> {
     public Result execute(ExecutionContext ctx) throws IOException {
         ImmutableMap<String, Object> model = ImmutableMap.<String, Object>builder()
                 .putAll(script.params())
-                .put(Variables.PAYLOAD, ctx.payload().data())
+                .putAll(Variables.createCtxModel(ctx, ctx.payload()))
                 .build();
         ExecutableScript executable = scriptService.executable(script.lang(), script.script(), script.type(), model);
         Object value = executable.run();

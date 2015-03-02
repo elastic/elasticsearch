@@ -66,7 +66,7 @@ public class NoMasterNodeTests extends AbstractAlertsIntegrationTests {
         // Have a sample document in the index, the alert is going to evaluate
         client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
         SearchRequest searchRequest = AlertsTestUtils.newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
-        BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "payload.hits.total == 1");
+        BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "ctx.payload.hits.total == 1");
         alertClient().preparePutAlert("my-first-alert")
                 .source(alertSource)
                 .get();
@@ -114,7 +114,7 @@ public class NoMasterNodeTests extends AbstractAlertsIntegrationTests {
         for (int i = 1; i <= numberOfAlerts; i++) {
             String alertName = "alert" + i;
             SearchRequest searchRequest = AlertsTestUtils.newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
-            BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "payload.hits.total == 1");
+            BytesReference alertSource = createAlertSource("0/5 * * * * ? *", searchRequest, "ctx.payload.hits.total == 1");
             alertClient().preparePutAlert(alertName)
                     .source(alertSource)
                     .get();

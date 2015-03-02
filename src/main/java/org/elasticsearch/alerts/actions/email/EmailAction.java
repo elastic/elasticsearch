@@ -10,9 +10,9 @@ import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.ActionSettingsException;
 import org.elasticsearch.alerts.actions.email.service.*;
+import org.elasticsearch.alerts.support.Variables;
 import org.elasticsearch.alerts.support.template.Template;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -63,7 +64,7 @@ public class EmailAction extends Action<EmailAction.Result> {
 
     @Override
     public Result execute(ExecutionContext ctx, Payload payload) throws IOException {
-        ImmutableMap<String, Object> model = templateModel(ctx, payload);
+        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
         Email.Builder email = Email.builder()
                 .id(ctx.id())

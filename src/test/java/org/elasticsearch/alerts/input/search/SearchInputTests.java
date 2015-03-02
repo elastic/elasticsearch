@@ -116,8 +116,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         data.put("baz", new ArrayList<String>() );
 
         SearchSourceBuilder searchSourceBuilder = searchSource().query(
-                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{" + Variables.SCHEDULED_FIRE_TIME + "}}||-30s").to("{{" + Variables.SCHEDULED_FIRE_TIME + "}}"))
-        );
+                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{" + Variables.SCHEDULED_FIRE_TIME + "}}||-30s").to("{{" + Variables.SCHEDULED_FIRE_TIME + "}}")));
         SearchRequest request = client()
                 .prepareSearch()
                 .setSearchType(SearchInput.DEFAULT_SEARCH_TYPE)

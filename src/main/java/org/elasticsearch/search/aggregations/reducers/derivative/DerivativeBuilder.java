@@ -21,12 +21,14 @@ package org.elasticsearch.search.aggregations.reducers.derivative;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
+import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeReducer.GapPolicy;
 
 import java.io.IOException;
 
 public class DerivativeBuilder extends ReducerBuilder<DerivativeBuilder> {
 
     private String format;
+    private GapPolicy gapPolicy;
 
     public DerivativeBuilder(String name) {
         super(name, DerivativeReducer.TYPE.name());
@@ -37,10 +39,18 @@ public class DerivativeBuilder extends ReducerBuilder<DerivativeBuilder> {
         return this;
     }
 
+    public DerivativeBuilder gapPolicy(GapPolicy gapPolicy) {
+        this.gapPolicy = gapPolicy;
+        return this;
+    }
+
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         if (format != null) {
             builder.field(DerivativeParser.FORMAT.getPreferredName(), format);
+        }
+        if (gapPolicy != null) {
+            builder.field(DerivativeParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
         }
         return builder;
     }

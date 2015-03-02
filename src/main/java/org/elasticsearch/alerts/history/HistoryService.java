@@ -111,10 +111,21 @@ public class HistoryService extends AbstractComponent {
         FiredAlert firedAlert = new FiredAlert(alert, scheduledFireTime, fireTime);
         logger.debug("adding fired alert [{}]", alert.name());
         historyStore.put(firedAlert);
-        execute(firedAlert, alert);
+        executeAsync(firedAlert, alert);
     }
 
-    void execute(FiredAlert firedAlert, Alert alert) {
+    /*
+       The execution of an alert is split into operations, a schedule part which just makes sure that store the fact an alert
+       has fired and an execute part which actually executed the alert.
+
+       The reason this is split into two operations is that we don't want to lose the fact an alert has fired. If we
+       would not split the execution of an alert and many alerts fire in a small window of time then it can happen that
+       thread pool that receives fired jobs from the quartz scheduler is going to reject jobs and then we would never
+       know about jobs that have fired. By splitting the execution of fired jobs into two operations we lower the chance
+       we lose fired jobs signficantly.
+    */
+
+    void executeAsync(FiredAlert firedAlert, Alert alert) {
         try {
             alertsThreadPool().execute(new AlertExecutionTask(firedAlert, alert));
         } catch (EsRejectedExecutionException e) {
@@ -122,6 +133,29 @@ public class HistoryService extends AbstractComponent {
             firedAlert.update(FiredAlert.State.FAILED, "failed to run fired alert due to thread pool capacity");
             historyStore.update(firedAlert);
         }
+    }
+
+    AlertExecution execute(ExecutionContext ctx) throws IOException {
+        Alert alert = ctx.alert();
+        Input.Result inputResult = alert.input().execute(ctx);
+        ctx.onInputResult(inputResult);
+        Condition.Result conditionResult = alert.condition().execute(ctx);
+        ctx.onConditionResult(conditionResult);
+
+        if (conditionResult.met()) {
+            Throttler.Result throttleResult = alert.throttler().throttle(ctx);
+            ctx.onThrottleResult(throttleResult);
+
+            if (!throttleResult.throttle()) {
+                Transform.Result result = alert.transform().apply(ctx, inputResult.payload());
+                ctx.onTransformResult(result);
+                for (Action action : alert.actions()) {
+                    Action.Result actionResult = action.execute(ctx, result.payload());
+                    ctx.onActionResult(actionResult);
+                }
+            }
+        }
+        return ctx.finish();
     }
 
     void executePreviouslyFiredAlerts(HistoryStore.LoadResult loadResult) {
@@ -133,7 +167,7 @@ public class HistoryService extends AbstractComponent {
                     logger.warn("unable to find alert [{}] in alert store, perhaps it has been deleted. skipping...", firedAlert.name());
                     continue;
                 }
-                execute(firedAlert, alert);
+                executeAsync(firedAlert, alert);
                 counter++;
             }
             logger.debug("executed [{}] not executed previous fired alerts from the alert history index ", counter);
@@ -212,39 +246,6 @@ public class HistoryService extends AbstractComponent {
             }
         }
 
-        /*
-           The execution of an alert is split into operations, a schedule part which just makes sure that store the fact an alert
-           has fired and an execute part which actually executed the alert.
-
-           The reason this is split into two operations is that we don't want to lose the fact an alert has fired. If we
-           would not split the execution of an alert and many alerts fire in a small window of time then it can happen that
-           thread pool that receives fired jobs from the quartz scheduler is going to reject jobs and then we would never
-           know about jobs that have fired. By splitting the execution of fired jobs into two operations we lower the chance
-           we lose fired jobs signficantly.
-         */
-
-        AlertExecution execute(ExecutionContext ctx) throws IOException {
-
-            Input.Result inputResult = alert.input().execute(ctx);
-            ctx.onInputResult(inputResult);
-            Condition.Result conditionResult = alert.condition().execute(ctx);
-            ctx.onConditionResult(conditionResult);
-
-            if (conditionResult.met()) {
-                Throttler.Result throttleResult = alert.throttler().throttle(ctx);
-                ctx.onThrottleResult(throttleResult);
-
-                if (!throttleResult.throttle()) {
-                    Transform.Result result = alert.transform().apply(ctx, inputResult.payload());
-                    ctx.onTransformResult(result);
-                    for (Action action : alert.actions()) {
-                        Action.Result actionResult = action.execute(ctx, result.payload());
-                        ctx.onActionResult(actionResult);
-                    }
-                }
-            }
-            return ctx.finish();
-        }
     }
 
     private class SchedulerListener implements Scheduler.Listener {

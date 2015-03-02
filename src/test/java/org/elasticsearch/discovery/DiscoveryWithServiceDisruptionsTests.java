@@ -642,6 +642,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
     }
 
     @Test
+    @TestLogging("discovery.zen:TRACE,cluster.service:TRACE")
     public void isolatedUnicastNodes() throws Exception {
         List<String> nodes = startUnicastCluster(3, new int[]{0}, -1);
         // Figure out what is the elected master node

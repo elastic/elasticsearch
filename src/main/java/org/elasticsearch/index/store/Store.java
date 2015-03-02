@@ -225,7 +225,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Renames all the given files form the key of the map to the
      * value of the map. All successfully renamed files are removed from the map in-place.
      */
-    public void renameFilesSafe(Map<String, String> tempFileMap) throws IOException {
+    public void renameTempFilesSafe(Map<String, String> tempFileMap) throws IOException {
         // this works just like a lucene commit - we rename all temp files and once we successfully
         // renamed all the segments we rename the commit to ensure we don't leave half baked commits behind.
         final Map.Entry<String, String>[] entries = tempFileMap.entrySet().toArray(new Map.Entry[tempFileMap.size()]);

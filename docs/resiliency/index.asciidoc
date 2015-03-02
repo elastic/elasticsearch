@@ -95,7 +95,7 @@ Recovery from failure is a complicated process, especially in an asynchronous di
 * Broaden Unicast pinging when master fails: When a node loses it’s current master it will start pinging to find a new one. Previously, when using unicast based pinging, the node would ping a set of predefined nodes asking them whether the master had really disappeared or whether there was a network hiccup. Now, we ping all nodes in the cluster to increase coverage. In the case that all unicast hosts are disconnected from the current master during a network failure, this improvement is essential to allow the cluster to reform once the partition is healed. {GIT}7336[#7336] (STATUS: DONE, v1.4.0.Beta1)
 * After joining a cluster, validate that the join was successful and that the master has been set in the local cluster state. {GIT}6969[#6969]. (STATUS: DONE, v1.4.0.Beta1)
 * Write additional tests that use the test infrastructure to verify proper behavior during network disconnections and garbage collections. {GIT}7082[#7082] (STATUS: ONGOING)
-* Make write calls return the number of total/successful/missing shards in the same way that we do in search, which ensures transparency in the consistency of write operations. {GIT}7572[#7572]. (STATUS: ONGOING)
+* Make write calls return the number of total/successful/missing shards in the same way that we do in search, which ensures transparency in the consistency of write operations. {GIT}7994[#7994]. (STATUS: DONE, v2.0.0)
 
 [float]
 === Validate quorum before accepting a write request (STATUS: ONGOING)

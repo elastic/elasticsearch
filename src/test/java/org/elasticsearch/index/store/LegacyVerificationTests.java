@@ -37,7 +37,7 @@ import org.elasticsearch.test.ElasticsearchLuceneTestCase;
  *             segments is not longer needed. 
  */
 @Deprecated
-public class TestLegacyVerification extends ElasticsearchLuceneTestCase {
+public class LegacyVerificationTests extends ElasticsearchLuceneTestCase {
     
     public void testAdler32() throws Exception {
         Adler32 expected = new Adler32();

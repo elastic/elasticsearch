@@ -28,7 +28,7 @@ import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 
 @SuppressCodecs({ "Lucene3x", "Lucene40", "Lucene41", "Lucene42" }) // these codecs dont support missing values
-public class TestReplaceMissing extends ElasticsearchLuceneTestCase {
+public class ReplaceMissingTests extends ElasticsearchLuceneTestCase {
     
     public void test() throws Exception {
         Directory dir = newDirectory();

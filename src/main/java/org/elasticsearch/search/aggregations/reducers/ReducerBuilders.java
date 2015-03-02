@@ -20,6 +20,7 @@
 package org.elasticsearch.search.aggregations.reducers;
 
 import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeBuilder;
+import org.elasticsearch.search.aggregations.reducers.movavg.MovAvgBuilder;
 
 public final class ReducerBuilders {
 
@@ -28,5 +29,9 @@ public final class ReducerBuilders {
 
     public static final DerivativeBuilder derivative(String name) {
         return new DerivativeBuilder(name);
+    }
+
+    public static final MovAvgBuilder movavg(String name) {
+        return new MovAvgBuilder(name);
     }
 }

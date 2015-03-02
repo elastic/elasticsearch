@@ -24,8 +24,10 @@ import com.google.common.collect.Lists;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -44,9 +46,11 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
+import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -75,13 +79,16 @@ public class DerivativeReducer extends Reducer {
     };
 
     private ValueFormatter formatter;
+    private GapPolicy gapPolicy;
 
     public DerivativeReducer() {
     }
 
-    public DerivativeReducer(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, Map<String, Object> metadata) {
+    public DerivativeReducer(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
+            Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
+        this.gapPolicy = gapPolicy;
     }
 
     @Override
@@ -100,9 +107,6 @@ public class DerivativeReducer extends Reducer {
         for (InternalHistogram.Bucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket);
             if (lastBucketValue != null) {
-                if (thisBucketValue == null) {
-                    throw new ElasticsearchIllegalStateException("FOUND GAP IN DATA"); // NOCOMMIT deal with gaps in data
-                }
                 double diff = thisBucketValue - lastBucketValue;
 
                 List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), FUNCTION));
@@ -122,13 +126,30 @@ public class DerivativeReducer extends Reducer {
         try {
             Object propertyValue = bucket.getProperty(histo.getName(), AggregationPath.parse(bucketsPaths()[0])
                     .getPathElementsAsStringList());
-            if (propertyValue instanceof Number) {
-                return ((Number) propertyValue).doubleValue();
-            } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
-                return ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
-            } else {
+            if (propertyValue == null) {
                 throw new AggregationExecutionException(DerivativeParser.BUCKETS_PATH.getPreferredName()
                         + " must reference either a number value or a single value numeric metric aggregation");
+            } else {
+                double value;
+                if (propertyValue instanceof Number) {
+                    value = ((Number) propertyValue).doubleValue();
+                } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
+                    value = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
+                } else {
+                    throw new AggregationExecutionException(DerivativeParser.BUCKETS_PATH.getPreferredName()
+                            + " must reference either a number value or a single value numeric metric aggregation");
+                }
+                if (Double.isInfinite(value) || Double.isNaN(value)) {
+                    switch (gapPolicy) {
+                    case INSERT_ZEROS:
+                        return 0.0;
+                    case IGNORE:
+                    default:
+                        return Double.NaN;
+                    }
+                } else {
+                    return value;
+                }
             }
         } catch (InvalidAggregationPathException e) {
             return null;
@@ -138,27 +159,83 @@ public class DerivativeReducer extends Reducer {
     @Override
     public void doReadFrom(StreamInput in) throws IOException {
         formatter = ValueFormatterStreams.readOptional(in);
+        gapPolicy = GapPolicy.readFrom(in);
     }
 
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(formatter, out);
+        gapPolicy.writeTo(out);
     }
 
     public static class Factory extends ReducerFactory {
 
         private final ValueFormatter formatter;
+        private GapPolicy gapPolicy;
 
-        public Factory(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter) {
+        public Factory(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy) {
             super(name, TYPE.name(), bucketsPaths);
             this.formatter = formatter;
+            this.gapPolicy = gapPolicy;
         }
 
         @Override
         protected Reducer createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
                 Map<String, Object> metaData) throws IOException {
-            return new DerivativeReducer(name, bucketsPaths, formatter, metaData);
+            return new DerivativeReducer(name, bucketsPaths, formatter, gapPolicy, metaData);
         }
 
+    }
+
+    public static enum GapPolicy {
+        INSERT_ZEROS((byte) 0, "insert_zeros"), IGNORE((byte) 1, "ignore");
+
+        public static GapPolicy parse(SearchContext context, String text) {
+            GapPolicy result = null;
+            for (GapPolicy policy : values()) {
+                if (policy.parseField.match(text)) {
+                    if (result == null) {
+                        result = policy;
+                    } else {
+                        throw new ElasticsearchIllegalStateException("Text can be parsed to 2 different gap policies: text=[" + text
+                                + "], " + "policies=" + Arrays.asList(result, policy));
+                    }
+                }
+            }
+            if (result == null) {
+                final List<String> validNames = new ArrayList<>();
+                for (GapPolicy policy : values()) {
+                    validNames.add(policy.getName());
+                }
+                throw new SearchParseException(context, "Invalid gap policy: [" + text + "], accepted values: " + validNames);
+            }
+            return result;
+        }
+
+        private final byte id;
+        private final ParseField parseField;
+
+        private GapPolicy(byte id, String name) {
+            this.id = id;
+            this.parseField = new ParseField(name);
+        }
+
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByte(id);
+        }
+
+        public static GapPolicy readFrom(StreamInput in) throws IOException {
+            byte id = in.readByte();
+            for (GapPolicy gapPolicy : values()) {
+                if (id == gapPolicy.id) {
+                    return gapPolicy;
+                }
+            }
+            throw new IllegalStateException("Unknown GapPolicy with id [" + id + "]");
+        }
+
+        public String getName() {
+            return parseField.getPreferredName();
+        }
     }
 }

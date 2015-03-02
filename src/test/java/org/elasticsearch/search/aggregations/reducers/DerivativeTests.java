@@ -19,13 +19,13 @@
 
 package org.elasticsearch.search.aggregations.reducers;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
+import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeReducer.GapPolicy;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
@@ -388,15 +388,14 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @AwaitsFix(bugUrl = "waiting for derivative to gaps")
     @Test
     public void singleValuedFieldWithGaps() throws Exception {
         SearchResponse searchResponse = client()
                 .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                                .subAggregation(derivative("deriv").setBucketsPaths("_count"))) // NOCOMMITadd ignore gapPolicy
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1).minDocCount(0)
+                                .subAggregation(derivative("deriv").setBucketsPaths("_count")))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(14l));
@@ -405,91 +404,30 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(deriv, Matchers.notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         List<Histogram.Bucket> buckets = (List<Bucket>) deriv.getBuckets();
-        assertThat(buckets.size(), equalTo(5));
+        assertThat(buckets.size(), equalTo(12));
 
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
         assertThat(((Number) bucket.getKey()).longValue(), equalTo(0l));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(1l));
         SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
-        assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(0d));
+        assertThat(docCountDeriv, nullValue());
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat(((Number) bucket.getKey()).longValue(), equalTo(1l));
-        assertThat(bucket.getDocCount(), equalTo(0l));
-        docCountDeriv = bucket.getAggregations().get("deriv");
-        assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(1d));
-
-        bucket = buckets.get(2);
-        assertThat(bucket, notNullValue());
-        assertThat(((Number) bucket.getKey()).longValue(), equalTo(4l));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(1l));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
         assertThat(docCountDeriv.value(), equalTo(0d));
-
-        bucket = buckets.get(3);
-        assertThat(bucket, notNullValue());
-        assertThat(((Number) bucket.getKey()).longValue(), equalTo(9l));
-        assertThat(bucket.getDocCount(), equalTo(0l));
-        docCountDeriv = bucket.getAggregations().get("deriv");
-        assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(-1d));
-
-        bucket = buckets.get(4);
-        assertThat(bucket, notNullValue());
-        assertThat(((Number) bucket.getKey()).longValue(), equalTo(10l));
-        assertThat(bucket.getDocCount(), equalTo(0l));
-        docCountDeriv = bucket.getAggregations().get("deriv");
-        assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(-1d));
-    }
-
-    @AwaitsFix(bugUrl = "waiting for derivative to support insert_zeros gap policy")
-    @Test
-    public void singleValuedFieldWithGaps_insertZeros() throws Exception {
-        SearchResponse searchResponse = client()
-                .prepareSearch("empty_bucket_idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                        .subAggregation(derivative("deriv").setBucketsPaths("_count"))) // NOCOMMIT add insert_zeros gapPolicy
-                .execute().actionGet();
-
-        assertThat(searchResponse.getHits().getTotalHits(), equalTo(14l));
-
-        InternalHistogram deriv = searchResponse.getAggregations().get("histo");
-        assertThat(deriv, Matchers.notNullValue());
-        assertThat(deriv.getName(), equalTo("histo"));
-        List<Histogram.Bucket> buckets = (List<Bucket>) deriv.getBuckets();
-        assertThat(buckets.size(), equalTo(11));
-
-        Histogram.Bucket bucket = buckets.get(0);
-        assertThat(bucket, notNullValue());
-        assertThat(((Number) bucket.getKey()).longValue(), equalTo(0l));
-        assertThat(bucket.getDocCount(), equalTo(0l));
-        SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
-        assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(0d));
-
-        bucket = buckets.get(1);
-        assertThat(bucket, notNullValue());
-        assertThat(((Number) bucket.getKey()).longValue(), equalTo(1l));
-        assertThat(bucket.getDocCount(), equalTo(0l));
-        docCountDeriv = bucket.getAggregations().get("deriv");
-        assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(1d));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat(((Number) bucket.getKey()).longValue(), equalTo(2l));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(2l));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(-2d));
+        assertThat(docCountDeriv.value(), equalTo(1d));
 
         bucket = buckets.get(3);
         assertThat(bucket, notNullValue());
@@ -497,23 +435,23 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(2d));
+        assertThat(docCountDeriv.value(), equalTo(-2d));
 
         bucket = buckets.get(4);
         assertThat(bucket, notNullValue());
         assertThat(((Number) bucket.getKey()).longValue(), equalTo(4l));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(2l));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(0d));
+        assertThat(docCountDeriv.value(), equalTo(2d));
 
         bucket = buckets.get(5);
         assertThat(bucket, notNullValue());
         assertThat(((Number) bucket.getKey()).longValue(), equalTo(5l));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(2l));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(-2d));
+        assertThat(docCountDeriv.value(), equalTo(0d));
 
         bucket = buckets.get(6);
         assertThat(bucket, notNullValue());
@@ -521,7 +459,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(0d));
+        assertThat(docCountDeriv.value(), equalTo(-2d));
 
         bucket = buckets.get(7);
         assertThat(bucket, notNullValue());
@@ -537,95 +475,142 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(3d));
+        assertThat(docCountDeriv.value(), equalTo(0d));
 
         bucket = buckets.get(9);
         assertThat(bucket, notNullValue());
         assertThat(((Number) bucket.getKey()).longValue(), equalTo(9l));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(3l));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(-1d));
+        assertThat(docCountDeriv.value(), equalTo(3d));
 
         bucket = buckets.get(10);
         assertThat(bucket, notNullValue());
         assertThat(((Number) bucket.getKey()).longValue(), equalTo(10l));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+        docCountDeriv = bucket.getAggregations().get("deriv");
+        assertThat(docCountDeriv, notNullValue());
+        assertThat(docCountDeriv.value(), equalTo(-1d));
+
+        bucket = buckets.get(11);
+        assertThat(bucket, notNullValue());
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(11l));
+        assertThat(bucket.getDocCount(), equalTo(1l));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
         assertThat(docCountDeriv.value(), equalTo(-1d));
     }
 
-    @AwaitsFix(bugUrl = "waiting for derivative to support interpolate gapPolicy")
     @Test
-    public void singleValuedFieldWithGaps_interpolate() throws Exception {
+    public void singleValuedFieldWithGaps_insertZeros() throws Exception {
         SearchResponse searchResponse = client()
                 .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
-                        .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet(); // NOCOMMIT add interpolate gapPolicy
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1).minDocCount(0)
+                                .subAggregation(derivative("deriv").setBucketsPaths("_count").gapPolicy(GapPolicy.INSERT_ZEROS)))
+                .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(14l));
 
-        InternalHistogram deriv = searchResponse.getAggregations().get("deriv");
+        InternalHistogram deriv = searchResponse.getAggregations().get("histo");
         assertThat(deriv, Matchers.notNullValue());
         assertThat(deriv.getName(), equalTo("histo"));
         List<Histogram.Bucket> buckets = (List<Bucket>) deriv.getBuckets();
-        assertThat(buckets.size(), equalTo(7));
+        assertThat(buckets.size(), equalTo(12));
 
         Histogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
         assertThat(((Number) bucket.getKey()).longValue(), equalTo(0l));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(1l));
         SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
-        assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(0d));
+        assertThat(docCountDeriv, nullValue());
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
         assertThat(((Number) bucket.getKey()).longValue(), equalTo(1l));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(1l));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(1d));
+        assertThat(docCountDeriv.value(), equalTo(0d));
 
         bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
         assertThat(((Number) bucket.getKey()).longValue(), equalTo(2l));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(2l));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(0d));
+        assertThat(docCountDeriv.value(), equalTo(1d));
 
         bucket = buckets.get(3);
         assertThat(bucket, notNullValue());
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(3l));
+        assertThat(bucket.getDocCount(), equalTo(0l));
+        docCountDeriv = bucket.getAggregations().get("deriv");
+        assertThat(docCountDeriv, notNullValue());
+        assertThat(docCountDeriv.value(), equalTo(-2d));
+
+        bucket = buckets.get(4);
+        assertThat(bucket, notNullValue());
         assertThat(((Number) bucket.getKey()).longValue(), equalTo(4l));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+        docCountDeriv = bucket.getAggregations().get("deriv");
+        assertThat(docCountDeriv, notNullValue());
+        assertThat(docCountDeriv.value(), equalTo(2d));
+
+        bucket = buckets.get(5);
+        assertThat(bucket, notNullValue());
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(5l));
+        assertThat(bucket.getDocCount(), equalTo(2l));
+        docCountDeriv = bucket.getAggregations().get("deriv");
+        assertThat(docCountDeriv, notNullValue());
+        assertThat(docCountDeriv.value(), equalTo(0d));
+
+        bucket = buckets.get(6);
+        assertThat(bucket, notNullValue());
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(6l));
+        assertThat(bucket.getDocCount(), equalTo(0l));
+        docCountDeriv = bucket.getAggregations().get("deriv");
+        assertThat(docCountDeriv, notNullValue());
+        assertThat(docCountDeriv.value(), equalTo(-2d));
+
+        bucket = buckets.get(7);
+        assertThat(bucket, notNullValue());
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(7l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
         assertThat(docCountDeriv.value(), equalTo(0d));
 
-        bucket = buckets.get(4);
+        bucket = buckets.get(8);
         assertThat(bucket, notNullValue());
-        assertThat(((Number) bucket.getKey()).longValue(), equalTo(5l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(8l));
         assertThat(bucket.getDocCount(), equalTo(0l));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
-        assertThat(docCountDeriv.value(), equalTo(0.25d));
+        assertThat(docCountDeriv.value(), equalTo(0d));
 
-        bucket = buckets.get(5);
+        bucket = buckets.get(9);
         assertThat(bucket, notNullValue());
         assertThat(((Number) bucket.getKey()).longValue(), equalTo(9l));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(bucket.getDocCount(), equalTo(3l));
+        docCountDeriv = bucket.getAggregations().get("deriv");
+        assertThat(docCountDeriv, notNullValue());
+        assertThat(docCountDeriv.value(), equalTo(3d));
+
+        bucket = buckets.get(10);
+        assertThat(bucket, notNullValue());
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(10l));
+        assertThat(bucket.getDocCount(), equalTo(2l));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
         assertThat(docCountDeriv.value(), equalTo(-1d));
 
-        bucket = buckets.get(6);
+        bucket = buckets.get(11);
         assertThat(bucket, notNullValue());
-        assertThat(((Number) bucket.getKey()).longValue(), equalTo(10l));
-        assertThat(bucket.getDocCount(), equalTo(0l));
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(11l));
+        assertThat(bucket.getDocCount(), equalTo(1l));
         docCountDeriv = bucket.getAggregations().get("deriv");
         assertThat(docCountDeriv, notNullValue());
         assertThat(docCountDeriv.value(), equalTo(-1d));

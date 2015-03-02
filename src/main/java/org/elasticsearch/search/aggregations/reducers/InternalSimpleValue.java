@@ -93,7 +93,7 @@ public class InternalSimpleValue extends InternalNumericMetricsAggregation.Singl
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        boolean hasValue = !Double.isInfinite(value);
+        boolean hasValue = !(Double.isInfinite(value) || Double.isNaN(value));
         builder.field(CommonFields.VALUE, hasValue ? value : null);
         if (hasValue && valueFormatter != null) {
             builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(value));

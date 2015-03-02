@@ -866,6 +866,10 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
                 throw new ElasticsearchIllegalStateException("flush type [" + flush.type() + "] not supported");
         }
 
+        /*
+        we have to acquire the flush lock second to prevent dead locks and keep the locking order identical.
+        callers may already have acquired the read-write lock so we have to be consistent and alwayss lock it first.
+        */
         try (InternalLock _ = lockNeeded.acquire(); InternalLock flock = flushLock.acquire()) {
             if (onGoingRecoveries.get() > 0) {
                 throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");

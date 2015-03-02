@@ -96,8 +96,6 @@ public class BasicAlertsTests extends AbstractAlertsIntegrationTests {
     @TestLogging("action.admin.indices.delete:TRACE")
     public void testDeleteAlert() throws Exception {
         AlertsClient alertsClient = alertClient();
-        // Have a sample document in the index, the alert is going to evaluate
-        client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
         SearchRequest searchRequest = AlertsTestUtils.newInputSearchRequest("my-index").source(searchSource().query(matchAllQuery()));
         PutAlertResponse indexResponse = alertsClient.preparePutAlert("my-first-alert")
                 .source(alertSourceBuilder()

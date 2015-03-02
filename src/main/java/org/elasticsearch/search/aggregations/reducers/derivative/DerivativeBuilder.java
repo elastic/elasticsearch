@@ -21,9 +21,10 @@ package org.elasticsearch.search.aggregations.reducers.derivative;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
-import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeReducer.GapPolicy;
 
 import java.io.IOException;
+
+import static org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
 
 public class DerivativeBuilder extends ReducerBuilder<DerivativeBuilder> {
 

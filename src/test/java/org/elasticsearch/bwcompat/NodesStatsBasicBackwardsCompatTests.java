@@ -34,7 +34,7 @@ import java.lang.reflect.Method;
 
 
 @ElasticsearchIntegrationTest.ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE,  numClientNodes = 0)
-public class NodesStatsBasicBackwardsCompat extends ElasticsearchBackwardsCompatIntegrationTest {
+public class NodesStatsBasicBackwardsCompatTests extends ElasticsearchBackwardsCompatIntegrationTest {
 
     @Test
     public void testNodeStatsSetIndices() throws Exception {

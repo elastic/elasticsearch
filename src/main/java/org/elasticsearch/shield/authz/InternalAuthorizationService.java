@@ -9,7 +9,6 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
-import org.elasticsearch.action.admin.indices.create.CreateIndexRequestHelper;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.cluster.ClusterService;
@@ -152,7 +151,7 @@ public class InternalAuthorizationService extends AbstractComponent implements A
         //if we are creating an index we need to authorize potential aliases created at the same time
         if (Privilege.Index.CREATE_INDEX_MATCHER.apply(action)) {
             assert request instanceof CreateIndexRequest;
-            Set<Alias> aliases = CreateIndexRequestHelper.aliases((CreateIndexRequest) request);
+            Set<Alias> aliases = ((CreateIndexRequest) request).aliases();
             if (!aliases.isEmpty()) {
                 Set<String> aliasesAndIndices = Sets.newHashSet(indexNames);
                 for (Alias alias : aliases) {

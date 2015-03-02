@@ -19,8 +19,6 @@ import org.junit.Test;
 import java.util.List;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -31,7 +29,6 @@ import static org.hamcrest.Matchers.hasSize;
  * actions that are normally categorized as index actions as cluster actions - for example,
  * index template actions.
  */
-@ClusterScope(scope = Scope.SUITE)
 public class PermissionPrecedenceTests extends ShieldIntegrationTest {
 
     @Override

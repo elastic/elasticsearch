@@ -201,6 +201,13 @@ public class IPFilterNettyUpstreamHandlerTests extends ElasticsearchTestCase {
             return null;
         }
 
+        public boolean getUserDefinedWritability(int i) {
+            return false;
+        }
+
+        public void setUserDefinedWritability(int i, boolean b) {
+        }
+
         public ChannelFuture unbind() {
             return null;
         }

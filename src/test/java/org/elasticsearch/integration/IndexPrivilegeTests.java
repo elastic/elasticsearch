@@ -15,13 +15,9 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Locale;
-import java.util.Map;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope = SUITE)
 public class IndexPrivilegeTests extends AbstractPrivilegeTests {
 
     private String jsonDoc = "{ \"name\" : \"elasticsearch\"}";

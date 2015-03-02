@@ -95,7 +95,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
      * @param scope the scope of the test that is requiring an instance of ShieldSettingsSource
      */
     public ShieldSettingsSource(int numOfNodes, boolean sslTransportEnabled, byte[] systemKey, File parentFolder, ElasticsearchIntegrationTest.Scope scope) {
-        super(numOfNodes, DEFAULT_SETTINGS, scope);
+        super(numOfNodes, DEFAULT_SETTINGS);
         this.systemKey = systemKey;
         this.parentFolder = parentFolder;
         this.subfolderPrefix = scope.name();

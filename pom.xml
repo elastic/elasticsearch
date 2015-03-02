@@ -46,9 +46,9 @@
     </repositories>
 
     <properties>
-        <lucene.version>4.10.2</lucene.version>
-        <lucene.maven.version>4.10.2</lucene.maven.version>
-        <elasticsearch.version>1.4.2</elasticsearch.version>
+        <lucene.version>4.10.4</lucene.version>
+        <lucene.maven.version>4.10.4</lucene.maven.version>
+        <elasticsearch.version>1.5.0-SNAPSHOT</elasticsearch.version>
         <license.plugin.version>1.0.0</license.plugin.version>
 
         <tests.jvms>auto</tests.jvms>
@@ -156,12 +156,6 @@
             <groupId>org.codehaus.groovy</groupId>
             <artifactId>groovy-all</artifactId>
             <version>2.3.2</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.google.jimfs</groupId>
-            <artifactId>jimfs</artifactId>
-            <version>1.0</version>
             <scope>test</scope>
         </dependency>
 

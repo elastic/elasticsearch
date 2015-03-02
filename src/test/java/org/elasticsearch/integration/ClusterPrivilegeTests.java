@@ -18,7 +18,6 @@ import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.Test;
 
 import java.io.File;
-import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;

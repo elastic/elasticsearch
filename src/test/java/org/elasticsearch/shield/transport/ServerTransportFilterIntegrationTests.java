@@ -29,13 +29,10 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.shield.test.ShieldTestUtils.createFolder;
 import static org.elasticsearch.shield.test.ShieldTestUtils.writeFile;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 
-@ClusterScope(scope = Scope.SUITE)
-public class ServerTransportFilterIntegrationTest extends ShieldIntegrationTest {
+public class ServerTransportFilterIntegrationTests extends ShieldIntegrationTest {
 
     private static int randomClientPort;
 

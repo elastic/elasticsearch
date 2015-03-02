@@ -10,16 +10,11 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
-
-
 /**
  * This tests the group to role mappings from LDAP sources provided by the super class - available from super.realmConfig.
  * The super class will provide appropriate group mappings via configGroupMappings()
  */
 @Network
-@ClusterScope(scope = SUITE)
 public class GroupMappingTests extends AbstractAdLdapRealmTests {
 
     @Test

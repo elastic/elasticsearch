@@ -16,7 +16,6 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.http.netty.NettyHttpServerTransport;
-import org.elasticsearch.http.netty.VisibleNettyHttpServerTransport;
 import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 
@@ -25,7 +24,7 @@ import javax.net.ssl.SSLEngine;
 /**
  *
  */
-public class ShieldNettyHttpServerTransport extends VisibleNettyHttpServerTransport {
+public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
 
     private final IPFilter ipFilter;
     private final ServerSSLService sslService;
@@ -62,7 +61,7 @@ public class ShieldNettyHttpServerTransport extends VisibleNettyHttpServerTransp
     private class HttpSslChannelPipelineFactory extends HttpChannelPipelineFactory {
 
         public HttpSslChannelPipelineFactory(NettyHttpServerTransport transport) {
-            super(transport);
+            super(transport, detailedErrorsEnabled);
         }
 
         @Override

@@ -17,7 +17,6 @@ import org.elasticsearch.common.base.Function;
 import org.elasticsearch.common.collect.Collections2;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -36,7 +35,7 @@ import static org.hamcrest.Matchers.hasSize;
 
 /**
  * Base class to run tests against a cluster with shield installed.
- * The default {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope} is {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#GLOBAL},
+ * The default {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope} is {@link org.elasticsearch.test.ElasticsearchIntegrationTest.Scope#SUITE},
  * meaning that all subclasses that don't specify a different scope will share the same cluster with shield installed.
  * @see org.elasticsearch.test.ShieldSettingsSource
  */
@@ -51,7 +50,7 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     //and configure them all in unicast.hosts
     private static int maxNumberOfNodes() {
         ClusterScope clusterScope = ShieldIntegrationTest.class.getAnnotation(ClusterScope.class);
-        if (clusterScope == null || clusterScope.scope() == Scope.GLOBAL) {
+        if (clusterScope == null) {
             return InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES + InternalTestCluster.DEFAULT_MAX_NUM_CLIENT_NODES;
         } else {
             if (clusterScope.numClientNodes() < 0) {
@@ -79,7 +78,7 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
 
     private static Scope getCurrentClusterScope(Class<?> clazz) {
         ClusterScope annotation = getAnnotation(clazz);
-        return annotation == null ? Scope.GLOBAL : annotation.scope();
+        return annotation == null ? Scope.SUITE : annotation.scope();
     }
 
     /**
@@ -93,7 +92,7 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
     @BeforeClass
     public static void initDefaultSettings() {
         if (SHIELD_DEFAULT_SETTINGS == null) {
-            SHIELD_DEFAULT_SETTINGS = new ShieldSettingsSource(maxNumberOfNodes(), randomBoolean(), globalTempDir(), Scope.GLOBAL);
+            SHIELD_DEFAULT_SETTINGS = new ShieldSettingsSource(maxNumberOfNodes(), randomBoolean(), globalTempDir(), Scope.SUITE);
         }
     }
 
@@ -104,11 +103,6 @@ public abstract class ShieldIntegrationTest extends ElasticsearchIntegrationTest
         protected void before() throws Throwable {
             Scope currentClusterScope = getCurrentClusterScope();
             switch(currentClusterScope) {
-                case GLOBAL:
-                    if (InternalTestCluster.DEFAULT_SETTINGS_SOURCE == SettingsSource.EMPTY) {
-                        InternalTestCluster.DEFAULT_SETTINGS_SOURCE = SHIELD_DEFAULT_SETTINGS;
-                    }
-                    break;
                 case SUITE:
                     if (customShieldSettingsSource == null) {
                         customShieldSettingsSource = new CustomShieldSettingsSource(sslTransportEnabled(), newTempDir(LifecycleScope.SUITE), currentClusterScope);

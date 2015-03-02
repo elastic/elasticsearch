@@ -22,11 +22,8 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.CoreMatchers.*;
 
-@ClusterScope(scope = Scope.SUITE)
 @TestLogging("cluster.routing.allocation:TRACE")
 public class IndicesResolverIntegrationTests extends ShieldIntegrationTest {
 

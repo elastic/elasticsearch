@@ -42,13 +42,6 @@ import static org.hamcrest.Matchers.is;
 public class SettingsFilterTests extends ShieldIntegrationTest {
 
     private CloseableHttpClient httpClient = HttpClients.createDefault();
-    private InetSocketTransportAddress address;
-    private String clientPortSetting;
-    @Before
-    public void init() {
-        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
-        address = (InetSocketTransportAddress) httpServerTransport.boundAddress().boundAddress();
-    }
 
     @After
     public void cleanup() throws IOException {
@@ -169,10 +162,8 @@ public class SettingsFilterTests extends ShieldIntegrationTest {
 
     protected HttpResponse executeRequest(String method, String uri, String body, Map<String, String> params) throws IOException {
         HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
-        address = (InetSocketTransportAddress) httpServerTransport.boundAddress().boundAddress();
         HttpRequestBuilder requestBuilder = new HttpRequestBuilder(httpClient)
-                .host(address.address().getHostName())
-                .port(address.address().getPort())
+                .httpTransport(httpServerTransport)
                 .method(method)
                 .path(uri);
 

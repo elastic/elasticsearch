@@ -17,7 +17,6 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.transport.ShieldServerTransportService;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -34,13 +33,11 @@ import java.io.IOException;
 
 import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-@ClusterScope(scope = SUITE)
 public class ShieldPluginEnabledDisabledTests extends ShieldIntegrationTest {
 
     private static boolean enabled;

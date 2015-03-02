@@ -10,14 +10,10 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
-
 /**
  * This tests the mapping of multiple groups to a role
  */
 @Network
-@ClusterScope(scope = SUITE)
 public class MultiGroupMappingTests extends AbstractAdLdapRealmTests {
 
     @Override

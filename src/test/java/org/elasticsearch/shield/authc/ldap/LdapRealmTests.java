@@ -32,7 +32,7 @@ import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.*;
 
-public class LdapRealmTest extends LdapTest {
+public class LdapRealmTests extends LdapTest {
 
     public static final String VALID_USER_TEMPLATE = "cn={0},ou=people,o=sevenSeas";
     public static final String VALID_USERNAME = "Thomas Masterman Hardy";

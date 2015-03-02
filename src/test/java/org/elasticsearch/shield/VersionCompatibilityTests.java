@@ -28,52 +28,10 @@ public class VersionCompatibilityTests extends ElasticsearchTestCase {
     @Test
     public void testCompatibility() {
         /**
-         * see https://github.com/elasticsearch/elasticsearch/pull/8634 {@link org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration}
-         */
-        assertThat("Remove ClusterDiscoveryConfiguration or bump the version, fixed in es core 1.5", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
-
-        /**
-         * see https://github.com/elasticsearch/elasticsearch/pull/9134 {@link org.elasticsearch.shield.transport.support.TransportProfileUtil}
-         */
-        assertThat("Remove TransportProfileUtil class or bump the version, fixed in es core 1.5", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
-
-        /**
-         * see https://github.com/elasticsearch/elasticsearch/pull/9134 {@link org.elasticsearch.shield.transport.netty.ShieldMessageChannelHandler}
-         */
-        assertThat("Cleanup ShieldMessageChannelHandler class and remove needless code, fixed in es core 1.5", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
-
-        /**
-         * see https://github.com/elasticsearch/elasticsearch/pull/9273 {@link org.elasticsearch.action.admin.indices.create.CreateIndexRequestHelper}
-         */
-        assertThat("Remove CreateIndexRequestHelper class, fixed in es core 1.5", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
-
-        /**
          * see https://github.com/elasticsearch/elasticsearch/issues/9372 {@link org.elasticsearch.shield.license.LicenseService}
          * Once es core supports merging cluster level custom metadata (licenses in our case), the tribe node will see some license coming from the tribe and everything will be ok.
          *
          */
-        assertThat("Remove workaround in LicenseService class when es core supports merging cluster level custom metadata", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
-
-        /**
-         * see https://github.com/elasticsearch/elasticsearch/pull/9409/
-         * This should be fixed in es 1.4.3 and up, thus can be removed
-         * You can also remove the SnapshotTests class then, as this functionality is also covered in the ClusterPrivilegeTests
-         * And remove the code in Privilege.System
-         */
-        assertThat("Remove workaround to allow TransportNodesSnapshotsStatus be executed by the system user", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
-
-        /**
-         * see https://github.com/elasticsearch/elasticsearch-shield/pull/669
-         * {@link org.elasticsearch.shield.authz.indicesresolver.DefaultIndicesResolver#resolveIndices(User, String, org.elasticsearch.action.IndicesRequest, org.elasticsearch.cluster.metadata.MetaData)}
-         * The special treatment for IndicesAliasesRequest and GetAliasesRequest can become one single case, and simplified,
-         * since es core 1.5.0 introduced the AliasesRequest interface.
-         */
-        assertThat("Remove special treatment for IndicesAliasesRequest and GetAliasesRequest", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
-
-        /**
-         * see https://github.com/elasticsearch/elasticsearch/pull/9508
-         * CheckFileCommand has been moved into ES-Core, please check the supported versions in the PR, if it can be removed completely
-         */
-        assertThat("Remove built-in CheckFileCommand", Version.CURRENT.onOrBefore(Version.V_1_4_2), is(true));
+        assertThat("Remove workaround in LicenseService class when es core supports merging cluster level custom metadata", Version.CURRENT.onOrBefore(Version.V_1_5_0), is(true));
     }
 }

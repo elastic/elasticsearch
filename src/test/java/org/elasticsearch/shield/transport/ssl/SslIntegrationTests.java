@@ -34,11 +34,8 @@ import java.security.cert.X509Certificate;
 import java.util.Locale;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = Scope.SUITE)
 public class SslIntegrationTests extends ShieldIntegrationTest {
 
     private TrustManager[] trustAllCerts = new TrustManager[] {

@@ -8,8 +8,6 @@ package org.elasticsearch.shield.transport.netty;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.junit.Test;
 
@@ -20,7 +18,6 @@ import java.nio.file.Paths;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.is;
 
-@ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
 public class IPHostnameVerificationTests extends ShieldIntegrationTest {
 
     static Path keystore;

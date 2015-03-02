@@ -14,6 +14,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.test.ShieldIntegrationTest;
+import org.elasticsearch.transport.Transport;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -22,7 +23,6 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 
-import static org.elasticsearch.shield.transport.support.TransportProfileUtil.getProfilePort;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.instanceOf;
@@ -71,7 +71,7 @@ public class IpFilteringIntegrationTests extends ShieldIntegrationTest {
     @Test
     public void testThatIpFilteringIsAppliedForProfile() throws Exception {
         try (Socket socket = new Socket()){
-            trySocketConnection(socket, new InetSocketAddress("localhost", getProfilePort("client", internalCluster())));
+            trySocketConnection(socket, new InetSocketAddress("localhost", getProfilePort("client")));
             assertThat(socket.isClosed(), is(true));
         }
     }
@@ -85,5 +85,11 @@ public class IpFilteringIntegrationTests extends ShieldIntegrationTest {
             os.write("fooooo".getBytes(Charsets.UTF_8));
             os.flush();
         }
+    }
+
+    private static int getProfilePort(String profile) {
+        TransportAddress transportAddress = internalCluster().getInstance(Transport.class).profileBoundAddresses().get(profile).boundAddress();
+        assert transportAddress instanceof InetSocketTransportAddress;
+        return ((InetSocketTransportAddress)transportAddress).address().getPort();
     }
 }

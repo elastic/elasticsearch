@@ -7,6 +7,8 @@ package org.elasticsearch.shield;
 
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
@@ -24,6 +26,14 @@ import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basic
 import static org.hamcrest.Matchers.*;
 
 public class ShieldPluginTests extends ShieldIntegrationTest {
+
+    @Override
+    public Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("http.enabled", true) //This test requires HTTP
+                .build();
+    }
 
     @Test
     public void testThatPluginIsLoaded() throws IOException {

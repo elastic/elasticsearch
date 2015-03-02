@@ -65,9 +65,8 @@ public abstract class AbstractPrivilegeTests extends ShieldIntegrationTest {
 
     protected HttpResponse executeRequest(String user, String method, String uri, String body, Map<String, String> params) throws IOException {
         HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
-        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) httpServerTransport.boundAddress().boundAddress();
 
-        HttpRequestBuilder requestBuilder = new HttpRequestBuilder(httpClient).host(transportAddress.address().getHostName()).port(transportAddress.address().getPort());
+        HttpRequestBuilder requestBuilder = new HttpRequestBuilder(httpClient).httpTransport(httpServerTransport);
         requestBuilder.path(uri);
         requestBuilder.method(method);
         for (Map.Entry<String, String> entry : params.entrySet()) {

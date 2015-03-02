@@ -87,7 +87,6 @@ public class ShieldNettyTransport extends NettyTransport {
 
                 pipeline.addFirst("ssl", new SslHandler(serverEngine));
             }
-            pipeline.replace("dispatcher", "dispatcher", new ShieldMessageChannelHandler(nettyTransport, name, logger));
             if (authenticator != null) {
                 pipeline.addFirst("ipfilter", new IPFilterNettyUpstreamHandler(authenticator, name));
             }
@@ -107,7 +106,6 @@ public class ShieldNettyTransport extends NettyTransport {
             if (ssl) {
                 pipeline.addFirst("sslInitializer", new ClientSslHandlerInitializer());
             }
-            pipeline.replace("dispatcher", "dispatcher", new ShieldMessageChannelHandler(nettyTransport, "default", logger));
             return pipeline;
         }
 

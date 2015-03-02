@@ -30,11 +30,8 @@ import java.net.URISyntaxException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.containsString;
 
-@ClusterScope(scope = Scope.SUITE)
 public class SslClientAuthTests extends ShieldIntegrationTest {
 
     @Override

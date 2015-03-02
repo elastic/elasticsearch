@@ -15,7 +15,6 @@ import org.elasticsearch.shield.authc.Realms;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.client.ShieldClient;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.junit.BeforeClass;
@@ -26,13 +25,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope.SUITE;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-@ClusterScope(scope = SUITE)
 public class ClearRealmsCacheTests extends ShieldIntegrationTest {
 
     private static String[] usernames;

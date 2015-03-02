@@ -5,12 +5,10 @@
  */
 package org.elasticsearch.shield.authz.indicesresolver;
 
+import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
-import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableList;
@@ -72,8 +70,8 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
                 List<String> indices = replaceWildcardsWithAuthorizedIndices(indicesRequest.indices(), indicesRequest.indicesOptions(), metaData, authorizedIndices);
                 ((IndicesRequest.Replaceable) indicesRequest).indices(indices.toArray(new String[indices.size()]));
             } else {
-                assert indicesRequest instanceof IndicesAliasesRequest || !containsWildcards(indicesRequest) :
-                        "IndicesAliasesRequest is the only external request known to support wildcards that doesn't support replacing its indices";
+                assert !containsWildcards(indicesRequest) :
+                        "There are no external requests known to support wildcards that don't support replacing their indices";
 
                 //NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support replacing their indices.
                 //That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
@@ -81,66 +79,21 @@ public class DefaultIndicesResolver implements IndicesResolver<TransportRequest>
             }
         }
 
-        /*
-         * TODO remove special treatment for IndicesAliasesRequest and GetAliasesRequest once we upgrade to 1.5.0
-         * get https://github.com/elasticsearch/elasticsearch-shield/pull/669 in
-         */
-        if (indicesRequest instanceof IndicesAliasesRequest) {
-            //special treatment for IndicesAliasesRequest since we need to extract indices from indices() as well as aliases()
-            //Also, we need to replace wildcards in both with authorized indices and/or aliases (IndicesAliasesRequest doesn't implement Replaceable)
-            return resolveIndicesAliasesRequest(user, action, (IndicesAliasesRequest) indicesRequest, metaData);
+        Set<String> indices = Sets.newHashSet(indicesRequest.indices());
+
+        if (indicesRequest instanceof AliasesRequest) {
+            //special treatment for AliasesRequest since we need to replace wildcards among the specified aliases.
+            //AliasesRequest extends IndicesRequest.Replaceable, hence its indices have already been properly replaced.
+            AliasesRequest aliasesRequest = (AliasesRequest) indicesRequest;
+            if (aliasesRequest.expandAliasesWildcards()) {
+                ImmutableList<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);
+                List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasesRequest.aliases(), loadAuthorizedAliases(authorizedIndices, metaData));
+                aliasesRequest.aliases(aliases.toArray(new String[aliases.size()]));
+            }
+            Collections.addAll(indices, aliasesRequest.aliases());
         }
 
-        if (indicesRequest instanceof GetAliasesRequest) {
-            //special treatment for GetAliasesRequest since we need to replace wildcards among the specified aliases.
-            //GetAliasesRequest implements IndicesRequest.Replaceable, hence its indices have already been properly replaced.
-            return resolveGetAliasesRequest(user, action, (GetAliasesRequest) indicesRequest, metaData);
-        }
-
-        return Sets.newHashSet(indicesRequest.indices());
-    }
-
-    private Set<String> resolveGetAliasesRequest(User user, String action, GetAliasesRequest request, MetaData metaData) {
-        ImmutableList<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);
-        List<String> aliases = replaceWildcardsWithAuthorizedAliases(request.aliases(), loadAuthorizedAliases(authorizedIndices, metaData));
-        request.aliases(aliases.toArray(new String[aliases.size()]));
-        Set<String> indices = Sets.newHashSet(request.indices());
-        indices.addAll(aliases);
         return indices;
-    }
-
-    private Set<String> resolveIndicesAliasesRequest(User user, String action, IndicesAliasesRequest request, MetaData metaData) {
-        ImmutableList<String> authorizedIndices = authzService.authorizedIndicesAndAliases(user, action);
-        Set<String> finalIndices = Sets.newHashSet();
-
-        List<String> authorizedAliases = null;
-
-        for (IndicesAliasesRequest.AliasActions aliasActions : request.getAliasActions()) {
-            //replace indices with authorized ones if needed
-            if (request.indicesOptions().expandWildcardsOpen() || request.indicesOptions().expandWildcardsClosed()) {
-                //Note: the indices that the alias operation maps to might end up containing aliases, since authorized indices can also be aliases.
-                //This is fine as es core resolves them to concrete indices anyway before executing the actual operation.
-                //Also es core already allows to specify aliases among indices, they will just be resolved (alias to alias is not supported).
-                //e.g. index: foo* gets resolved in core to anything that matches the expression, aliases included, hence their corresponding indices.
-                List<String> indices = replaceWildcardsWithAuthorizedIndices(aliasActions.indices(), request.indicesOptions(), metaData, authorizedIndices);
-                aliasActions.indices(indices.toArray(new String[indices.size()]));
-            }
-            Collections.addAll(finalIndices, aliasActions.indices());
-
-            //replace aliases with authorized ones if needed
-            if (aliasActions.actionType() == AliasAction.Type.REMOVE) {
-                //lazily initialize a list of all the authorized aliases (filtering concrete indices out)
-                if (authorizedAliases == null) {
-                    authorizedAliases = loadAuthorizedAliases(authorizedIndices, metaData);
-                }
-
-                assert aliasActions.aliases().length > 0 : "aliases must not be empty within each single alias remove action";
-                List<String> aliases = replaceWildcardsWithAuthorizedAliases(aliasActions.aliases(), authorizedAliases);
-                aliasActions.aliases(aliases.toArray(new String[aliases.size()]));
-            }
-            Collections.addAll(finalIndices, aliasActions.aliases());
-        }
-        return finalIndices;
     }
 
     private List<String> loadAuthorizedAliases(List<String> authorizedIndices, MetaData metaData) {

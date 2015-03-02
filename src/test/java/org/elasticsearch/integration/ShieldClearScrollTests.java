@@ -23,13 +23,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope = Scope.SUITE)
 public class ShieldClearScrollTests extends ShieldIntegrationTest {
 
     private List<String> scrollIds;

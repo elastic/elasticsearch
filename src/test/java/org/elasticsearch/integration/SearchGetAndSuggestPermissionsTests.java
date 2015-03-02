@@ -20,13 +20,10 @@ import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.searchRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope = Scope.SUITE)
 public class SearchGetAndSuggestPermissionsTests extends ShieldIntegrationTest {
 
     @Override

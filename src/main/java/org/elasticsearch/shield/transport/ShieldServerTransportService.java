@@ -10,9 +10,9 @@ import org.elasticsearch.common.collect.Maps;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
-import org.elasticsearch.shield.transport.netty.ShieldMessageChannelHandler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.netty.NettyTransportChannel;
 
 import java.util.Map;
 
@@ -150,8 +150,8 @@ public class ShieldServerTransportService extends TransportService {
         @SuppressWarnings("unchecked")
         public void messageReceived(TransportRequest request, TransportChannel channel) throws Exception {
             try {
-                ShieldMessageChannelHandler.VisibleNettyTransportChannel nettyTransportChannel = (ShieldMessageChannelHandler.VisibleNettyTransportChannel) channel;
-                String profile = nettyTransportChannel.getProfile();
+                NettyTransportChannel nettyTransportChannel = (NettyTransportChannel) channel;
+                String profile = nettyTransportChannel.getProfileName();
                 ServerTransportFilter filter = profileFilters.get(profile);
                 if (filter == null) {
                     filter = profileFilters.get("default");

@@ -11,11 +11,8 @@ import org.junit.Test;
 
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.BASIC_AUTH_HEADER;
 import static org.elasticsearch.shield.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.CoreMatchers.containsString;
 
-@ClusterScope(scope = Scope.SUITE)
 public class AnalyzeTests extends ShieldIntegrationTest {
 
     @Override

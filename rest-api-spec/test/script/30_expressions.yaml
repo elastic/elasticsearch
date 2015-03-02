@@ -22,6 +22,6 @@ setup:
 ---
 "Expressions scripting test":
 
-  - do: { search: { body: { script_fields : { my_field : { lang: expression, script: 'doc["age"].value' } } } } }
-  - match:  { hits.hits.0.fields.my_field.0: 23.0 }
+  - do: { search: { body: { script_fields : { my_field : { lang: expression, script: 'doc["age"].value + 19' } } } } }
+  - match:  { hits.hits.0.fields.my_field.0: 42.0 }
 

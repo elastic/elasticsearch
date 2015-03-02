@@ -45,7 +45,7 @@ public class AlertMetadataTests extends AbstractAlertsIntegrationTests {
                 .source(alertSourceBuilder()
                         .schedule(cron("0/5 * * * * ? *"))
                         .input(searchInput(AlertsTestUtils.newInputSearchRequest("my-index").source(searchSource().query(matchAllQuery()))))
-                        .condition(scriptCondition("hits.total == 1"))
+                        .condition(scriptCondition("payload.hits.total == 1"))
                         .metadata(metadata))
                 .get();
         // Wait for a no action entry to be added. (the condition search request will not match, because there are no docs in my-index)

@@ -13,6 +13,7 @@ import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.condition.ConditionException;
 import org.elasticsearch.alerts.support.Script;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -57,7 +58,18 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
     @Test
     public void testExecute() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
-        ScriptCondition condition = new ScriptCondition(logger, scriptService, new Script("hits.total > 1"));
+        ScriptCondition condition = new ScriptCondition(logger, scriptService, new Script("payload.hits.total > 1"));
+        SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
+        ExecutionContext ctx = mock(ExecutionContext.class);
+        when(ctx.payload()).thenReturn(new Payload.ActionResponse(response));
+        assertFalse(condition.execute(ctx).met());
+    }
+
+    @Test
+    public void testExecute_MergedParams() throws Exception {
+        ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
+        Script script = new Script("payload.hits.total > threshold", ScriptService.ScriptType.INLINE, ScriptService.DEFAULT_LANG, ImmutableMap.<String, Object>of("threshold", 1));
+        ScriptCondition condition = new ScriptCondition(logger, scriptService, script);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
         ExecutionContext ctx = mock(ExecutionContext.class);
         when(ctx.payload()).thenReturn(new Payload.ActionResponse(response));
@@ -68,7 +80,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
     public void testParser_Valid() throws Exception {
         ScriptCondition.Parser conditionParser = new ScriptCondition.Parser(ImmutableSettings.settingsBuilder().build(), getScriptServiceProxy(tp));
 
-        XContentBuilder builder = createConditionContent("hits.total > 1", null, null);
+        XContentBuilder builder = createConditionContent("payload.hits.total > 1", null, null);
         XContentParser parser = XContentFactory.xContent(builder.bytes()).createParser(builder.bytes());
         parser.nextToken();
         ScriptCondition condition = conditionParser.parse(parser);

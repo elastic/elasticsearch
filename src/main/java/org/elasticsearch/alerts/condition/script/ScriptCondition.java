@@ -10,7 +10,9 @@ import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.condition.Condition;
 import org.elasticsearch.alerts.condition.ConditionException;
 import org.elasticsearch.alerts.support.Script;
+import org.elasticsearch.alerts.support.Variables;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -51,7 +53,11 @@ public class ScriptCondition extends Condition<ScriptCondition.Result> {
 
     @Override
     public Result execute(ExecutionContext ctx) throws IOException {
-        ExecutableScript executable = scriptService.executable(script.lang(), script.script(), script.type(), ctx.payload().data());
+        ImmutableMap<String, Object> model = ImmutableMap.<String, Object>builder()
+                .putAll(script.params())
+                .put(Variables.PAYLOAD, ctx.payload().data())
+                .build();
+        ExecutableScript executable = scriptService.executable(script.lang(), script.script(), script.type(), model);
         Object value = executable.run();
         if (value instanceof Boolean) {
             return (Boolean) value ? Result.MET : Result.UNMET;

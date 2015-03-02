@@ -55,7 +55,7 @@ public class BootStrapTests extends AbstractAlertsIntegrationTests {
         ensureAlertingStarted();
 
         SearchRequest searchRequest = AlertsTestUtils.newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
-        BytesReference alertSource = createAlertSource("0 0/5 * * * ? *", searchRequest, "hits.total == 1");
+        BytesReference alertSource = createAlertSource("0 0/5 * * * ? *", searchRequest, "payload.hits.total == 1");
         client().prepareIndex(AlertsStore.ALERT_INDEX, AlertsStore.ALERT_TYPE, "my-first-alert")
                 .setSource(alertSource)
                 .setConsistencyLevel(WriteConsistencyLevel.ALL)

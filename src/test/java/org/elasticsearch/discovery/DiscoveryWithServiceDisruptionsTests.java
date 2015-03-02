@@ -70,7 +70,7 @@ import static org.hamcrest.Matchers.*;
  */
 @LuceneTestCase.Slow
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
-public class DiscoveryWithServiceDisruptions extends ElasticsearchIntegrationTest {
+public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrationTest {
 
     private static final TimeValue DISRUPTION_HEALING_OVERHEAD = TimeValue.timeValueSeconds(40); // we use 30s as timeout in many places.
 

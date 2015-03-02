@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
-import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeReducer.GapPolicy;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
@@ -509,7 +508,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                 .setQuery(matchAllQuery())
                 .addAggregation(
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1).minDocCount(0)
-                                .subAggregation(derivative("deriv").setBucketsPaths("_count").gapPolicy(GapPolicy.INSERT_ZEROS)))
+                                .subAggregation(derivative("deriv").setBucketsPaths("_count").gapPolicy(BucketHelpers.GapPolicy.INSERT_ZEROS)))
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(14l));

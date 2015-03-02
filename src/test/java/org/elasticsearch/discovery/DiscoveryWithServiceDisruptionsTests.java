@@ -598,7 +598,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
         // TODO: on mac OS multicast threads are shared between nodes and we therefore we can't simulate GC and stop pinging for just one node
         // find a way to block thread creation in the generic thread pool to avoid this.
         // 3 node cluster with unicast discovery and minimum_master_nodes set to 2:
-        List<String> nodes = startUnicastCluster(3, null, 2);
+        final List<String> nodes = startUnicastCluster(3, null, 2);
 
         // Save the current master node as old master node, because that node will get frozen
         final String oldMasterNode = internalCluster().getMasterName();
@@ -666,7 +666,15 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
 
         // Make sure that the end state is consistent on all nodes:
         assertDiscoveryCompleted(nodes);
-        assertMaster(newMasterNode, nodes);
+        // Use assertBusy(...) because the unfrozen node may take a while to actually join the cluster.
+        // The assertDiscoveryCompleted(...) can't know if the joining has finished or still needs to begin.
+        // (the discovery only kicks in when unfrozen node steps down, which isn't immediately)
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertMaster(newMasterNode, nodes);
+            }
+        });
 
 
         assertThat(masters.size(), equalTo(2));

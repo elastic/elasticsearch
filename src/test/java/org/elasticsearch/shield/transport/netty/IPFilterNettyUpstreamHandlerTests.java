@@ -6,11 +6,18 @@
 package org.elasticsearch.shield.transport.netty;
 
 import com.google.common.net.InetAddresses;
+import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.netty.channel.*;
+import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.transport.Transport;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -19,6 +26,8 @@ import java.net.SocketAddress;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  *
@@ -34,9 +43,29 @@ public class IPFilterNettyUpstreamHandlerTests extends ElasticsearchTestCase {
                 .put("shield.transport.filter.deny", "10.0.0.0/8")
                 .build();
 
-        IPFilter ipFilter = new IPFilter(settings, AuditTrail.NOOP);
+        boolean isHttpEnabled = randomBoolean();
 
-        nettyUpstreamHandler = new IPFilterNettyUpstreamHandler(ipFilter, IPFilter.HTTP_PROFILE_NAME);
+        Transport transport = mock(Transport.class);
+        InetSocketTransportAddress address = new InetSocketTransportAddress(NetworkUtils.getLocalAddress(), 9300);
+        when(transport.boundAddress()).thenReturn(new BoundTransportAddress(address, address));
+        when(transport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
+
+        NodeSettingsService nodeSettingsService = mock(NodeSettingsService.class);
+        IPFilter ipFilter = new IPFilter(settings, AuditTrail.NOOP, nodeSettingsService, transport).start();
+
+        if (isHttpEnabled) {
+            HttpServerTransport httpTransport = mock(HttpServerTransport.class);
+            InetSocketTransportAddress httpAddress = new InetSocketTransportAddress(NetworkUtils.getLocalAddress(), 9200);
+            when(httpTransport.boundAddress()).thenReturn(new BoundTransportAddress(httpAddress, httpAddress));
+            when(httpTransport.lifecycleState()).thenReturn(Lifecycle.State.STARTED);
+            ipFilter.setHttpServerTransport(httpTransport);
+        }
+
+        if (isHttpEnabled) {
+            nettyUpstreamHandler = new IPFilterNettyUpstreamHandler(ipFilter, IPFilter.HTTP_PROFILE_NAME);
+        } else {
+            nettyUpstreamHandler = new IPFilterNettyUpstreamHandler(ipFilter, "default");
+        }
     }
 
     @Test

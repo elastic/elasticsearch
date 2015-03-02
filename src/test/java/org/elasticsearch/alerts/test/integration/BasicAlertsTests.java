@@ -108,6 +108,13 @@ public class BasicAlertsTests extends AbstractAlertsIntegrationTests {
                 .get();
         assertThat(indexResponse.indexResponse().isCreated(), is(true));
 
+        // TODO: when MockScheduler can be used this workaround can be removed:
+        // Although there is no added benefit in this test for waiting for the alert to fire, however
+        // we need to wait here because of a test timing issue. When we tear down a test we delete the alert and delete all
+        // indices, but there may still be inflight fired alerts, which may trigger the alert history to be created again, before
+        // we finished the tear down phase.
+        assertAlertWithNoActionNeeded("my-first-alert", 1);
+
         DeleteAlertRequest deleteAlertRequest = new DeleteAlertRequest("my-first-alert");
         DeleteAlertResponse deleteAlertResponse = alertsClient.deleteAlert(deleteAlertRequest).actionGet();
         assertNotNull(deleteAlertResponse.deleteResponse());

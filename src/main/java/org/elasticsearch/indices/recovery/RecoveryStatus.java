@@ -140,7 +140,7 @@ public class RecoveryStatus extends AbstractRefCounted {
     /** renames all temporary files to their true name, potentially overriding existing files */
     public void renameAllTempFiles() throws IOException {
         ensureRefCount();
-        store.renameFilesSafe(tempFileNames);
+        store.renameTempFilesSafe(tempFileNames);
     }
 
     /**

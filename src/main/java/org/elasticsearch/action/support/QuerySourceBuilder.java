@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -72,6 +73,17 @@ public class QuerySourceBuilder implements ToXContent {
             return builder.bytes();
         } catch (Exception e) {
             throw new SearchSourceBuilderException("Failed to build search source", e);
+        }
+    }
+
+    @Override
+    public String toString() {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON).prettyPrint();
+            toXContent(builder, ToXContent.EMPTY_PARAMS);
+            return builder.string();
+        } catch (Exception e) {
+            return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
         }
     }
 }

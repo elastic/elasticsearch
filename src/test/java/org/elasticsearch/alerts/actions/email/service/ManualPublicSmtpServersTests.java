@@ -74,6 +74,24 @@ public class ManualPublicSmtpServersTests {
         }
     }
 
+    // Amazon Simple Email Service
+    public static class SES {
+
+        public static void main(String[] args) throws Exception {
+            test(Profile.STANDARD, ImmutableSettings.builder()
+                            .put("alerts.actions.email.service.account.ses.smtp.auth", true)
+                            .put("alerts.actions.email.service.account.ses.smtp.starttls.enable", true)
+                            .put("alerts.actions.email.service.account.ses.smtp.starttls.required", true)
+                            .put("alerts.actions.email.service.account.ses.smtp.host", "email-smtp.us-east-1.amazonaws.com")
+                            .put("alerts.actions.email.service.account.ses.smtp.port", 25)
+                            .put("alerts.actions.email.service.account.ses.smtp.user", terminal.readText("user: "))
+                            .put("alerts.actions.email.service.account.ses.smtp.password", new String(terminal.readSecret("password: ")))
+                            .put("alerts.actions.email.service.account.ses.email_defaults.from", "dummy.user@elasticsearch.com")
+                            .put("alerts.actions.email.service.account.ses.email_defaults.to", terminal.readText("to: "))
+            );
+        }
+    }
+
     static void test(Profile profile, Settings.Builder builder) throws Exception {
         InternalEmailService service = startEmailService(builder);
         try {

@@ -16,11 +16,9 @@ import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.test.AbstractAlertsSingleNodeTests;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -30,7 +28,6 @@ import org.junit.Test;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.alerts.support.AlertsDateUtils.formatDate;
 import static org.elasticsearch.alerts.support.AlertsDateUtils.parseDate;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
@@ -172,10 +169,12 @@ public class SearchTransformTests extends AbstractAlertsSingleNodeTests {
             builder.field("search_type", searchType.name());
         }
         if (templateName != null) {
-            builder.field("template_name", templateName);
-        }
-        if (templateType != null) {
-            builder.field("template_type", templateType);
+            builder.startObject("template")
+                    .field("name", templateName);
+            if (templateType != null) {
+                builder.field("type", templateType);
+            }
+            builder.endObject();
         }
 
         XContentBuilder sourceBuilder = jsonBuilder().startObject()
@@ -213,29 +212,6 @@ public class SearchTransformTests extends AbstractAlertsSingleNodeTests {
             assertThat(transform.request.templateType(), equalTo(templateType));
         }
         assertThat(transform.request.source().toBytes(), equalTo(source.toBytes()));
-    }
-
-    @Test
-    public void testFlatten() throws Exception {
-        DateTime now = new DateTime();
-        Map<String, Object> map = ImmutableMap.<String, Object>builder()
-                .put("a", ImmutableMap.builder().put("a1", new int[] { 0, 1, 2 }).build())
-                .put("b", new String[] { "b0", "b1", "b2" })
-                .put("c", ImmutableList.of( TimeValue.timeValueSeconds(0), TimeValue.timeValueSeconds(1)))
-                .put("d", now)
-                .build();
-
-        Map<String, String> result = SearchTransform.flatten(map);
-        assertThat(result.size(), is(9));
-        assertThat(result, hasEntry("a.a1.0", "0"));
-        assertThat(result, hasEntry("a.a1.1", "1"));
-        assertThat(result, hasEntry("a.a1.2", "2"));
-        assertThat(result, hasEntry("b.0", "b0"));
-        assertThat(result, hasEntry("b.1", "b1"));
-        assertThat(result, hasEntry("b.2", "b2"));
-        assertThat(result, hasEntry("c.0", "0"));
-        assertThat(result, hasEntry("c.1", "1000"));
-        assertThat(result, hasEntry("d", formatDate(now)));
     }
 
     private static Map<String, Object> doc(String date, String value) {

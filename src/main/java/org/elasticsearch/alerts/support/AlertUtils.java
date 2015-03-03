@@ -11,7 +11,10 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.alerts.AlertsException;
+import org.elasticsearch.alerts.AlertsSettingsException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -19,11 +22,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.lang.reflect.Array;
+import java.util.*;
 
+import static org.elasticsearch.alerts.support.AlertsDateUtils.formatDate;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
@@ -50,14 +52,13 @@ public final class AlertUtils {
     public static SearchRequest readSearchRequest(XContentParser parser, SearchType searchType) throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
-
         XContentParser.Token token;
-        String searchRequestFieldName = null;
+        String currentFieldName = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
-                searchRequestFieldName = parser.currentName();
+                currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                switch (searchRequestFieldName) {
+                switch (currentFieldName) {
                     case "indices":
                         List<String> indices = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
@@ -70,11 +71,11 @@ public final class AlertUtils {
                         searchRequest.indices(indices.toArray(new String[indices.size()]));
                         break;
                     default:
-                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
+                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 XContentBuilder builder;
-                switch (searchRequestFieldName) {
+                switch (currentFieldName) {
                     case "body":
                         builder = XContentBuilder.builder(parser.contentType().xContent());
                         builder.copyCurrentStructure(parser);
@@ -125,25 +126,43 @@ public final class AlertUtils {
                         }
                         indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed);
                         break;
+                    case "template":
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                            if (token == XContentParser.Token.FIELD_NAME) {
+                                currentFieldName = parser.currentName();
+                            } else if (token == XContentParser.Token.VALUE_STRING) {
+                                switch (currentFieldName) {
+                                    case "name":
+                                        searchRequest.templateName(parser.textOrNull());
+                                        break;
+                                    case "type":
+                                        try {
+                                            searchRequest.templateType(ScriptService.ScriptType.valueOf(parser.text().toUpperCase(Locale.ROOT)));
+                                        } catch (IllegalArgumentException iae) {
+                                            throw new AlertsSettingsException("could not parse search request. unknown template type [" + parser.text() + "]");
+                                        }
+                                }
+                            } else if (token == XContentParser.Token.START_OBJECT) {
+                                if ("params".equals(currentFieldName)) {
+                                    searchRequest.templateParams(flattenModel(parser.map()));
+                                }
+                            }
+                        }
+                        break;
+
                     default:
-                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
+                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                switch (searchRequestFieldName) {
-                    case "template_name":
-                        searchRequest.templateName(parser.textOrNull());
-                        break;
-                    case "template_type":
-                        searchRequest.templateType(ScriptService.ScriptType.valueOf(parser.text().toUpperCase(Locale.ROOT)));
-                        break;
+                switch (currentFieldName) {
                     case "search_type":
                         searchType = SearchType.fromString(parser.text().toLowerCase(Locale.ROOT));
                         break;
                     default:
-                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
+                        throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
                 }
             } else {
-                throw new ElasticsearchIllegalArgumentException("Unexpected field [" + searchRequestFieldName + "]");
+                throw new ElasticsearchIllegalArgumentException("Unexpected field [" + currentFieldName + "]");
             }
         }
 
@@ -172,11 +191,17 @@ public final class AlertUtils {
             XContentHelper.writeRawField("body", searchRequest.source(), builder, params);
         }
         if (searchRequest.templateName() != null) {
-            builder.field("template_name", searchRequest.templateName());
+            builder.startObject("template")
+                    .field("name", searchRequest.templateName());
+            if (searchRequest.templateType() != null) {
+                builder.field("type", searchRequest.templateType().name().toLowerCase(Locale.ROOT));
+            }
+            if (searchRequest.templateParams() != null && !searchRequest.templateParams().isEmpty()) {
+                builder.field("params", searchRequest.templateParams());
+            }
+            builder.endObject();
         }
-        if (searchRequest.templateType() != null) {
-            builder.field("template_type", searchRequest.templateType().name().toLowerCase(Locale.ROOT));
-        }
+
         if (searchRequest.indicesOptions() != DEFAULT_INDICES_OPTIONS) {
             IndicesOptions options = searchRequest.indicesOptions();
             builder.startObject("indices_options");
@@ -198,4 +223,44 @@ public final class AlertUtils {
         return builder.endObject();
     }
 
+    public static Map<String, String> flattenModel(Map<String, Object> map) {
+        Map<String, String> result = new HashMap<>();
+        flattenModel("", map, result);
+        return result;
+    }
+
+    private static void flattenModel(String key, Object value, Map<String, String> result) {
+        if (value instanceof Map) {
+            for (Map.Entry<String, Object> entry : ((Map<String, Object>) value).entrySet()) {
+                if ("".equals(key)) {
+                    flattenModel(entry.getKey(), entry.getValue(), result);
+                } else {
+                    flattenModel(key + "." + entry.getKey(), entry.getValue(), result);
+                }
+            }
+            return;
+        }
+        if (value instanceof Iterable) {
+            int i = 0;
+            for (Object item : (Iterable) value) {
+                flattenModel(key + "." + i++, item, result);
+            }
+            return;
+        }
+        if (value.getClass().isArray()) {
+            for (int i = 0; i < Array.getLength(value); i++) {
+                flattenModel(key + "." + i, Array.get(value, i), result);
+            }
+            return;
+        }
+        if (value instanceof DateTime) {
+            result.put(key, formatDate((DateTime) value));
+            return;
+        }
+        if (value instanceof TimeValue) {
+            result.put(key, String.valueOf(((TimeValue) value).getMillis()));
+            return;
+        }
+        result.put(key, String.valueOf(value));
+    }
 }

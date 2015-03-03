@@ -18,10 +18,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -30,11 +28,8 @@ import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
-import java.lang.reflect.Array;
-import java.util.HashMap;
-import java.util.Map;
 
-import static org.elasticsearch.alerts.support.AlertsDateUtils.formatDate;
+import static org.elasticsearch.alerts.support.AlertUtils.flattenModel;
 import static org.elasticsearch.alerts.support.Variables.createCtxModel;
 
 /**
@@ -86,7 +81,7 @@ public class SearchTransform extends Transform {
             request.source((BytesReference) script.unwrap(script.run()), false);
         } else if (requestPrototype.templateName() != null) {
             MapBuilder<String, String> templateParams = MapBuilder.newMapBuilder(requestPrototype.templateParams())
-                    .putAll(flatten(createCtxModel(ctx, payload)));
+                    .putAll(flattenModel(createCtxModel(ctx, payload)));
             request.templateParams(templateParams.map());
             request.templateName(requestPrototype.templateName());
             request.templateType(requestPrototype.templateType());
@@ -94,47 +89,6 @@ public class SearchTransform extends Transform {
             throw new TransformException("search requests needs either source or template name");
         }
         return request;
-    }
-
-    static Map<String, String> flatten(Map<String, Object> map) {
-        Map<String, String> result = new HashMap<>();
-        flatten("", map, result);
-        return result;
-    }
-
-    private static void flatten(String key, Object value, Map<String, String> result) {
-        if (value instanceof Map) {
-            for (Map.Entry<String, Object> entry : ((Map<String, Object>) value).entrySet()) {
-                if ("".equals(key)) {
-                    flatten(entry.getKey(), entry.getValue(), result);
-                } else {
-                    flatten(key + "." + entry.getKey(), entry.getValue(), result);
-                }
-            }
-            return;
-        }
-        if (value instanceof Iterable) {
-            int i = 0;
-            for (Object item : (Iterable) value) {
-                flatten(key + "." + i++, item, result);
-            }
-            return;
-        }
-        if (value.getClass().isArray()) {
-            for (int i = 0; i < Array.getLength(value); i++) {
-                flatten(key + "." + i, Array.get(value, i), result);
-            }
-            return;
-        }
-        if (value instanceof DateTime) {
-            result.put(key, formatDate((DateTime) value));
-            return;
-        }
-        if (value instanceof TimeValue) {
-            result.put(key, String.valueOf(((TimeValue) value).getMillis()));
-            return;
-        }
-        result.put(key, String.valueOf(value));
     }
 
     public static class Parser extends AbstractComponent implements Transform.Parser<SearchTransform> {

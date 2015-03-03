@@ -130,9 +130,8 @@ public class SearchInput extends Input<SearchInput.Result> {
             request.templateParams(templateParams.map());
             request.templateName(requestPrototype.templateName());
             request.templateType(requestPrototype.templateType());
-        } else {
-            throw new InputException("search requests needs either source or template name");
         }
+        // falling back to an empty body
         return request;
     }
 

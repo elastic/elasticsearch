@@ -19,6 +19,8 @@
 
 package org.elasticsearch.bwcompat;
 
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.logging.Loggers;
@@ -49,6 +51,7 @@ import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardCompatibilityTest {
     
     static List<String> indexes;

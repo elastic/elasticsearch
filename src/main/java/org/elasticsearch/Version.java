@@ -223,9 +223,9 @@ public class Version {
     public static final int V_1_4_4_ID = 1040499;
     public static final Version V_1_4_4 = new Version(V_1_4_4_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_3);
     public static final int V_1_4_5_ID = 1040599;
-    public static final Version V_1_4_5 = new Version(V_1_4_5_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_3);
+    public static final Version V_1_4_5 = new Version(V_1_4_5_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_4);
     public static final int V_1_5_0_ID = 1050099;
-    public static final Version V_1_5_0 = new Version(V_1_5_0_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_3);
+    public static final Version V_1_5_0 = new Version(V_1_5_0_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_4);
 
     public static final Version CURRENT = V_1_5_0;
 

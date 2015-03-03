@@ -110,8 +110,7 @@ public class NamingConventionTests extends ElasticsearchTestCase {
                         pkg.append(p.getFileName().toString()).append(".");
                     }
                     pkg.append(filename.substring(0, filename.length() - 6));
-
-                    return Class.forName(pkg.toString());
+                    return Thread.currentThread().getContextClassLoader().loadClass(pkg.toString());
                 }
 
                 @Override

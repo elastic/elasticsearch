@@ -744,11 +744,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 assert newClusterState.nodes().masterNode() != null : "received a cluster state without a master";
                 assert !newClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock()) : "received a cluster state with a master block";
 
-                ClusterState currentState = clusterService.state();
-                if (shouldIgnoreNewClusterState(logger, currentState, newClusterState)) {
-                    return;
-                }
-
                 clusterService.submitStateUpdateTask("zen-disco-receive(from master [" + newClusterState.nodes().masterNode() + "])", Priority.URGENT, new ProcessedClusterStateNonMasterUpdateTask() {
                     @Override
                     public ClusterState execute(ClusterState currentState) {
@@ -766,7 +761,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         if (updatedState == null) {
                             updatedState = currentState;
                         }
-                        if (shouldIgnoreNewClusterState(logger, currentState, updatedState)) {
+                        if (shouldIgnoreOrRejectNewClusterState(logger, currentState, updatedState)) {
                             return currentState;
                         }
 
@@ -876,16 +871,17 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     /**
      * In the case we follow an elected master the new cluster state needs to have the same elected master and
-     * the new cluster state version needs to be equal or higher than our cluster state version. If either conditions
-     * are true then the cluster state is dated and we should ignore it.
+     * the new cluster state version needs to be equal or higher than our cluster state version.
+     * If the first condition fails we reject the cluster state and throw an error.
+     * If the second condition fails we ignore the cluster state.
      */
-    static boolean shouldIgnoreNewClusterState(ESLogger logger, ClusterState currentState, ClusterState newClusterState) {
+    static boolean shouldIgnoreOrRejectNewClusterState(ESLogger logger, ClusterState currentState, ClusterState newClusterState) {
         if (currentState.nodes().masterNodeId() == null) {
             return false;
         }
         if (!currentState.nodes().masterNodeId().equals(newClusterState.nodes().masterNodeId())) {
-            logger.warn("received a cluster state from a different master then the current one, ignoring (received {}, current {})", newClusterState.nodes().masterNode(), currentState.nodes().masterNode());
-            return true;
+            logger.warn("received a cluster state from a different master then the current one, rejecting (received {}, current {})", newClusterState.nodes().masterNode(), currentState.nodes().masterNode());
+            throw new ElasticsearchIllegalStateException("cluster state from a different master then the current one, rejecting (received " + newClusterState.nodes().masterNode() + ", current " + currentState.nodes().masterNode() + ")");
         } else if (newClusterState.version() < currentState.version()) {
             // if the new state has a smaller version, and it has the same master node, then no need to process it
             logger.debug("received a cluster state that has a lower version than the current one, ignoring (received {}, current {})", newClusterState.version(), currentState.version());

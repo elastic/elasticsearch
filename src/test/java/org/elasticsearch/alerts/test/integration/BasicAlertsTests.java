@@ -6,7 +6,6 @@
 package org.elasticsearch.alerts.test.integration;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.alerts.AlertsException;
 import org.elasticsearch.alerts.AlertsStore;
 import org.elasticsearch.alerts.client.AlertSourceBuilder;
@@ -22,14 +21,8 @@ import org.elasticsearch.alerts.transport.actions.get.GetAlertResponse;
 import org.elasticsearch.alerts.transport.actions.put.PutAlertResponse;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.FilterBuilders;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogram;
-import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.Locale;
@@ -93,7 +86,6 @@ public class BasicAlertsTests extends AbstractAlertsIntegrationTests {
     }
 
     @Test
-    @TestLogging("action.admin.indices.delete:TRACE")
     public void testDeleteAlert() throws Exception {
         AlertsClient alertsClient = alertClient();
         SearchRequest searchRequest = AlertsTestUtils.newInputSearchRequest("my-index").source(searchSource().query(matchAllQuery()));
@@ -163,25 +155,6 @@ public class BasicAlertsTests extends AbstractAlertsIntegrationTests {
     }
 
     @Test
-    public void testAlertWithDifferentSearchType() throws Exception {
-        AlertsClient alertsClient = alertClient();
-        createIndex("my-index");
-        // Have a sample document in the index, the alert is going to evaluate
-        client().prepareIndex("my-index", "my-type").setSource("field", "value").get();
-        SearchRequest searchRequest = AlertsTestUtils.newInputSearchRequest("my-index").source(searchSource().query(matchAllQuery()));
-        searchRequest.searchType(SearchType.QUERY_THEN_FETCH);
-        // By accessing the actual hit we know that the fetch phase has been performed
-        PutAlertResponse indexResponse = alertsClient.preparePutAlert("my-first-alert")
-                .source(alertSourceBuilder()
-                        .schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS))
-                        .input(searchInput(searchRequest))
-                        .condition(scriptCondition("ctx.payload.hits?.hits[0]._score == 1.0")))
-                .get();
-        assertThat(indexResponse.indexResponse().isCreated(), is(true));
-        assertAlertWithMinimumPerformedActionsCount("my-first-alert", 1);
-    }
-
-    @Test
     public void testModifyAlerts() throws Exception {
         SearchRequest searchRequest = AlertsTestUtils.newInputSearchRequest("my-index")
                 .source(searchSource().query(matchAllQuery()));
@@ -210,62 +183,6 @@ public class BasicAlertsTests extends AbstractAlertsIntegrationTests {
         long count =  findNumberOfPerformedActions("1");
         Thread.sleep(5000);
         assertThat(count, equalTo(findNumberOfPerformedActions("1")));
-    }
-
-    @Test
-    public void testAggregations() throws Exception {
-
-        class Indexer extends Thread {
-
-            private final long sleepTime;
-            private final long totalTime;
-
-            Indexer(long sleepTime, long totalTime) {
-                this.sleepTime = sleepTime;
-                this.totalTime = totalTime;
-            }
-
-            @Override
-            public void run() {
-                long startTime = System.currentTimeMillis();
-                while ((System.currentTimeMillis() - startTime) < totalTime) {
-                    client().prepareIndex("my-index", "my-type").setCreate(true).setSource("{}").get();
-                    try {
-                        Thread.sleep(sleepTime);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        return;
-                    }
-                }
-            }
-        }
-
-        assertAcked(prepareCreate("my-index").addMapping("my-type", "_timestamp", "enabled=true"));
-        SearchRequest searchRequest = AlertsTestUtils.newInputSearchRequest("my-index").source(
-                searchSource()
-                        .query(QueryBuilders.constantScoreQuery(FilterBuilders.rangeFilter("_timestamp").from("{{scheduled_fire_time}}||-1m").to("{{scheduled_fire_time}}")))
-                        .aggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp").interval(DateHistogram.Interval.SECOND).order(Histogram.Order.COUNT_DESC)));
-//        BytesReference reference = createAlertSource("* 0/1 * * * ? *", searchRequest, "aggregations.rate.buckets[0]?.doc_count > 5");
-        alertClient().preparePutAlert("rate-alert")
-                .source(alertSourceBuilder()
-                        .schedule(cron("* 0/1 * * * ? *"))
-                        .input(searchInput(searchRequest))
-                        .condition(scriptCondition("ctx.payload.aggregations.rate.buckets[0]?.doc_count > 5"))
-                        .addAction(indexAction("my-index", "trail")))
-                .get();
-
-        Indexer indexer = new Indexer(500, 60000);
-        indexer.start();
-        indexer.join();
-
-        assertAlertWithExactPerformedActionsCount("rate-alert", 0);
-        assertAlertWithNoActionNeeded("rate-alert", 1);
-
-        indexer = new Indexer(100, 60000);
-        indexer.start();
-        indexer.join();
-
-        assertAlertWithMinimumPerformedActionsCount("rate-alert", 1);
     }
 
     private final SearchSourceBuilder searchSourceBuilder = searchSource().query(

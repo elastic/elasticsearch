@@ -6,6 +6,7 @@
 package org.elasticsearch.alerts.input.search;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.input.Input;
 import org.elasticsearch.alerts.input.InputException;
@@ -46,7 +47,6 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testExecute() throws Exception {
-
         SearchSourceBuilder searchSourceBuilder = searchSource().query(
                 filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{" + Variables.SCHEDULED_FIRE_TIME + "}}||-30s").to("{{" + Variables.SCHEDULED_FIRE_TIME + "}}"))
         );
@@ -66,6 +66,32 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
         assertNotNull(result.request());
         assertEquals(result.request().searchType(),request.searchType());
+        assertArrayEquals(result.request().indices(), request.indices());
+        assertEquals(result.request().indicesOptions(), request.indicesOptions());
+    }
+
+    @Test
+    public void testDifferentSearchType() throws Exception {
+        SearchSourceBuilder searchSourceBuilder = searchSource().query(
+                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{" + Variables.SCHEDULED_FIRE_TIME + "}}||-30s").to("{{" + Variables.SCHEDULED_FIRE_TIME + "}}"))
+        );
+        SearchType searchType = randomFrom(SearchType.values());
+        SearchRequest request = client()
+                .prepareSearch()
+                .setSearchType(searchType)
+                .request()
+                .source(searchSourceBuilder);
+
+        SearchInput searchInput = new SearchInput(logger,
+                ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
+                ClientProxy.of(client()), request);
+        ExecutionContext ctx = new ExecutionContext("test-alert", null,
+                new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
+        SearchInput.Result result = searchInput.execute(ctx);
+
+        assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
+        assertNotNull(result.request());
+        assertEquals(result.request().searchType(), searchType);
         assertArrayEquals(result.request().indices(), request.indices());
         assertEquals(result.request().indicesOptions(), request.indicesOptions());
     }

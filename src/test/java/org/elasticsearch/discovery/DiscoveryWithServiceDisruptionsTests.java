@@ -632,6 +632,16 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
             });
         }
 
+        final CountDownLatch oldMasterNodeSteppedDown = new CountDownLatch(1);
+        internalCluster().getInstance(ClusterService.class, oldMasterNode).add(new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                if (event.state().nodes().masterNodeId() == null) {
+                    oldMasterNodeSteppedDown.countDown();
+                }
+            }
+        });
+
         internalCluster().setDisruptionScheme(masterNodeDisruption);
         logger.info("freezing node [{}]", oldMasterNode);
         masterNodeDisruption.startDisrupting();
@@ -664,11 +674,11 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
         logger.info("Unfreeze node [{}]", oldMasterNode);
         masterNodeDisruption.stopDisrupting();
 
+        oldMasterNodeSteppedDown.await(30, TimeUnit.SECONDS);
         // Make sure that the end state is consistent on all nodes:
         assertDiscoveryCompleted(nodes);
         // Use assertBusy(...) because the unfrozen node may take a while to actually join the cluster.
-        // The assertDiscoveryCompleted(...) can't know if the joining has finished or still needs to begin.
-        // (the discovery only kicks in when unfrozen node steps down, which isn't immediately)
+        // The assertDiscoveryCompleted(...) can't know if all nodes have the old master node in all of the local cluster states
         assertBusy(new Runnable() {
             @Override
             public void run() {
@@ -685,7 +695,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
             assertThat("[" + nodeName + "] First transition's previous master should be [null]", recordedMasterTransition.get(0).v1(), equalTo(oldMasterNode));
             assertThat("[" + nodeName + "] First transition's current master should be [" + newMasterNode + "]", recordedMasterTransition.get(0).v2(), nullValue());
             assertThat("[" + nodeName + "] Second transition's previous master should be [null]", recordedMasterTransition.get(1).v1(), nullValue());
-            assertThat("[" + nodeName + "] jSecond transition's current master should be [" + newMasterNode + "]", recordedMasterTransition.get(1).v2(), equalTo(newMasterNode));
+            assertThat("[" + nodeName + "] Second transition's current master should be [" + newMasterNode + "]", recordedMasterTransition.get(1).v2(), equalTo(newMasterNode));
         }
     }
 

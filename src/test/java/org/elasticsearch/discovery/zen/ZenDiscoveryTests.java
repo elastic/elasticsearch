@@ -19,26 +19,40 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
+import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.*;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.*;
 
@@ -153,5 +167,59 @@ public class ZenDiscoveryTests extends ElasticsearchIntegrationTest {
 
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).get(); // wait for all to be processed
         assertThat(statesFound, Matchers.hasSize(2));
+    }
+
+    @Test
+    public void testNodeRejectsClusterStateWithWrongMasterNode() throws Exception {
+        Settings settings = ImmutableSettings.builder()
+                .put("discovery.type", "zen")
+                .build();
+        List<String> nodeNames = internalCluster().startNodesAsync(2, settings).get();
+        client().admin().cluster().prepareHealth().setWaitForNodes("2").get();
+
+        List<String> nonMasterNodes = new ArrayList<>(nodeNames);
+        nonMasterNodes.remove(internalCluster().getMasterName());
+        String noneMasterNode = nonMasterNodes.get(0);
+
+        ClusterState state = internalCluster().getInstance(ClusterService.class).state();
+        DiscoveryNode node = null;
+        for (DiscoveryNode discoveryNode : state.nodes()) {
+            if (discoveryNode.name().equals(noneMasterNode)) {
+                node = discoveryNode;
+            }
+        }
+        assert node != null;
+
+        DiscoveryNodes.Builder nodes = DiscoveryNodes.builder(state.nodes())
+                .put(new DiscoveryNode("abc", new LocalTransportAddress("abc"), Version.CURRENT)).masterNodeId("abc");
+        ClusterState.Builder builder = ClusterState.builder(state);
+        builder.nodes(nodes);
+        BytesStreamOutput bStream = new BytesStreamOutput();
+        StreamOutput stream = CompressorFactory.defaultCompressor().streamOutput(bStream);
+        stream.setVersion(node.version());
+        ClusterState.Builder.writeTo(builder.build(), stream);
+        stream.close();
+        BytesReference bytes = bStream.bytes();
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final AtomicReference<Exception> reference = new AtomicReference<>();
+        internalCluster().getInstance(TransportService.class, noneMasterNode).sendRequest(node, PublishClusterStateAction.ACTION_NAME, new BytesTransportRequest(bytes, Version.CURRENT), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+
+            @Override
+            public void handleResponse(TransportResponse.Empty response) {
+                super.handleResponse(response);
+                latch.countDown();
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                super.handleException(exp);
+                reference.set(exp);
+                latch.countDown();
+            }
+        });
+        latch.await();
+        assertThat(reference.get(), notNullValue());
+        assertThat(ExceptionsHelper.detailedMessage(reference.get()), containsString("cluster state from a different master then the current one, rejecting "));
     }
 }

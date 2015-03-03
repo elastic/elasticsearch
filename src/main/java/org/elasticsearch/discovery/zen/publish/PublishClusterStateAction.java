@@ -21,14 +21,15 @@ package org.elasticsearch.discovery.zen.publish;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
@@ -192,25 +193,34 @@ public class PublishClusterStateAction extends AbstractComponent {
             ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode(), clusterName);
             clusterState.status(ClusterState.ClusterStateStatus.RECEIVED);
             logger.debug("received cluster state version {}", clusterState.version());
-            listener.onNewClusterState(clusterState, new NewClusterStateListener.NewStateProcessed() {
-                @Override
-                public void onNewClusterStateProcessed() {
-                    try {
-                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                    } catch (Throwable e) {
-                        logger.debug("failed to send response on cluster state processed", e);
+            try {
+                listener.onNewClusterState(clusterState, new NewClusterStateListener.NewStateProcessed() {
+                    @Override
+                    public void onNewClusterStateProcessed() {
+                        try {
+                            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                        } catch (Throwable e) {
+                            logger.debug("failed to send response on cluster state processed", e);
+                        }
                     }
-                }
 
-                @Override
-                public void onNewClusterStateFailed(Throwable t) {
-                    try {
-                        channel.sendResponse(t);
-                    } catch (Throwable e) {
-                        logger.debug("failed to send response on cluster state processed", e);
+                    @Override
+                    public void onNewClusterStateFailed(Throwable t) {
+                        try {
+                            channel.sendResponse(t);
+                        } catch (Throwable e) {
+                            logger.debug("failed to send response on cluster state processed", e);
+                        }
                     }
+                });
+            } catch (Exception e) {
+                logger.warn("unexpected error while processing cluster state version [{}]", e, clusterState.version());
+                try {
+                    channel.sendResponse(e);
+                } catch (Throwable e1) {
+                    logger.debug("failed to send response on cluster state processed", e1);
                 }
-            });
+            }
         }
 
         @Override

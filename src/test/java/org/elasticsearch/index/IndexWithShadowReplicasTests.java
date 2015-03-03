@@ -32,8 +32,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.nio.file.Path;
@@ -96,7 +94,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         assertThat(gResp1.getField("foo").getValue().toString(), equalTo("bar"));
         assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
 
-        logger.info("--> restarting both nodes");
+        logger.info("--> restarting all nodes");
         if (randomBoolean()) {
             logger.info("--> rolling restart");
             internalCluster().rollingRestart();
@@ -107,6 +105,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
         client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
         ensureGreen(IDX);
+        flushAndRefresh(IDX);
 
         logger.info("--> performing query");
         SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).get();

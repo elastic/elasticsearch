@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.alerts;
 
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -28,6 +29,10 @@ public interface Payload extends ToXContent {
 
         public Simple() {
             this(new HashMap<String, Object>());
+        }
+
+        public Simple(String key, Object value) {
+            this(new MapBuilder<String, Object>().put(key, value).map());
         }
 
         public Simple(Map<String, Object> data) {

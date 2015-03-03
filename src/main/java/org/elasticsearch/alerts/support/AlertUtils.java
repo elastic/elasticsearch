@@ -82,10 +82,10 @@ public final class AlertUtils {
                         searchRequest.source(builder);
                         break;
                     case "indices_options":
-                        boolean expandOpen = indicesOptions.expandWildcardsOpen();
-                        boolean expandClosed = indicesOptions.expandWildcardsClosed();
-                        boolean allowNoIndices = indicesOptions.allowNoIndices();
-                        boolean ignoreUnavailable = indicesOptions.ignoreUnavailable();
+                        boolean expandOpen = DEFAULT_INDICES_OPTIONS.expandWildcardsOpen();
+                        boolean expandClosed = DEFAULT_INDICES_OPTIONS.expandWildcardsClosed();
+                        boolean allowNoIndices = DEFAULT_INDICES_OPTIONS.allowNoIndices();
+                        boolean ignoreUnavailable = DEFAULT_INDICES_OPTIONS.ignoreUnavailable();
 
                         String indicesFieldName = null;
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -124,7 +124,7 @@ public final class AlertUtils {
                                 throw new ElasticsearchIllegalArgumentException("Unexpected token [" + token + "]");
                             }
                         }
-                        indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed);
+                        indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed, DEFAULT_INDICES_OPTIONS);
                         break;
                     case "template":
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -166,6 +166,9 @@ public final class AlertUtils {
             }
         }
 
+        if (searchRequest.indices() == null) {
+            searchRequest.indices(Strings.EMPTY_ARRAY);
+        }
         searchRequest.searchType(searchType);
         searchRequest.indicesOptions(indicesOptions);
         return searchRequest;

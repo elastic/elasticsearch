@@ -57,6 +57,23 @@ public class ChainTransform extends Transform {
         return builder.endArray();
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        ChainTransform transform = (ChainTransform) o;
+
+        if (!transforms.equals(transform.transforms)) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return transforms.hashCode();
+    }
+
     public static class Parser implements Transform.Parser<ChainTransform>, InitializingService.Initializable {
 
         private TransformRegistry registry;

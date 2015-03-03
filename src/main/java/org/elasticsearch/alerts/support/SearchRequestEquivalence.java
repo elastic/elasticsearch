@@ -7,11 +7,16 @@ package org.elasticsearch.alerts.support;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.AlertsException;
+import org.elasticsearch.alerts.actions.email.service.Attachment;
 import org.elasticsearch.common.base.Equivalence;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
 import java.io.IOException;
 import java.util.Arrays;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  * The only true way today to compare search request object (outside of core) is to
@@ -31,13 +36,13 @@ public final class SearchRequestEquivalence extends Equivalence<SearchRequest> {
         try {
             BytesStreamOutput output1 = new BytesStreamOutput();
             r1.writeTo(output1);
-            BytesReference bytes1 = output1.bytes();
-            BytesStreamOutput output2 = new BytesStreamOutput(bytes1.length());
-            r2.writeTo(output2);
-            BytesReference bytes2 = output2.bytes();
-            return Arrays.equals(bytes1.toBytes(), bytes2.toBytes());
-        } catch (IOException ioe) {
-            throw new AlertsException("could not compare search requests", ioe);
+            byte[] bytes1 = output1.bytes().toBytes();
+            output1.reset();
+            r2.writeTo(output1);
+            byte[] bytes2 = output1.bytes().toBytes();
+            return Arrays.equals(bytes1, bytes2);
+        } catch (Throwable t) {
+            throw new AlertsException("could not compare search requests", t);
         }
     }
 

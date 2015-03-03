@@ -7,6 +7,7 @@ package org.elasticsearch.alerts.actions;
 
 import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
+import org.elasticsearch.alerts.transform.Transform;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -20,9 +21,18 @@ import java.io.IOException;
 public abstract class Action<R extends Action.Result> implements ToXContent {
 
     protected final ESLogger logger;
+    protected final Transform transform;
 
-    protected Action(ESLogger logger) {
+    protected Action(ESLogger logger, Transform transform) {
         this.logger = logger;
+        this.transform = transform;
+    }
+
+    /**
+     * @return the transform associated with this action (may be {@code null})
+     */
+    public Transform transform() {
+        return transform;
     }
 
     /**
@@ -33,7 +43,20 @@ public abstract class Action<R extends Action.Result> implements ToXContent {
     /**
      * Executes this action
      */
-    public abstract R execute(ExecutionContext context, Payload payload) throws IOException;
+    public final R execute(ExecutionContext context, Payload payload) throws IOException {
+        Transform.Result transformResult = null;
+        if (transform != null) {
+            transformResult = transform.apply(context, payload);
+            payload = transformResult.payload();
+        }
+        R result = doExecute(context, payload);
+        if (transformResult != null) {
+            result.transformResult = transformResult;
+        }
+        return result;
+    }
+
+    protected abstract R doExecute(ExecutionContext context, Payload payload) throws IOException;
 
     /**
      * Parses xcontent to a concrete action of the same type.
@@ -60,6 +83,8 @@ public abstract class Action<R extends Action.Result> implements ToXContent {
         protected final String type;
         protected final boolean success;
 
+        protected Transform.Result transformResult;
+
         protected Result(String type, boolean success) {
             this.type = type;
             this.success = success;
@@ -73,10 +98,17 @@ public abstract class Action<R extends Action.Result> implements ToXContent {
             return success;
         }
 
+        public Transform.Result transformResult() {
+            return transformResult;
+        }
+
         @Override
         public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(SUCCESS_FIELD.getPreferredName(), success);
+            if (transformResult != null) {
+                builder.field(Transform.Parser.TRANSFORM_RESULT_FIELD.getPreferredName(), transformResult);
+            }
             xContentBody(builder, params);
             return builder.endObject();
         }

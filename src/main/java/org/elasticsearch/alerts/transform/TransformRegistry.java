@@ -33,11 +33,7 @@ public class TransformRegistry {
             if (token == XContentParser.Token.FIELD_NAME) {
                 type = parser.currentName();
             } else if (type != null) {
-                Transform.Parser transformParser = parsers.get(type);
-                if (transformParser == null) {
-                    throw new AlertsSettingsException("unknown transform type [" + type + "]");
-                }
-                transform = transformParser.parse(parser);
+                transform = parse(type, parser);
             }
         }
         return transform;

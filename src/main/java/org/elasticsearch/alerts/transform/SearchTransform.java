@@ -11,6 +11,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.support.AlertUtils;
+import org.elasticsearch.alerts.support.SearchRequestEquivalence;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.common.Strings;
@@ -71,7 +72,24 @@ public class SearchTransform extends Transform {
         return AlertUtils.writeSearchRequest(request, builder, params);
     }
 
-    public SearchRequest createRequest(SearchRequest requestPrototype, ExecutionContext ctx, Payload payload) throws IOException {
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        SearchTransform transform = (SearchTransform) o;
+
+        if (!SearchRequestEquivalence.INSTANCE.equivalent(request, transform.request)) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return request.hashCode();
+    }
+
+    SearchRequest createRequest(SearchRequest requestPrototype, ExecutionContext ctx, Payload payload) throws IOException {
         SearchRequest request = new SearchRequest(requestPrototype)
                 .indicesOptions(requestPrototype.indicesOptions())
                 .indices(requestPrototype.indices());

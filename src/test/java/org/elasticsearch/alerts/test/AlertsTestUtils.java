@@ -6,6 +6,7 @@
 package org.elasticsearch.alerts.test;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.Actions;
@@ -26,9 +27,11 @@ import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.support.template.ScriptTemplate;
 import org.elasticsearch.alerts.support.template.Template;
 import org.elasticsearch.alerts.transform.SearchTransform;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
@@ -57,7 +60,16 @@ public final class AlertsTestUtils {
     }
 
     public static SearchRequest matchAllRequest() {
-        return new SearchRequest().source(SearchSourceBuilder.searchSource().query(matchAllQuery()));
+        return matchAllRequest(null);
+    }
+
+    public static SearchRequest matchAllRequest(IndicesOptions indicesOptions) {
+        SearchRequest request = new SearchRequest(Strings.EMPTY_ARRAY)
+                .source(SearchSourceBuilder.searchSource().query(matchAllQuery()).buildAsBytes(XContentType.JSON), false);
+        if (indicesOptions != null) {
+            request.indicesOptions(indicesOptions);
+        }
+        return request;
     }
 
     public static Alert createTestAlert(String alertName, ScriptServiceProxy scriptService, HttpClient httpClient, EmailService emailService, ESLogger logger) throws AddressException {
@@ -71,7 +83,7 @@ public final class AlertsTestUtils {
         Template url = new ScriptTemplate(scriptService, "http://localhost/foobarbaz/{{alert_name}}");
         Template body = new ScriptTemplate(scriptService, "{{alert_name}} executed with {{response.hits.total}} hits");
 
-        actions.add(new WebhookAction(logger, httpClient, HttpMethod.GET, url, body));
+        actions.add(new WebhookAction(logger, null, httpClient, HttpMethod.GET, url, body));
 
         Email.Address from = new Email.Address("from@test.com");
         List<Email.Address> emailAddressList = new ArrayList<>();
@@ -84,7 +96,7 @@ public final class AlertsTestUtils {
         emailBuilder.to(to);
 
 
-        EmailAction emailAction = new EmailAction(logger, emailService, emailBuilder.build(),
+        EmailAction emailAction = new EmailAction(logger, null, emailService, emailBuilder.build(),
                 new Authentication("testname", "testpassword"), Profile.STANDARD, "testaccount", body, body, null, true);
 
         actions.add(emailAction);

@@ -63,6 +63,23 @@ public class ScriptTransform extends Transform {
         return builder.value(script);
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        ScriptTransform transform = (ScriptTransform) o;
+
+        if (!script.equals(transform.script)) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        return script.hashCode();
+    }
+
     public static class Parser implements Transform.Parser<ScriptTransform> {
 
         private final ScriptServiceProxy scriptService;

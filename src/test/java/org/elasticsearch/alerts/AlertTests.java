@@ -26,6 +26,7 @@ import org.elasticsearch.alerts.input.search.SearchInput;
 import org.elasticsearch.alerts.input.simple.SimpleInput;
 import org.elasticsearch.alerts.scheduler.schedule.*;
 import org.elasticsearch.alerts.scheduler.schedule.support.*;
+import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.Script;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
@@ -76,6 +77,8 @@ public class AlertTests extends ElasticsearchTestCase {
     @Test @Repeat(iterations = 20)
     public void testParser_SelfGenerated() throws Exception {
 
+        TransformRegistry transformRegistry = transformRegistry();
+
         Schedule schedule = randomSchedule();
         ScheduleRegistry scheduleRegistry = registry(schedule);
 
@@ -86,10 +89,9 @@ public class AlertTests extends ElasticsearchTestCase {
         ConditionRegistry conditionRegistry = registry(condition);
 
         Transform transform = randomTransform();
-        TransformRegistry transformRegistry = registry(transform);
 
         Actions actions = randomActions();
-        ActionRegistry actionRegistry = registry(actions);
+        ActionRegistry actionRegistry = registry(actions, transformRegistry);
 
         Map<String, Object> metadata = ImmutableMap.<String, Object>of("_key", "_val");
 
@@ -218,60 +220,52 @@ public class AlertTests extends ElasticsearchTestCase {
             case ScriptTransform.TYPE:
                 return new ScriptTransform(scriptService, new Script("_script"));
             case SearchTransform.TYPE:
-                return new SearchTransform(logger, scriptService, client, matchAllRequest());
+                return new SearchTransform(logger, scriptService, client, matchAllRequest(AlertUtils.DEFAULT_INDICES_OPTIONS));
             default: // chain
                 return new ChainTransform(ImmutableList.of(
-                        new SearchTransform(logger, scriptService, client, matchAllRequest()),
+                        new SearchTransform(logger, scriptService, client, matchAllRequest(AlertUtils.DEFAULT_INDICES_OPTIONS)),
                         new ScriptTransform(scriptService, new Script("_script"))));
         }
     }
 
-    private TransformRegistry registry(Transform transform) {
+    private TransformRegistry transformRegistry() {
         ImmutableMap.Builder<String, Transform.Parser> parsers = ImmutableMap.builder();
-        switch (transform.type()) {
-            case ScriptTransform.TYPE:
-                parsers.put(ScriptTransform.TYPE, new ScriptTransform.Parser(scriptService));
-                return new TransformRegistry(parsers.build());
-            case SearchTransform.TYPE:
-                parsers.put(SearchTransform.TYPE, new SearchTransform.Parser(settings, scriptService, client));
-                return new TransformRegistry(parsers.build());
-            default:
-                ChainTransform.Parser parser = new ChainTransform.Parser();
-                parsers.put(ChainTransform.TYPE, parser);
-                parsers.put(ScriptTransform.TYPE, new ScriptTransform.Parser(scriptService));
-                parsers.put(SearchTransform.TYPE, new SearchTransform.Parser(settings, scriptService, client));
-                TransformRegistry registry = new TransformRegistry(parsers.build());
-                parser.init(registry);
-                return registry;
-        }
+        ChainTransform.Parser parser = new ChainTransform.Parser();
+        parsers.put(ChainTransform.TYPE, parser);
+        parsers.put(ScriptTransform.TYPE, new ScriptTransform.Parser(scriptService));
+        parsers.put(SearchTransform.TYPE, new SearchTransform.Parser(settings, scriptService, client));
+        TransformRegistry registry = new TransformRegistry(parsers.build());
+        parser.init(registry);
+        return registry;
     }
 
     private Actions randomActions() {
         ImmutableList.Builder<Action> list = ImmutableList.builder();
         if (randomBoolean()) {
-            list.add(new EmailAction(logger, emailService, Email.builder().id("prototype").build(), null, Profile.STANDARD, null, null, null, null, randomBoolean()));
+            Transform transform = randomTransform();
+            list.add(new EmailAction(logger, transform, emailService, Email.builder().id("prototype").build(), null, Profile.STANDARD, null, null, null, null, randomBoolean()));
         }
         if (randomBoolean()) {
-            list.add(new IndexAction(logger, client, "_index", "_type"));
+            list.add(new IndexAction(logger, randomTransform(), client, "_index", "_type"));
         }
         if (randomBoolean()) {
-            list.add(new WebhookAction(logger, httpClient, randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT), new ScriptTemplate(scriptService, "_url"), null));
+            list.add(new WebhookAction(logger, randomTransform(), httpClient, randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT), new ScriptTemplate(scriptService, "_url"), null));
         }
         return new Actions(list.build());
     }
 
-    private ActionRegistry registry(Actions actions) {
+    private ActionRegistry registry(Actions actions, TransformRegistry transformRegistry) {
         ImmutableMap.Builder<String, Action.Parser> parsers = ImmutableMap.builder();
         for (Action action : actions) {
             switch (action.type()) {
                 case EmailAction.TYPE:
-                    parsers.put(EmailAction.TYPE, new EmailAction.Parser(settings, emailService, templateParser));
+                    parsers.put(EmailAction.TYPE, new EmailAction.Parser(settings, emailService, templateParser, transformRegistry));
                     break;
                 case IndexAction.TYPE:
-                    parsers.put(IndexAction.TYPE, new IndexAction.Parser(settings, client));
+                    parsers.put(IndexAction.TYPE, new IndexAction.Parser(settings, client, transformRegistry));
                     break;
                 case WebhookAction.TYPE:
-                    parsers.put(WebhookAction.TYPE, new WebhookAction.Parser(settings, templateParser, httpClient));
+                    parsers.put(WebhookAction.TYPE, new WebhookAction.Parser(settings, templateParser, httpClient, transformRegistry));
                     break;
             }
         }

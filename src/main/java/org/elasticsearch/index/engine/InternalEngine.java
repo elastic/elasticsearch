@@ -507,6 +507,19 @@ public class InternalEngine extends Engine {
     public void delete(DeleteByQuery delete) throws EngineException {
         try (ReleasableLock _ = readLock.acquire()) {
             ensureOpen();
+            if (delete.origin() == Operation.Origin.RECOVERY) {
+                // Don't throttle recovery operations
+                innerDelete(delete);
+            } else {
+                try (Releasable r = throttle.acquireThrottle()) {
+                    innerDelete(delete);
+                }
+            }
+        }
+    }
+
+    private void innerDelete(DeleteByQuery delete) throws EngineException {
+        try {
             Query query;
             if (delete.nested() && delete.aliasFilter() != null) {
                 query = new IncludeNestedDocsQuery(new FilteredQuery(delete.query(), delete.aliasFilter()), delete.parentFilter());

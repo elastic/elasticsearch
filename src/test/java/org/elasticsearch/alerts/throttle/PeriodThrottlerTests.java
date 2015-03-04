@@ -14,10 +14,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
+import static org.elasticsearch.alerts.test.AlertsTestUtils.EMPTY_PAYLOAD;
+import static org.elasticsearch.alerts.test.AlertsTestUtils.mockExecutionContext;
 import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.startsWith;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -32,11 +32,9 @@ public class PeriodThrottlerTests extends ElasticsearchTestCase {
         TimeValue period = TimeValue.timeValueSeconds(randomIntBetween(2, 5));
         PeriodThrottler throttler = new PeriodThrottler(period, periodType);
 
-        ExecutionContext ctx = mock(ExecutionContext.class);
-        Alert alert = mock(Alert.class);
+        ExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
         Alert.Status status = mock(Alert.Status.class);
-        when(ctx.alert()).thenReturn(alert);
-        when(alert.status()).thenReturn(status);
+        when(ctx.alert().status()).thenReturn(status);
         when(status.lastExecuted()).thenReturn(new DateTime().minusSeconds((int) period.seconds() - 1));
 
         Throttler.Result result = throttler.throttle(ctx);
@@ -52,11 +50,9 @@ public class PeriodThrottlerTests extends ElasticsearchTestCase {
         TimeValue period = TimeValue.timeValueSeconds(randomIntBetween(2, 5));
         PeriodThrottler throttler = new PeriodThrottler(period, periodType);
 
-        ExecutionContext ctx = mock(ExecutionContext.class);
-        Alert alert = mock(Alert.class);
+        ExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
         Alert.Status status = mock(Alert.Status.class);
-        when(ctx.alert()).thenReturn(alert);
-        when(alert.status()).thenReturn(status);
+        when(ctx.alert().status()).thenReturn(status);
         when(status.lastExecuted()).thenReturn(new DateTime().minusSeconds((int) period.seconds() + 1));
 
         Throttler.Result result = throttler.throttle(ctx);

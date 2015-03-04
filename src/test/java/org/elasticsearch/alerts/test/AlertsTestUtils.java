@@ -30,6 +30,7 @@ import org.elasticsearch.alerts.support.template.ScriptTemplate;
 import org.elasticsearch.alerts.support.template.Template;
 import org.elasticsearch.alerts.transform.SearchTransform;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
@@ -54,6 +55,8 @@ import static org.mockito.Mockito.when;
  */
 public final class AlertsTestUtils {
 
+    public static final Payload EMPTY_PAYLOAD = new Payload.Simple(ImmutableMap.<String, Object>of());
+
     private AlertsTestUtils() {
     }
 
@@ -77,12 +80,16 @@ public final class AlertsTestUtils {
         return request;
     }
 
+    public static Payload simplePayload(String key, Object value) {
+        return new Payload.Simple(key, value);
+    }
+
     public static ExecutionContext mockExecutionContext(String alertName, Payload payload) {
         DateTime now = DateTime.now();
         return mockExecutionContext(now, now, alertName, payload);
     }
 
-    public static ExecutionContext mockExecutionContext(DateTime firedTime, DateTime scheduledTime, String alertName, Payload payload) {
+    public static ExecutionContext mockExecutionContext(DateTime scheduledTime, DateTime firedTime, String alertName, Payload payload) {
         ExecutionContext ctx = mock(ExecutionContext.class);
         when(ctx.scheduledTime()).thenReturn(scheduledTime);
         when(ctx.fireTime()).thenReturn(firedTime);

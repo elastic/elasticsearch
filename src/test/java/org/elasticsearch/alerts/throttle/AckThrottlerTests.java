@@ -7,11 +7,14 @@ package org.elasticsearch.alerts.throttle;
 
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.ExecutionContext;
+import org.elasticsearch.alerts.test.AlertsTestUtils;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import static org.elasticsearch.alerts.support.AlertsDateUtils.formatDate;
+import static org.elasticsearch.alerts.test.AlertsTestUtils.EMPTY_PAYLOAD;
+import static org.elasticsearch.alerts.test.AlertsTestUtils.mockExecutionContext;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
@@ -25,14 +28,13 @@ public class AckThrottlerTests extends ElasticsearchTestCase {
     @Test
     public void testWhenAcked() throws Exception {
         DateTime timestamp = new DateTime();
-        ExecutionContext ctx = mock(ExecutionContext.class);
-        Alert alert = mock(Alert.class);
+        ExecutionContext ctx = mockExecutionContext("_alert", EMPTY_PAYLOAD);
+        Alert alert = ctx.alert();
         Alert.Status status = mock(Alert.Status.class);
         when(status.ackStatus()).thenReturn(new Alert.Status.AckStatus(Alert.Status.AckStatus.State.ACKED, timestamp));
         when(alert.status()).thenReturn(status);
         when(alert.name()).thenReturn("_alert");
         when(alert.acked()).thenReturn(true);
-        when(ctx.alert()).thenReturn(alert);
         AckThrottler throttler = new AckThrottler();
         Throttler.Result result = throttler.throttle(ctx);
         assertThat(result.throttle(), is(true));
@@ -42,15 +44,13 @@ public class AckThrottlerTests extends ElasticsearchTestCase {
     @Test
     public void testWhenNotAcked() throws Exception {
         DateTime timestamp = new DateTime();
-        ExecutionContext ctx = mock(ExecutionContext.class);
-        Alert alert = mock(Alert.class);
+        ExecutionContext ctx = mockExecutionContext("_alert", EMPTY_PAYLOAD);
+        Alert alert = ctx.alert();
         Alert.Status status = mock(Alert.Status.class);
         Alert.Status.AckStatus.State state = randomFrom(Alert.Status.AckStatus.State.AWAITS_EXECUTION, Alert.Status.AckStatus.State.ACKABLE);
         when(status.ackStatus()).thenReturn(new Alert.Status.AckStatus(state, timestamp));
         when(alert.status()).thenReturn(status);
-        when(alert.name()).thenReturn("_alert");
         when(alert.acked()).thenReturn(false);
-        when(ctx.alert()).thenReturn(alert);
         AckThrottler throttler = new AckThrottler();
         Throttler.Result result = throttler.throttle(ctx);
         assertThat(result.throttle(), is(false));

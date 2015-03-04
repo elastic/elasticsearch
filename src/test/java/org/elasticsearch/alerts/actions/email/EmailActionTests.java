@@ -6,7 +6,6 @@
 package org.elasticsearch.alerts.actions.email;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.actions.ActionSettingsException;
@@ -31,6 +30,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.alerts.test.AlertsTestUtils.mockExecutionContext;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.mock;
@@ -79,17 +79,11 @@ public class EmailActionTests extends ElasticsearchTestCase {
             }
         };
 
-        DateTime now = new DateTime(DateTimeZone.UTC);
+        DateTime now = DateTime.now(DateTimeZone.UTC);
 
         String ctxId = randomAsciiOfLength(5);
-        ExecutionContext ctx = mock(ExecutionContext.class);
+        ExecutionContext ctx = mockExecutionContext(now, now, "alert1", payload);
         when(ctx.id()).thenReturn(ctxId);
-        Alert alert = mock(Alert.class);
-        when(alert.name()).thenReturn("alert1");
-        when(ctx.alert()).thenReturn(alert);
-        when(ctx.fireTime()).thenReturn(now);
-        when(ctx.scheduledTime()).thenReturn(now);
-        when(ctx.payload()).thenReturn(payload);
         if (transform != null) {
             Transform.Result transformResult = mock(Transform.Result.class);
             when(transformResult.type()).thenReturn("_transform_type");

@@ -5,14 +5,12 @@
  */
 package org.elasticsearch.alerts.transform;
 
-import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.support.Script;
 import org.elasticsearch.alerts.support.Variables;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -24,6 +22,7 @@ import org.junit.Test;
 import java.util.Collections;
 import java.util.Map;
 
+import static org.elasticsearch.alerts.test.AlertsTestUtils.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.mock;
@@ -42,15 +41,9 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
         Script script = new Script("_script", type, "_lang", params);
         ScriptTransform transform = new ScriptTransform(service, script);
 
-        DateTime now = new DateTime();
-        ExecutionContext ctx = mock(ExecutionContext.class);
-        when(ctx.scheduledTime()).thenReturn(now);
-        when(ctx.fireTime()).thenReturn(now);
-        Alert alert = mock(Alert.class);
-        when(alert.name()).thenReturn("_name");
-        when(ctx.alert()).thenReturn(alert);
+        ExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
 
-        Payload payload = new Payload.Simple(ImmutableMap.<String, Object>builder().put("key", "value").build());
+        Payload payload = simplePayload("key", "value");
 
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 

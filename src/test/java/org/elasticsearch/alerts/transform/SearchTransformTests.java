@@ -8,7 +8,6 @@ package org.elasticsearch.alerts.transform;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.support.Variables;
@@ -16,8 +15,6 @@ import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.test.AbstractAlertsSingleNodeTests;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -29,14 +26,13 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.alerts.support.AlertsDateUtils.parseDate;
+import static org.elasticsearch.alerts.test.AlertsTestUtils.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 /**
  *
@@ -57,18 +53,9 @@ public class SearchTransformTests extends AbstractAlertsSingleNodeTests {
                 .endObject());
         SearchTransform transform = new SearchTransform(logger, scriptService(), ClientProxy.of(client()), request);
 
-        ExecutionContext ctx = mock(ExecutionContext.class);
-        DateTime now = new DateTime();
-        when(ctx.scheduledTime()).thenReturn(now);
-        when(ctx.fireTime()).thenReturn(now);
-        Alert alert = mock(Alert.class);
-        when(alert.name()).thenReturn("_name");
-        when(ctx.alert()).thenReturn(alert);
+        ExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
 
-
-        Payload payload = new Payload.Simple(new HashMap<String, Object>());
-
-        Transform.Result result = transform.apply(ctx, payload);
+        Transform.Result result = transform.apply(ctx, EMPTY_PAYLOAD);
         assertThat(result, notNullValue());
         assertThat(result.type(), is(SearchTransform.TYPE));
 
@@ -123,16 +110,9 @@ public class SearchTransformTests extends AbstractAlertsSingleNodeTests {
 
         SearchTransform transform = new SearchTransform(logger, scriptService(), ClientProxy.of(client()), request);
 
-        ExecutionContext ctx = mock(ExecutionContext.class);
-        when(ctx.scheduledTime()).thenReturn(parseDate("2015-01-01T00:00:00"));
-        when(ctx.fireTime()).thenReturn(parseDate("2015-01-04T00:00:00"));
-        Alert alert = mock(Alert.class);
-        when(alert.name()).thenReturn("_name");
-        when(ctx.alert()).thenReturn(alert);
+        ExecutionContext ctx = mockExecutionContext(parseDate("2015-01-01T00:00:00"), parseDate("2015-01-04T00:00:00"), "_name", EMPTY_PAYLOAD);
 
-        Payload payload = new Payload.Simple(ImmutableMap.<String, Object>builder()
-                .put("value", "val_3")
-                .build());
+        Payload payload = simplePayload("value", "val_3");
 
         Transform.Result result = transform.apply(ctx, payload);
         assertThat(result, notNullValue());

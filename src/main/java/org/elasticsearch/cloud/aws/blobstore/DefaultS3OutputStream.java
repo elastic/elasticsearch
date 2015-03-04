@@ -21,12 +21,18 @@ package org.elasticsearch.cloud.aws.blobstore;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.model.*;
+import com.amazonaws.util.Base64;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.security.DigestInputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,7 +55,7 @@ import java.util.List;
 public class DefaultS3OutputStream extends S3OutputStream {
 
     private static final ByteSizeValue MULTIPART_MAX_SIZE = new ByteSizeValue(5, ByteSizeUnit.GB);
-
+    private static final ESLogger logger = Loggers.getLogger("cloud.aws");
     /**
      * Multipart Upload API data
      */
@@ -120,7 +126,28 @@ public class DefaultS3OutputStream extends S3OutputStream {
             md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);
         }
         md.setContentLength(length);
-        blobStore.client().putObject(bucketName, blobName, is, md);
+
+        InputStream inputStream = is;
+
+        // We try to compute a MD5 while reading it
+        MessageDigest messageDigest;
+        try {
+            messageDigest = MessageDigest.getInstance("MD5");
+            inputStream = new DigestInputStream(is, messageDigest);
+        } catch (NoSuchAlgorithmException impossible) {
+            // Every implementation of the Java platform is required to support MD5 (see MessageDigest)
+            throw new RuntimeException(impossible);
+        }
+        PutObjectResult putObjectResult = blobStore.client().putObject(bucketName, blobName, inputStream, md);
+
+        String localMd5 = Base64.encodeAsString(messageDigest.digest());
+        String remoteMd5 = putObjectResult.getContentMd5();
+        if (!localMd5.equals(remoteMd5)) {
+            logger.debug("MD5 local [{}], remote [{}] are not equal...", localMd5, remoteMd5);
+            throw new AmazonS3Exception("MD5 local [" + localMd5 +
+                    "], remote [" + remoteMd5 +
+                    "] are not equal...");
+        }
     }
 
     private void initializeMultipart() {

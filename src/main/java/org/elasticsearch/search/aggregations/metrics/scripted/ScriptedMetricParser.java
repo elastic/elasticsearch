@@ -51,7 +51,7 @@ public class ScriptedMetricParser implements Aggregator.Parser {
 
     @Override
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
-        String scriptLang = null;
+        String scriptLang;
         Map<String, Object> params = null;
         Map<String, Object> reduceParams = null;
         XContentParser.Token token;

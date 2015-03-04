@@ -67,17 +67,14 @@ public interface Payload extends ToXContent {
         }
     }
 
-    static class ActionResponse extends Simple {
-
-        public ActionResponse(org.elasticsearch.action.ActionResponse response) {
-            super(responseToData(response));
-        }
-    }
-
     static class XContent extends Simple {
 
         public XContent(XContentParser parser) {
             super(mapOrdered(parser));
+        }
+
+        public XContent(ToXContent response) {
+            super(responseToData(response));
         }
 
         private static Map<String, Object> mapOrdered(XContentParser parser) {

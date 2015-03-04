@@ -6,7 +6,6 @@
 package org.elasticsearch.alerts.support;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -37,7 +36,7 @@ public final class AlertUtils {
     private AlertUtils() {
     }
 
-    public static Map<String, Object> responseToData(ActionResponse response) {
+    public static Map<String, Object> responseToData(ToXContent response) {
         try {
             XContentBuilder builder = jsonBuilder().startObject().value(response).endObject();
             return XContentHelper.convertToMap(builder.bytes(), false).v2();
@@ -101,11 +100,15 @@ public final class AlertUtils {
                                                 break;
                                             case "open":
                                                 expandOpen = true;
+                                                expandClosed = false;
                                                 break;
                                             case "closed":
+                                                expandOpen = false;
                                                 expandClosed = true;
                                                 break;
                                             case "none":
+                                                expandOpen = false;
+                                                expandClosed = false;
                                                 break;
                                             default:
                                                 throw new ElasticsearchIllegalArgumentException("Unexpected value [" + parser.text() + "]");

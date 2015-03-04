@@ -83,7 +83,7 @@ public class SearchInput extends Input<SearchInput.Result> {
 
         }
 
-        return new Result(TYPE, new Payload.ActionResponse(response), request);
+        return new Result(TYPE, new Payload.XContent(response), request);
     }
 
     @Override

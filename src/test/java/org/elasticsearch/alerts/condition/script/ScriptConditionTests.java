@@ -7,7 +7,6 @@ package org.elasticsearch.alerts.condition.script;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertsSettingsException;
 import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
@@ -15,7 +14,6 @@ import org.elasticsearch.alerts.condition.ConditionException;
 import org.elasticsearch.alerts.support.Script;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,7 +37,6 @@ import java.util.Set;
 
 import static org.elasticsearch.alerts.test.AlertsTestUtils.mockExecutionContext;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.mockito.Mockito.*;
 
 /**
  */
@@ -63,7 +60,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
         ScriptCondition condition = new ScriptCondition(logger, scriptService, new Script("ctx.payload.hits.total > 1"));
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
-        ExecutionContext ctx = mockExecutionContext("_name", new Payload.ActionResponse(response));
+        ExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         assertFalse(condition.execute(ctx).met());
     }
 
@@ -73,7 +70,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         Script script = new Script("ctx.payload.hits.total > threshold", ScriptService.ScriptType.INLINE, ScriptService.DEFAULT_LANG, ImmutableMap.<String, Object>of("threshold", 1));
         ScriptCondition condition = new ScriptCondition(logger, scriptService, script);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
-        ExecutionContext ctx = mockExecutionContext("_name", new Payload.ActionResponse(response));
+        ExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         assertFalse(condition.execute(ctx).met());
     }
 
@@ -87,7 +84,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         ScriptCondition condition = conditionParser.parse(parser);
 
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
-        ExecutionContext ctx = mockExecutionContext("_name", new Payload.ActionResponse(response));
+        ExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
 
         assertFalse(condition.execute(ctx).met());
 
@@ -97,7 +94,7 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         parser.nextToken();
         condition = conditionParser.parse(parser);
 
-        ctx = mockExecutionContext("_name", new Payload.ActionResponse(response));
+        ctx = mockExecutionContext("_name", new Payload.XContent(response));
 
         assertTrue(condition.execute(ctx).met());
     }

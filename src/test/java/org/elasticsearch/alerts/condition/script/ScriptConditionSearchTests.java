@@ -78,7 +78,7 @@ public class ScriptConditionSearchTests extends AbstractAlertsSingleNodeTests {
 
         ScriptCondition condition = new ScriptCondition(logger, scriptService, new Script("ctx.payload.aggregations.rate.buckets[0]?.doc_count >= 5"));
 
-        ExecutionContext ctx = mockExecutionContext("_name", new Payload.ActionResponse(response));
+        ExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response));
         assertFalse(condition.execute(ctx).met());
 
         client().prepareIndex("my-index", "my-type").setTimestamp("2005-01-01T00:40").setSource("{}").get();
@@ -88,7 +88,7 @@ public class ScriptConditionSearchTests extends AbstractAlertsSingleNodeTests {
                 .addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp").interval(DateHistogram.Interval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
 
-        ctx = mockExecutionContext("_name", new Payload.ActionResponse(response));
+        ctx = mockExecutionContext("_name", new Payload.XContent(response));
         assertThat(condition.execute(ctx).met(), is(true));
     }
 
@@ -102,10 +102,10 @@ public class ScriptConditionSearchTests extends AbstractAlertsSingleNodeTests {
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[]{hit}, 1l, 1f), null, null, null, false, null);
         SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 500l, new ShardSearchFailure[0]);
 
-        ExecutionContext ctx = mockExecutionContext("_alert_name", new Payload.ActionResponse(response));
+        ExecutionContext ctx = mockExecutionContext("_alert_name", new Payload.XContent(response));
         assertThat(condition.execute(ctx).met(), is(true));
         hit.score(2f);
-        when(ctx.payload()).thenReturn(new Payload.ActionResponse(response));
+        when(ctx.payload()).thenReturn(new Payload.XContent(response));
         assertThat(condition.execute(ctx).met(), is(false));
     }
 

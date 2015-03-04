@@ -60,7 +60,7 @@ public class SearchTransformTests extends AbstractAlertsSingleNodeTests {
         assertThat(result.type(), is(SearchTransform.TYPE));
 
         SearchResponse response = client().search(request).get();
-        Payload expectedPayload = new Payload.ActionResponse(response);
+        Payload expectedPayload = new Payload.XContent(response);
 
         // we need to remove the "took" field from teh response as this is the only field
         // that most likely be different between the two... we don't really care about this
@@ -121,7 +121,7 @@ public class SearchTransformTests extends AbstractAlertsSingleNodeTests {
         SearchResponse response = client().prepareSearch("idx").setQuery(
                 filteredQuery(matchAllQuery(), termFilter("value", "val_3")))
                 .get();
-        Payload expectedPayload = new Payload.ActionResponse(response);
+        Payload expectedPayload = new Payload.XContent(response);
 
         // we need to remove the "took" field from teh response as this is the only field
         // that most likely be different between the two... we don't really care about this

@@ -24,7 +24,12 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.ReduceSearchPhaseException;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
@@ -227,7 +232,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 }
                 if (successfulOps.get() == 0) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("All shards failed for phase: [{}]", firstPhaseName(), t);
+                        logger.debug("All shards failed for phase: [{}]", t, firstPhaseName());
                     }
                     // no successful ops, raise an exception
                     raiseEarlyFailure(new SearchPhaseExecutionException(firstPhaseName(), "all shards failed", buildShardFailures()));

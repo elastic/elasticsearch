@@ -9,6 +9,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -27,6 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -112,15 +114,8 @@ public class HistoryStore extends AbstractComponent {
             return new LoadResult(false);
         }
 
-        SearchResponse response = client.prepareSearch(ALERT_HISTORY_INDEX_PREFIX + "*")
-                .setQuery(QueryBuilders.termQuery(FiredAlert.Parser.STATE_FIELD.getPreferredName(), firedAlertState.id()))
-                .setSearchType(SearchType.SCAN)
-                .setScroll(scrollTimeout)
-                .setSize(scrollSize)
-                .setTypes(ALERT_HISTORY_TYPE)
-                .setPreference("_primary")
-                .setVersion(true)
-                .get();
+        SearchRequest searchRequest = createScanSearchRequest(firedAlertState);
+        SearchResponse response = client.search(searchRequest).actionGet();
         List<FiredAlert> alerts = new ArrayList<>();
         try {
             if (response.getTotalShards() != response.getSuccessfulShards()) {
@@ -152,6 +147,21 @@ public class HistoryStore extends AbstractComponent {
      */
     public static String getAlertHistoryIndexNameForTime(DateTime time) {
         return ALERT_HISTORY_INDEX_PREFIX + alertHistoryIndexTimeFormat.print(time);
+    }
+
+    private SearchRequest createScanSearchRequest(FiredAlert.State firedAlertState) {
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
+                .query(QueryBuilders.termQuery(FiredAlert.Parser.STATE_FIELD.getPreferredName(), firedAlertState.id()))
+                .size(scrollSize)
+                .version(true);
+
+        SearchRequest searchRequest = new SearchRequest(ALERT_HISTORY_INDEX_PREFIX + "*");
+        searchRequest.source(sourceBuilder);
+        searchRequest.searchType(SearchType.SCAN);
+        searchRequest.types(ALERT_HISTORY_TYPE);
+        searchRequest.scroll(scrollTimeout);
+        searchRequest.preference("_primary");
+        return searchRequest;
     }
 
     public class LoadResult implements Iterable<FiredAlert> {

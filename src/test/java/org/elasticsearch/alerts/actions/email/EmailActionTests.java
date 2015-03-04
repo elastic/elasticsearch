@@ -59,8 +59,8 @@ public class EmailActionTests extends ElasticsearchTestCase {
         Authentication auth = new Authentication("user", "passwd");
         Profile profile = randomFrom(Profile.values());
 
-        Template subject = mock(Template.class);
-        Template textBody = mock(Template.class);
+        Template subject = randomBoolean() ? null : mock(Template.class);
+        Template textBody = randomBoolean() ? null : mock(Template.class);
         Template htmlBody = randomBoolean() ? null : mock(Template.class);
         boolean attachPayload = randomBoolean();
         Transform transform = randomBoolean() ? null : mock(Transform.class);
@@ -98,8 +98,12 @@ public class EmailActionTests extends ElasticsearchTestCase {
                     .put("scheduled_fire_time", now).build())
                 .build();
 
-        when(subject.render(expectedModel)).thenReturn("_subject");
-        when(textBody.render(expectedModel)).thenReturn("_text_body");
+        if (subject != null) {
+            when(subject.render(expectedModel)).thenReturn("_subject");
+        }
+        if (textBody != null) {
+            when(textBody.render(expectedModel)).thenReturn("_text_body");
+        }
         if (htmlBody != null) {
             when (htmlBody.render(expectedModel)).thenReturn("_html_body");
         }
@@ -112,8 +116,8 @@ public class EmailActionTests extends ElasticsearchTestCase {
         Email actualEmail = ((EmailAction.Result.Success) result).email();
         assertThat(actualEmail.id(), is(ctxId));
         assertThat(actualEmail, notNullValue());
-        assertThat(actualEmail.subject(), is("_subject"));
-        assertThat(actualEmail.textBody(), is("_text_body"));
+        assertThat(actualEmail.subject(), is(subject == null ? "" : "_subject"));
+        assertThat(actualEmail.textBody(), is(textBody == null ? "" : "_text_body"));
         if (htmlBody != null) {
             assertThat(actualEmail.htmlBody(), is("_html_body"));
         }

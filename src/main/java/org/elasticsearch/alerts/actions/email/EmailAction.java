@@ -38,15 +38,16 @@ public class EmailAction extends Action<EmailAction.Result> {
     final Authentication auth;
     final Profile profile;
     final String account;
-    final Template subject;
-    final Template textBody;
-    final Template htmlBody;
+    final @Nullable Template subject;
+    final @Nullable Template textBody;
+    final @Nullable Template htmlBody;
     final boolean attachPayload;
 
     final EmailService emailService;
 
-    public EmailAction(ESLogger logger, @Nullable Transform transform, EmailService emailService, Email emailPrototype, Authentication auth, Profile profile,
-                       String account, Template subject, Template textBody, Template htmlBody, boolean attachPayload) {
+    public EmailAction(ESLogger logger, @Nullable Transform transform, EmailService emailService, Email emailPrototype,
+                       Authentication auth, Profile profile, String account, @Nullable Template subject,
+                       @Nullable Template textBody, @Nullable Template htmlBody, boolean attachPayload) {
 
         super(logger, transform);
         this.emailService = emailService;
@@ -74,8 +75,8 @@ public class EmailAction extends Action<EmailAction.Result> {
                 .copyFrom(emailPrototype);
 
         email.id(ctx.id());
-        email.subject(subject.render(model));
-        email.textBody(textBody.render(model));
+        email.subject(subject != null ? subject.render(model) : "");
+        email.textBody(textBody != null ? textBody.render(model) : "");
 
         if (htmlBody != null) {
             email.htmlBody(htmlBody.render(model));

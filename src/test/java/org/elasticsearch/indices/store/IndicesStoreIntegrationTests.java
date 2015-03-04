@@ -151,6 +151,10 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
                         .build();
             }
 
+            public boolean runOnlyOnMaster() {
+                return false;
+            }
+
             @Override
             public void onFailure(String source, Throwable t) {
             }

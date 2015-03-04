@@ -32,7 +32,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.nio.file.Path;
@@ -51,7 +50,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     @Test
-    @TestLogging("index.gateway:TRACE")
     public void testIndexWithFewDocuments() throws Exception {
         Settings nodeSettings = ImmutableSettings.builder()
                 .put("node.add_id_to_custom_path", false)

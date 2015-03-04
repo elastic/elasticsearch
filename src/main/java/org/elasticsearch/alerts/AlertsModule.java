@@ -14,6 +14,7 @@ import org.elasticsearch.alerts.input.InputModule;
 import org.elasticsearch.alerts.rest.AlertsRestModule;
 import org.elasticsearch.alerts.scheduler.SchedulerModule;
 import org.elasticsearch.alerts.support.TemplateUtils;
+import org.elasticsearch.alerts.support.clock.ClockModule;
 import org.elasticsearch.alerts.support.init.InitializingModule;
 import org.elasticsearch.alerts.support.template.TemplateModule;
 import org.elasticsearch.alerts.transform.TransformModule;
@@ -31,6 +32,7 @@ public class AlertsModule extends AbstractModule implements SpawnModules {
         return ImmutableList.of(
                 new InitializingModule(),
                 new TemplateModule(),
+                new ClockModule(),
                 new AlertsClientModule(),
                 new TransformModule(),
                 new AlertsRestModule(),
@@ -44,14 +46,12 @@ public class AlertsModule extends AbstractModule implements SpawnModules {
 
     @Override
     protected void configure() {
-
         bind(Alert.Parser.class).asEagerSingleton();
         bind(AlertLockService.class).asEagerSingleton();
         bind(AlertsLifeCycleService.class).asEagerSingleton();
         bind(AlertsService.class).asEagerSingleton();
         bind(AlertsStore.class).asEagerSingleton();
         bind(TemplateUtils.class).asEagerSingleton();
-
     }
 
 }

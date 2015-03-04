@@ -13,6 +13,7 @@ import org.elasticsearch.alerts.condition.simple.AlwaysFalseCondition;
 import org.elasticsearch.alerts.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.alerts.input.Input;
 import org.elasticsearch.alerts.scheduler.Scheduler;
+import org.elasticsearch.alerts.support.clock.SystemClock;
 import org.elasticsearch.alerts.throttle.Throttler;
 import org.elasticsearch.alerts.transform.Transform;
 import org.elasticsearch.cluster.ClusterService;
@@ -25,9 +26,7 @@ import org.junit.Test;
 
 import java.util.Arrays;
 
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.same;
 import static org.mockito.Mockito.*;
@@ -56,7 +55,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         AlertLockService alertLockService = mock(AlertLockService.class);
         Scheduler scheduler = mock(Scheduler.class);
         ClusterService clusterService = mock(ClusterService.class);
-        historyService = new HistoryService(ImmutableSettings.EMPTY, historyStore, threadPool, alertsStore, alertLockService, scheduler, clusterService);
+        historyService = new HistoryService(ImmutableSettings.EMPTY, historyStore, threadPool, alertsStore, alertLockService, scheduler, clusterService, SystemClock.INSTANCE);
     }
 
     @Test
@@ -87,7 +86,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         when(alert.actions()).thenReturn(actions);
         when(alert.status()).thenReturn(alertStatus);
 
-        ExecutionContext context = new ExecutionContext("1", alert, DateTime.now(), DateTime.now());
+        ExecutionContext context = new ExecutionContext("1", alert, DateTime.now(), DateTime.now(), DateTime.now());
         AlertExecution alertExecution = historyService.execute(context);
         assertThat(alertExecution.conditionResult(), sameInstance(conditionResult));
         assertThat(alertExecution.transformResult(), sameInstance(transformResult));
@@ -130,7 +129,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         when(alert.actions()).thenReturn(actions);
         when(alert.status()).thenReturn(alertStatus);
 
-        ExecutionContext context = new ExecutionContext("1", alert, DateTime.now(), DateTime.now());
+        ExecutionContext context = new ExecutionContext("1", alert, DateTime.now(), DateTime.now(), DateTime.now());
         AlertExecution alertExecution = historyService.execute(context);
         assertThat(alertExecution.inputResult(), sameInstance(inputResult));
         assertThat(alertExecution.conditionResult(), sameInstance(conditionResult));
@@ -173,7 +172,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         when(alert.actions()).thenReturn(actions);
         when(alert.status()).thenReturn(alertStatus);
 
-        ExecutionContext context = new ExecutionContext("1", alert, DateTime.now(), DateTime.now());
+        ExecutionContext context = new ExecutionContext("1", alert, DateTime.now(), DateTime.now(), DateTime.now());
         AlertExecution alertExecution = historyService.execute(context);
         assertThat(alertExecution.inputResult(), sameInstance(inputResult));
         assertThat(alertExecution.conditionResult(), sameInstance(conditionResult));

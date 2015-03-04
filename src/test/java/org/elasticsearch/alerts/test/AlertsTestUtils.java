@@ -24,6 +24,7 @@ import org.elasticsearch.alerts.input.search.SearchInput;
 import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
 import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.Script;
+import org.elasticsearch.alerts.support.clock.SystemClock;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.support.template.ScriptTemplate;
@@ -85,14 +86,18 @@ public final class AlertsTestUtils {
     }
 
     public static ExecutionContext mockExecutionContext(String alertName, Payload payload) {
-        DateTime now = DateTime.now();
-        return mockExecutionContext(now, now, alertName, payload);
+        return mockExecutionContext(DateTime.now(), alertName, payload);
     }
 
-    public static ExecutionContext mockExecutionContext(DateTime scheduledTime, DateTime firedTime, String alertName, Payload payload) {
+    public static ExecutionContext mockExecutionContext(DateTime time, String alertName, Payload payload) {
+        return mockExecutionContext(time, time, time, alertName, payload);
+    }
+
+    public static ExecutionContext mockExecutionContext(DateTime executionTime, DateTime firedTime, DateTime scheduledTime, String alertName, Payload payload) {
         ExecutionContext ctx = mock(ExecutionContext.class);
-        when(ctx.scheduledTime()).thenReturn(scheduledTime);
+        when(ctx.executionTime()).thenReturn(executionTime);
         when(ctx.fireTime()).thenReturn(firedTime);
+        when(ctx.scheduledTime()).thenReturn(scheduledTime);
         Alert alert = mock(Alert.class);
         when(alert.name()).thenReturn(alertName);
         when(ctx.alert()).thenReturn(alert);
@@ -134,9 +139,9 @@ public final class AlertsTestUtils {
 
         return new Alert(
                 alertName,
+                SystemClock.INSTANCE,
                 new CronSchedule("0/5 * * * * ? *"),
-                new SearchInput(logger, scriptService, ClientProxy.of(ElasticsearchIntegrationTest.client()),
-                        conditionRequest),
+                new SearchInput(logger, scriptService, ClientProxy.of(ElasticsearchIntegrationTest.client()), conditionRequest),
                 new ScriptCondition(logger, scriptService, new Script("return true")),
                 new SearchTransform(logger, scriptService, ClientProxy.of(ElasticsearchIntegrationTest.client()), transformRequest),
                 new Actions(actions),

@@ -68,7 +68,7 @@ public class SearchInput extends Input<SearchInput.Result> {
     @Override
     public Result execute(ExecutionContext ctx) throws IOException {
 
-        SearchRequest request = createSearchRequestWithTimes(this.searchRequest, ctx.scheduledTime(), ctx.fireTime(), scriptService);
+        SearchRequest request = createSearchRequestWithTimes(this.searchRequest, ctx.scheduledTime(), ctx.fireTime(), ctx.executionTime(), scriptService);
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.alert().name(), XContentHelper.convertToJson(request.source(), false, true));
         }
@@ -111,7 +111,7 @@ public class SearchInput extends Input<SearchInput.Result> {
     /**
      * Creates a new search request applying the scheduledFireTime and fireTime to the original request
      */
-    public static SearchRequest createSearchRequestWithTimes(SearchRequest requestPrototype, DateTime scheduledFireTime, DateTime fireTime, ScriptServiceProxy scriptService) throws IOException {
+    public static SearchRequest createSearchRequestWithTimes(SearchRequest requestPrototype, DateTime scheduledFireTime, DateTime fireTime, DateTime executionTime, ScriptServiceProxy scriptService) throws IOException {
         SearchRequest request = new SearchRequest(requestPrototype)
                 .indicesOptions(requestPrototype.indicesOptions())
                 .searchType(requestPrototype.searchType())
@@ -120,6 +120,7 @@ public class SearchInput extends Input<SearchInput.Result> {
             Map<String, String> templateParams = new HashMap<>();
             templateParams.put(Variables.SCHEDULED_FIRE_TIME, formatDate(scheduledFireTime));
             templateParams.put(Variables.FIRE_TIME, formatDate(fireTime));
+            templateParams.put(Variables.EXECUTION_TIME, formatDate(executionTime));
             String requestSource = XContentHelper.convertToJson(requestPrototype.source(), false);
             ExecutableScript script = scriptService.executable("mustache", requestSource, ScriptService.ScriptType.INLINE, templateParams);
             request.source((BytesReference) script.unwrap(script.run()), false);

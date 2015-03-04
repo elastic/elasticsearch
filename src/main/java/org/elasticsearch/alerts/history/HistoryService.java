@@ -12,6 +12,7 @@ import org.elasticsearch.alerts.condition.Condition;
 import org.elasticsearch.alerts.input.Input;
 import org.elasticsearch.alerts.scheduler.Scheduler;
 import org.elasticsearch.alerts.support.Callback;
+import org.elasticsearch.alerts.support.clock.Clock;
 import org.elasticsearch.alerts.throttle.Throttler;
 import org.elasticsearch.alerts.transform.Transform;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -41,6 +42,7 @@ public class HistoryService extends AbstractComponent {
     private final AlertsStore alertsStore;
     private final ClusterService clusterService;
     private final AlertLockService alertLockService;
+    private final Clock clock;
 
     private final AtomicBoolean started = new AtomicBoolean(false);
     private final AtomicInteger initializationRetries = new AtomicInteger();
@@ -48,13 +50,14 @@ public class HistoryService extends AbstractComponent {
     @Inject
     public HistoryService(Settings settings, HistoryStore historyStore, ThreadPool threadPool,
                           AlertsStore alertsStore, AlertLockService alertLockService, Scheduler scheduler,
-                          ClusterService clusterService) {
+                          ClusterService clusterService, Clock clock) {
         super(settings);
         this.historyStore = historyStore;
         this.threadPool = threadPool;
         this.alertsStore = alertsStore;
         this.alertLockService = alertLockService;
         this.clusterService = clusterService;
+        this.clock = clock;
         scheduler.addListener(new SchedulerListener());
     }
 
@@ -227,7 +230,7 @@ public class HistoryService extends AbstractComponent {
             try {
                 firedAlert.update(FiredAlert.State.CHECKING, null);
                 logger.debug("checking alert [{}]", firedAlert.name());
-                ExecutionContext ctx = new ExecutionContext(firedAlert.id(), alert, firedAlert.fireTime(), firedAlert.scheduledTime());
+                ExecutionContext ctx = new ExecutionContext(firedAlert.id(), alert, clock.now(), firedAlert.fireTime(), firedAlert.scheduledTime());
                 AlertExecution alertExecution = execute(ctx);
                 firedAlert.update(alertExecution);
                 historyStore.update(firedAlert);

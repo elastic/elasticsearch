@@ -81,7 +81,7 @@ public class SearchTransformTests extends AbstractAlertsSingleNodeTests {
         // - we index 4 documents each one associated with a unique value and each is associated with a day
         // - we build a search transform such that with a filter that
         //   - the date must be after [scheduled_time] variable
-        //   - the date must be before [fired_time] variable
+        //   - the date must be before [execution_time] variable
         //   - the value must match [payload.value] variable
         // - the variable are set as such:
         //   - scheduled_time = youngest document's date
@@ -105,12 +105,12 @@ public class SearchTransformTests extends AbstractAlertsSingleNodeTests {
 
         SearchRequest request = Requests.searchRequest("idx").source(searchSource().query(filteredQuery(matchAllQuery(), boolFilter()
                 .must(rangeFilter("date").gt("{{" + Variables.CTX + "." + Variables.SCHEDULED_FIRE_TIME + "}}"))
-                .must(rangeFilter("date").lt("{{" + Variables.CTX + "." + Variables.FIRE_TIME + "}}"))
+                .must(rangeFilter("date").lt("{{" + Variables.CTX + "." + Variables.EXECUTION_TIME + "}}"))
                 .must(termFilter("value", "{{" + Variables.CTX + "." + Variables.PAYLOAD + ".value}}")))));
 
         SearchTransform transform = new SearchTransform(logger, scriptService(), ClientProxy.of(client()), request);
 
-        ExecutionContext ctx = mockExecutionContext(parseDate("2015-01-01T00:00:00"), parseDate("2015-01-04T00:00:00"), "_name", EMPTY_PAYLOAD);
+        ExecutionContext ctx = mockExecutionContext(parseDate("2015-01-04T00:00:00"), parseDate("2015-01-04T00:00:00"), parseDate("2015-01-01T00:00:00"), "_name", EMPTY_PAYLOAD);
 
         Payload payload = simplePayload("value", "val_3");
 

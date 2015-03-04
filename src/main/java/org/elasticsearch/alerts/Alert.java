@@ -16,6 +16,7 @@ import org.elasticsearch.alerts.input.NoneInput;
 import org.elasticsearch.alerts.scheduler.Scheduler;
 import org.elasticsearch.alerts.scheduler.schedule.Schedule;
 import org.elasticsearch.alerts.scheduler.schedule.ScheduleRegistry;
+import org.elasticsearch.alerts.support.clock.Clock;
 import org.elasticsearch.alerts.throttle.AlertThrottler;
 import org.elasticsearch.alerts.throttle.Throttler;
 import org.elasticsearch.alerts.transform.Transform;
@@ -60,7 +61,7 @@ public class Alert implements Scheduler.Job, ToXContent {
     @Nullable
     private final Transform transform;
 
-    public Alert(String name, Schedule schedule, Input input, Condition condition, @Nullable Transform transform, Actions actions, @Nullable Map<String, Object> metadata, @Nullable TimeValue throttlePeriod, @Nullable Status status) {
+    public Alert(String name, Clock clock, Schedule schedule, Input input, Condition condition, @Nullable Transform transform, Actions actions, @Nullable Map<String, Object> metadata, @Nullable TimeValue throttlePeriod, @Nullable Status status) {
         this.name = name;
         this.schedule = schedule;
         this.input = input;
@@ -70,7 +71,7 @@ public class Alert implements Scheduler.Job, ToXContent {
         this.throttlePeriod = throttlePeriod;
         this.metadata = metadata;
         this.transform = transform;
-        throttler = new AlertThrottler(throttlePeriod);
+        throttler = new AlertThrottler(clock, throttlePeriod);
     }
 
     public String name() {
@@ -175,6 +176,7 @@ public class Alert implements Scheduler.Job, ToXContent {
         private final TransformRegistry transformRegistry;
         private final ActionRegistry actionRegistry;
         private final InputRegistry inputRegistry;
+        private final Clock clock;
 
         private final Input defaultInput;
         private final Condition defaultCondition;
@@ -182,7 +184,7 @@ public class Alert implements Scheduler.Job, ToXContent {
         @Inject
         public Parser(Settings settings, ConditionRegistry conditionRegistry, ScheduleRegistry scheduleRegistry,
                       TransformRegistry transformRegistry, ActionRegistry actionRegistry,
-                      InputRegistry inputRegistry) {
+                      InputRegistry inputRegistry, Clock clock) {
 
             super(settings);
             this.conditionRegistry = conditionRegistry;
@@ -190,6 +192,7 @@ public class Alert implements Scheduler.Job, ToXContent {
             this.transformRegistry = transformRegistry;
             this.actionRegistry = actionRegistry;
             this.inputRegistry = inputRegistry;
+            this.clock = clock;
 
             this.defaultInput = new NoneInput(logger);
             this.defaultCondition = new AlwaysTrueCondition(logger);
@@ -256,7 +259,7 @@ public class Alert implements Scheduler.Job, ToXContent {
                 throw new AlertsSettingsException("could not parse alert [" + name + "]. missing alert actions");
             }
 
-            return new Alert(name, schedule, input, condition, transform, actions, metatdata, throttlePeriod, status);
+            return new Alert(name, clock, schedule, input, condition, transform, actions, metatdata, throttlePeriod, status);
         }
 
     }

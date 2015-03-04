@@ -6,6 +6,7 @@
 package org.elasticsearch.alerts.throttle;
 
 import org.elasticsearch.alerts.ExecutionContext;
+import org.elasticsearch.alerts.support.clock.Clock;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -19,8 +20,8 @@ public class AlertThrottler implements Throttler {
     private final PeriodThrottler periodThrottler;
     private final AckThrottler ackThrottler;
 
-    public AlertThrottler(@Nullable TimeValue throttlePeriod) {
-        this(throttlePeriod != null ? new PeriodThrottler(throttlePeriod) : null, ACK_THROTTLER);
+    public AlertThrottler(Clock clock, @Nullable TimeValue throttlePeriod) {
+        this(throttlePeriod != null ? new PeriodThrottler(clock, throttlePeriod) : null, ACK_THROTTLER);
     }
 
     AlertThrottler(PeriodThrottler periodThrottler, AckThrottler ackThrottler) {

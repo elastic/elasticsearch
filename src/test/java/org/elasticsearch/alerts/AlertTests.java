@@ -28,6 +28,7 @@ import org.elasticsearch.alerts.scheduler.schedule.*;
 import org.elasticsearch.alerts.scheduler.schedule.support.*;
 import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.Script;
+import org.elasticsearch.alerts.support.clock.SystemClock;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.support.template.ScriptTemplate;
@@ -99,11 +100,11 @@ public class AlertTests extends ElasticsearchTestCase {
 
         TimeValue throttlePeriod = randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(5, 10));
 
-        Alert alert = new Alert("_name", schedule, input, condition, transform, actions, metadata, throttlePeriod, status);
+        Alert alert = new Alert("_name", SystemClock.INSTANCE, schedule, input, condition, transform, actions, metadata, throttlePeriod, status);
 
         BytesReference bytes = XContentFactory.jsonBuilder().value(alert).bytes();
         logger.info(bytes.toUtf8());
-        Alert.Parser alertParser = new Alert.Parser(settings, conditionRegistry, scheduleRegistry, transformRegistry, actionRegistry, inputRegistry);
+        Alert.Parser alertParser = new Alert.Parser(settings, conditionRegistry, scheduleRegistry, transformRegistry, actionRegistry, inputRegistry, SystemClock.INSTANCE);
 
         boolean includeStatus = randomBoolean();
         Alert parsedAlert = alertParser.parse("_name", includeStatus, bytes);

@@ -20,6 +20,7 @@ import org.elasticsearch.alerts.history.HistoryStore;
 import org.elasticsearch.alerts.input.search.SearchInput;
 import org.elasticsearch.alerts.scheduler.schedule.CronSchedule;
 import org.elasticsearch.alerts.support.Script;
+import org.elasticsearch.alerts.support.clock.SystemClock;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.test.AbstractAlertsIntegrationTests;
 import org.elasticsearch.alerts.test.AlertsTestUtils;
@@ -84,6 +85,7 @@ public class BootStrapTests extends AbstractAlertsIntegrationTests {
         SearchRequest searchRequest = AlertsTestUtils.newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
         Alert alert = new Alert(
                 "test-serialization",
+                SystemClock.INSTANCE,
                 new CronSchedule("0/5 * * * * ? 2035"), //Set this into the future so we don't get any extra runs
                 new SearchInput(logger, scriptService(), ClientProxy.of(client()), searchRequest),
                 new ScriptCondition(logger, scriptService(), new Script("return true")),
@@ -143,6 +145,7 @@ public class BootStrapTests extends AbstractAlertsIntegrationTests {
 
                 Alert alert = new Alert(
                         "action-test-"+ i + " " + j,
+                        SystemClock.INSTANCE,
                         new CronSchedule("0/5 * * * * ? 2035"), //Set a cron schedule far into the future so this alert is never scheduled
                         new SearchInput(logger, scriptService(), ClientProxy.of(client()),
                                 searchRequest),

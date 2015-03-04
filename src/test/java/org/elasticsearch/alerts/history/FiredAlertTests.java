@@ -47,7 +47,7 @@ public class FiredAlertTests extends AbstractAlertsIntegrationTests {
     public void testParser_WithSealedFiredAlert() throws Exception {
         Alert alert = AlertsTestUtils.createTestAlert("fired_test", scriptService(), httpClient(), noopEmailService(), logger);
         FiredAlert firedAlert = new FiredAlert(alert, new DateTime(), new DateTime());
-        ExecutionContext ctx = new ExecutionContext(firedAlert.id(), alert, new DateTime(), new DateTime());
+        ExecutionContext ctx = new ExecutionContext(firedAlert.id(), alert, new DateTime(), new DateTime(), new DateTime());
         ctx.onActionResult(new EmailAction.Result.Failure("failed to send because blah"));
         ctx.onActionResult(new WebhookAction.Result.Executed(300, "http://localhost:8000/alertfoo", "{'awesome' : 'us'}"));
         Input.Result inputResult = new SimpleInput.Result(SimpleInput.TYPE, new Payload.Simple());
@@ -69,7 +69,7 @@ public class FiredAlertTests extends AbstractAlertsIntegrationTests {
     public void testParser_WithSealedFiredAlert_WithScriptSearchCondition() throws Exception {
         Alert alert = AlertsTestUtils.createTestAlert("fired_test", scriptService(), httpClient(), noopEmailService(), logger);
         FiredAlert firedAlert = new FiredAlert(alert, new DateTime(), new DateTime());
-        ExecutionContext ctx = new ExecutionContext(firedAlert.id(), alert, new DateTime(), new DateTime());
+        ExecutionContext ctx = new ExecutionContext(firedAlert.id(), alert, new DateTime(), new DateTime(), new DateTime());
         ctx.onActionResult(new EmailAction.Result.Failure("failed to send because blah"));
         ctx.onActionResult(new WebhookAction.Result.Executed(300, "http://localhost:8000/alertfoo", "{'awesome' : 'us'}"));
         Input.Result inputResult = new SimpleInput.Result(SimpleInput.TYPE, new Payload.Simple());

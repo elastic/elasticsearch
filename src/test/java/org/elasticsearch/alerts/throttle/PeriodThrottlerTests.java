@@ -8,6 +8,7 @@ package org.elasticsearch.alerts.throttle;
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.ExecutionContext;
+import org.elasticsearch.alerts.support.clock.SystemClock;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.PeriodType;
 import org.elasticsearch.common.unit.TimeValue;
@@ -30,7 +31,7 @@ public class PeriodThrottlerTests extends ElasticsearchTestCase {
     public void testBelowPeriod() throws Exception {
         PeriodType periodType = randomFrom(PeriodType.millis(), PeriodType.seconds(), PeriodType.minutes());
         TimeValue period = TimeValue.timeValueSeconds(randomIntBetween(2, 5));
-        PeriodThrottler throttler = new PeriodThrottler(period, periodType);
+        PeriodThrottler throttler = new PeriodThrottler(SystemClock.INSTANCE, period, periodType);
 
         ExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
         Alert.Status status = mock(Alert.Status.class);
@@ -48,7 +49,7 @@ public class PeriodThrottlerTests extends ElasticsearchTestCase {
     public void testAbovePeriod() throws Exception {
         PeriodType periodType = randomFrom(PeriodType.millis(), PeriodType.seconds(), PeriodType.minutes());
         TimeValue period = TimeValue.timeValueSeconds(randomIntBetween(2, 5));
-        PeriodThrottler throttler = new PeriodThrottler(period, periodType);
+        PeriodThrottler throttler = new PeriodThrottler(SystemClock.INSTANCE, period, periodType);
 
         ExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
         Alert.Status status = mock(Alert.Status.class);

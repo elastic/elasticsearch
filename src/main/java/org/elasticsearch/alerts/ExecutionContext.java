@@ -22,6 +22,7 @@ public class ExecutionContext {
 
     private final String id;
     private final Alert alert;
+    private final DateTime executionTime;
     private final DateTime fireTime;
     private final DateTime scheduledTime;
 
@@ -33,9 +34,10 @@ public class ExecutionContext {
 
     private Payload payload;
 
-    public ExecutionContext(String id, Alert alert, DateTime fireTime, DateTime scheduledTime) {
+    public ExecutionContext(String id, Alert alert, DateTime executionTime, DateTime fireTime, DateTime scheduledTime) {
         this.id = id;
         this.alert = alert;
+        this.executionTime = executionTime;
         this.fireTime = fireTime;
         this.scheduledTime = scheduledTime;
     }
@@ -46,6 +48,10 @@ public class ExecutionContext {
 
     public Alert alert() {
         return alert;
+    }
+
+    public DateTime executionTime() {
+        return executionTime;
     }
 
     public DateTime fireTime() {
@@ -70,7 +76,7 @@ public class ExecutionContext {
     }
 
     public void onConditionResult(Condition.Result conditionResult) {
-        alert.status().onCheck(conditionResult.met(), fireTime);
+        alert.status().onCheck(conditionResult.met(), executionTime);
         this.conditionResult = conditionResult;
     }
 
@@ -81,9 +87,9 @@ public class ExecutionContext {
     public void onThrottleResult(Throttler.Result throttleResult) {
         this.throttleResult = throttleResult;
         if (throttleResult.throttle()) {
-            alert.status().onThrottle(fireTime, throttleResult.reason());
+            alert.status().onThrottle(executionTime, throttleResult.reason());
         } else {
-            alert.status().onExecution(fireTime);
+            alert.status().onExecution(executionTime);
         }
     }
 

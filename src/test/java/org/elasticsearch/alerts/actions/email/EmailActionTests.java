@@ -82,7 +82,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         DateTime now = DateTime.now(DateTimeZone.UTC);
 
         String ctxId = randomAsciiOfLength(5);
-        ExecutionContext ctx = mockExecutionContext(now, now, "alert1", payload);
+        ExecutionContext ctx = mockExecutionContext(now, "alert1", payload);
         when(ctx.id()).thenReturn(ctxId);
         if (transform != null) {
             Transform.Result transformResult = mock(Transform.Result.class);
@@ -94,6 +94,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
                 .put("ctx", ImmutableMap.<String, Object>builder()
                     .put("alert_name", "alert1")
                     .put("payload", transform == null ? data : new Payload.Simple("_key", "_value").data())
+                    .put("execution_time", now)
                     .put("fire_time", now)
                     .put("scheduled_fire_time", now).build())
                 .build();

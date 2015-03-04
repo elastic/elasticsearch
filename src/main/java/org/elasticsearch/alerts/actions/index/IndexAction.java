@@ -62,7 +62,7 @@ public class IndexAction extends Action<IndexAction.Result> {
             XContentBuilder resultBuilder = XContentFactory.jsonBuilder().prettyPrint();
             resultBuilder.startObject();
             resultBuilder.field("data", payload.data());
-            resultBuilder.field("timestamp", ctx.fireTime());
+            resultBuilder.field("timestamp", ctx.executionTime());
             resultBuilder.endObject();
             indexRequest.source(resultBuilder);
         } catch (IOException ioe) {

@@ -60,7 +60,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
                 ClientProxy.of(client()), request);
         ExecutionContext ctx = new ExecutionContext("test-alert", null,
-                new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
+                new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
         SearchInput.Result result = searchInput.execute(ctx);
 
         assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
@@ -86,7 +86,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
                 ClientProxy.of(client()), request);
         ExecutionContext ctx = new ExecutionContext("test-alert", null,
-                new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
+                new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
         SearchInput.Result result = searchInput.execute(ctx);
 
         assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));

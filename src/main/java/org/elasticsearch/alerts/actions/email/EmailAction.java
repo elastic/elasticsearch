@@ -66,7 +66,7 @@ public class EmailAction extends Action<EmailAction.Result> {
     }
 
     @Override
-    public Result doExecute(ExecutionContext ctx, Payload payload) throws IOException {
+    protected Result execute(ExecutionContext ctx, Payload payload) throws IOException {
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
         Email.Builder email = Email.builder()
@@ -311,7 +311,7 @@ public class EmailAction extends Action<EmailAction.Result> {
                     if (EMAIL_FIELD.match(currentFieldName)) {
                         email = Email.parse(parser);
                     } else if (Transform.Parser.TRANSFORM_RESULT_FIELD.match(currentFieldName)) {
-                        transformResult = Transform.Result.parse(parser);
+                        transformResult = transformRegistry.parseResult(parser);
                     } else {
                         throw new EmailException("could not parse email result. unexpected field [" + currentFieldName + "]");
                     }

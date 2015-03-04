@@ -8,6 +8,8 @@ package org.elasticsearch.alerts.test;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.alerts.Alert;
+import org.elasticsearch.alerts.ExecutionContext;
+import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.actions.Action;
 import org.elasticsearch.alerts.actions.Actions;
 import org.elasticsearch.alerts.actions.email.EmailAction;
@@ -28,6 +30,7 @@ import org.elasticsearch.alerts.support.template.ScriptTemplate;
 import org.elasticsearch.alerts.support.template.Template;
 import org.elasticsearch.alerts.transform.SearchTransform;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
 import org.elasticsearch.common.unit.TimeValue;
@@ -43,6 +46,8 @@ import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
  *
@@ -70,6 +75,22 @@ public final class AlertsTestUtils {
             request.indicesOptions(indicesOptions);
         }
         return request;
+    }
+
+    public static ExecutionContext mockExecutionContext(String alertName, Payload payload) {
+        DateTime now = DateTime.now();
+        return mockExecutionContext(now, now, alertName, payload);
+    }
+
+    public static ExecutionContext mockExecutionContext(DateTime firedTime, DateTime scheduledTime, String alertName, Payload payload) {
+        ExecutionContext ctx = mock(ExecutionContext.class);
+        when(ctx.scheduledTime()).thenReturn(scheduledTime);
+        when(ctx.fireTime()).thenReturn(firedTime);
+        Alert alert = mock(Alert.class);
+        when(alert.name()).thenReturn(alertName);
+        when(ctx.alert()).thenReturn(alert);
+        when(ctx.payload()).thenReturn(payload);
+        return ctx;
     }
 
     public static Alert createTestAlert(String alertName, ScriptServiceProxy scriptService, HttpClient httpClient, EmailService emailService, ESLogger logger) throws AddressException {

@@ -36,7 +36,7 @@ import static org.elasticsearch.alerts.support.Variables.createCtxModel;
 /**
  *
  */
-public class SearchTransform extends Transform {
+public class SearchTransform extends Transform<SearchTransform.Result> {
 
     public static final String TYPE = "search";
 
@@ -61,10 +61,10 @@ public class SearchTransform extends Transform {
     }
 
     @Override
-    public Transform.Result apply(ExecutionContext ctx, Payload payload) throws IOException {
+    public Result apply(ExecutionContext ctx, Payload payload) throws IOException {
         SearchRequest req = createRequest(request, ctx, payload);
         SearchResponse resp = client.search(req).actionGet();
-        return new Transform.Result(TYPE, new Payload.ActionResponse(resp));
+        return new Result(TYPE, new Payload.ActionResponse(resp));
     }
 
     @Override
@@ -109,7 +109,19 @@ public class SearchTransform extends Transform {
         return request;
     }
 
-    public static class Parser extends AbstractComponent implements Transform.Parser<SearchTransform> {
+    public static class Result extends Transform.Result {
+
+        public Result(String type, Payload payload) {
+            super(type, payload);
+        }
+
+        @Override
+        protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+            return builder;
+        }
+    }
+
+    public static class Parser extends AbstractComponent implements Transform.Parser<Result, SearchTransform> {
 
         protected final ScriptServiceProxy scriptService;
         protected final ClientProxy client;
@@ -130,6 +142,23 @@ public class SearchTransform extends Transform {
         public SearchTransform parse(XContentParser parser) throws IOException {
             SearchRequest request = AlertUtils.readSearchRequest(parser, DEFAULT_SEARCH_TYPE);
             return new SearchTransform(logger, scriptService, client, request);
+        }
+
+        @Override
+        public Result parseResult(XContentParser parser) throws IOException {
+            XContentParser.Token token = parser.currentToken();
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new TransformException("could not parse [search] transform result. expected an object, but found [" + token + "]");
+            }
+            token = parser.nextToken();
+            if (token != XContentParser.Token.FIELD_NAME || !PAYLOAD_FIELD.match(parser.currentName())) {
+                throw new TransformException("could not parse [search] transform result. expected a payload field, but found [" + token + "]");
+            }
+            token = parser.nextToken();
+            if (token != XContentParser.Token.START_OBJECT) {
+                throw new TransformException("could not parse [search] transform result. expected a payload object, but found [" + token + "]");
+            }
+            return new Result(TYPE, new Payload.XContent(parser));
         }
     }
 

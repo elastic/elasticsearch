@@ -15,6 +15,7 @@ import org.elasticsearch.alerts.condition.Condition;
 import org.elasticsearch.alerts.condition.ConditionRegistry;
 import org.elasticsearch.alerts.input.Input;
 import org.elasticsearch.alerts.input.InputRegistry;
+import org.elasticsearch.alerts.transform.TransformRegistry;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -212,14 +213,16 @@ public class FiredAlert implements ToXContent {
         private final ConditionRegistry conditionRegistry;
         private final ActionRegistry actionRegistry;
         private final InputRegistry inputRegistry;
+        private final TransformRegistry transformRegistry;
 
         @Inject
         public Parser(Settings settings, ConditionRegistry conditionRegistry, ActionRegistry actionRegistry,
-                      InputRegistry inputRegistry) {
+                      InputRegistry inputRegistry, TransformRegistry transformRegistry) {
             super(settings);
             this.conditionRegistry = conditionRegistry;
             this.actionRegistry = actionRegistry;
             this.inputRegistry = inputRegistry;
+            this.transformRegistry = transformRegistry;
         }
 
         public FiredAlert parse(BytesReference source, String historyId, long version) {
@@ -249,8 +252,7 @@ public class FiredAlert implements ToXContent {
                     } else if (METADATA_FIELD.match(currentFieldName)) {
                         alert.metadata = parser.map();
                     } else if (ALERT_EXECUTION_FIELD.match(currentFieldName)) {
-                        alert.execution = AlertExecution.Parser.parse(parser, conditionRegistry, actionRegistry,
-                                inputRegistry);
+                        alert.execution = AlertExecution.Parser.parse(parser, conditionRegistry, actionRegistry, inputRegistry, transformRegistry);
                     } else {
                         throw new AlertsException("unable to parse fired alert. unexpected field [" + currentFieldName + "]");
                     }

@@ -57,7 +57,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
     }
 
     @Override
-    public Result doExecute(ExecutionContext ctx, Payload payload) throws IOException {
+    protected Result execute(ExecutionContext ctx, Payload payload) throws IOException {
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
         String urlText = url.render(model);
         String bodyText = body != null ? body.render(model) : XContentTemplate.YAML.render(model);
@@ -286,7 +286,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (Transform.Parser.TRANSFORM_RESULT_FIELD.match(currentFieldName)) {
-
+                        transformResult = transformRegistry.parseResult(parser);
                     }
                 } else {
                     throw new ActionException("unable to parse webhook action result. unexpected field [" + currentFieldName + "]" );

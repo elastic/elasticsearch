@@ -54,7 +54,7 @@ public class IndexAction extends Action<IndexAction.Result> {
     }
 
     @Override
-    public Result doExecute(ExecutionContext ctx, Payload payload) throws IOException {
+    protected Result execute(ExecutionContext ctx, Payload payload) throws IOException {
         IndexRequest indexRequest = new IndexRequest();
         indexRequest.index(index);
         indexRequest.type(type);
@@ -212,7 +212,7 @@ public class IndexAction extends Action<IndexAction.Result> {
                     if (RESPONSE_FIELD.match(currentFieldName)) {
                         payload = new Payload.Simple(parser.map());
                     } else if (Transform.Parser.TRANSFORM_RESULT_FIELD.match(currentFieldName)) {
-                        transformResult = Transform.Result.parse(parser);
+                        transformResult = transformRegistry.parseResult(parser);
                     } else {
                         throw new ActionException("could not parse index result. unexpected object field [" + currentFieldName + "]");
                     }

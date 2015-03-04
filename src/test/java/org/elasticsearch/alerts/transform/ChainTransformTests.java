@@ -78,7 +78,7 @@ public class ChainTransformTests extends ElasticsearchTestCase {
         }
     }
 
-    private static class NamedTransform extends Transform {
+    private static class NamedTransform extends Transform<NamedTransform.Result> {
 
         private final String name;
 
@@ -109,7 +109,19 @@ public class ChainTransformTests extends ElasticsearchTestCase {
             return builder.startObject().field("name", name).endObject();
         }
 
-        public static class Parser implements Transform.Parser<NamedTransform> {
+        public static class Result extends Transform.Result {
+
+            public Result(String type, Payload payload) {
+                super(type, payload);
+            }
+
+            @Override
+            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+                return builder;
+            }
+        }
+
+        public static class Parser implements Transform.Parser<Result, NamedTransform> {
 
             @Override
             public String type() {
@@ -127,6 +139,19 @@ public class ChainTransformTests extends ElasticsearchTestCase {
                 token = parser.nextToken();
                 assert token == XContentParser.Token.END_OBJECT;
                 return new NamedTransform(name);
+            }
+
+            @Override
+            public Result parseResult(XContentParser parser) throws IOException {
+                assert parser.currentToken() == XContentParser.Token.START_OBJECT;
+                XContentParser.Token token = parser.nextToken();
+                assert token == XContentParser.Token.FIELD_NAME; // the "payload" field
+                token = parser.nextToken();
+                assert token == XContentParser.Token.START_OBJECT;
+                Payload payload = new Payload.XContent(parser);
+                token = parser.nextToken();
+                assert token == XContentParser.Token.END_OBJECT;
+                return new Result("named", payload);
             }
         }
 

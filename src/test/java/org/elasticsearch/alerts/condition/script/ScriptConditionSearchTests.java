@@ -7,13 +7,11 @@ package org.elasticsearch.alerts.condition.script;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.ExecutionContext;
 import org.elasticsearch.alerts.Payload;
 import org.elasticsearch.alerts.support.Script;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.test.AbstractAlertsSingleNodeTests;
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
@@ -37,7 +35,7 @@ import org.junit.Test;
 import java.util.HashSet;
 import java.util.Set;
 
-import static org.mockito.Mockito.mock;
+import static org.elasticsearch.alerts.test.AlertsTestUtils.mockExecutionContext;
 import static org.mockito.Mockito.when;
 
 /**
@@ -78,13 +76,8 @@ public class ScriptConditionSearchTests extends AbstractAlertsSingleNodeTests {
                 .get();
 
         ScriptCondition condition = new ScriptCondition(logger, scriptService, new Script("ctx.payload.aggregations.rate.buckets[0]?.doc_count >= 5"));
-        ExecutionContext ctx = mock(ExecutionContext.class);
-        Alert alert = mock(Alert.class);
-        when(alert.name()).thenReturn("_name");
-        when(ctx.alert()).thenReturn(alert);
-        when(ctx.scheduledTime()).thenReturn(new DateTime());
-        when(ctx.fireTime()).thenReturn(new DateTime());
-        when(ctx.payload()).thenReturn(new Payload.ActionResponse(response));
+
+        ExecutionContext ctx = mockExecutionContext("_name", new Payload.ActionResponse(response));
         assertFalse(condition.execute(ctx).met());
 
         client().prepareIndex("my-index", "my-type").setTimestamp("2005-01-01T00:40").setSource("{}").get();
@@ -93,11 +86,8 @@ public class ScriptConditionSearchTests extends AbstractAlertsSingleNodeTests {
         response = client().prepareSearch("my-index")
                 .addAggregation(AggregationBuilders.dateHistogram("rate").field("_timestamp").interval(DateHistogram.Interval.HOUR).order(Histogram.Order.COUNT_DESC))
                 .get();
-        when(alert.name()).thenReturn("_name");
-        when(ctx.alert()).thenReturn(alert);
-        when(ctx.scheduledTime()).thenReturn(new DateTime());
-        when(ctx.fireTime()).thenReturn(new DateTime());
-        when(ctx.payload()).thenReturn(new Payload.ActionResponse(response));
+
+        ctx = mockExecutionContext("_name", new Payload.ActionResponse(response));
         assertTrue(condition.execute(ctx).met());
     }
 
@@ -110,13 +100,8 @@ public class ScriptConditionSearchTests extends AbstractAlertsSingleNodeTests {
 
         InternalSearchResponse internalSearchResponse = new InternalSearchResponse(new InternalSearchHits(new InternalSearchHit[]{hit}, 1l, 1f), null, null, null, false, null);
         SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 500l, new ShardSearchFailure[0]);
-        ExecutionContext ctx = mock(ExecutionContext.class);
-        Alert alert = mock(Alert.class);
-        when(alert.name()).thenReturn("_name");
-        when(ctx.alert()).thenReturn(alert);
-        when(ctx.scheduledTime()).thenReturn(new DateTime());
-        when(ctx.fireTime()).thenReturn(new DateTime());
-        when(ctx.payload()).thenReturn(new Payload.ActionResponse(response));
+
+        ExecutionContext ctx = mockExecutionContext("_alert_name", new Payload.ActionResponse(response));
         assertTrue(condition.execute(ctx).met());
         hit.score(2f);
         when(ctx.payload()).thenReturn(new Payload.ActionResponse(response));

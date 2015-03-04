@@ -69,7 +69,7 @@ public class Alert implements Scheduler.Job, ToXContent {
         this.status = status != null ? status : new Status();
         this.throttlePeriod = throttlePeriod;
         this.metadata = metadata;
-        this.transform = transform != null ? transform : Transform.NOOP;
+        this.transform = transform;
         throttler = new AlertThrottler(throttlePeriod);
     }
 
@@ -144,7 +144,7 @@ public class Alert implements Scheduler.Job, ToXContent {
         builder.field(Parser.SCHEDULE_FIELD.getPreferredName()).startObject().field(schedule.type(), schedule).endObject();
         builder.field(Parser.INPUT_FIELD.getPreferredName()).startObject().field(input.type(), input).endObject();
         builder.field(Parser.CONDITION_FIELD.getPreferredName()).startObject().field(condition.type(), condition).endObject();
-        if (transform != Transform.NOOP) {
+        if (transform != null) {
             builder.field(Parser.TRANSFORM_FIELD.getPreferredName()).startObject().field(transform.type(), transform).endObject();
         }
         if (throttlePeriod != null) {

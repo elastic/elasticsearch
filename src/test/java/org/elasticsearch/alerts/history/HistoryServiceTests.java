@@ -38,6 +38,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
 
     private Payload payload;
     private Input input;
+    private Input.Result inputResult;
 
     private HistoryService historyService;
 
@@ -45,7 +46,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
     public void init() throws Exception {
         payload = mock(Payload.class);
         input = mock(Input.class);
-        Input.Result inputResult = mock(Input.Result.class);
+        inputResult = mock(Input.Result.class);
         when(inputResult.payload()).thenReturn(payload);
         when(input.execute(any(ExecutionContext.class))).thenReturn(inputResult);
 
@@ -65,7 +66,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         Transform.Result transformResult = mock(Transform.Result.class);
         when(transformResult.payload()).thenReturn(payload);
         Action.Result actionResult = mock(Action.Result.class);
-        when(actionResult.type()).thenReturn("actionResult");
+        when(actionResult.type()).thenReturn("_action_type");
 
         Condition condition = mock(Condition.class);
         when(condition.execute(any(ExecutionContext.class))).thenReturn(conditionResult);
@@ -74,7 +75,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         Transform transform = mock(Transform.class);
         when(transform.apply(any(ExecutionContext.class), same(payload))).thenReturn(transformResult);
         Action action = mock(Action.class);
-        when(action.execute(any(ExecutionContext.class), same(payload))).thenReturn(actionResult);
+        when(action.execute(any(ExecutionContext.class))).thenReturn(actionResult);
         Actions actions = new Actions(Arrays.asList(action));
 
         Alert.Status alertStatus = new Alert.Status();
@@ -89,14 +90,14 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         ExecutionContext context = new ExecutionContext("1", alert, DateTime.now(), DateTime.now());
         AlertExecution alertExecution = historyService.execute(context);
         assertThat(alertExecution.conditionResult(), sameInstance(conditionResult));
-        assertThat(alertExecution.payload(), sameInstance(payload));
+        assertThat(alertExecution.transformResult(), sameInstance(transformResult));
         assertThat(alertExecution.throttleResult(), sameInstance(throttleResult));
-        assertThat(alertExecution.actionsResults().get("actionResult"), sameInstance(actionResult));
+        assertThat(alertExecution.actionsResults().get("_action_type"), sameInstance(actionResult));
 
         verify(condition, times(1)).execute(any(ExecutionContext.class));
         verify(throttler, times(1)).throttle(any(ExecutionContext.class));
         verify(transform, times(1)).apply(any(ExecutionContext.class), same(payload));
-        verify(action, times(1)).execute(any(ExecutionContext.class), same(payload));
+        verify(action, times(1)).execute(any(ExecutionContext.class));
     }
 
     @Test
@@ -108,7 +109,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         Transform.Result transformResult = mock(Transform.Result.class);
         when(transformResult.payload()).thenReturn(payload);
         Action.Result actionResult = mock(Action.Result.class);
-        when(actionResult.type()).thenReturn("actionResult");
+        when(actionResult.type()).thenReturn("_action_type");
 
         Condition condition = mock(Condition.class);
         when(condition.execute(any(ExecutionContext.class))).thenReturn(conditionResult);
@@ -117,7 +118,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         Transform transform = mock(Transform.class);
         when(transform.apply(any(ExecutionContext.class), same(payload))).thenReturn(transformResult);
         Action action = mock(Action.class);
-        when(action.execute(any(ExecutionContext.class), same(payload))).thenReturn(actionResult);
+        when(action.execute(any(ExecutionContext.class))).thenReturn(actionResult);
         Actions actions = new Actions(Arrays.asList(action));
 
         Alert.Status alertStatus = new Alert.Status();
@@ -131,15 +132,16 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
 
         ExecutionContext context = new ExecutionContext("1", alert, DateTime.now(), DateTime.now());
         AlertExecution alertExecution = historyService.execute(context);
+        assertThat(alertExecution.inputResult(), sameInstance(inputResult));
         assertThat(alertExecution.conditionResult(), sameInstance(conditionResult));
-        assertThat(alertExecution.payload(), sameInstance(payload));
         assertThat(alertExecution.throttleResult(), sameInstance(throttleResult));
         assertThat(alertExecution.actionsResults().isEmpty(), is(true));
+        assertThat(alertExecution.transformResult(), nullValue());
 
         verify(condition, times(1)).execute(any(ExecutionContext.class));
         verify(throttler, times(1)).throttle(any(ExecutionContext.class));
         verify(transform, never()).apply(any(ExecutionContext.class), same(payload));
-        verify(action, never()).execute(any(ExecutionContext.class), same(payload));
+        verify(action, never()).execute(any(ExecutionContext.class));
     }
 
     @Test
@@ -150,7 +152,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
 
         Transform.Result transformResult = mock(Transform.Result.class);
         Action.Result actionResult = mock(Action.Result.class);
-        when(actionResult.type()).thenReturn("actionResult");
+        when(actionResult.type()).thenReturn("_action_type");
 
         Condition condition = mock(Condition.class);
         when(condition.execute(any(ExecutionContext.class))).thenReturn(conditionResult);
@@ -159,7 +161,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         Transform transform = mock(Transform.class);
         when(transform.apply(any(ExecutionContext.class), same(payload))).thenReturn(transformResult);
         Action action = mock(Action.class);
-        when(action.execute(any(ExecutionContext.class), same(payload))).thenReturn(actionResult);
+        when(action.execute(any(ExecutionContext.class))).thenReturn(actionResult);
         Actions actions = new Actions(Arrays.asList(action));
 
         Alert.Status alertStatus = new Alert.Status();
@@ -173,15 +175,16 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
 
         ExecutionContext context = new ExecutionContext("1", alert, DateTime.now(), DateTime.now());
         AlertExecution alertExecution = historyService.execute(context);
+        assertThat(alertExecution.inputResult(), sameInstance(inputResult));
         assertThat(alertExecution.conditionResult(), sameInstance(conditionResult));
-        assertThat(alertExecution.payload(), sameInstance(payload));
         assertThat(alertExecution.throttleResult(), nullValue());
+        assertThat(alertExecution.transformResult(), nullValue());
         assertThat(alertExecution.actionsResults().isEmpty(), is(true));
 
         verify(condition, times(1)).execute(any(ExecutionContext.class));
         verify(throttler, never()).throttle(any(ExecutionContext.class));
         verify(transform, never()).apply(any(ExecutionContext.class), same(payload));
-        verify(action, never()).execute(any(ExecutionContext.class), same(payload));
+        verify(action, never()).execute(any(ExecutionContext.class));
     }
 
 }

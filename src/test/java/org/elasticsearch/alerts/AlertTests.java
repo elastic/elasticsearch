@@ -222,7 +222,7 @@ public class AlertTests extends ElasticsearchTestCase {
             case SearchTransform.TYPE:
                 return new SearchTransform(logger, scriptService, client, matchAllRequest(AlertUtils.DEFAULT_INDICES_OPTIONS));
             default: // chain
-                return new ChainTransform(ImmutableList.of(
+                return new ChainTransform(ImmutableList.<Transform>of(
                         new SearchTransform(logger, scriptService, client, matchAllRequest(AlertUtils.DEFAULT_INDICES_OPTIONS)),
                         new ScriptTransform(scriptService, new Script("_script"))));
         }

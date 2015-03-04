@@ -147,10 +147,13 @@ public class HistoryService extends AbstractComponent {
             ctx.onThrottleResult(throttleResult);
 
             if (!throttleResult.throttle()) {
-                Transform.Result result = alert.transform().apply(ctx, inputResult.payload());
-                ctx.onTransformResult(result);
+                Transform transform = alert.transform();
+                if (transform != null) {
+                    Transform.Result result = alert.transform().apply(ctx, inputResult.payload());
+                    ctx.onTransformResult(result);
+                }
                 for (Action action : alert.actions()) {
-                    Action.Result actionResult = action.execute(ctx, result.payload());
+                    Action.Result actionResult = action.execute(ctx);
                     ctx.onActionResult(actionResult);
                 }
             }

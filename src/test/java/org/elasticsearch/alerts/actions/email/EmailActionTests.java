@@ -89,8 +89,12 @@ public class EmailActionTests extends ElasticsearchTestCase {
         when(ctx.alert()).thenReturn(alert);
         when(ctx.fireTime()).thenReturn(now);
         when(ctx.scheduledTime()).thenReturn(now);
+        when(ctx.payload()).thenReturn(payload);
         if (transform != null) {
-            when(transform.apply(ctx, payload)).thenReturn(new Transform.Result("_transform_type", new Payload.Simple("_key", "_value")));
+            Transform.Result transformResult = mock(Transform.Result.class);
+            when(transformResult.type()).thenReturn("_transform_type");
+            when(transformResult.payload()).thenReturn(new Payload.Simple("_key", "_value"));
+            when(transform.apply(ctx, payload)).thenReturn(transformResult);
         }
         Map<String, Object> expectedModel = ImmutableMap.<String, Object>builder()
                 .put("ctx", ImmutableMap.<String, Object>builder()
@@ -106,7 +110,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
             when (htmlBody.render(expectedModel)).thenReturn("_html_body");
         }
 
-        EmailAction.Result result = action.execute(ctx, payload);
+        EmailAction.Result result = action.execute(ctx);
 
         assertThat(result, notNullValue());
         assertThat(result, instanceOf(EmailAction.Result.Success.class));
@@ -316,18 +320,24 @@ public class EmailActionTests extends ElasticsearchTestCase {
                 .textBody("_text_body")
                 .build();
 
-        boolean withTransform = randomBoolean();
+        Transform.Result transformResult = randomBoolean() ? null : mock(Transform.Result.class);
+        if (transformResult != null) {
+            when(transformResult.type()).thenReturn("_transform_type");
+            when(transformResult.payload()).thenReturn(new Payload.Simple("_key", "_value"));
+        }
+        TransformRegistry transformRegistry = transformResult != null ? new TransformRegistryMock(transformResult) : mock(TransformRegistry.class);
 
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("success", success);
         if (success) {
             builder.field("email", email);
             builder.field("account", "_account");
-            if (withTransform) {
+            if (transformResult != null) {
                 builder.startObject("transform_result")
-                        .field("type", "_transform_type")
-                        .field("payload", new Payload.Simple("_key", "_value").data())
-                        .endObject();
+                        .startObject("_transform_type")
+                            .field("payload", new Payload.Simple("_key", "_value").data())
+                        .endObject()
+                    .endObject();
             }
         } else {
             builder.field("reason", "_reason");
@@ -336,14 +346,14 @@ public class EmailActionTests extends ElasticsearchTestCase {
         BytesReference bytes = builder.bytes();
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
-        EmailAction.Result result = new EmailAction.Parser(ImmutableSettings.EMPTY, mock(EmailService.class), new TemplateMock.Parser(), mock(TransformRegistry.class))
+        EmailAction.Result result = new EmailAction.Parser(ImmutableSettings.EMPTY, mock(EmailService.class), new TemplateMock.Parser(), transformRegistry)
                 .parseResult(parser);
         assertThat(result.success(), is(success));
         if (success) {
             assertThat(result, instanceOf(EmailAction.Result.Success.class));
             assertThat(((EmailAction.Result.Success) result).email(), equalTo(email));
             assertThat(((EmailAction.Result.Success) result).account(), is("_account"));
-            if (withTransform) {
+            if (transformResult != null) {
                 assertThat(result.transformResult(), notNullValue());
                 assertThat(result.transformResult().type(), equalTo("_transform_type"));
                 assertThat(result.transformResult().payload().data(), equalTo(new Payload.Simple("_key", "_value").data()));
@@ -412,7 +422,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
         }
     }
 
-    static class TransformMock extends Transform {
+    static class TransformMock extends Transform<TransformMock.Result> {
 
         @Override
         public String type() {
@@ -421,12 +431,24 @@ public class EmailActionTests extends ElasticsearchTestCase {
 
         @Override
         public Result apply(ExecutionContext ctx, Payload payload) throws IOException {
-            return new Transform.Result("_transform", new Payload.Simple("_key", "_value"));
+            return new Result("_transform", new Payload.Simple("_key", "_value"));
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject().endObject();
+        }
+
+        public static class Result extends Transform.Result {
+
+            public Result(String type, Payload payload) {
+                super(type, payload);
+            }
+
+            @Override
+            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+                return builder;
+            }
         }
     }
 
@@ -444,6 +466,40 @@ public class EmailActionTests extends ElasticsearchTestCase {
                     parser.nextToken();
                     assertThat(parser.currentToken(), is(XContentParser.Token.END_OBJECT));
                     return transform;
+                }
+
+                @Override
+                public Transform.Result parseResult(XContentParser parser) throws IOException {
+                    return null; // should not be called when this ctor is used
+                }
+            }));
+        }
+
+        public TransformRegistryMock(final Transform.Result result) {
+            super(ImmutableMap.<String, Transform.Parser>of("_transform_type", new Transform.Parser() {
+                @Override
+                public String type() {
+                    return result.type();
+                }
+
+                @Override
+                public Transform parse(XContentParser parser) throws IOException {
+                    return null; // should not be called when this ctor is used.
+                }
+
+                @Override
+                public Transform.Result parseResult(XContentParser parser) throws IOException {
+                    assertThat(parser.currentToken(), is(XContentParser.Token.START_OBJECT));
+                    parser.nextToken();
+                    assertThat(parser.currentToken(), is(XContentParser.Token.FIELD_NAME));
+                    assertThat(parser.currentName(), is("payload"));
+                    parser.nextToken();
+                    assertThat(parser.currentToken(), is(XContentParser.Token.START_OBJECT));
+                    Map<String, Object> data = parser.map();
+                    assertThat(data, equalTo(result.payload().data()));
+                    parser.nextToken();
+                    assertThat(parser.currentToken(), is(XContentParser.Token.END_OBJECT));
+                    return result;
                 }
             }));
         }

@@ -46,4 +46,26 @@ public class TransformRegistry {
         }
         return transformParser.parse(parser);
     }
+
+    public Transform.Result parseResult(XContentParser parser) throws IOException {
+        String type = null;
+        XContentParser.Token token;
+        Transform.Result result = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                type = parser.currentName();
+            } else if (type != null) {
+                result = parseResult(type, parser);
+            }
+        }
+        return result;
+    }
+
+    public Transform.Result parseResult(String type, XContentParser parser) throws IOException {
+        Transform.Parser transformParser = parsers.get(type);
+        if (transformParser == null) {
+            throw new TransformException("unknown transform type [" + type + "]");
+        }
+        return transformParser.parseResult(parser);
+    }
 }

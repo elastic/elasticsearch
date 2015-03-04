@@ -43,20 +43,21 @@ public abstract class Action<R extends Action.Result> implements ToXContent {
     /**
      * Executes this action
      */
-    public final R execute(ExecutionContext context, Payload payload) throws IOException {
+    public R execute(ExecutionContext context) throws IOException {
+        Payload payload = context.payload();
         Transform.Result transformResult = null;
         if (transform != null) {
             transformResult = transform.apply(context, payload);
             payload = transformResult.payload();
         }
-        R result = doExecute(context, payload);
+        R result = execute(context, payload);
         if (transformResult != null) {
             result.transformResult = transformResult;
         }
         return result;
     }
 
-    protected abstract R doExecute(ExecutionContext context, Payload payload) throws IOException;
+    protected abstract R execute(ExecutionContext context, Payload payload) throws IOException;
 
     /**
      * Parses xcontent to a concrete action of the same type.
@@ -107,7 +108,9 @@ public abstract class Action<R extends Action.Result> implements ToXContent {
             builder.startObject();
             builder.field(SUCCESS_FIELD.getPreferredName(), success);
             if (transformResult != null) {
-                builder.field(Transform.Parser.TRANSFORM_RESULT_FIELD.getPreferredName(), transformResult);
+                builder.startObject(Transform.Parser.TRANSFORM_RESULT_FIELD.getPreferredName())
+                        .field(transformResult.type(), transformResult)
+                        .endObject();
             }
             xContentBody(builder, params);
             return builder.endObject();

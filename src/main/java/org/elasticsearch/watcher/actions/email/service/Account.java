@@ -9,6 +9,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 
+import javax.activation.CommandMap;
+import javax.activation.MailcapCommandMap;
 import javax.mail.MessagingException;
 import javax.mail.Session;
 import javax.mail.Transport;
@@ -23,6 +25,17 @@ import java.util.Properties;
 public class Account {
 
     static final String SMTP_PROTOCOL = "smtp";
+
+    static {
+        // required as java doesn't always find the correct mailcap to properly handle mime types
+        MailcapCommandMap mailcap = (MailcapCommandMap) CommandMap.getDefaultCommandMap();
+        mailcap.addMailcap("text/html;; x-java-content-handler=com.sun.mail.handlers.text_html");
+        mailcap.addMailcap("text/xml;; x-java-content-handler=com.sun.mail.handlers.text_xml");
+        mailcap.addMailcap("text/plain;; x-java-content-handler=com.sun.mail.handlers.text_plain");
+        mailcap.addMailcap("multipart/*;; x-java-content-handler=com.sun.mail.handlers.multipart_mixed");
+        mailcap.addMailcap("message/rfc822;; x-java-content-handler=com.sun.mail.handlers.message_rfc822");
+        CommandMap.setDefaultCommandMap(mailcap);
+    }
 
     private final ESLogger logger;
     private final Config config;

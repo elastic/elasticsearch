@@ -440,6 +440,7 @@ public class InternalEngine extends Engine {
     public void delete(Delete delete) throws EngineException {
         try (ReleasableLock _ = readLock.acquire()) {
             ensureOpen();
+            // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
             innerDelete(delete);
             flushNeeded = true;
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
@@ -507,6 +508,19 @@ public class InternalEngine extends Engine {
     public void delete(DeleteByQuery delete) throws EngineException {
         try (ReleasableLock _ = readLock.acquire()) {
             ensureOpen();
+            if (delete.origin() == Operation.Origin.RECOVERY) {
+                // Don't throttle recovery operations
+                innerDelete(delete);
+            } else {
+                try (Releasable r = throttle.acquireThrottle()) {
+                    innerDelete(delete);
+                }
+            }
+        }
+    }
+
+    private void innerDelete(DeleteByQuery delete) throws EngineException {
+        try {
             Query query;
             if (delete.nested() && delete.aliasFilter() != null) {
                 query = new IncludeNestedDocsQuery(new FilteredQuery(delete.query(), delete.aliasFilter()), delete.parentFilter());

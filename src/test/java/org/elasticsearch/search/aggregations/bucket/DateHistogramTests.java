@@ -23,7 +23,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
@@ -49,10 +48,16 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
@@ -1090,13 +1095,6 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getDocCount(), equalTo(3l));
     }
 
-    @Override
-    public Settings indexSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
-        builder.put("index.number_of_shards", 1).put("index.number_of_replicas", 0);
-        return builder.build();
-    }
-
     @Test
     public void singleValueField_WithExtendedBounds() throws Exception {
 
@@ -1107,7 +1105,10 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         DateTime base = new DateTime(DateTimeZone.UTC).dayOfMonth().roundFloorCopy();
         DateTime baseKey = new DateTime(intervalMillis * (base.getMillis() / intervalMillis), DateTimeZone.UTC);
 
-        createIndex("idx2");
+        prepareCreate("idx2")
+                .setSettings(
+                        ImmutableSettings.builder().put(indexSettings()).put("index.number_of_shards", 1)
+                                .put("index.number_of_replicas", 0)).execute().actionGet();
         int numOfBuckets = randomIntBetween(3, 6);
         int emptyBucketIndex = randomIntBetween(1, numOfBuckets - 2); // should be in the middle
 

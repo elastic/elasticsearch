@@ -470,15 +470,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     public void deleteIndexStore(String reason, IndexMetaData metaData) throws IOException {
         if (nodeEnv.hasNodeFile()) {
             synchronized (this) {
-                String indexName = metaData.index();
                 if (indices.containsKey(metaData.index())) {
                     String localUUid = indices.get(metaData.index()).v1().indexUUID();
                     throw new ElasticsearchIllegalStateException("Can't delete index store for [" + metaData.getIndex() + "] - it's still part of the indices service [" + localUUid+ "] [" + metaData.getUUID() + "]");
-                }
-                ClusterState clusterState = clusterService.state();
-                if (clusterState.metaData().hasIndex(indexName)) {
-                    final IndexMetaData index = clusterState.metaData().index(indexName);
-                    throw new ElasticsearchIllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getUUID() + "] [" + metaData.getUUID() + "]");
                 }
             }
             Index index = new Index(metaData.index());

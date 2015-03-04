@@ -34,6 +34,8 @@ import java.util.Map;
  */
 public class NativeScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
+    public static final String NAME = "native";
+
     private final ImmutableMap<String, NativeScriptFactory> scripts;
 
     @Inject
@@ -44,7 +46,7 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
 
     @Override
     public String[] types() {
-        return new String[]{"native"};
+        return new String[]{NAME};
     }
 
     @Override

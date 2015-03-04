@@ -56,7 +56,6 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                 String fieldName = currentFieldName;
                 ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
                 String script = null;
-                String scriptLang = null;
                 ScriptService.ScriptType scriptType = null;
                 Map<String, Object> params = null;
                 boolean ignoreException = false;
@@ -79,9 +78,7 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                     script = scriptValue.script();
                     scriptType = scriptValue.scriptType();
                 }
-                scriptLang = scriptParameterParser.lang();
-                
-                SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, params);
+                SearchScript searchScript = context.scriptService().search(context.lookup(), scriptParameterParser.lang(), script, scriptType, params);
                 context.scriptFields().add(new ScriptFieldsContext.ScriptField(fieldName, searchScript, ignoreException));
             }
         }

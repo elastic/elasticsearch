@@ -114,6 +114,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
         return TYPE;
     }
 
+    @Override
     public Object getProperty(List<String> path) {
         if (path.isEmpty()) {
             return this;

@@ -45,11 +45,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.rest.RestStatus;
@@ -117,7 +117,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
      * @return  A tuple containing not null values, as first value the result of the primary operation and as second value
      *          the request to be executed on the replica shards.
      */
-    protected abstract Tuple<Response, ReplicaRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest);
+    protected abstract Tuple<Response, ReplicaRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest)  throws Throwable;
 
     protected abstract void shardOperationOnReplica(ReplicaOperationRequest shardRequest);
 
@@ -631,9 +631,23 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             }
 
             final ReplicaOperationRequest shardRequest = new ReplicaOperationRequest(shardIt.shardId(), state.replicaRequest());
+
+            // If the replicas use shadow replicas, there is no reason to
+            // perform the action on the replica, so skip it and
+            // immediately return
+            if (IndexMetaData.isIndexUsingShadowReplicas(indexMetaData.settings())) {
+                // this delays mapping updates on replicas because they have
+                // to wait until they get the new mapping through the cluster
+                // state, which is why we recommend pre-defined mappings for
+                // indices using shadow replicas
+                state.onReplicaSuccess();
+                return;
+            }
+
             if (!nodeId.equals(observer.observedState().nodes().localNodeId())) {
                 final DiscoveryNode node = observer.observedState().nodes().get(nodeId);
-                transportService.sendRequest(node, transportReplicaAction, shardRequest, transportOptions, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                transportService.sendRequest(node, transportReplicaAction, shardRequest,
+                        transportOptions, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
                     public void handleResponse(TransportResponse.Empty vResponse) {
                         state.onReplicaSuccess();

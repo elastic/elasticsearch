@@ -45,6 +45,7 @@ public class FilteredCollector implements Collector {
         final Bits bits = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(), set);
 
         return new FilterLeafCollector(in) {
+            @Override
             public void collect(int doc) throws IOException {
                 if (bits.get(doc)) {
                     in.collect(doc);

@@ -349,6 +349,7 @@ public class MoreLikeThisQueryBuilder extends BaseQueryBuilder implements Boosta
         return this;
     }
 
+    @Override
     public MoreLikeThisQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;

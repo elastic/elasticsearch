@@ -113,6 +113,7 @@ public abstract class AbstractFieldDataTests extends ElasticsearchSingleNodeTest
         return readerContext;
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

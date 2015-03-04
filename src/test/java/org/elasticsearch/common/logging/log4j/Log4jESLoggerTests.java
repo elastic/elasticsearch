@@ -65,6 +65,7 @@ public class Log4jESLoggerTests extends ElasticsearchTestCase {
         testLogger.addAppender(testAppender);
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

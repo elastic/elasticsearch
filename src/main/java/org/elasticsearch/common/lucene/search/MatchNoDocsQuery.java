@@ -37,14 +37,13 @@ public final class MatchNoDocsQuery extends Query {
      */
     private class MatchNoDocsWeight extends Weight {
 
-        @Override
-        public String toString() {
-            return "weight(" + MatchNoDocsQuery.this + ")";
+        MatchNoDocsWeight(Query parent) {
+            super(parent);
         }
 
         @Override
-        public Query getQuery() {
-            return MatchNoDocsQuery.this;
+        public String toString() {
+            return "weight(" + MatchNoDocsQuery.this + ")";
         }
 
         @Override
@@ -57,7 +56,7 @@ public final class MatchNoDocsQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs, boolean needsScores) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             return null;
         }
 
@@ -69,8 +68,8 @@ public final class MatchNoDocsQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
-        return new MatchNoDocsWeight();
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+        return new MatchNoDocsWeight(this);
     }
 
     @Override

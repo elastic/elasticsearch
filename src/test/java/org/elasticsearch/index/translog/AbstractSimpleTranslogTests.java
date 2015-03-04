@@ -35,6 +35,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -61,6 +62,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
 
     protected Translog translog;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -70,6 +72,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         translog.newTranslog(1);
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         try {
@@ -525,6 +528,50 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         }
         assertThat("at least one corruption was caused and caught", corruptionsCaught.get(), greaterThanOrEqualTo(1));
     }
+
+    @Test
+    public void testTruncatedTranslogs() throws Exception {
+        List<Translog.Location> locations = newArrayList();
+
+        int translogOperations = randomIntBetween(10, 100);
+        for (int op = 0; op < translogOperations; op++) {
+            String ascii = randomAsciiOfLengthBetween(1, 50);
+            locations.add(translog.add(new Translog.Create("test", "" + op, ascii.getBytes("UTF-8"))));
+        }
+        translog.sync();
+
+        truncateTranslogs(translogFileDirectory());
+
+        AtomicInteger truncations = new AtomicInteger(0);
+        for (Translog.Location location : locations) {
+            try {
+                translog.read(location);
+            } catch (ElasticsearchException e) {
+                if (e.getCause() instanceof EOFException) {
+                    truncations.incrementAndGet();
+                } else {
+                    throw e;
+                }
+            }
+        }
+        assertThat("at least one truncation was caused and caught", truncations.get(), greaterThanOrEqualTo(1));
+    }
+
+    /**
+     * Randomly truncate some bytes in the translog files
+     */
+    private void truncateTranslogs(Path directory) throws Exception {
+        Path[] files = FileSystemUtils.files(directory, "translog-*");
+        for (Path file : files) {
+            try (FileChannel f = FileChannel.open(file, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+                long prevSize = f.size();
+                long newSize = prevSize - randomIntBetween(1, (int) prevSize / 2);
+                logger.info("--> truncating {}, prev: {}, now: {}", file, prevSize, newSize);
+                f.truncate(newSize);
+            }
+        }
+    }
+
 
     /**
      * Randomly overwrite some bytes in the translog files

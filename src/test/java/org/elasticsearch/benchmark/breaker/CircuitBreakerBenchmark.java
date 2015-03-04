@@ -185,7 +185,7 @@ public class CircuitBreakerBenchmark {
             runMultiThreadedQueries(client);
         } finally {
             client.close();
-            node.stop();
+            node.close();
         }
     }
 }

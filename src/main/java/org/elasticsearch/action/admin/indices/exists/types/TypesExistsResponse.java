@@ -42,11 +42,13 @@ public class TypesExistsResponse extends ActionResponse {
         return this.exists;
     }
 
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         exists = in.readBoolean();
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBoolean(exists);

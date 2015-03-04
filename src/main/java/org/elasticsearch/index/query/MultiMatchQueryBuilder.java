@@ -218,6 +218,7 @@ public class MultiMatchQueryBuilder extends BaseQueryBuilder implements Boostabl
     /**
      * Set the boost to apply to the query.
      */
+    @Override
     public MultiMatchQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;

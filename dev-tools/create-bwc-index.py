@@ -181,9 +181,23 @@ def generate_index(client, version):
       },
       '_routing': {
         'path': 'myrouting'
-      } 
+      },
+      '_boost': {
+        'null_value': 2.0
+      }     
     }
-
+    mappings['custom_formats'] = {
+      'properties': {
+        'string_with_custom_postings': {
+          'type': 'string',
+          'postings_format': 'Lucene41'
+        },
+        'long_with_custom_doc_values': {
+          'type': 'long',
+          'doc_values_format': 'Lucene42'
+        }
+      }
+    }
 
   client.indices.create(index='test', body={
       'settings': {
@@ -235,6 +249,7 @@ def snapshot_index(client, cfg):
     }
   })
   client.snapshot.create(repository='test_repo', snapshot='test_1', wait_for_completion=True)
+  client.snapshot.delete_repository(repository='test_repo')
 
 def compress_index(version, tmp_dir, output_dir):
   compress(tmp_dir, output_dir, 'index-%s.zip' % version, 'data')

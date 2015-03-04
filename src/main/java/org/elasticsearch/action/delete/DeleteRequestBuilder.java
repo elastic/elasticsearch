@@ -104,6 +104,7 @@ public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilde
     /**
      * Set the replication type for this operation.
      */
+    @Override
     public DeleteRequestBuilder setReplicationType(ReplicationType replicationType) {
         request.replicationType(replicationType);
         return this;
@@ -112,6 +113,7 @@ public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilde
     /**
      * Sets the consistency level. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}.
      */
+    @Override
     public DeleteRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
         request.consistencyLevel(consistencyLevel);
         return this;

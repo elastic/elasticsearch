@@ -34,6 +34,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSq
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.PercentageScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
@@ -82,6 +83,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
     public void streamResponse() throws Exception {
         SignificanceHeuristicStreams.registerStream(MutualInformation.STREAM, MutualInformation.STREAM.getName());
         SignificanceHeuristicStreams.registerStream(JLHScore.STREAM, JLHScore.STREAM.getName());
+        SignificanceHeuristicStreams.registerStream(PercentageScore.STREAM, PercentageScore.STREAM.getName());
         SignificanceHeuristicStreams.registerStream(GND.STREAM, GND.STREAM.getName());
         SignificanceHeuristicStreams.registerStream(ChiSquare.STREAM, ChiSquare.STREAM.getName());
         Version version = ElasticsearchIntegrationTest.randomVersion();
@@ -320,6 +322,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         testBackgroundAssertions(new MutualInformation(true, true), new MutualInformation(true, false));
         testBackgroundAssertions(new ChiSquare(true, true), new ChiSquare(true, false));
         testBackgroundAssertions(new GND(true), new GND(false));
+        testAssertions(PercentageScore.INSTANCE);
         testAssertions(JLHScore.INSTANCE);
     }
 
@@ -327,6 +330,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
     public void basicScoreProperties() {
         basicScoreProperties(JLHScore.INSTANCE, true);
         basicScoreProperties(new GND(true), true);
+        basicScoreProperties(PercentageScore.INSTANCE, true);
         basicScoreProperties(new MutualInformation(true, true), false);
         basicScoreProperties(new ChiSquare(true, true), false);
     }

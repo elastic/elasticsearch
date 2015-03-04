@@ -49,6 +49,11 @@ Defaults to `ROOT`.
 
 |`lenient` | If set to `true` will cause format based failures
 (like providing text to a numeric field) to be ignored.
+
+|`minimum_should_match` | The minimum number of clauses that must match for a
+ document to be returned. See the
+ <<query-dsl-minimum-should-match,`minimum_should_match`>> documentation for the
+ full list of options.
 |=======================================================================
 
 [float]

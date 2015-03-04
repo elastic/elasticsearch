@@ -70,7 +70,7 @@ public abstract class MergeSchedulerProvider extends AbstractIndexShardComponent
     protected MergeSchedulerProvider(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool) {
         super(shardId, indexSettings);
         this.threadPool = threadPool;
-        this.notifyOnMergeFailure = componentSettings.getAsBoolean("notify_on_failure", true);
+        this.notifyOnMergeFailure = indexSettings.getAsBoolean("index.merge.scheduler.notify_on_failure", true);
     }
 
     public void addFailureListener(FailureListener listener) {
@@ -124,5 +124,6 @@ public abstract class MergeSchedulerProvider extends AbstractIndexShardComponent
 
     public abstract Set<OnGoingMerge> onGoingMerges();
 
+    @Override
     public abstract void close();
 }

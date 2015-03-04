@@ -138,7 +138,7 @@ public class GeoDistanceFilter extends Filter {
     }
 
     @Override
-    public String toString() {
+    public String toString(String field) {
         return "GeoDistanceFilter(" + indexFieldData.getFieldNames().indexName() + ", " + geoDistance + ", " + distance + ", " + lat + ", " + lon + ")";
     }
 

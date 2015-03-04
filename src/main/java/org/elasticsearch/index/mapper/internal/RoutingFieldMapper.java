@@ -27,13 +27,16 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
@@ -92,7 +95,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
 
         @Override
         public RoutingFieldMapper build(BuilderContext context) {
-            return new RoutingFieldMapper(fieldType, required, path, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+            return new RoutingFieldMapper(fieldType, required, path, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -100,7 +103,9 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             RoutingFieldMapper.Builder builder = routing();
-            parseField(builder, builder.name, node, parserContext);
+            if (parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                parseField(builder, builder.name, node, parserContext);
+            }
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -120,19 +125,16 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
 
     private boolean required;
     private final String path;
-    private final boolean writePre20Settings;
 
     public RoutingFieldMapper(Settings indexSettings) {
-        this(Defaults.FIELD_TYPE, Defaults.REQUIRED, Defaults.PATH, null, null, null, indexSettings);
+        this(Defaults.FIELD_TYPE, Defaults.REQUIRED, Defaults.PATH, null, indexSettings);
     }
 
-    protected RoutingFieldMapper(FieldType fieldType, boolean required, String path, PostingsFormatProvider postingsProvider,
-                                 DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+    protected RoutingFieldMapper(FieldType fieldType, boolean required, String path, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), 1.0f, fieldType, null, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings);
+                Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
         this.required = required;
         this.path = path;
-        this.writePre20Settings = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
     }
 
     @Override
@@ -227,16 +229,16 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (includeDefaults || indexed != indexedDefault) {
+        if (writePre2xSettings && (includeDefaults || indexed != indexedDefault)) {
             builder.field("index", indexTokenizeOptionToString(indexed, fieldType.tokenized()));
         }
-        if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
+        if (writePre2xSettings && (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored())) {
             builder.field("store", fieldType.stored());
         }
         if (includeDefaults || required != Defaults.REQUIRED) {
             builder.field("required", required);
         }
-        if (writePre20Settings && (includeDefaults || path != Defaults.PATH)) {
+        if (writePre2xSettings && (includeDefaults || path != Defaults.PATH)) {
             builder.field("path", path);
         }
         builder.endObject();

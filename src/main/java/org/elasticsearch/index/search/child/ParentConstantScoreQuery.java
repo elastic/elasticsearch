@@ -82,7 +82,7 @@ public class ParentConstantScoreQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         IndexParentChildFieldData globalIfd = parentChildIndexFieldData.loadGlobal(searcher.getIndexReader());
         assert rewrittenParentQuery != null;
         assert rewriteIndexReader == searcher.getIndexReader() : "not equal, rewriteIndexReader=" + rewriteIndexReader + " searcher.getIndexReader()=" + searcher.getIndexReader();
@@ -90,7 +90,7 @@ public class ParentConstantScoreQuery extends Query {
         final long maxOrd;
         List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
         if (globalIfd == null || leaves.isEmpty()) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher);
+            return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
         } else {
             AtomicParentChildFieldData afd = globalIfd.load(leaves.get(0));
             SortedDocValues globalValues = afd.getOrdinalsValues(parentType);
@@ -98,7 +98,7 @@ public class ParentConstantScoreQuery extends Query {
         }
 
         if (maxOrd == 0) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher);
+            return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
         }
 
         final Query parentQuery = rewrittenParentQuery;
@@ -108,10 +108,10 @@ public class ParentConstantScoreQuery extends Query {
         indexSearcher.search(parentQuery, collector);
 
         if (collector.parentCount() == 0) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher);
+            return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
         }
 
-        return new ChildrenWeight(childrenFilter, collector, globalIfd);
+        return new ChildrenWeight(this, childrenFilter, collector, globalIfd);
     }
 
     @Override
@@ -158,7 +158,8 @@ public class ParentConstantScoreQuery extends Query {
         private float queryNorm;
         private float queryWeight;
 
-        private ChildrenWeight(Filter childrenFilter, ParentOrdsCollector collector, IndexParentChildFieldData globalIfd) {
+        private ChildrenWeight(Query query, Filter childrenFilter, ParentOrdsCollector collector, IndexParentChildFieldData globalIfd) {
+            super(query);
             this.globalIfd = globalIfd;
             this.childrenFilter = childrenFilter;
             this.parentOrds = collector.parentOrds;
@@ -167,11 +168,6 @@ public class ParentConstantScoreQuery extends Query {
         @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             return new Explanation(getBoost(), "not implemented yet...");
-        }
-
-        @Override
-        public Query getQuery() {
-            return ParentConstantScoreQuery.this;
         }
 
         @Override
@@ -187,7 +183,7 @@ public class ParentConstantScoreQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs, boolean needsScores) throws IOException {
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             DocIdSet childrenDocIdSet = childrenFilter.getDocIdSet(context, acceptDocs);
             if (DocIdSets.isEmpty(childrenDocIdSet)) {
                 return null;
@@ -245,6 +241,7 @@ public class ParentConstantScoreQuery extends Query {
             this.parentType = parentType;
         }
 
+        @Override
         public void collect(int doc) throws IOException {
             // It can happen that for particular segment no document exist for an specific type. This prevents NPE
             if (globalOrdinals != null) {

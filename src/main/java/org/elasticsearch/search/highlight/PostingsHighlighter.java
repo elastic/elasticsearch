@@ -140,6 +140,7 @@ public class PostingsHighlighter implements Highlighter {
         if (field.fieldOptions().scoreOrdered()) {
             //let's sort the snippets by score if needed
             CollectionUtil.introSort(snippets, new Comparator<Snippet>() {
+                @Override
                 public int compare(Snippet o1, Snippet o2) {
                     return (int) Math.signum(o2.getScore() - o1.getScore());
                 }

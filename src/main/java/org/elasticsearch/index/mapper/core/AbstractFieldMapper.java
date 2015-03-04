@@ -32,7 +32,16 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.queries.TermsFilter;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PrefixFilter;
+import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeFilter;
+import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
@@ -47,13 +56,17 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
-import org.elasticsearch.index.codec.postingsformat.PostingFormats;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMapperListener;
+import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ObjectMapperListener;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
@@ -63,7 +76,12 @@ import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  *
@@ -99,8 +117,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         protected NamedAnalyzer searchAnalyzer;
         protected Boolean includeInAll;
         protected boolean indexOptionsSet = false;
-        protected PostingsFormatProvider postingsProvider;
-        protected DocValuesFormatProvider docValuesProvider;
         protected SimilarityProvider similarity;
         protected Loading normsLoading;
         @Nullable
@@ -220,16 +236,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             return builder;
         }
 
-        public T postingsFormat(PostingsFormatProvider postingsFormat) {
-            this.postingsProvider = postingsFormat;
-            return builder;
-        }
-
-        public T docValuesFormat(DocValuesFormatProvider docValuesFormat) {
-            this.docValuesProvider = docValuesFormat;
-            return builder;
-        }
-
         public T similarity(SimilarityProvider similarity) {
             this.similarity = similarity;
             return builder;
@@ -290,28 +296,25 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     protected final boolean docValues;
     protected final NamedAnalyzer indexAnalyzer;
     protected NamedAnalyzer searchAnalyzer;
-    protected PostingsFormatProvider postingsFormat;
-    protected DocValuesFormatProvider docValuesFormat;
     protected final SimilarityProvider similarity;
     protected Loading normsLoading;
     protected Settings customFieldDataSettings;
     protected FieldDataType fieldDataType;
     protected final MultiFields multiFields;
     protected CopyTo copyTo;
-    protected final boolean writePre20Metadata;
+    protected final boolean writePre2xSettings;
 
     protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues, NamedAnalyzer indexAnalyzer,
-                                  NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat,
-                                  DocValuesFormatProvider docValuesFormat, SimilarityProvider similarity,
+                                  NamedAnalyzer searchAnalyzer, SimilarityProvider similarity,
                                   Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        this(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsFormat, docValuesFormat, similarity,
+        this(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, similarity,
                 normsLoading, fieldDataSettings, indexSettings, MultiFields.empty(), null);
     }
 
     protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues, NamedAnalyzer indexAnalyzer,
-                                  NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsFormat,
-                                  DocValuesFormatProvider docValuesFormat, SimilarityProvider similarity,
+                                  NamedAnalyzer searchAnalyzer, SimilarityProvider similarity,
                                   Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
+        assert indexSettings != null;
         this.names = names;
         this.boost = boost;
         this.fieldType = fieldType;
@@ -324,13 +327,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             this.searchAnalyzer = searchAnalyzer;
         }
 
-        if (postingsFormat == null) {
-            if (defaultPostingFormat() != null) {
-                postingsFormat = PostingFormats.getAsProvider(defaultPostingFormat());
-            }
-        }
-        this.postingsFormat = postingsFormat;
-        this.docValuesFormat = docValuesFormat;
         this.similarity = similarity;
         this.normsLoading = normsLoading;
 
@@ -352,9 +348,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
         this.multiFields = multiFields;
         this.copyTo = copyTo;
-        // the short circuit check to EMPTY here is necessary because some built in fields pass EMPTY for simplified ctors
-        this.writePre20Metadata = indexSettings != null && indexSettings.equals(ImmutableSettings.EMPTY) == false && 
-                                  Version.indexCreated(indexSettings).before(Version.V_2_0_0);
+        this.writePre2xSettings = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
     }
 
     @Nullable
@@ -664,12 +658,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             this.boost = fieldMergeWith.boost;
             this.normsLoading = fieldMergeWith.normsLoading;
             this.copyTo = fieldMergeWith.copyTo;
-            if (fieldMergeWith.postingsFormat != null) {
-                this.postingsFormat = fieldMergeWith.postingsFormat;
-            }
-            if (fieldMergeWith.docValuesFormat != null) {
-                this.docValuesFormat = fieldMergeWith.docValuesFormat;
-            }
             if (fieldMergeWith.searchAnalyzer != null) {
                 this.searchAnalyzer = fieldMergeWith.searchAnalyzer;
             }
@@ -685,16 +673,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     }
 
     @Override
-    public PostingsFormatProvider postingsFormatProvider() {
-        return postingsFormat;
-    }
-
-    @Override
-    public DocValuesFormatProvider docValuesFormatProvider() {
-        return docValuesFormat;
-    }
-
-    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(names.name());
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
@@ -705,7 +683,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
 
         builder.field("type", contentType());
-        if (writePre20Metadata && (includeDefaults || !names.name().equals(names.indexNameClean()))) {
+        if (writePre2xSettings && (includeDefaults || !names.name().equals(names.indexNameClean()))) {
             builder.field("index_name", names.indexNameClean());
         }
 
@@ -744,30 +722,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         }
 
         doXContentAnalyzers(builder, includeDefaults);
-
-        if (postingsFormat != null) {
-            if (includeDefaults || !postingsFormat.name().equals(defaultPostingFormat())) {
-                builder.field("postings_format", postingsFormat.name());
-            }
-        } else if (includeDefaults) {
-            String format = defaultPostingFormat();
-            if (format == null) {
-                format = PostingsFormatService.DEFAULT_FORMAT;
-            }
-            builder.field("postings_format", format);
-        }
-
-        if (docValuesFormat != null) {
-            if (includeDefaults || !docValuesFormat.name().equals(defaultDocValuesFormat())) {
-                builder.field(DOC_VALUES_FORMAT, docValuesFormat.name());
-            }
-        } else if (includeDefaults) {
-            String format = defaultDocValuesFormat();
-            if (format == null) {
-                format = DocValuesFormatService.DEFAULT_FORMAT;
-            }
-            builder.field(DOC_VALUES_FORMAT, format);
-        }
 
         if (similarity() != null) {
             builder.field("similarity", similarity().name());
@@ -870,6 +824,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         return true;
     }
 
+    @Override
     public boolean hasDocValues() {
         return docValues;
     }
@@ -1167,6 +1122,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     /**
      * Returns if this field is only generated when indexing. For example, the field of type token_count
      */
+    @Override
     public boolean isGenerated() {
         return false;
     }

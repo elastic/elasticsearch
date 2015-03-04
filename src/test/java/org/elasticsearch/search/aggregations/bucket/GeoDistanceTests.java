@@ -67,6 +67,7 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         return client().prepareIndex(idx, "type").setSource(source);
     }
 
+    @Override
     public void setupSuiteScopeCluster() throws Exception {
         prepareCreate("idx")
                 .addMapping("type", "location", "type=geo_point", "city", "type=string,index=not_analyzed")

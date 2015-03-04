@@ -224,13 +224,10 @@ public class RestClient implements Closeable {
         return HttpClients.createMinimal(new PoolingHttpClientConnectionManager(15, TimeUnit.SECONDS));
     }
 
-    public InetSocketAddress[] httpAddresses() {
-        return addresses;
-    }
-
     /**
      * Closes the REST client and the underlying http client
      */
+    @Override
     public void close() {
         IOUtils.closeWhileHandlingException(httpClient);
     }

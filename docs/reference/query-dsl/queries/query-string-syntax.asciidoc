@@ -157,7 +157,7 @@ Curly and square brackets can be combined:
 
 * Numbers from 1 up to but not including 5
 
-    count:[1..5}
+    count:[1 TO 5}
 
 
 Ranges with one side unbounded can use the following syntax:

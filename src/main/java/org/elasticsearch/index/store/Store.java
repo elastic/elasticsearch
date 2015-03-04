@@ -92,7 +92,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public static final String INDEX_STORE_STATS_REFRESH_INTERVAL = "index.store.stats_refresh_interval";
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
-    private final DirectoryService directoryService;
     private final StoreDirectory directory;
     private final ReentrantReadWriteLock metadataLock = new ReentrantReadWriteLock();
     private final ShardLock shardLock;
@@ -114,7 +113,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     @Inject
     public Store(ShardId shardId, @IndexSettings Settings indexSettings, DirectoryService directoryService, Distributor distributor, ShardLock shardLock, OnClose onClose) throws IOException {
         super(shardId, indexSettings);
-        this.directoryService = directoryService;
         this.directory = new StoreDirectory(directoryService.newFromDistributor(distributor), Loggers.getLogger("index.store.deletes", indexSettings, shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
@@ -227,7 +225,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Renames all the given files form the key of the map to the
      * value of the map. All successfully renamed files are removed from the map in-place.
      */
-    public void renameFilesSafe(Map<String, String> tempFileMap) throws IOException {
+    public void renameTempFilesSafe(Map<String, String> tempFileMap) throws IOException {
         // this works just like a lucene commit - we rename all temp files and once we successfully
         // renamed all the segments we rename the commit to ensure we don't leave half baked commits behind.
         final Map.Entry<String, String>[] entries = tempFileMap.entrySet().toArray(new Map.Entry[tempFileMap.size()]);
@@ -249,7 +247,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         metadataLock.writeLock().lock();
         // we make sure that nobody fetches the metadata while we do this rename operation here to ensure we don't
         // get exceptions if files are still open.
-        try {
+        try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
+            if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
+                throw new LockObtainFailedException("Index locked for write: " + writeLock);
+            }
             for (Map.Entry<String, String> entry : entries) {
                 String tempFile = entry.getKey();
                 String origFile = entry.getValue();
@@ -269,25 +270,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             metadataLock.writeLock().unlock();
         }
 
-    }
-
-    /**
-     * Deletes the content of a shard store. Be careful calling this!.
-     */
-    public void deleteContent() throws IOException {
-        ensureOpen();
-        final String[] files = directory.listAll();
-        final List<IOException> exceptions = new ArrayList<>();
-        for (String file : files) {
-            try {
-                directory.deleteFile(file);
-            } catch (NoSuchFileException | FileNotFoundException e) {
-                // ignore
-            } catch (IOException e) {
-                exceptions.add(e);
-            }
-        }
-        ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
     public StoreStats stats() throws IOException {
@@ -558,16 +540,27 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     public void cleanupAndVerify(String reason, MetadataSnapshot sourceMetaData) throws IOException {
         failIfCorrupted();
         metadataLock.writeLock().lock();
-        try {
+        try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
+            if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
+                throw new LockObtainFailedException("Index locked for write: " + writeLock);
+            }
             final StoreDirectory dir = directory;
             for (String existingFile : dir.listAll()) {
-                // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
-                if (!sourceMetaData.contains(existingFile) && !Store.isChecksum(existingFile)) {
-                    try {
-                        dir.deleteFile(reason, existingFile);
-                    } catch (Exception e) {
-                        // ignore, we don't really care, will get deleted later on
+                if (existingFile.equals(IndexWriter.WRITE_LOCK_NAME) || Store.isChecksum(existingFile) || sourceMetaData.contains(existingFile)) {
+                    continue; // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
+                }
+                try {
+                    dir.deleteFile(reason, existingFile);
+                    // FNF should not happen since we hold a write lock?
+                } catch (IOException ex) {
+                    if (existingFile.startsWith(IndexFileNames.SEGMENTS)
+                        || existingFile.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
+                        // TODO do we need to also fail this if we can't delete the pending commit file?
+                        // if one of those files can't be deleted we better fail the cleanup otherwise we might leave an old commit point around?
+                        throw new ElasticsearchIllegalStateException("Can't delete " + existingFile + " - cleanup failed", ex);
                     }
+                    logger.debug("failed to delete file [{}]", ex, existingFile);
+                    // ignore, we don't really care, will get deleted later on
                 }
             }
             final Store.MetadataSnapshot metadataOrEmpty = getMetadata();
@@ -657,11 +650,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
     }
 
-    /** Log that we are about to delete this file, to the index.store.deletes component. */
-    public void deleteFile(String msg, String storeFile) throws IOException {
-        directory.deleteFile(msg, storeFile);
-    }
-
     /**
      * Represents a snapshot of the current directory build from the latest Lucene commit.
      * Only files that are part of the last commit are considered in this datastrucutre.
@@ -691,6 +679,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
 
         MetadataSnapshot(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
             metadata = buildMetadata(commit, directory, logger);
+            assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
         }
 
         ImmutableMap<String, StoreFileMetaData> buildMetadata(IndexCommit commit, Directory directory, ESLogger logger) throws IOException {
@@ -986,6 +975,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 builder.put(meta.name(), meta);
             }
             this.metadata = builder.build();
+            assert metadata.isEmpty() || numSegmentFiles() == 1 : "numSegmentFiles: " + numSegmentFiles();
         }
 
         @Override
@@ -1001,6 +991,29 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
          */
         public boolean contains(String existingFile) {
             return metadata.containsKey(existingFile);
+        }
+
+        /**
+         * Returns the segments file that this metadata snapshot represents or null if the snapshot is empty.
+         */
+        public StoreFileMetaData getSegmentsFile() {
+            for (StoreFileMetaData file : this) {
+                if (file.name().startsWith(IndexFileNames.SEGMENTS)) {
+                    return file;
+                }
+            }
+            assert metadata.isEmpty();
+            return null;
+        }
+
+        private final int numSegmentFiles() { // only for asserts
+            int count = 0;
+            for (StoreFileMetaData file : this) {
+                if (file.name().startsWith(IndexFileNames.SEGMENTS)) {
+                    count++;
+                }
+            }
+            return count;
         }
     }
 

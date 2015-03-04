@@ -66,6 +66,7 @@ public class DoubleNestedSortingTests extends AbstractNumberNestedSortingTests {
         return new DoubleField(name, value, store);
     }
 
+    @Override
     protected void assertAvgScoreMode(Filter parentFilter, IndexSearcher searcher) throws IOException {
         MultiValueMode sortMode = MultiValueMode.AVG;
         Filter childFilter = new NotFilter(parentFilter);

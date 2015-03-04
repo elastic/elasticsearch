@@ -22,7 +22,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.jboss.netty.handler.codec.http.HttpResponse;
 import org.junit.Test;
@@ -46,7 +46,7 @@ public class NettyPipeliningDisabledIntegrationTest extends ElasticsearchIntegra
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put(InternalNode.HTTP_ENABLED, true).put("http.pipelining", false).build();
+        return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put(Node.HTTP_ENABLED, true).put("http.pipelining", false).build();
     }
 
     @Test

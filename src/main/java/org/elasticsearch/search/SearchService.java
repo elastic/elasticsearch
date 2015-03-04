@@ -102,10 +102,8 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     public static final String NORMS_LOADING_KEY = "index.norms.loading";
-    private static final String DEFAULT_KEEPALIVE_COMPONENENT_KEY = "default_keep_alive";
-    public static final String DEFAULT_KEEPALIVE_KEY = "search." + DEFAULT_KEEPALIVE_COMPONENENT_KEY;
-    private static final String KEEPALIVE_INTERVAL_COMPONENENT_KEY = "keep_alive_interval";
-    public static final String KEEPALIVE_INTERVAL_KEY = "search." + KEEPALIVE_INTERVAL_COMPONENENT_KEY;
+    public static final String DEFAULT_KEEPALIVE_KEY = "search.default_keep_alive";
+    public static final String KEEPALIVE_INTERVAL_KEY = "search.keep_alive_interval";
 
 
     private final ThreadPool threadPool;
@@ -166,9 +164,9 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.fetchPhase = fetchPhase;
         this.indicesQueryCache = indicesQueryCache;
 
-        TimeValue keepAliveInterval = componentSettings.getAsTime(KEEPALIVE_INTERVAL_COMPONENENT_KEY, timeValueMinutes(1));
+        TimeValue keepAliveInterval = settings.getAsTime(KEEPALIVE_INTERVAL_KEY, timeValueMinutes(1));
         // we can have 5 minutes here, since we make sure to clean with search requests and when shard/index closes
-        this.defaultKeepAlive = componentSettings.getAsTime(DEFAULT_KEEPALIVE_COMPONENENT_KEY, timeValueMinutes(5)).millis();
+        this.defaultKeepAlive = settings.getAsTime(DEFAULT_KEEPALIVE_KEY, timeValueMinutes(5)).millis();
 
         Map<String, SearchParseElement> elementParsers = new HashMap<>();
         elementParsers.putAll(dfsPhase.parseElements());

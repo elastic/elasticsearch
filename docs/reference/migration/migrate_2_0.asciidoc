@@ -12,7 +12,9 @@ line with the other Indices APIs. The <<multi-index>> options can be used on a r
 to change this behavior
 
 `GetIndexRequest.features()` now returns an array of Feature Enums instead of an array of String values.
+
 The following deprecated methods have been removed:
+
 * `GetIndexRequest.addFeatures(String[])` - Please use `GetIndexRequest.addFeatures(Feature[])` instead
 * `GetIndexRequest.features(String[])` - Please use `GetIndexRequest.features(Feature[])` instead
 * `GetIndexRequestBuilder.addFeatures(String[])` - Please use `GetIndexRequestBuilder.addFeatures(Feature[])` instead
@@ -107,7 +109,7 @@ Some query builders have been removed or renamed:
 * `filtered(...)` removed. Use `filteredQuery(...)` instead.
 * `inQuery(...)` removed.
 
-==== Aggregations
+=== Aggregations
 
 The `date_histogram` aggregation now returns a `Histogram` object in the response, and the `DateHistogram` class has been removed. Similarly
 the `date_range`, `ipv4_range`, and `geo_distance` aggregations all return a `Range` object in the response, and the `IPV4Range`, `DateRange`,
@@ -144,7 +146,7 @@ The `parent` parameter has been removed from the update request. Before 2.x it j
 `routing` setting should be used instead. The `parent` setting was confusing, because it had the impression that the parent
 a child documents points to can be changed but this is not true.
 
-==== Delete by query
+=== Delete by query
 
 The meaning of the `_shards` headers in the delete by query response has changed. Before version 2.0 the `total`,
 `successful` and `failed` fields in the header are based on the number of primary shards. The failures on replica
@@ -160,8 +162,8 @@ primary shards.
 Types can no longer be specified on fields within queries.  Instead, specify type restrictions in the search request.
 
 The following is an example query in 1.x over types `t1` and `t2`:
-`GET
-[source,sh]
+
+[source,json]
 ---------------
 curl -XGET 'localhost:9200/index/_search'
 {
@@ -177,6 +179,8 @@ curl -XGET 'localhost:9200/index/_search'
 ---------------
 
 In 2.0, the query should look like the following:
+
+[source,json]
 ---------------
 curl -XGET 'localhost:9200/index/t1,t2/_search'
 {
@@ -198,6 +202,8 @@ caused ambiguities in field lookups when the same name existed within multiple o
 The following example illustrates the difference between 1.x and 2.0.
 
 Given these mappings:
+
+[source,json]
 ---------------
 curl -XPUT 'localhost:9200/index'
 {
@@ -218,6 +224,8 @@ curl -XPUT 'localhost:9200/index'
 ---------------
 
 The following query was possible in 1.x:
+
+[source,json]
 ---------------
 curl -XGET 'localhost:9200/index/type/_search'
 {
@@ -228,6 +236,8 @@ curl -XGET 'localhost:9200/index/type/_search'
 ---------------
 
 In 2.0, the same query should now be:
+
+[source,json]
 ---------------
 curl -XGET 'localhost:9200/index/type/_search'
 {
@@ -237,3 +247,33 @@ curl -XGET 'localhost:9200/index/type/_search'
 }
 ---------------
 
+==== Meta fields have limited configuration
+Meta fields (those beginning with underscore) are fields used by elasticsearch
+to provide special features.  They now have limited configuration options.
+
+* `_id` configuration can no longer be changed.  If you need to sort, use `_uid` instead.
+* `_type` configuration can no longer be changed.
+* `_index` configuration is limited to enabling the field.
+* `_routing` configuration is limited to requiring the field.
+* `_boost` has been removed.
+* `_field_names` configuration is limited to disabling the field.
+* `_size` configuration is limited to enabling the field.
+
+=== Codecs
+
+It is no longer possible to specify per-field postings and doc values formats
+in the mappings. This setting will be ignored on indices created before
+elasticsearch 2.0 and will cause mapping parsing to fail on indices created on
+or after 2.0. For old indices, this means that new segments will be written
+with the default postings and doc values formats of the current codec.
+
+It is still possible to change the whole codec by using the `index.codec`
+setting. Please however note that using a non-default codec is discouraged as
+it could prevent future versions of Elasticsearch from being able to read the
+index.
+
+=== Scripts
+
+Deprecated script parameters `id`, `file`, and `scriptField` have been removed 
+from all scriptable APIs. `script_id`, `script_file` and `script` should be used 
+in their place.

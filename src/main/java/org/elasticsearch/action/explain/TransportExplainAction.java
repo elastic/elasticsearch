@@ -84,6 +84,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         super.doExecute(request, listener);
     }
 
+    @Override
     protected String executor() {
         return ThreadPool.Names.GET; // Or use Names.SEARCH?
     }
@@ -146,10 +147,12 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         }
     }
 
+    @Override
     protected ExplainRequest newRequest() {
         return new ExplainRequest();
     }
 
+    @Override
     protected ExplainResponse newResponse() {
         return new ExplainResponse();
     }

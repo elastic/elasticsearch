@@ -21,6 +21,8 @@ package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.joda.FormatDateTimeFormatter;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.lang.management.ManagementFactory;
@@ -34,6 +36,8 @@ import java.util.concurrent.TimeUnit;
 public class HotThreads {
 
     private static final Object mutex = new Object();
+
+    private static final FormatDateTimeFormatter DATE_TIME_FORMATTER = Joda.forPattern("dateOptionalTime");
 
     private int busiestThreads = 3;
     private TimeValue interval = new TimeValue(500, TimeUnit.MILLISECONDS);
@@ -122,6 +126,17 @@ public class HotThreads {
 
     private String innerDetect() throws Exception {
         StringBuilder sb = new StringBuilder();
+
+        sb.append("Hot threads at ");
+        sb.append(DATE_TIME_FORMATTER.printer().print(System.currentTimeMillis()));
+        sb.append(", interval=");
+        sb.append(interval);
+        sb.append(", busiestThreads=");
+        sb.append(busiestThreads);
+        sb.append(", ignoreIdleThreads=");
+        sb.append(ignoreIdleThreads);
+        sb.append(":\n");
+
         ThreadMXBean threadBean = ManagementFactory.getThreadMXBean();
         boolean enabledCpu = false;
         try {
@@ -177,6 +192,7 @@ public class HotThreads {
             final int busiestThreads = Math.min(this.busiestThreads, hotties.size());
             // skip that for now
             CollectionUtil.introSort(hotties, new Comparator<MyThreadInfo>() {
+                @Override
                 public int compare(MyThreadInfo o1, MyThreadInfo o2) {
                     if ("cpu".equals(type)) {
                         return (int) (o2.cpuTime - o1.cpuTime);

@@ -270,13 +270,11 @@ public class TypeParsers {
             } else if (propName.equals("include_in_all")) {
                 builder.includeInAll(nodeBooleanValue(propNode));
                 iterator.remove();
-            } else if (propName.equals("postings_format")) {
-                String postingFormatName = propNode.toString();
-                builder.postingsFormat(parserContext.postingFormatService().get(postingFormatName));
+            } else if (propName.equals("postings_format") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                // ignore for old indexes
                 iterator.remove();
-            } else if (propName.equals(DOC_VALUES_FORMAT)) {
-                String docValuesFormatName = propNode.toString();
-                builder.docValuesFormat(parserContext.docValuesFormatService().get(docValuesFormatName));
+            } else if (propName.equals(DOC_VALUES_FORMAT) && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
+                // ignore for old indexes
                 iterator.remove();
             } else if (propName.equals("similarity")) {
                 builder.similarity(parserContext.similarityLookupService().similarity(propNode.toString()));

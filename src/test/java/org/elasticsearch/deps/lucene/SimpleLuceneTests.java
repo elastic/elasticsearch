@@ -236,7 +236,7 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
         TermsEnum termsEnum = terms.iterator(null);
         termsEnum.next();
 
-        DocsEnum termDocs = termsEnum.docs(atomicReader.getLiveDocs(), null);
+        PostingsEnum termDocs = termsEnum.postings(atomicReader.getLiveDocs(), null);
         assertThat(termDocs.nextDoc(), equalTo(0));
         assertThat(termDocs.docID(), equalTo(0));
         assertThat(termDocs.freq(), equalTo(1));
@@ -244,7 +244,7 @@ public class SimpleLuceneTests extends ElasticsearchTestCase {
         terms = atomicReader.terms("int2");
         termsEnum = terms.iterator(termsEnum);
         termsEnum.next();
-        termDocs =  termsEnum.docs(atomicReader.getLiveDocs(), termDocs);
+        termDocs =  termsEnum.postings(atomicReader.getLiveDocs(), termDocs);
         assertThat(termDocs.nextDoc(), equalTo(0));
         assertThat(termDocs.docID(), equalTo(0));
         assertThat(termDocs.freq(), equalTo(2));

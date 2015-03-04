@@ -60,7 +60,7 @@ public abstract class NoCacheFilter extends Filter {
         }
 
         @Override
-        public String toString() {
+        public String toString(String field) {
 
             return "no_cache(" + delegate + ")";
         }

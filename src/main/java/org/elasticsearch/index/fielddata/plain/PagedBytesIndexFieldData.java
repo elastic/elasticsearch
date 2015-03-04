@@ -21,6 +21,7 @@ package org.elasticsearch.index.fielddata.plain;
 import org.apache.lucene.codecs.blocktree.FieldReader;
 import org.apache.lucene.codecs.blocktree.Stats;
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
 import org.apache.lucene.util.packed.PackedInts;
@@ -90,13 +91,13 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         boolean success = false;
 
         try (OrdinalsBuilder builder = new OrdinalsBuilder(numTerms, reader.maxDoc(), acceptableTransientOverheadRatio)) {
-            DocsEnum docsEnum = null;
+            PostingsEnum docsEnum = null;
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                 final long termOrd = builder.nextOrdinal();
                 assert termOrd == termOrdToBytesOffset.size();
                 termOrdToBytesOffset.add(bytes.copyUsingLengthPrefix(term));
-                docsEnum = termsEnum.docs(null, docsEnum, DocsEnum.FLAG_NONE);
-                for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                docsEnum = termsEnum.postings(null, docsEnum, PostingsEnum.NONE);
+                for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                     builder.addDoc(docId);
                 }
             }
@@ -139,6 +140,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         /**
          * @return the number of bytes for the term based on the length and ordinal overhead
          */
+        @Override
         public long bytesPerValue(BytesRef term) {
             if (term == null) {
                 return 0;
@@ -188,6 +190,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
          * @return A possibly wrapped TermsEnum for the terms
          * @throws IOException
          */
+        @Override
         public TermsEnum beforeLoad(Terms terms) throws IOException {
             final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat(
                     FilterSettingFields.ACCEPTABLE_TRANSIENT_OVERHEAD_RATIO,
@@ -228,6 +231,7 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
          * @param termsEnum  terms that were loaded
          * @param actualUsed actual field data memory usage
          */
+        @Override
         public void afterLoad(TermsEnum termsEnum, long actualUsed) {
             if (termsEnum instanceof RamAccountingTermsEnum) {
                 estimatedBytes = ((RamAccountingTermsEnum) termsEnum).getTotalBytes();

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.fetch.innerhits;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -151,6 +152,11 @@ public final class InnerHitsContext {
                 this.childFilter = childFilter;
                 this.docId = hitContext.docId();
                 this.atomicReader = hitContext.readerContext().reader();
+            }
+
+            @Override
+            public String toString(String field) {
+                return "NestedChildren(parent=" + parentFilter + ",child=" + childFilter + ")";
             }
 
             @Override

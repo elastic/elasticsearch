@@ -30,6 +30,7 @@ import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.rest.client.RestException;
@@ -106,6 +107,13 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
         } else {
             blacklistPathMatchers = new PathMatcher[0];
         }
+    }
+    
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder()
+            .put(Node.HTTP_ENABLED, true)
+            .put(super.nodeSettings(nodeOrdinal)).build();
     }
 
     @ParametersFactory
@@ -246,7 +254,7 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
             assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher.matches(Paths.get(testPath)));
         }
         //The client needs non static info to get initialized, therefore it can't be initialized in the before class
-        restTestExecutionContext.resetClient(cluster().httpAddresses(), restClientSettings());
+        restTestExecutionContext.initClient(cluster().httpAddresses(), restClientSettings());
         restTestExecutionContext.clear();
 
         //skip test if the whole suite (yaml file) is disabled
@@ -255,6 +263,12 @@ public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
         //skip test if test section is disabled
         assumeFalse(buildSkipMessage(testCandidate.getTestPath(), testCandidate.getTestSection().getSkipSection()),
                 testCandidate.getTestSection().getSkipSection().skip(restTestExecutionContext.esVersion()));
+    }
+
+    @Override
+    protected void afterTestFailed() {
+        //after we reset the global cluster, we have to make sure the client gets re-initialized too
+        restTestExecutionContext.resetClient();
     }
 
     private static String buildSkipMessage(String description, SkipSection skipSection) {

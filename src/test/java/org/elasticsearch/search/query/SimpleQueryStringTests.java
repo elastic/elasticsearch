@@ -92,6 +92,54 @@ public class SimpleQueryStringTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testSimpleQueryStringMinimumShouldMatch() throws Exception {
+        createIndex("test");
+        ensureGreen("test");
+        indexRandom(true, false,
+                client().prepareIndex("test", "type1", "1").setSource("body", "foo"),
+                client().prepareIndex("test", "type1", "2").setSource("body", "bar"),
+                client().prepareIndex("test", "type1", "3").setSource("body", "foo bar"),
+                client().prepareIndex("test", "type1", "4").setSource("body", "foo baz bar"));
+
+
+        logger.info("--> query 1");
+        SearchResponse searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").minimumShouldMatch("2")).get();
+        assertHitCount(searchResponse, 2l);
+        assertSearchHits(searchResponse, "3", "4");
+
+        logger.info("--> query 2");
+        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").field("body").field("body2").minimumShouldMatch("2")).get();
+        assertHitCount(searchResponse, 2l);
+        assertSearchHits(searchResponse, "3", "4");
+
+        logger.info("--> query 3");
+        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body").field("body2").minimumShouldMatch("70%")).get();
+        assertHitCount(searchResponse, 2l);
+        assertSearchHits(searchResponse, "3", "4");
+
+        indexRandom(true, false,
+                client().prepareIndex("test", "type1", "5").setSource("body2", "foo", "other", "foo"),
+                client().prepareIndex("test", "type1", "6").setSource("body2", "bar", "other", "foo"),
+                client().prepareIndex("test", "type1", "7").setSource("body2", "foo bar", "other", "foo"),
+                client().prepareIndex("test", "type1", "8").setSource("body2", "foo baz bar", "other", "foo"));
+
+        logger.info("--> query 4");
+        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").field("body").field("body2").minimumShouldMatch("2")).get();
+        assertHitCount(searchResponse, 4l);
+        assertSearchHits(searchResponse, "3", "4", "7", "8");
+
+        logger.info("--> query 5");
+        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar").minimumShouldMatch("2")).get();
+        assertHitCount(searchResponse, 5l);
+        assertSearchHits(searchResponse, "3", "4", "6", "7", "8");
+
+        logger.info("--> query 6");
+        searchResponse = client().prepareSearch().setQuery(simpleQueryStringQuery("foo bar baz").field("body2").field("other").minimumShouldMatch("70%")).get();
+        assertHitCount(searchResponse, 3l);
+        assertSearchHits(searchResponse, "6", "7", "8");
+    }
+
+    @Test
     public void testSimpleQueryStringLowercasing() {
         createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("body", "Professional").get();

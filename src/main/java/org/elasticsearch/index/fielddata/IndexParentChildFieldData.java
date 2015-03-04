@@ -33,11 +33,13 @@ public interface IndexParentChildFieldData extends IndexFieldData.Global<AtomicP
      * Load a global view of the ordinals for the given {@link IndexReader},
      * potentially from a cache.
      */
+    @Override
     IndexParentChildFieldData loadGlobal(IndexReader indexReader);
 
     /**
      * Load a global view of the ordinals for the given {@link IndexReader}.
      */
+    @Override
     IndexParentChildFieldData localGlobalDirect(IndexReader indexReader) throws Exception;
 
 }

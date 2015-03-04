@@ -97,9 +97,6 @@ public abstract class FieldDataTermsFilter extends Filter {
     @Override
     public abstract int hashCode();
 
-    @Override
-    public abstract String toString();
-
     /**
      * Filters on non-numeric fields.
      */
@@ -120,7 +117,7 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
-        public String toString() {
+        public String toString(String field) {
             final StringBuilder sb = new StringBuilder("BytesFieldDataFilter:");
             return sb
                     .append(fieldData.getFieldNames().indexName())
@@ -177,7 +174,7 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
-        public String toString() {
+        public String toString(String field) {
             final StringBuilder sb = new StringBuilder("LongsFieldDataFilter:");
             return sb
                     .append(fieldData.getFieldNames().indexName())
@@ -236,7 +233,7 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
-        public String toString() {
+        public String toString(String field) {
             final StringBuilder sb = new StringBuilder("DoublesFieldDataFilter");
             return sb
                     .append(fieldData.getFieldNames().indexName())

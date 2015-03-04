@@ -19,7 +19,6 @@
 package org.elasticsearch.gateway;
 
 import org.apache.lucene.util.LuceneTestCase;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
 import org.elasticsearch.action.count.CountResponse;
@@ -31,17 +30,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 @ElasticsearchIntegrationTest.ClusterScope(numDataNodes = 0, scope = ElasticsearchIntegrationTest.Scope.TEST, numClientNodes = 0, transportClientRatio = 0.0)
 public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsCompatIntegrationTest {
 
 
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
@@ -49,10 +49,12 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
                 .put("gateway.recover_after_nodes", 2).build();
     }
 
+    @Override
     protected int minExternalNodes() {
         return 2;
     }
 
+    @Override
     protected int maxExternalNodes() {
         return 3;
     }
@@ -98,15 +100,15 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
             RecoveryState recoveryState = response.recoveryState();
             if (!recoveryState.getPrimary()) {
                 RecoveryState.Index index = recoveryState.getIndex();
-                assertThat(index.toString(), index.recoveredByteCount(), equalTo(0l));
-                assertThat(index.toString(), index.reusedByteCount(), greaterThan(0l));
-                assertThat(index.toString(), index.reusedByteCount(), equalTo(index.totalByteCount()));
+                assertThat(index.toString(), index.recoveredBytes(), equalTo(0l));
+                assertThat(index.toString(), index.reusedBytes(), greaterThan(0l));
+                assertThat(index.toString(), index.reusedBytes(), equalTo(index.totalBytes()));
                 assertThat(index.toString(), index.recoveredFileCount(), equalTo(0));
                 assertThat(index.toString(), index.reusedFileCount(), equalTo(index.totalFileCount()));
                 assertThat(index.toString(), index.reusedFileCount(), greaterThan(0));
-                assertThat(index.toString(), index.percentBytesRecovered(), equalTo(0.f));
-                assertThat(index.toString(), index.percentFilesRecovered(), equalTo(0.f));
-                assertThat(index.toString(), index.reusedByteCount(), greaterThan(index.numberOfRecoveredBytes()));
+                assertThat(index.toString(), index.recoveredBytesPercent(), equalTo(100.f));
+                assertThat(index.toString(), index.recoveredFilesPercent(), equalTo(100.f));
+                assertThat(index.toString(), index.reusedBytes(), greaterThan(index.recoveredBytes()));
                 // TODO upgrade via optimize?
             }
         }

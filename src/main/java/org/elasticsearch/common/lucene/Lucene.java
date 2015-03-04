@@ -19,19 +19,14 @@
 
 package org.elasticsearch.common.lucene;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.index.CorruptIndexException;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.IndexFormatTooNewException;
-import org.apache.lucene.index.IndexFormatTooOldException;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.ConstantScoreQuery;
@@ -49,9 +44,7 @@ import org.apache.lucene.search.TimeLimitingCollector;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.Version;
@@ -70,6 +63,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.*;
 
 import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTOR;
 
@@ -121,10 +115,101 @@ public class Lucene {
     }
 
     /**
+     * Returns an iterable that allows to iterate over all files in this segments info
+     */
+    public static Iterable<String> files(SegmentInfos infos) throws IOException {
+        final List<Collection<String>> list = new ArrayList<>();
+        list.add(Collections.singleton(infos.getSegmentsFileName()));
+        for (SegmentCommitInfo info : infos) {
+            list.add(info.files());
+        }
+        return Iterables.concat(list.toArray(new Collection[0]));
+    }
+
+    /**
      * Reads the segments infos from the given commit, failing if it fails to load
      */
     public static SegmentInfos readSegmentInfos(IndexCommit commit, Directory directory) throws IOException {
         return SegmentInfos.readCommit(directory, commit.getSegmentsFileName());
+    }
+
+    /**
+     * Reads the segments infos from the given segments file name, failing if it fails to load
+     */
+    private static SegmentInfos readSegmentInfos(String segmentsFileName, Directory directory) throws IOException {
+        return SegmentInfos.readCommit(directory, segmentsFileName);
+    }
+
+    /**
+     * This method removes all files from the given directory that are not referenced by the given segments file.
+     * This method will open an IndexWriter and relies on index file deleter to remove all unreferenced files. Segment files
+     * that are newer than the given segments file are removed forcefully to prevent problems with IndexWriter opening a potentially
+     * broken commit point / leftover.
+     * <b>Note:</b> this method will fail if there is another IndexWriter open on the given directory. This method will also acquire
+     * a write lock from the directory while pruning unused files. This method expects an existing index in the given directory that has
+     * the given segments file.
+     */
+    public static SegmentInfos pruneUnreferencedFiles(String segmentsFileName, Directory directory) throws IOException {
+        final SegmentInfos si = readSegmentInfos(segmentsFileName, directory);
+        try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
+            if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
+                throw new LockObtainFailedException("Index locked for write: " + writeLock);
+            }
+            int foundSegmentFiles = 0;
+            for (final String file : directory.listAll()) {
+                /**
+                 * we could also use a deletion policy here but in the case of snapshot and restore
+                 * sometimes we restore an index and override files that were referenced by a "future"
+                 * commit. If such a commit is opened by the IW it would likely throw a corrupted index exception
+                 * since checksums don's match anymore. that's why we prune the name here directly.
+                 * We also want the caller to know if we were not able to remove a segments_N file.
+                 */
+                if (file.startsWith(IndexFileNames.SEGMENTS) || file.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
+                    foundSegmentFiles++;
+                    if (file.equals(si.getSegmentsFileName()) == false) {
+                        directory.deleteFile(file); // remove all segment_N files except of the one we wanna keep
+                    }
+                }
+            }
+            assert SegmentInfos.getLastCommitSegmentsFileName(directory).equals(segmentsFileName);
+            if (foundSegmentFiles == 0) {
+                throw new IllegalStateException("no commit found in the directory");
+            }
+        }
+        final CommitPoint cp = new CommitPoint(si, directory);
+        try (IndexWriter _ = new IndexWriter(directory, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
+                .setIndexCommit(cp)
+                .setCommitOnClose(false)
+                .setMergePolicy(NoMergePolicy.INSTANCE)
+                .setOpenMode(IndexWriterConfig.OpenMode.APPEND))) {
+            // do nothing and close this will kick of IndexFileDeleter which will remove all pending files
+        }
+        return si;
+    }
+
+    /**
+     * This method removes all lucene files from the given directory. It will first try to delete all commit points / segments
+     * files to ensure broken commits or corrupted indices will not be opened in the future. If any of the segment files can't be deleted
+     * this operation fails.
+     */
+    public static void cleanLuceneIndex(Directory directory) throws IOException {
+        try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
+            if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
+                throw new LockObtainFailedException("Index locked for write: " + writeLock);
+            }
+            for (final String file : directory.listAll()) {
+                if (file.startsWith(IndexFileNames.SEGMENTS) || file.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
+                    directory.deleteFile(file); // remove all segment_N files
+                }
+            }
+        }
+        try (IndexWriter _ = new IndexWriter(directory, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
+                .setMergePolicy(NoMergePolicy.INSTANCE) // no merges
+                .setCommitOnClose(false) // no commits
+                .setOpenMode(IndexWriterConfig.OpenMode.CREATE))) // force creation - don't append...
+        {
+            // do nothing and close this will kick of IndexFileDeleter which will remove all pending files
+        }
     }
 
     public static void checkSegmentInfoIntegrity(final Directory directory) throws IOException {
@@ -273,10 +358,6 @@ public class Lucene {
     }
 
     public static TopDocs readTopDocs(StreamInput in) throws IOException {
-        if (!in.readBoolean()) {
-            // no docs
-            return null;
-        }
         if (in.readBoolean()) {
             int totalHits = in.readVInt();
             float maxScore = in.readFloat();
@@ -343,11 +424,7 @@ public class Lucene {
     }
 
     public static void writeTopDocs(StreamOutput out, TopDocs topDocs, int from) throws IOException {
-        if (topDocs.scoreDocs.length - from < 0) {
-            out.writeBoolean(false);
-            return;
-        }
-        out.writeBoolean(true);
+        from = Math.min(from, topDocs.scoreDocs.length);
         if (topDocs instanceof TopFieldDocs) {
             out.writeBoolean(true);
             TopFieldDocs topFieldDocs = (TopFieldDocs) topDocs;
@@ -372,11 +449,8 @@ public class Lucene {
             }
 
             out.writeVInt(topDocs.scoreDocs.length - from);
-            int index = 0;
-            for (ScoreDoc doc : topFieldDocs.scoreDocs) {
-                if (index++ < from) {
-                    continue;
-                }
+            for (int i = from; i < topFieldDocs.scoreDocs.length; ++i) {
+                ScoreDoc doc = topFieldDocs.scoreDocs[i];
                 writeFieldDoc(out, (FieldDoc) doc);
             }
         } else {
@@ -385,11 +459,8 @@ public class Lucene {
             out.writeFloat(topDocs.getMaxScore());
 
             out.writeVInt(topDocs.scoreDocs.length - from);
-            int index = 0;
-            for (ScoreDoc doc : topDocs.scoreDocs) {
-                if (index++ < from) {
-                    continue;
-                }
+            for (int i = from; i < topDocs.scoreDocs.length; ++i) {
+                ScoreDoc doc = topDocs.scoreDocs[i];
                 writeScoreDoc(out, doc);
             }
         }
@@ -635,5 +706,68 @@ public class Lucene {
                 throw new ElasticsearchIllegalStateException(message);
             }
         };
+    }
+
+    private static final class CommitPoint extends IndexCommit {
+        private String segmentsFileName;
+        private final Collection<String> files;
+        private final Directory dir;
+        private final long generation;
+        private final Map<String,String> userData;
+        private final int segmentCount;
+
+        private CommitPoint(SegmentInfos infos, Directory dir) throws IOException {
+            segmentsFileName = infos.getSegmentsFileName();
+            this.dir = dir;
+            userData = infos.getUserData();
+            files = Collections.unmodifiableCollection(infos.files(dir, true));
+            generation = infos.getGeneration();
+            segmentCount = infos.size();
+        }
+
+        @Override
+        public String toString() {
+            return "DirectoryReader.ReaderCommit(" + segmentsFileName + ")";
+        }
+
+        @Override
+        public int getSegmentCount() {
+            return segmentCount;
+        }
+
+        @Override
+        public String getSegmentsFileName() {
+            return segmentsFileName;
+        }
+
+        @Override
+        public Collection<String> getFileNames() {
+            return files;
+        }
+
+        @Override
+        public Directory getDirectory() {
+            return dir;
+        }
+
+        @Override
+        public long getGeneration() {
+            return generation;
+        }
+
+        @Override
+        public boolean isDeleted() {
+            return false;
+        }
+
+        @Override
+        public Map<String,String> getUserData() {
+            return userData;
+        }
+
+        @Override
+        public void delete() {
+            throw new UnsupportedOperationException("This IndexCommit does not support deletions");
+        }
     }
 }

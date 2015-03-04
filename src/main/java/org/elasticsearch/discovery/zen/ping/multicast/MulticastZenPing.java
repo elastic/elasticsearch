@@ -97,13 +97,13 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         this.networkService = networkService;
         this.version = version;
 
-        this.address = componentSettings.get("address");
-        this.port = componentSettings.getAsInt("port", 54328);
-        this.group = componentSettings.get("group", "224.2.2.4");
-        this.bufferSize = componentSettings.getAsInt("buffer_size", 2048);
-        this.ttl = componentSettings.getAsInt("ttl", 3);
+        this.address = this.settings.get("discovery.zen.ping.multicast.address");
+        this.port = this.settings.getAsInt("discovery.zen.ping.multicast.port", 54328);
+        this.group = this.settings.get("discovery.zen.ping.multicast.group", "224.2.2.4");
+        this.bufferSize = this.settings.getAsInt("discovery.zen.ping.multicast.buffer_size", 2048);
+        this.ttl = this.settings.getAsInt("discovery.zen.ping.multicast.ttl", 3);
 
-        this.pingEnabled = componentSettings.getAsBoolean("ping.enabled", true);
+        this.pingEnabled = this.settings.getAsBoolean("discovery.zen.ping.multicast.ping.enabled", true);
 
         logger.debug("using group [{}], with port [{}], ttl [{}], and address [{}]", group, port, ttl, address);
 
@@ -123,7 +123,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         try {
             // we know OSX has bugs in the JVM when creating multiple instances of multicast sockets
             // causing for "socket close" exceptions when receive and/or crashes
-            boolean shared = componentSettings.getAsBoolean("shared", Constants.MAC_OS_X);
+            boolean shared = settings.getAsBoolean("discovery.zen.ping.multicast.shared", Constants.MAC_OS_X);
             multicastChannel = MulticastChannel.getChannel(nodeName(), shared,
                     new MulticastChannel.Config(port, group, bufferSize, ttl, networkService.resolvePublishHostAddress(address)),
                     new Receiver());

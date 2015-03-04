@@ -82,20 +82,20 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
         this.discoveryService = discoveryService;
         this.threadPool = threadPool;
         // allow to control a delay of when indices will get created
-        this.expectedNodes = componentSettings.getAsInt("expected_nodes", -1);
-        this.expectedDataNodes = componentSettings.getAsInt("expected_data_nodes", -1);
-        this.expectedMasterNodes = componentSettings.getAsInt("expected_master_nodes", -1);
+        this.expectedNodes = this.settings.getAsInt("gateway.expected_nodes", -1);
+        this.expectedDataNodes = this.settings.getAsInt("gateway.expected_data_nodes", -1);
+        this.expectedMasterNodes = this.settings.getAsInt("gateway.expected_master_nodes", -1);
 
         TimeValue defaultRecoverAfterTime = null;
         if (expectedNodes >= 0 || expectedDataNodes >= 0 || expectedMasterNodes >= 0) {
             defaultRecoverAfterTime = DEFAULT_RECOVER_AFTER_TIME_IF_EXPECTED_NODES_IS_SET;
         }
 
-        this.recoverAfterTime = componentSettings.getAsTime("recover_after_time", defaultRecoverAfterTime);
-        this.recoverAfterNodes = componentSettings.getAsInt("recover_after_nodes", -1);
-        this.recoverAfterDataNodes = componentSettings.getAsInt("recover_after_data_nodes", -1);
+        this.recoverAfterTime = this.settings.getAsTime("gateway.recover_after_time", defaultRecoverAfterTime);
+        this.recoverAfterNodes = this.settings.getAsInt("gateway.recover_after_nodes", -1);
+        this.recoverAfterDataNodes = this.settings.getAsInt("gateway.recover_after_data_nodes", -1);
         // default the recover after master nodes to the minimum master nodes in the discovery
-        this.recoverAfterMasterNodes = componentSettings.getAsInt("recover_after_master_nodes", settings.getAsInt("discovery.zen.minimum_master_nodes", -1));
+        this.recoverAfterMasterNodes = this.settings.getAsInt("gateway.recover_after_master_nodes", settings.getAsInt("discovery.zen.minimum_master_nodes", -1));
 
         // Add the not recovered as initial state block, we don't allow anything until
         this.clusterService.addInitialStateBlock(STATE_NOT_RECOVERED_BLOCK);

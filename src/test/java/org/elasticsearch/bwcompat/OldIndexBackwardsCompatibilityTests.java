@@ -19,6 +19,8 @@
 
 package org.elasticsearch.bwcompat;
 
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -28,7 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.action.admin.indices.upgrade.UpgradeTest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
@@ -36,65 +38,37 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.hamcrest.Matchers;
+import org.junit.BeforeClass;
 
 import java.lang.reflect.Modifier;
+import java.net.URL;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
+@TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardCompatibilityTest {
     // TODO: test for proper exception on unsupported indexes (maybe via separate test?)
     // We have a 0.20.6.zip etc for this.
     
-    List<String> indexes = Arrays.asList(
-        "index-0.90.0.Beta1.zip",
-        "index-0.90.0.RC1.zip",
-        "index-0.90.0.RC2.zip",
-        "index-0.90.0.zip",
-        "index-0.90.1.zip",
-        "index-0.90.2.zip",
-        "index-0.90.3.zip",
-        "index-0.90.4.zip",
-        "index-0.90.5.zip",
-        "index-0.90.6.zip",
-        "index-0.90.7.zip",
-        "index-0.90.8.zip",
-        "index-0.90.9.zip",
-        "index-0.90.10.zip",
-        "index-0.90.11.zip",
-        "index-0.90.12.zip",
-        "index-0.90.13.zip",
-        "index-1.0.0.Beta1.zip",
-        "index-1.0.0.Beta2.zip",
-        "index-1.0.0.RC1.zip",
-        "index-1.0.0.RC2.zip",
-        "index-1.0.0.zip",
-        "index-1.0.1.zip",
-        "index-1.0.2.zip",
-        "index-1.0.3.zip",
-        "index-1.1.0.zip",
-        "index-1.1.1.zip",
-        "index-1.1.2.zip",
-        "index-1.2.0.zip",
-        "index-1.2.1.zip",
-        "index-1.2.2.zip",
-        "index-1.2.3.zip",
-        "index-1.2.4.zip",
-        "index-1.3.0.zip",
-        "index-1.3.1.zip",
-        "index-1.3.2.zip",
-        "index-1.3.3.zip",
-        "index-1.3.4.zip",
-        "index-1.3.5.zip",
-        "index-1.3.6.zip",
-        "index-1.3.7.zip",
-        "index-1.3.8.zip",
-        "index-1.4.0.Beta1.zip",
-        "index-1.4.0.zip",
-        "index-1.4.1.zip",
-        "index-1.4.2.zip",
-        "index-1.4.3.zip"
-    );
+    static List<String> indexes;
+    
+    @BeforeClass
+    public static void initIndexes() throws Exception {
+        indexes = new ArrayList<>();
+        URL dirUrl = OldIndexBackwardsCompatibilityTests.class.getResource(".");
+        Path dir = Paths.get(dirUrl.toURI());
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "index-*.zip")) {
+            for (Path path : stream) {
+                indexes.add(path.getFileName().toString());
+            }
+        }
+        Collections.sort(indexes);
+    }
     
     public void testAllVersionsTested() throws Exception {
         SortedSet<String> expectedVersions = new TreeSet<>();
@@ -132,7 +106,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
 
     void assertOldIndexWorks(String index) throws Exception {
         Settings settings = ImmutableSettings.builder()
-            .put(InternalNode.HTTP_ENABLED, true) // for _upgrade
+            .put(Node.HTTP_ENABLED, true) // for _upgrade
                 .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class) // disable merging so no segments will be upgraded
                 .build();
         loadIndex(index, settings);
@@ -185,14 +159,13 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
 
     void assertNewReplicasWork() throws Exception {
         final int numReplicas = randomIntBetween(2, 3);
-        for (int i = 0; i < numReplicas; ++i) {
-            logger.debug("Creating another node for replica " + i);
-            internalCluster().startNode(ImmutableSettings.builder()
+        logger.debug("Creating [{}] nodes for replicas", numReplicas);
+        internalCluster().startNodesAsync(numReplicas, ImmutableSettings.builder()
                 .put("data.node", true)
                 .put("master.node", false)
-                .put(InternalNode.HTTP_ENABLED, true) // for _upgrade
-                .build());
-        }
+                .put(Node.HTTP_ENABLED, true) // for _upgrade
+                .build()).get();
+
         client().admin().cluster().prepareHealth("test").setWaitForNodes("" + (numReplicas + 1));
         assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
             .put("number_of_replicas", numReplicas)).execute().actionGet());

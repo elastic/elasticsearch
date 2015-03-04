@@ -236,6 +236,7 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
 
         internalCluster().stopRandomDataNode();
         assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object o) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).get().getState();
                 return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);

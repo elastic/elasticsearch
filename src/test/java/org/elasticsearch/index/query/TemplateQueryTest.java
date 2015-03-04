@@ -19,6 +19,7 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptResponse;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
@@ -42,7 +43,9 @@ import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -210,13 +213,15 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         templateParams.put("myField", "theField");
         templateParams.put("myValue", "foo");
 
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").setTemplateName("full-query-template").setTemplateParams(templateParams).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").setTemplateName("full-query-template")
+                .setTemplateParams(templateParams).setTemplateType(ScriptService.ScriptType.FILE).get();
         assertHitCount(searchResponse, 4);
         // size kicks in here...
         assertThat(searchResponse.getHits().getHits().length, is(2));
 
         templateParams.put("myField", "otherField");
-        searchResponse = client().prepareSearch("test").setTypes("type").setTemplateName("full-query-template").setTemplateParams(templateParams).get();
+        searchResponse = client().prepareSearch("test").setTypes("type").setTemplateName("full-query-template")
+                .setTemplateParams(templateParams).setTemplateType(ScriptService.ScriptType.FILE).get();
         assertHitCount(searchResponse, 1);
     }
 

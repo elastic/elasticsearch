@@ -20,19 +20,19 @@
 package org.elasticsearch.http;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.rest.*;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -67,7 +67,7 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
         this.nodeService = nodeService;
         nodeService.setHttpServer(this);
 
-        this.disableSites = componentSettings.getAsBoolean("disable_sites", false);
+        this.disableSites = this.settings.getAsBoolean("http.disable_sites", false);
 
         transport.httpServerAdapter(new Dispatcher(this));
     }
@@ -180,9 +180,11 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
             channel.sendResponse(new BytesRestResponse(NOT_FOUND));
             return;
         }
-        if (!Files.isRegularFile(file)) {
+        
+        BasicFileAttributes attributes = Files.readAttributes(file, BasicFileAttributes.class);
+        if (!attributes.isRegularFile()) {
             // If it's not a dir, we send a 403
-            if (!Files.isDirectory(file)) {
+            if (!attributes.isDirectory()) {
                 channel.sendResponse(new BytesRestResponse(FORBIDDEN));
                 return;
             }

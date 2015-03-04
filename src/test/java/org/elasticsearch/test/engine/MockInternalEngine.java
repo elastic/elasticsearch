@@ -30,7 +30,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.io.IOException;
@@ -39,11 +38,13 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class MockInternalEngine extends InternalEngine {
     public static final String WRAP_READER_RATIO = "index.engine.mock.random.wrap_reader_ratio";
     public static final String READER_WRAPPER_TYPE = "index.engine.mock.random.wrapper";
     public static final String FLUSH_ON_CLOSE_RATIO = "index.engine.mock.flush_on_close.ratio";
+    private final AtomicBoolean closing = new AtomicBoolean(false);
 
     public static class MockContext {
         public final Random random;
@@ -82,16 +83,21 @@ public class MockInternalEngine extends InternalEngine {
     @Override
     public void close() throws IOException {
         try {
-            if (mockContext.flushOnClose > mockContext.random.nextDouble()) {
-                super.flushAndClose();
+            if (closing.compareAndSet(false, true)) { // only do the random thing if we are the first call to this since super.flushOnClose() calls #close() again and then we might end up with a stackoverflow.
+                if (mockContext.flushOnClose > mockContext.random.nextDouble()) {
+                    super.flushAndClose();
+                } else {
+                    super.close();
+                }
             } else {
                 super.close();
             }
         } finally {
             if (logger.isTraceEnabled()) {
                 // log debug if we have pending searchers
-                for (Map.Entry<MockInternalEngine.AssertingSearcher, RuntimeException> entry : INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
-                    logger.trace("Unreleased Searchers instance for shard [{}]", entry.getValue(), entry.getKey().shardId);
+                for (Map.Entry<AssertingSearcher, RuntimeException> entry : INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
+                    logger.trace("Unreleased Searchers instance for shard [{}]",
+                            entry.getValue(), entry.getKey().shardId());
                 }
             }
         }
@@ -100,10 +106,14 @@ public class MockInternalEngine extends InternalEngine {
 
     @Override
     public void flushAndClose() throws IOException {
-        if (mockContext.flushOnClose > mockContext.random.nextDouble()) {
-            super.flushAndClose();
+        if (closing.compareAndSet(false, true)) { // only do the random thing if we are the first call to this since super.flushOnClose() calls #close() again and then we might end up with a stackoverflow.
+            if (mockContext.flushOnClose > mockContext.random.nextDouble()) {
+                super.flushAndClose();
+            } else {
+                super.close();
+            }
         } else {
-            super.close();
+            super.flushAndClose();
         }
     }
 
@@ -121,7 +131,8 @@ public class MockInternalEngine extends InternalEngine {
         // pass the original searcher to the super.newSearcher() method to make sure this is the searcher that will
         // be released later on. If we wrap an index reader here must not pass the wrapped version to the manager
         // on release otherwise the reader will be closed too early. - good news, stuff will fail all over the place if we don't get this right here
-        return new AssertingSearcher(assertingIndexSearcher, super.newSearcher(source, searcher, manager), shardId);
+        return new AssertingSearcher(assertingIndexSearcher,
+                super.newSearcher(source, searcher, manager), shardId, INFLIGHT_ENGINE_SEARCHERS, logger);
     }
 
     private DirectoryReader wrapReader(DirectoryReader reader) {
@@ -148,77 +159,10 @@ public class MockInternalEngine extends InternalEngine {
         return reader;
     }
 
-    public final class AssertingSearcher extends Searcher {
-        private final Searcher wrappedSearcher;
-        private final ShardId shardId;
-        private final IndexSearcher indexSearcher;
-        private RuntimeException firstReleaseStack;
-        private final Object lock = new Object();
-        private final int initialRefCount;
-
-        public AssertingSearcher(IndexSearcher indexSearcher, Searcher wrappedSearcher, ShardId shardId) {
-            super(wrappedSearcher.source(), indexSearcher);
-            // we only use the given index searcher here instead of the IS of the wrapped searcher. the IS might be a wrapped searcher
-            // with a wrapped reader.
-            this.wrappedSearcher = wrappedSearcher;
-            this.shardId = shardId;
-            initialRefCount = wrappedSearcher.reader().getRefCount();
-            this.indexSearcher = indexSearcher;
-            assert initialRefCount > 0 : "IndexReader#getRefCount() was [" + initialRefCount + "] expected a value > [0] - reader is already closed";
-            INFLIGHT_ENGINE_SEARCHERS.put(this, new RuntimeException("Unreleased Searcher, source [" + wrappedSearcher.source() + "]"));
-        }
-
-        @Override
-        public String source() {
-            return wrappedSearcher.source();
-        }
-
-        @Override
-        public void close() throws ElasticsearchException {
-            RuntimeException remove = INFLIGHT_ENGINE_SEARCHERS.remove(this);
-            synchronized (lock) {
-                // make sure we only get this once and store the stack of the first caller!
-                if (remove == null) {
-                    assert firstReleaseStack != null;
-                    AssertionError error = new AssertionError("Released Searcher more than once, source [" + wrappedSearcher.source() + "]");
-                    error.initCause(firstReleaseStack);
-                    throw error;
-                } else {
-                    assert firstReleaseStack == null;
-                    firstReleaseStack = new RuntimeException("Searcher Released first here, source [" + wrappedSearcher.source() + "]");
-                }
-            }
-            final int refCount = wrappedSearcher.reader().getRefCount();
-            // this assert seems to be paranoid but given LUCENE-5362 we better add some assertions here to make sure we catch any potential
-            // problems.
-            assert refCount > 0 : "IndexReader#getRefCount() was [" + refCount + "] expected a value > [0] - reader is already closed. Initial refCount was: [" + initialRefCount + "]";
-            try {
-                wrappedSearcher.close();
-            } catch (RuntimeException ex) {
-                logger.debug("Failed to release searcher", ex);
-                throw ex;
-            }
-        }
-
-        @Override
-        public IndexReader reader() {
-            return indexSearcher.getIndexReader();
-        }
-
-        @Override
-        public IndexSearcher searcher() {
-            return indexSearcher;
-        }
-
-        public ShardId shardId() {
-            return shardId;
-        }
-    }
-
     public static abstract class DirectoryReaderWrapper extends FilterDirectoryReader {
         protected final SubReaderWrapper subReaderWrapper;
 
-        public DirectoryReaderWrapper(DirectoryReader in, SubReaderWrapper subReaderWrapper) {
+        public DirectoryReaderWrapper(DirectoryReader in, SubReaderWrapper subReaderWrapper) throws IOException {
             super(in, subReaderWrapper);
             this.subReaderWrapper = subReaderWrapper;
         }

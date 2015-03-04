@@ -117,7 +117,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
         this.nodeSettingsService.setClusterService(this);
 
-        this.reconnectInterval = componentSettings.getAsTime("reconnect_interval", TimeValue.timeValueSeconds(10));
+        this.reconnectInterval = this.settings.getAsTime("cluster.service.reconnect_interval", TimeValue.timeValueSeconds(10));
 
         localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
 
@@ -128,6 +128,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         return this.nodeSettingsService;
     }
 
+    @Override
     public void addInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException {
         if (lifecycle.started()) {
             throw new ElasticsearchIllegalStateException("can't set initial block when started");
@@ -165,12 +166,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             onGoingTimeout.cancel();
             onGoingTimeout.listener.onClose();
         }
-        updateTasksExecutor.shutdown();
-        try {
-            updateTasksExecutor.awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // ignore
-        }
+        ThreadPool.terminate(updateTasksExecutor, 10, TimeUnit.SECONDS);
         remove(localNodeMasterListeners);
     }
 
@@ -188,22 +184,27 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         return operationRouting;
     }
 
+    @Override
     public ClusterState state() {
         return this.clusterState;
     }
 
+    @Override
     public void addFirst(ClusterStateListener listener) {
         priorityClusterStateListeners.add(listener);
     }
 
+    @Override
     public void addLast(ClusterStateListener listener) {
         lastClusterStateListeners.add(listener);
     }
 
+    @Override
     public void add(ClusterStateListener listener) {
         clusterStateListeners.add(listener);
     }
 
+    @Override
     public void remove(ClusterStateListener listener) {
         clusterStateListeners.remove(listener);
         priorityClusterStateListeners.remove(listener);
@@ -228,6 +229,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         localNodeMasterListeners.remove(listener);
     }
 
+    @Override
     public void add(final TimeValue timeout, final TimeoutClusterStateListener listener) {
         if (lifecycle.stoppedOrClosed()) {
             listener.onClose();
@@ -254,10 +256,12 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
     }
 
+    @Override
     public void submitStateUpdateTask(final String source, final ClusterStateUpdateTask updateTask) {
         submitStateUpdateTask(source, Priority.NORMAL, updateTask);
     }
 
+    @Override
     public void submitStateUpdateTask(final String source, Priority priority, final ClusterStateUpdateTask updateTask) {
         if (!lifecycle.started()) {
             return;
@@ -314,6 +318,12 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
         return pendingClusterTasks;
     }
+
+    @Override
+    public int numberOfPendingTasks() {
+        return updateTasksExecutor.getNumberOfPendingTasks();
+    }
+
 
     static abstract class TimedPrioritizedRunnable extends PrioritizedRunnable {
         private final long creationTime;

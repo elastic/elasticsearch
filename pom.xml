@@ -32,7 +32,7 @@
 
     <properties>
         <lucene.version>5.1.0</lucene.version>
-        <lucene.maven.version>5.1.0-snapshot-1657571</lucene.maven.version>
+        <lucene.maven.version>5.1.0-snapshot-1662607</lucene.maven.version>
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
         <tests.output>onerror</tests.output>
@@ -56,7 +56,7 @@
         <repository>
             <id>lucene-snapshots</id>
             <name>Lucene Snapshots</name>
-            <url>https://download.elasticsearch.org/lucenesnapshots/1657571</url>
+            <url>https://download.elasticsearch.org/lucenesnapshots/1662607</url>
         </repository>
     </repositories>
 
@@ -1025,7 +1025,7 @@
                 <artifactId>rpm-maven-plugin</artifactId>
                 <version>2.1-alpha-3</version>
                 <configuration>
-                    <copyright>2013, Elasticsearch</copyright>
+                    <copyright>2015, Elasticsearch</copyright>
                     <distribution>Elasticsearch</distribution>
                     <group>Application/Internet</group>
                     <packager>Elasticsearch</packager>

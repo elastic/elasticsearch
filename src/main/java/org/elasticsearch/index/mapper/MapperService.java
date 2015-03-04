@@ -22,7 +22,11 @@ package org.elasticsearch.index.mapper;
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.google.common.base.Charsets;
 import com.google.common.base.Predicate;
-import com.google.common.collect.*;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.IndexOptions;
@@ -52,8 +56,6 @@ import org.elasticsearch.env.FailedToResolveConfigException;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
@@ -70,7 +72,12 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
@@ -83,7 +90,7 @@ public class MapperService extends AbstractIndexComponent  {
 
     public static final String DEFAULT_MAPPING = "_default_";
     private static ObjectOpenHashSet<String> META_FIELDS = ObjectOpenHashSet.from(
-            "_uid", "_id", "_type", "_all", "_analyzer", "_boost", "_parent", "_routing", "_index",
+            "_uid", "_id", "_type", "_all", "_analyzer", "_parent", "_routing", "_index",
             "_size", "_timestamp", "_ttl"
     );
     private final AnalysisService analysisService;
@@ -121,18 +128,18 @@ public class MapperService extends AbstractIndexComponent  {
 
     @Inject
     public MapperService(Index index, @IndexSettings Settings indexSettings, Environment environment, AnalysisService analysisService, IndexFieldDataService fieldDataService,
-                         PostingsFormatService postingsFormatService, DocValuesFormatService docValuesFormatService, SimilarityLookupService similarityLookupService,
+                         SimilarityLookupService similarityLookupService,
                          ScriptService scriptService) {
         super(index, indexSettings);
         this.analysisService = analysisService;
         this.fieldDataService = fieldDataService;
         this.fieldMappers = new FieldMappersLookup();
-        this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService, postingsFormatService, docValuesFormatService, similarityLookupService, scriptService);
+        this.documentParser = new DocumentMapperParser(index, indexSettings, analysisService, similarityLookupService, scriptService);
         this.searchAnalyzer = new SmartIndexNameSearchAnalyzer(analysisService.defaultSearchAnalyzer());
         this.searchQuoteAnalyzer = new SmartIndexNameSearchQuoteAnalyzer(analysisService.defaultSearchQuoteAnalyzer());
 
-        this.dynamic = componentSettings.getAsBoolean("dynamic", true);
-        String defaultMappingLocation = componentSettings.get("default_mapping_location");
+        this.dynamic = indexSettings.getAsBoolean("index.mapper.dynamic", true);
+        String defaultMappingLocation = indexSettings.get("index.mapper.default_mapping_location");
         final URL defaultMappingUrl;
         if (index.getName().equals(ScriptService.SCRIPT_INDEX)){
             defaultMappingUrl = getMappingUrl(indexSettings, environment, defaultMappingLocation, "script-mapping.json", "org/elasticsearch/index/mapper/script-mapping.json");
@@ -165,7 +172,7 @@ public class MapperService extends AbstractIndexComponent  {
             }
         }
 
-        String percolatorMappingLocation = componentSettings.get("default_percolator_mapping_location");
+        String percolatorMappingLocation = indexSettings.get("index.mapper.default_percolator_mapping_location");
         URL percolatorMappingUrl = null;
         if (percolatorMappingLocation != null) {
             try {
@@ -189,7 +196,6 @@ public class MapperService extends AbstractIndexComponent  {
             defaultPercolatorMappingSource = "{\n" +
                     //"    \"" + PercolatorService.TYPE_NAME + "\":{\n" +
                     "    \"" + "_default_" + "\":{\n" +
-                    "        \"_id\" : {\"index\": \"not_analyzed\"}," +
                     "        \"properties\" : {\n" +
                     "            \"query\" : {\n" +
                     "                \"type\" : \"object\",\n" +

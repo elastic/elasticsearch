@@ -20,10 +20,10 @@
 package org.elasticsearch.common.lucene.index;
 
 import com.google.common.collect.Lists;
-import org.apache.lucene.index.DocsAndPositionsEnum;
-import org.apache.lucene.index.DocsEnum;
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSet;
@@ -48,7 +48,7 @@ public class FilterableTermsEnum extends TermsEnum {
     static class Holder {
         final TermsEnum termsEnum;
         @Nullable
-        DocsEnum docsEnum;
+        PostingsEnum docsEnum;
         @Nullable
         final Bits bits;
 
@@ -68,7 +68,7 @@ public class FilterableTermsEnum extends TermsEnum {
     protected int numDocs;
 
     public FilterableTermsEnum(IndexReader reader, String field, int docsEnumFlag, @Nullable final Filter filter) throws IOException {
-        if ((docsEnumFlag != DocsEnum.FLAG_FREQS) && (docsEnumFlag != DocsEnum.FLAG_NONE)) {
+        if ((docsEnumFlag != PostingsEnum.FREQS) && (docsEnumFlag != PostingsEnum.NONE)) {
             throw new ElasticsearchIllegalArgumentException("invalid docsEnumFlag of " + docsEnumFlag);
         }
         this.docsEnumFlag = docsEnumFlag;
@@ -128,7 +128,7 @@ public class FilterableTermsEnum extends TermsEnum {
             if (anEnum.termsEnum.seekExact(text)) {
                 if (anEnum.bits == null) {
                     docFreq += anEnum.termsEnum.docFreq();
-                    if (docsEnumFlag == DocsEnum.FLAG_FREQS) {
+                    if (docsEnumFlag == PostingsEnum.FREQS) {
                         long leafTotalTermFreq = anEnum.termsEnum.totalTermFreq();
                         if (totalTermFreq == -1 || leafTotalTermFreq == -1) {
                             totalTermFreq = -1;
@@ -137,9 +137,9 @@ public class FilterableTermsEnum extends TermsEnum {
                         totalTermFreq += leafTotalTermFreq;
                     }
                 } else {
-                    final DocsEnum docsEnum = anEnum.docsEnum = anEnum.termsEnum.docs(anEnum.bits, anEnum.docsEnum, docsEnumFlag);
+                    final PostingsEnum docsEnum = anEnum.docsEnum = anEnum.termsEnum.postings(anEnum.bits, anEnum.docsEnum, docsEnumFlag);
                     // 2 choices for performing same heavy loop - one attempts to calculate totalTermFreq and other does not
-                    if (docsEnumFlag == DocsEnum.FLAG_FREQS) {
+                    if (docsEnumFlag == PostingsEnum.FREQS) {
                         for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                             docFreq++;
                             // docsEnum.freq() returns 1 if doc indexed with IndexOptions.DOCS_ONLY so no way of knowing if value
@@ -148,7 +148,7 @@ public class FilterableTermsEnum extends TermsEnum {
                         }
                     } else {
                         for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
-                            // docsEnum.freq() behaviour is undefined if docsEnumFlag==DocsEnum.FLAG_NONE so don't bother with call
+                            // docsEnum.freq() behaviour is undefined if docsEnumFlag==PostingsEnum.FLAG_NONE so don't bother with call
                             docFreq++;
                         }
                     }
@@ -194,12 +194,7 @@ public class FilterableTermsEnum extends TermsEnum {
     }
 
     @Override
-    public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) throws IOException {
-        throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
-    }
-
-    @Override
-    public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) throws IOException {
+    public PostingsEnum postings(Bits liveDocs, PostingsEnum reuse, int flags) throws IOException {
         throw new UnsupportedOperationException(UNSUPPORTED_MESSAGE);
     }
 

@@ -28,6 +28,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
+import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
@@ -86,8 +87,8 @@ public class TopHitsAggregator extends MetricsAggregator {
             return sort.needsScores() || subSearchContext.trackScores();
         } else {
             // sort by score
-        return true;
-    }
+            return true;
+        }
     }
 
     @Override
@@ -131,13 +132,11 @@ public class TopHitsAggregator extends MetricsAggregator {
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) {
         TopDocsAndLeafCollector topDocsCollector = topDocsCollectors.get(owningBucketOrdinal);
+        final InternalTopHits topHits;
         if (topDocsCollector == null) {
-            return buildEmptyAggregation();
+            topHits = buildEmptyAggregation();
         } else {
-            TopDocs topDocs = topDocsCollector.topLevelCollector.topDocs();
-            if (topDocs.totalHits == 0) {
-                return buildEmptyAggregation();
-            }
+            final TopDocs topDocs = topDocsCollector.topLevelCollector.topDocs();
 
             subSearchContext.queryResult().topDocs(topDocs);
             int[] docIdsToLoad = new int[topDocs.scoreDocs.length];
@@ -158,15 +157,21 @@ public class TopHitsAggregator extends MetricsAggregator {
                     searchHitFields.sortValues(fieldDoc.fields);
                 }
             }
-            return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, fetchResult.hits(), reducers(),
+            topHits = new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, fetchResult.hits(), reducers(),
                     metaData());
         }
+        return topHits;
     }
 
     @Override
-    public InternalAggregation buildEmptyAggregation() {
-        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), Lucene.EMPTY_TOP_DOCS,
-                InternalSearchHits.empty(), reducers(), metaData());
+    public InternalTopHits buildEmptyAggregation() {
+        TopDocs topDocs;
+        if (subSearchContext.sort() != null) {
+            topDocs = new TopFieldDocs(0, new FieldDoc[0], subSearchContext.sort().getSort(), Float.NaN);
+        } else {
+            topDocs = Lucene.EMPTY_TOP_DOCS;
+        }
+        return new InternalTopHits(name, subSearchContext.from(), subSearchContext.size(), topDocs, InternalSearchHits.empty(), reducers(), metaData());
     }
 
     @Override

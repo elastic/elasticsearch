@@ -129,19 +129,19 @@ In order to execute any actions, you have to use a client. You can use the `Elas
 [[scoping]]
 ==== Scoping
 
-By default the tests are run without restarting the cluster between tests or test classes in order to be as fast as possible. Of course all indices and templates are deleted between each test. However, sometimes you need to start a new cluster for each test or for a whole test suite - for example, if you load a certain plugin, but you do not want to load it for every test.
+By default the tests are run with unique cluster per test suite. Of course all indices and templates are deleted between each test. However, sometimes you need to start a new cluster for each test - for example, if you load a certain plugin, but you do not want to load it for every test.
 
 You can use the `@ClusterScope` annotation at class level to configure this behaviour
 
 [source,java]
 -----------------------------------------
-@ClusterScope(scope=SUITE, numNodes=1)
+@ClusterScope(scope=TEST, numNodes=1)
 public class CustomSuggesterSearchTests extends ElasticsearchIntegrationTest {
   // ... tests go here
 }
 -----------------------------------------
 
-The above sample configures an own cluster for this test suite, which is the class. Other values could be `GLOBAL` (the default) or `TEST` in order to spawn a new cluster for each test. The `numNodes` settings allows you to only start a certain number of nodes, which can speed up test execution, as starting a new node is a costly and time consuming operation and might not be needed for this test.
+The above sample configures the test to use a new cluster for each test method. The default scope is `SUITE` (one cluster for all test methods in the test). The `numNodes` settings allows you to only start a certain number of nodes, which can speed up test execution, as starting a new node is a costly and time consuming operation and might not be needed for this test.
 
 
 [[changing-node-configuration]]

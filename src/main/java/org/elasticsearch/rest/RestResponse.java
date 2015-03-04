@@ -90,6 +90,7 @@ public abstract class RestResponse implements HasRestHeaders {
     /**
      * Returns custom headers that have been added, or null if none have been set.
      */
+    @Override
     @Nullable
     public Map<String, List<String>> getHeaders() {
         return customHeaders;

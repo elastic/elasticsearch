@@ -19,9 +19,12 @@
 
 package org.elasticsearch.search.geo;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -256,7 +259,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testShapeFetching_path() throws Exception {
+    public void testShapeFetchingPath() throws Exception {
         createIndex("shapes");
         assertAcked(prepareCreate("test").addMapping("type", "location", "type=geo_shape"));
 
@@ -378,8 +381,33 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(locationMap.size(), equalTo(2));
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9904")
     @Test
-    public void testShapeFilter_geometryCollection() throws Exception {
+    public void testShapeFilterWithRandomGeoCollection() throws Exception {
+        // Create a random geometry collection.
+        GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(getRandom());
+
+        logger.info("Created Random GeometryCollection containing " + gcb.numShapes() + " shapes");
+
+        createIndex("randshapes");
+        assertAcked(prepareCreate("test").addMapping("type", "location", "type=geo_shape"));
+
+        XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("location"), null).endObject();
+        indexRandom(true, client().prepareIndex("test", "type", "1").setSource(docSource));
+
+        ensureSearchable("test");
+
+        ShapeBuilder filterShape = (gcb.getShapeAt(randomIntBetween(0, gcb.numShapes() - 1)));
+
+        GeoShapeFilterBuilder filter = FilterBuilders.geoShapeFilter("location", filterShape, ShapeRelation.INTERSECTS);
+        SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
+                .setPostFilter(filter).get();
+        assertSearchResponse(result);
+        assertHitCount(result, 1);
+    }
+
+    @Test
+    public void testShapeFilterWithDefinedGeoCollection() throws Exception {
         createIndex("shapes");
         assertAcked(prepareCreate("test").addMapping("type", "location", "type=geo_shape"));
 

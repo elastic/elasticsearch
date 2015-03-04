@@ -375,6 +375,7 @@ public class MetaDataMappingService extends AbstractComponent {
         clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "] / node [" + nodeId + "], order [" + order + "]", Priority.HIGH, new ProcessedClusterStateUpdateTask() {
             private volatile List<MappingTask> allTasks;
 
+            @Override
             public void onFailure(String source, Throwable t) {
                 listener.onFailure(t);
             }

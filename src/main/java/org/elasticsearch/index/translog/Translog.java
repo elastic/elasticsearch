@@ -121,8 +121,10 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
 
     /**
      * Clears unreferenced transaction logs.
+     *
+     * @return the number of clean up files
      */
-    void clearUnreferenced();
+    int clearUnreferenced();
 
     /**
      * Sync's the translog.

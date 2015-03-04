@@ -97,9 +97,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
         for (int possibleLockId = 0; possibleLockId < maxLocalStorageNodes; possibleLockId++) {
             for (int dirIndex = 0; dirIndex < environment.dataWithClusterFiles().length; dirIndex++) {
                 Path dir = environment.dataWithClusterFiles()[dirIndex].resolve(Paths.get(NODES_FOLDER, Integer.toString(possibleLockId)));
-                if (Files.exists(dir) == false) {
-                    Files.createDirectories(dir);
-                }
+                Files.createDirectories(dir);
                 
                 try (Directory luceneDir = FSDirectory.open(dir, NativeFSLockFactory.INSTANCE)) {
                     logger.trace("obtaining node lock on {} ...", dir.toAbsolutePath());
@@ -224,23 +222,37 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
      *
      * @param index the index to delete
      * @param lockTimeoutMS how long to wait for acquiring the indices shard locks
+     * @param indexSettings settings for the index being deleted
      * @throws Exception if any of the shards data directories can't be locked or deleted
      */
     public void deleteIndexDirectorySafe(Index index, long lockTimeoutMS, @IndexSettings Settings indexSettings) throws IOException {
         // This is to ensure someone doesn't use ImmutableSettings.EMPTY
         assert indexSettings != ImmutableSettings.EMPTY;
-        final List<ShardLock> locks = lockAllForIndex(index, lockTimeoutMS);
+        final List<ShardLock> locks = lockAllForIndex(index, indexSettings, lockTimeoutMS);
         try {
-            final Path[] indexPaths = indexPaths(index);
-            logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
-            IOUtils.rm(indexPaths);
-            if (hasCustomDataPath(indexSettings)) {
-                Path customLocation = resolveCustomLocation(indexSettings, index.name());
-                logger.trace("deleting custom index {} directory [{}]", index, customLocation);
-                IOUtils.rm(customLocation);
-            }
+            deleteIndexDirectoryUnderLock(index, indexSettings);
         } finally {
             IOUtils.closeWhileHandlingException(locks);
+        }
+    }
+
+    /**
+     * Deletes an indexes data directory recursively.
+     * Note: this method assumes that the shard lock is acquired
+     *
+     * @param index the index to delete
+     * @param indexSettings settings for the index being deleted
+     */
+    public void deleteIndexDirectoryUnderLock(Index index, @IndexSettings Settings indexSettings) throws IOException {
+        // This is to ensure someone doesn't use ImmutableSettings.EMPTY
+        assert indexSettings != ImmutableSettings.EMPTY;
+        final Path[] indexPaths = indexPaths(index);
+        logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
+        IOUtils.rm(indexPaths);
+        if (hasCustomDataPath(indexSettings)) {
+            Path customLocation = resolveCustomLocation(indexSettings, index.name());
+            logger.trace("deleting custom index {} directory [{}]", index, customLocation);
+            IOUtils.rm(customLocation);
         }
     }
 
@@ -254,16 +266,19 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
      * @return the {@link ShardLock} instances for this index.
      * @throws IOException if an IOException occurs.
      */
-    public List<ShardLock> lockAllForIndex(Index index, long lockTimeoutMS) throws IOException {
-        Set<ShardId> allShardIds = findAllShardIds(index);
-        logger.trace("locking all shards for index {} - [{}]", index, allShardIds);
-        List<ShardLock> allLocks = new ArrayList<>(allShardIds.size());
+    public List<ShardLock> lockAllForIndex(Index index, @IndexSettings Settings settings, long lockTimeoutMS) throws IOException {
+        final Integer numShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
+        if (numShards == null || numShards <= 0) {
+            throw new IllegalArgumentException("settings must contain a non-null > 0 number of shards");
+        }
+        logger.trace("locking all shards for index {} - [{}]", index, numShards);
+        List<ShardLock> allLocks = new ArrayList<>(numShards);
         boolean success = false;
         long startTime = System.currentTimeMillis();
         try {
-            for (ShardId shardId : allShardIds) {
+            for (int i = 0; i < numShards; i++) {
                 long timeoutLeft = Math.max(0, lockTimeoutMS - (System.currentTimeMillis() - startTime));
-                allLocks.add(shardLock(shardId, timeoutLeft));
+                allLocks.add(shardLock(new ShardId(index, i), timeoutLeft));
             }
             success = true;
         } finally {
@@ -469,7 +484,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
         Set<String> indices = Sets.newHashSet();
         for (Path indicesLocation : nodeIndicesPaths) {
 
-            if (Files.exists(indicesLocation) && Files.isDirectory(indicesLocation)) {
+            if (Files.isDirectory(indicesLocation)) {
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(indicesLocation)) {
                     for (Path index : stream) {
                         if (Files.isDirectory(index)) {
@@ -501,7 +516,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
     private static Set<ShardId> findAllShardIds(@Nullable final String index, Path... locations) throws IOException {
         final Set<ShardId> shardIds = Sets.newHashSet();
         for (final Path location : locations) {
-            if (Files.exists(location) && Files.isDirectory(location)) {
+            if (Files.isDirectory(location)) {
                 try (DirectoryStream<Path> indexStream = Files.newDirectoryStream(location)) {
                     for (Path indexPath : indexStream) {
                         if (index == null || index.equals(indexPath.getFileName().toString())) {
@@ -516,11 +531,11 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
 
     private static Set<ShardId> findAllShardsForIndex(Path indexPath) throws IOException {
         Set<ShardId> shardIds = new HashSet<>();
-        if (Files.exists(indexPath) && Files.isDirectory(indexPath)) {
+        if (Files.isDirectory(indexPath)) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
                 String currentIndex = indexPath.getFileName().toString();
                 for (Path shardPath : stream) {
-                    if (Files.exists(shardPath) && Files.isDirectory(shardPath)) {
+                    if (Files.isDirectory(shardPath)) {
                         Integer shardId = Ints.tryParse(shardPath.getFileName().toString());
                         if (shardId != null) {
                             ShardId id = new ShardId(currentIndex, shardId);
@@ -545,6 +560,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
         return findAllShardIds(null);
     }
 
+    @Override
     public void close() {
         if (closed.compareAndSet(false, true) && locks != null) {
             for (Lock lock : locks) {

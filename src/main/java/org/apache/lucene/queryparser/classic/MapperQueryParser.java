@@ -851,6 +851,7 @@ public class MapperQueryParser extends QueryParser {
         return fields;
     }
 
+    @Override
     public Query parse(String query) throws ParseException {
         if (query.trim().isEmpty()) {
             // if the query string is empty we return no docs / empty result

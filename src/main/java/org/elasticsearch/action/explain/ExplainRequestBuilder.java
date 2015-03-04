@@ -163,6 +163,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
         return this;
     }
 
+    @Override
     protected void doExecute(ActionListener<ExplainResponse> listener) {
         if (sourceBuilder != null) {
             request.source(sourceBuilder);

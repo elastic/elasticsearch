@@ -63,6 +63,7 @@ public final class Message implements Serializable, Element {
         this(ImmutableList.of(), message, null);
     }
 
+    @Override
     public String getSource() {
         return sources.isEmpty()
                 ? SourceProvider.UNKNOWN_SOURCE.toString()
@@ -86,6 +87,7 @@ public final class Message implements Serializable, Element {
     /**
      * @since 2.0
      */
+    @Override
     public <T> T acceptVisitor(ElementVisitor<T> visitor) {
         return visitor.visit(this);
     }
@@ -122,6 +124,7 @@ public final class Message implements Serializable, Element {
     /**
      * @since 2.0
      */
+    @Override
     public void applyTo(Binder binder) {
         binder.withSource(getSource()).addError(this);
     }

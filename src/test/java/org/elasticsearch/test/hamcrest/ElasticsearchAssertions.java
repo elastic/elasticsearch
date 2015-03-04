@@ -23,7 +23,6 @@ import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.FluentIterable;
 import com.google.common.collect.Iterables;
-
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
@@ -65,7 +64,9 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
+import org.elasticsearch.test.engine.AssertingSearcher;
 import org.elasticsearch.test.engine.MockInternalEngine;
+import org.elasticsearch.test.engine.MockShadowEngine;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
@@ -642,21 +643,28 @@ public class ElasticsearchAssertions {
          * pending we will fail anyway.*/
         try {
             if (awaitBusy(new Predicate<Object>() {
+                @Override
                 public boolean apply(Object o) {
-                    return MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
+                    return MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty() &&
+                            MockShadowEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty();
                 }
             }, 5, TimeUnit.SECONDS)) {
                 return;
             }
         } catch (InterruptedException ex) {
-            if (MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
+            if (MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty() &&
+                    MockShadowEngine.INFLIGHT_ENGINE_SEARCHERS.isEmpty()) {
                 return;
             }
         }
         try {
             RuntimeException ex = null;
             StringBuilder builder = new StringBuilder("Unclosed Searchers instance for shards: [");
-            for (Map.Entry<MockInternalEngine.AssertingSearcher, RuntimeException> entry : MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
+            for (Map.Entry<AssertingSearcher, RuntimeException> entry : MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
+                ex = entry.getValue();
+                builder.append(entry.getKey().shardId()).append(",");
+            }
+            for (Map.Entry<AssertingSearcher, RuntimeException> entry : MockShadowEngine.INFLIGHT_ENGINE_SEARCHERS.entrySet()) {
                 ex = entry.getValue();
                 builder.append(entry.getKey().shardId()).append(",");
             }
@@ -664,6 +672,7 @@ public class ElasticsearchAssertions {
             throw new RuntimeException(builder.toString(), ex);
         } finally {
             MockInternalEngine.INFLIGHT_ENGINE_SEARCHERS.clear();
+            MockShadowEngine.INFLIGHT_ENGINE_SEARCHERS.clear();
         }
     }
 
@@ -754,36 +763,42 @@ public class ElasticsearchAssertions {
     }
 
     private static Predicate<PluginInfo> jvmPluginPredicate = new Predicate<PluginInfo>() {
+        @Override
         public boolean apply(PluginInfo pluginInfo) {
             return pluginInfo.isJvm();
         }
     };
 
     private static Predicate<PluginInfo> sitePluginPredicate = new Predicate<PluginInfo>() {
+        @Override
         public boolean apply(PluginInfo pluginInfo) {
             return pluginInfo.isSite();
         }
     };
 
     private static Function<PluginInfo, String> nameFunction = new Function<PluginInfo, String>() {
+        @Override
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getName();
         }
     };
 
     private static Function<PluginInfo, String> descriptionFunction = new Function<PluginInfo, String>() {
+        @Override
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getDescription();
         }
     };
 
     private static Function<PluginInfo, String> urlFunction = new Function<PluginInfo, String>() {
+        @Override
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getUrl();
         }
     };
 
     private static Function<PluginInfo, String> versionFunction = new Function<PluginInfo, String>() {
+        @Override
         public String apply(PluginInfo pluginInfo) {
             return pluginInfo.getVersion();
         }

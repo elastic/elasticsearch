@@ -672,6 +672,7 @@ public class GeolocationContextMapping extends ContextMapping {
             return new PrefixTokenFilter(stream, ContextMapping.SEPARATOR, locations);
         }
 
+        @Override
         public String toString() {
             StringBuilder sb = new StringBuilder("GeoConfig(location = [");
             Iterator<? extends CharSequence> location = this.locations.iterator();

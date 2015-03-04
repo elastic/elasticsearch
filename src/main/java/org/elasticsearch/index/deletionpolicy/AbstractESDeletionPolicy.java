@@ -35,21 +35,9 @@ abstract class AbstractESDeletionPolicy extends IndexDeletionPolicy implements I
 
     protected final Settings indexSettings;
 
-    protected final Settings componentSettings;
-
     protected AbstractESDeletionPolicy(ShardId shardId, @IndexSettings Settings indexSettings) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
-        this.componentSettings = indexSettings.getComponentSettings(getClass());
-
-        this.logger = Loggers.getLogger(getClass(), indexSettings, shardId);
-    }
-
-    protected AbstractESDeletionPolicy(ShardId shardId, @IndexSettings Settings indexSettings, String prefixSettings) {
-        this.shardId = shardId;
-        this.indexSettings = indexSettings;
-        this.componentSettings = indexSettings.getComponentSettings(prefixSettings, getClass());
-
         this.logger = Loggers.getLogger(getClass(), indexSettings, shardId);
     }
 

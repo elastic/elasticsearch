@@ -32,8 +32,6 @@ import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -220,7 +218,7 @@ public final class FileSystemUtils {
             }
 
             /**
-             * Compares the content of two paths by comparing their SHA-SUM
+             * Compares the content of two paths by comparing them
              */
             private boolean isSameFile(Path first, Path second) throws IOException {
                 // do quick file size comparison before hashing
@@ -229,20 +227,9 @@ public final class FileSystemUtils {
                     return false;
                 }
 
-                try {
-                    MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
-
-                    messageDigest.update(Files.readAllBytes(first));
-                    byte[] pathSha = messageDigest.digest();
-                    messageDigest.reset();
-
-                    messageDigest.update(Files.readAllBytes(second));
-                    byte[] fileSha = messageDigest.digest();
-
-                    return Arrays.equals(pathSha, fileSha);
-                } catch (NoSuchAlgorithmException e) {
-                    return false;
-                }
+                byte[] firstBytes = Files.readAllBytes(first);
+                byte[] secondBytes = Files.readAllBytes(second);
+                return Arrays.equals(firstBytes, secondBytes);
             }
         });
     }
@@ -309,8 +296,8 @@ public final class FileSystemUtils {
             Path newFile = target.resolve(source.relativize(file));
             try {
                 Files.copy(file, newFile);
-                if ((delete) && (Files.exists(newFile))) {
-                    Files.delete(file);
+                if (delete) {
+                    Files.deleteIfExists(file);
                 }
             } catch (IOException x) {
                 // We ignore this

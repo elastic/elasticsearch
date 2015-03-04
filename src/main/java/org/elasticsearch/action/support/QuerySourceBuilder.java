@@ -45,6 +45,7 @@ public class QuerySourceBuilder implements ToXContent {
         return this;
     }
 
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (queryBuilder != null) {

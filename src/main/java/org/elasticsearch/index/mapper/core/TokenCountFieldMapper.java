@@ -29,9 +29,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.ValueAndBoost;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
@@ -81,7 +84,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
         public TokenCountFieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
             TokenCountFieldMapper fieldMapper = new TokenCountFieldMapper(buildNames(context), fieldType.numericPrecisionStep(), boost, fieldType, docValues, nullValue,
-                    ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings, context.indexSettings(),
+                    ignoreMalformed(context), coerce(context), similarity, normsLoading, fieldDataSettings, context.indexSettings(),
                     analyzer, multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -120,10 +123,10 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
     private NamedAnalyzer analyzer;
 
     protected TokenCountFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues, Integer nullValue,
-            Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
+            Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
             SimilarityProvider similarity, Loading normsLoading, Settings fieldDataSettings, Settings indexSettings, NamedAnalyzer analyzer,
             MultiFields multiFields, CopyTo copyTo) {
-        super(names, precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed, coerce, postingsProvider, docValuesProvider, 
+        super(names, precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed, coerce,
                 similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
 
         this.analyzer = analyzer;

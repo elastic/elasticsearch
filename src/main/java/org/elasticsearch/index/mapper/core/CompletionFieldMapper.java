@@ -23,21 +23,23 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.NumberType;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperException;
@@ -47,7 +49,7 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.search.suggest.completion.AnalyzingCompletionLookupProvider;
-import org.elasticsearch.search.suggest.completion.CompletionPostingsFormatProvider;
+import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.CompletionTokenStream;
 import org.elasticsearch.search.suggest.context.ContextBuilder;
 import org.elasticsearch.search.suggest.context.ContextMapping;
@@ -148,8 +150,8 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
 
         @Override
         public CompletionFieldMapper build(Mapper.BuilderContext context) {
-            return new CompletionFieldMapper(buildNames(context), indexAnalyzer, searchAnalyzer, postingsProvider, similarity, payloads,
-                    preserveSeparators, preservePositionIncrements, maxInputLength, multiFieldsBuilder.build(this, context), copyTo, this.contextMapping);
+            return new CompletionFieldMapper(buildNames(context), indexAnalyzer, searchAnalyzer, null, similarity, payloads,
+                    preserveSeparators, preservePositionIncrements, maxInputLength, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo, this.contextMapping);
         }
 
     }
@@ -207,8 +209,6 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
             builder.indexAnalyzer(indexAnalyzer);
             builder.searchAnalyzer(searchAnalyzer);
             
-            // we are just using this as the default to be wrapped by the CompletionPostingsFormatProvider in the SuggesteFieldMapper ctor
-            builder.postingsFormat(parserContext.postingFormatService().get("default"));
             return builder;
         }
 
@@ -223,7 +223,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
 
     private static final BytesRef EMPTY = new BytesRef();
 
-    private final CompletionPostingsFormatProvider completionPostingsFormatProvider;
+    private PostingsFormat postingsFormat;
     private final AnalyzingCompletionLookupProvider analyzingSuggestLookupProvider;
     private final boolean payloads;
     private final boolean preservePositionIncrements;
@@ -234,12 +234,20 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     /**
      * 
      * @param contextMappings Configuration of context type. If none should be used set {@link ContextMapping.EMPTY_MAPPING}
+     * @param wrappedPostingsFormat the postings format to wrap, or {@code null} to wrap the codec's default postings format
      */
-    public CompletionFieldMapper(Names names, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsProvider, SimilarityProvider similarity, boolean payloads,
-                                 boolean preserveSeparators, boolean preservePositionIncrements, int maxInputLength, MultiFields multiFields, CopyTo copyTo, SortedMap<String, ContextMapping> contextMappings) {
-        super(names, 1.0f, Defaults.FIELD_TYPE, null, indexAnalyzer, searchAnalyzer, postingsProvider, null, similarity, null, null, null, multiFields, copyTo);
+    // Custom postings formats are deprecated but we still accept a postings format here to be able to test backward compatibility
+    // with older postings formats such as Elasticsearch090
+    public CompletionFieldMapper(Names names, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, PostingsFormat wrappedPostingsFormat, SimilarityProvider similarity, boolean payloads,
+                                 boolean preserveSeparators, boolean preservePositionIncrements, int maxInputLength, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, SortedMap<String, ContextMapping> contextMappings) {
+        super(names, 1.0f, Defaults.FIELD_TYPE, null, indexAnalyzer, searchAnalyzer, similarity, null, null, indexSettings, multiFields, copyTo);
         analyzingSuggestLookupProvider = new AnalyzingCompletionLookupProvider(preserveSeparators, false, preservePositionIncrements, payloads);
-        this.completionPostingsFormatProvider = new CompletionPostingsFormatProvider("completion", postingsProvider, analyzingSuggestLookupProvider);
+        if (wrappedPostingsFormat == null) {
+            // delayed until postingsFormat() is called
+            this.postingsFormat = null;
+        } else {
+            this.postingsFormat = new Completion090PostingsFormat(wrappedPostingsFormat, analyzingSuggestLookupProvider);
+        }
         this.preserveSeparators = preserveSeparators;
         this.payloads = payloads;
         this.preservePositionIncrements = preservePositionIncrements;
@@ -247,9 +255,14 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
         this.contextMapping = contextMappings;
     }
 
-    @Override
-    public PostingsFormatProvider postingsFormatProvider() {
-        return this.completionPostingsFormatProvider;
+    public synchronized PostingsFormat postingsFormat(PostingsFormat in) {
+        if (in instanceof Completion090PostingsFormat) {
+            throw new ElasticsearchIllegalStateException("Double wrapping of " + Completion090PostingsFormat.class);
+        }
+        if (postingsFormat == null) {
+            postingsFormat = new Completion090PostingsFormat(in, analyzingSuggestLookupProvider);
+        }
+        return postingsFormat;
     }
 
     @Override

@@ -26,12 +26,17 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.AbstractRandomizedTest;
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -82,13 +87,13 @@ public class MockFSDirectoryService extends FsDirectoryService {
                                                    @IndexSettings Settings indexSettings) {
                     if (indexShard != null && shardId.equals(sid)) {
                         logger.info("Shard state before potentially flushing is {}", indexShard.state());
-                        if (validCheckIndexStates.contains(indexShard.state())) {
-                            canRun = true;
+                        if (validCheckIndexStates.contains(indexShard.state()) && IndexMetaData.isOnSharedFilesystem(indexSettings) == false) {
                             // When the the internal engine closes we do a rollback, which removes uncommitted segments
                             // By doing a commit flush we perform a Lucene commit, but don't clear the translog,
                             // so that even in tests where don't flush we can check the integrity of the Lucene index
-                            indexShard.engine().snapshotIndex(); // Keep translog for tests that rely on replaying it
+                            Releasables.close(indexShard.engine().snapshotIndex()); // Keep translog for tests that rely on replaying it
                             logger.info("flush finished in beforeIndexShardClosed");
+                            canRun = true;
                         }
                     }
                 }

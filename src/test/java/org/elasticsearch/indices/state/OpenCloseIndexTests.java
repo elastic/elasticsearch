@@ -322,7 +322,7 @@ public class OpenCloseIndexTests extends ElasticsearchIntegrationTest {
         int docs = between(10, 100);
         IndexRequestBuilder[] builder = new IndexRequestBuilder[docs];
         for (int i = 0; i < docs ; i++) {
-            builder[i] = client().prepareIndex("test", "initial", "" + i).setSource("test", "init");
+            builder[i] = client().prepareIndex("test", "type", "" + i).setSource("test", "init");
         }
         indexRandom(true, builder);
         if (randomBoolean()) {
@@ -333,7 +333,7 @@ public class OpenCloseIndexTests extends ElasticsearchIntegrationTest {
         // check the index still contains the records that we indexed
         client().admin().indices().prepareOpen("test").execute().get();
         ensureGreen();
-        SearchResponse searchResponse = client().prepareSearch().setTypes("initial").setQuery(QueryBuilders.matchQuery("test", "init")).get();
+        SearchResponse searchResponse = client().prepareSearch().setTypes("type").setQuery(QueryBuilders.matchQuery("test", "init")).get();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, docs);
     }

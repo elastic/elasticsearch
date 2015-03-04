@@ -29,9 +29,6 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRes
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest;
-import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartResponse;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse;
@@ -273,29 +270,6 @@ public interface ClusterAdminClient extends ElasticsearchClient<ClusterAdminClie
      * Shutdown nodes in the cluster.
      */
     NodesShutdownRequestBuilder prepareNodesShutdown(String... nodesIds);
-
-    /**
-     * Restarts nodes in the cluster.
-     *
-     * @param request The nodes restart request
-     * @return The result future
-     * @see org.elasticsearch.client.Requests#nodesRestartRequest(String...)
-     */
-    ActionFuture<NodesRestartResponse> nodesRestart(NodesRestartRequest request);
-
-    /**
-     * Restarts nodes in the cluster.
-     *
-     * @param request  The nodes restart request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#nodesRestartRequest(String...)
-     */
-    void nodesRestart(NodesRestartRequest request, ActionListener<NodesRestartResponse> listener);
-
-    /**
-     * Restarts nodes in the cluster.
-     */
-    NodesRestartRequestBuilder prepareNodesRestart(String... nodesIds);
 
     /**
      * Returns list of shards the given search would be executed on.

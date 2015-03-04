@@ -113,6 +113,7 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
         indexSettingsService.removeListener(applySettings);
     }
 
+    @Override
     public int getMaxMerges() {
         return this.maxMergeCount;
     }

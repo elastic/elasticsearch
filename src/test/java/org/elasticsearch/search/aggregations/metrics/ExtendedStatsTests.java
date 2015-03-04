@@ -53,6 +53,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         return (sumOfSqrs - ((sum * sum) / vals.length)) / vals.length;
     }
 
+    @Override
     @Test
     public void testEmptyAggregation() throws Exception {
 
@@ -81,6 +82,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER)), is(true));
     }
 
+    @Override
     @Test
     public void testUnmapped() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx_unmapped")
@@ -105,6 +107,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         assertThat(Double.isNaN(stats.getStdDeviationBound(ExtendedStats.Bounds.LOWER)), is(true));
     }
 
+    @Override
     @Test
     public void testSingleValuedField() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
@@ -184,6 +187,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         checkUpperLowerBounds(stats, sigma);
     }
 
+    @Override
     @Test
     public void testSingleValuedField_getProperty() throws Exception {
 
@@ -231,6 +235,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         assertThat((double) global.getProperty("stats.std_deviation"), equalTo(expectedStdDevValue));
     }
 
+    @Override
     @Test
     public void testSingleValuedField_PartiallyUnmapped() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
@@ -255,6 +260,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         checkUpperLowerBounds(stats, sigma);
     }
 
+    @Override
     @Test
     public void testSingleValuedField_WithValueScript() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
@@ -279,6 +285,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         checkUpperLowerBounds(stats, sigma);
     }
 
+    @Override
     @Test
     public void testSingleValuedField_WithValueScript_WithParams() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
@@ -303,6 +310,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         checkUpperLowerBounds(stats, sigma);
     }
 
+    @Override
     @Test
     public void testMultiValuedField() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
@@ -327,6 +335,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         checkUpperLowerBounds(stats, sigma);
     }
 
+    @Override
     @Test
     public void testMultiValuedField_WithValueScript() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
@@ -351,6 +360,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         checkUpperLowerBounds(stats, sigma);
     }
 
+    @Override
     @Test
     public void testMultiValuedField_WithValueScript_WithParams() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
@@ -375,6 +385,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         checkUpperLowerBounds(stats, sigma);
     }
 
+    @Override
     @Test
     public void testScript_SingleValued() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
@@ -399,6 +410,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         checkUpperLowerBounds(stats, sigma);
     }
 
+    @Override
     @Test
     public void testScript_SingleValued_WithParams() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
@@ -423,6 +435,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         checkUpperLowerBounds(stats, sigma);
     }
 
+    @Override
     @Test
     public void testScript_ExplicitSingleValued_WithParams() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
@@ -447,6 +460,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         checkUpperLowerBounds(stats, sigma);
     }
 
+    @Override
     @Test
     public void testScript_MultiValued() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
@@ -471,6 +485,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
         checkUpperLowerBounds(stats, sigma);
     }
 
+    @Override
     @Test
     public void testScript_ExplicitMultiValued() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
@@ -497,6 +512,7 @@ public class ExtendedStatsTests extends AbstractNumericTests {
 
     }
 
+    @Override
     @Test
     public void testScript_MultiValued_WithParams() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);

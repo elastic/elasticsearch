@@ -76,6 +76,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         d.add(new SortedSetDocValuesField(name, new BytesRef(value)));
     }
 
+    @Override
     protected void fillSingleValueAllSet() throws Exception {
         Document d = new Document();
         addField(d, "_id", "1");
@@ -93,6 +94,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         writer.addDocument(d);
     }
 
+    @Override
     protected void add2SingleValuedDocumentsAndDeleteOneOfThem() throws Exception {
         Document d = new Document();
         addField(d, "_id", "1");
@@ -109,6 +111,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         writer.deleteDocuments(new Term("_id", "1"));
     }
 
+    @Override
     protected void fillSingleValueWithMissing() throws Exception {
         Document d = new Document();
         addField(d, "_id", "1");
@@ -126,6 +129,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         writer.addDocument(d);
     }
 
+    @Override
     protected void fillMultiValueAllSet() throws Exception {
         Document d = new Document();
         addField(d, "_id", "1");
@@ -145,6 +149,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         writer.addDocument(d);
     }
 
+    @Override
     protected void fillMultiValueWithMissing() throws Exception {
         Document d = new Document();
         addField(d, "_id", "1");
@@ -163,6 +168,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         writer.addDocument(d);
     }
 
+    @Override
     protected void fillAllMissing() throws Exception {
         Document d = new Document();
         addField(d, "_id", "1");
@@ -177,6 +183,7 @@ public abstract class AbstractStringFieldDataTests extends AbstractFieldDataImpl
         writer.addDocument(d);
     }
 
+    @Override
     protected void fillExtendedMvSet() throws Exception {
         Document d = new Document();
         addField(d, "_id", "1");

@@ -161,17 +161,17 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         this.workerCount = settings.getAsInt(WORKER_COUNT, EsExecutors.boundedNumberOfProcessors(settings) * 2);
-        this.blockingClient = settings.getAsBoolean("transport.tcp.blocking_client", settings.getAsBoolean(TCP_BLOCKING_CLIENT, settings.getAsBoolean(TCP_BLOCKING, false)));
-        this.connectTimeout = componentSettings.getAsTime("connect_timeout", settings.getAsTime("transport.tcp.connect_timeout", settings.getAsTime(TCP_CONNECT_TIMEOUT, TCP_DEFAULT_CONNECT_TIMEOUT)));
-        this.maxCumulationBufferCapacity = componentSettings.getAsBytesSize("max_cumulation_buffer_capacity", null);
-        this.maxCompositeBufferComponents = componentSettings.getAsInt("max_composite_buffer_components", -1);
+        this.blockingClient = settings.getAsBoolean("transport.netty.transport.tcp.blocking_client", settings.getAsBoolean(TCP_BLOCKING_CLIENT, settings.getAsBoolean(TCP_BLOCKING, false)));
+        this.connectTimeout = this.settings.getAsTime("transport.netty.connect_timeout", settings.getAsTime("transport.tcp.connect_timeout", settings.getAsTime(TCP_CONNECT_TIMEOUT, TCP_DEFAULT_CONNECT_TIMEOUT)));
+        this.maxCumulationBufferCapacity = this.settings.getAsBytesSize("transport.netty.max_cumulation_buffer_capacity", null);
+        this.maxCompositeBufferComponents = this.settings.getAsInt("transport.netty.max_composite_buffer_components", -1);
         this.compress = settings.getAsBoolean(TransportSettings.TRANSPORT_TCP_COMPRESS, false);
 
-        this.connectionsPerNodeRecovery = componentSettings.getAsInt("connections_per_node.recovery", settings.getAsInt(CONNECTIONS_PER_NODE_RECOVERY, 2));
-        this.connectionsPerNodeBulk = componentSettings.getAsInt("connections_per_node.bulk", settings.getAsInt(CONNECTIONS_PER_NODE_BULK, 3));
-        this.connectionsPerNodeReg = componentSettings.getAsInt("connections_per_node.reg", settings.getAsInt(CONNECTIONS_PER_NODE_REG, 6));
-        this.connectionsPerNodeState = componentSettings.getAsInt("connections_per_node.high", settings.getAsInt(CONNECTIONS_PER_NODE_STATE, 1));
-        this.connectionsPerNodePing = componentSettings.getAsInt("connections_per_node.ping", settings.getAsInt(CONNECTIONS_PER_NODE_PING, 1));
+        this.connectionsPerNodeRecovery = this.settings.getAsInt("transport.netty.connections_per_node.recovery", settings.getAsInt(CONNECTIONS_PER_NODE_RECOVERY, 2));
+        this.connectionsPerNodeBulk = this.settings.getAsInt("transport.netty.connections_per_node.bulk", settings.getAsInt(CONNECTIONS_PER_NODE_BULK, 3));
+        this.connectionsPerNodeReg = this.settings.getAsInt("transport.netty.connections_per_node.reg", settings.getAsInt(CONNECTIONS_PER_NODE_REG, 6));
+        this.connectionsPerNodeState = this.settings.getAsInt("transport.netty.connections_per_node.high", settings.getAsInt(CONNECTIONS_PER_NODE_STATE, 1));
+        this.connectionsPerNodePing = this.settings.getAsInt("transport.netty.connections_per_node.ping", settings.getAsInt(CONNECTIONS_PER_NODE_PING, 1));
 
         // we want to have at least 1 for reg/state/ping
         if (this.connectionsPerNodeReg == 0) {
@@ -192,8 +192,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         // See AdaptiveReceiveBufferSizePredictor#DEFAULT_XXX for default values in netty..., we can use higher ones for us, even fixed one
-        this.receivePredictorMin = componentSettings.getAsBytesSize("receive_predictor_min", componentSettings.getAsBytesSize("receive_predictor_size", new ByteSizeValue(defaultReceiverPredictor)));
-        this.receivePredictorMax = componentSettings.getAsBytesSize("receive_predictor_max", componentSettings.getAsBytesSize("receive_predictor_size", new ByteSizeValue(defaultReceiverPredictor)));
+        this.receivePredictorMin = this.settings.getAsBytesSize("transport.netty.receive_predictor_min", this.settings.getAsBytesSize("transport.netty.receive_predictor_size", new ByteSizeValue(defaultReceiverPredictor)));
+        this.receivePredictorMax = this.settings.getAsBytesSize("transport.netty.receive_predictor_max", this.settings.getAsBytesSize("transport.netty.receive_predictor_size", new ByteSizeValue(defaultReceiverPredictor)));
         if (receivePredictorMax.bytes() == receivePredictorMin.bytes()) {
             receiveBufferSizePredictorFactory = new FixedReceiveBufferSizePredictorFactory((int) receivePredictorMax.bytes());
         } else {
@@ -247,7 +247,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             if (DEFAULT_PROFILE.equals(name)) {
                 profileSettings = settingsBuilder()
                         .put(profileSettings)
-                        .put("port", profileSettings.get("port", componentSettings.get("port", this.settings.get("transport.tcp.port", DEFAULT_PORT_RANGE))))
+                        .put("port", profileSettings.get("port", settings.get("port", this.settings.get("transport.tcp.port", DEFAULT_PORT_RANGE))))
                         .build();
             } else {
                 // if profile does not have a port, skip it
@@ -269,8 +269,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         }
 
         InetSocketAddress boundAddress = (InetSocketAddress) serverChannels.get(DEFAULT_PROFILE).getLocalAddress();
-        int publishPort = componentSettings.getAsInt("publish_port", settings.getAsInt("transport.publish_port", boundAddress.getPort()));
-        String publishHost = componentSettings.get("publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
+        int publishPort = settings.getAsInt("transport.netty.publish_port", settings.getAsInt("transport.publish_port", boundAddress.getPort()));
+        String publishHost = settings.get("transport.netty.publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
         InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
         this.boundAddress = new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress));
     }
@@ -293,7 +293,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         if (blockingClient) {
             clientBootstrap = new ClientBootstrap(new OioClientSocketChannelFactory(Executors.newCachedThreadPool(daemonThreadFactory(settings, TRANSPORT_CLIENT_WORKER_THREAD_NAME_PREFIX))));
         } else {
-            int bossCount = componentSettings.getAsInt("boss_count", 1);
+            int bossCount = settings.getAsInt("transport.netty.boss_count", 1);
             clientBootstrap = new ClientBootstrap(new NioClientSocketChannelFactory(
                     Executors.newCachedThreadPool(daemonThreadFactory(settings, TRANSPORT_CLIENT_BOSS_THREAD_NAME_PREFIX)),
                     bossCount,
@@ -303,29 +303,29 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         clientBootstrap.setPipelineFactory(configureClientChannelPipelineFactory());
         clientBootstrap.setOption("connectTimeoutMillis", connectTimeout.millis());
 
-        String tcpNoDelay = componentSettings.get("tcp_no_delay", settings.get(TCP_NO_DELAY, "true"));
+        String tcpNoDelay = settings.get("transport.netty.tcp_no_delay", settings.get(TCP_NO_DELAY, "true"));
         if (!"default".equals(tcpNoDelay)) {
             clientBootstrap.setOption("tcpNoDelay", Booleans.parseBoolean(tcpNoDelay, null));
         }
 
-        String tcpKeepAlive = componentSettings.get("tcp_keep_alive", settings.get(TCP_KEEP_ALIVE, "true"));
+        String tcpKeepAlive = settings.get("transport.netty.tcp_keep_alive", settings.get(TCP_KEEP_ALIVE, "true"));
         if (!"default".equals(tcpKeepAlive)) {
             clientBootstrap.setOption("keepAlive", Booleans.parseBoolean(tcpKeepAlive, null));
         }
 
-        ByteSizeValue tcpSendBufferSize = componentSettings.getAsBytesSize("tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
+        ByteSizeValue tcpSendBufferSize = settings.getAsBytesSize("transport.netty.tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
         if (tcpSendBufferSize != null && tcpSendBufferSize.bytes() > 0) {
             clientBootstrap.setOption("sendBufferSize", tcpSendBufferSize.bytes());
         }
 
-        ByteSizeValue tcpReceiveBufferSize = componentSettings.getAsBytesSize("tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
+        ByteSizeValue tcpReceiveBufferSize = settings.getAsBytesSize("transport.netty.tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
         if (tcpReceiveBufferSize != null && tcpReceiveBufferSize.bytes() > 0) {
             clientBootstrap.setOption("receiveBufferSize", tcpReceiveBufferSize.bytes());
         }
 
         clientBootstrap.setOption("receiveBufferSizePredictorFactory", receiveBufferSizePredictorFactory);
 
-        Boolean reuseAddress = componentSettings.getAsBoolean("reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
+        Boolean reuseAddress = settings.getAsBoolean("transport.netty.reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
         if (reuseAddress != null) {
             clientBootstrap.setOption("reuseAddress", reuseAddress);
         }
@@ -336,37 +336,37 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     private Settings createFallbackSettings() {
         ImmutableSettings.Builder fallbackSettingsBuilder = settingsBuilder();
 
-        String fallbackBindHost = componentSettings.get("bind_host", settings.get("transport.bind_host", settings.get("transport.host")));
+        String fallbackBindHost = settings.get("transport.netty.bind_host", settings.get("transport.bind_host", settings.get("transport.host")));
         if (fallbackBindHost != null) {
             fallbackSettingsBuilder.put("bind_host", fallbackBindHost);
         }
 
-        String fallbackPublishHost = componentSettings.get("publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
+        String fallbackPublishHost = settings.get("transport.netty.publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
         if (fallbackPublishHost != null) {
             fallbackSettingsBuilder.put("publish_host", fallbackPublishHost);
         }
 
-        String fallbackTcpNoDelay = componentSettings.get("tcp_no_delay", settings.get(TCP_NO_DELAY, "true"));
+        String fallbackTcpNoDelay = settings.get("transport.netty.tcp_no_delay", settings.get(TCP_NO_DELAY, "true"));
         if (fallbackTcpNoDelay != null) {
             fallbackSettingsBuilder.put("tcp_no_delay", fallbackTcpNoDelay);
         }
 
-        String fallbackTcpKeepAlive = componentSettings.get("tcp_keep_alive", settings.get(TCP_KEEP_ALIVE, "true"));
+        String fallbackTcpKeepAlive = settings.get("transport.netty.tcp_keep_alive", settings.get(TCP_KEEP_ALIVE, "true"));
         if (fallbackTcpKeepAlive != null) {
             fallbackSettingsBuilder.put("tcp_keep_alive", fallbackTcpKeepAlive);
         }
 
-        Boolean fallbackReuseAddress = componentSettings.getAsBoolean("reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
+        Boolean fallbackReuseAddress = settings.getAsBoolean("transport.netty.reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
         if (fallbackReuseAddress != null) {
             fallbackSettingsBuilder.put("reuse_address", fallbackReuseAddress);
         }
 
-        ByteSizeValue fallbackTcpSendBufferSize = componentSettings.getAsBytesSize("tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
+        ByteSizeValue fallbackTcpSendBufferSize = settings.getAsBytesSize("transport.netty.tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
         if (fallbackTcpSendBufferSize != null) {
             fallbackSettingsBuilder.put("tcp_send_buffer_size", fallbackTcpSendBufferSize);
         }
 
-        ByteSizeValue fallbackTcpBufferSize = componentSettings.getAsBytesSize("tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
+        ByteSizeValue fallbackTcpBufferSize = settings.getAsBytesSize("transport.netty.tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
         if (fallbackTcpBufferSize != null) {
             fallbackSettingsBuilder.put("tcp_receive_buffer_size", fallbackTcpBufferSize);
         }
@@ -560,7 +560,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             index = address.lastIndexOf(':');
             if (index == -1) {
                 List<TransportAddress> addresses = Lists.newArrayList();
-                String defaultPort = settings.get("transport.profiles.default.port", componentSettings.get("port", this.settings.get("transport.tcp.port", DEFAULT_PORT_RANGE)));
+                String defaultPort = settings.get("transport.profiles.default.port", settings.get("transport.netty.port", this.settings.get("transport.tcp.port", DEFAULT_PORT_RANGE)));
                 int[] iPorts = new PortsRange(defaultPort).ports();
                 for (int iPort : iPorts) {
                     addresses.add(new InetSocketTransportAddress(address, iPort));
@@ -679,6 +679,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             ReleaseChannelFutureListener listener = new ReleaseChannelFutureListener(bytes);
             future.addListener(listener);
             addedReleaseListener = true;
+            transportServiceAdapter.onRequestSent(node, requestId, action, request, options);
         } finally {
             if (!addedReleaseListener) {
                 Releasables.close(bStream.bytes());

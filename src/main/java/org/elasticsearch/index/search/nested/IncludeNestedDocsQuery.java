@@ -27,6 +27,7 @@ import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BitDocIdSet;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -73,8 +74,8 @@ public class IncludeNestedDocsQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
-        return new IncludeNestedDocsWeight(parentQuery, parentQuery.createWeight(searcher), parentFilter);
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+        return new IncludeNestedDocsWeight(this, parentQuery, parentQuery.createWeight(searcher, needsScores), parentFilter);
     }
 
     static class IncludeNestedDocsWeight extends Weight {
@@ -83,15 +84,11 @@ public class IncludeNestedDocsQuery extends Query {
         private final Weight parentWeight;
         private final BitDocIdSetFilter parentsFilter;
 
-        IncludeNestedDocsWeight(Query parentQuery, Weight parentWeight, BitDocIdSetFilter parentsFilter) {
+        IncludeNestedDocsWeight(Query query, Query parentQuery, Weight parentWeight, BitDocIdSetFilter parentsFilter) {
+            super(query);
             this.parentQuery = parentQuery;
             this.parentWeight = parentWeight;
             this.parentsFilter = parentsFilter;
-        }
-
-        @Override
-        public Query getQuery() {
-            return parentQuery;
         }
 
         @Override
@@ -105,8 +102,8 @@ public class IncludeNestedDocsQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context, Bits acceptDocs, boolean needsScores) throws IOException {
-            final Scorer parentScorer = parentWeight.scorer(context, acceptDocs, needsScores);
+        public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
+            final Scorer parentScorer = parentWeight.scorer(context, acceptDocs);
 
             // no matches
             if (parentScorer == null) {
@@ -167,6 +164,7 @@ public class IncludeNestedDocsQuery extends Query {
             return parentScorer.getChildren();
         }
 
+        @Override
         public int nextDoc() throws IOException {
             if (currentParentPointer == NO_MORE_DOCS) {
                 return (currentDoc = NO_MORE_DOCS);
@@ -194,6 +192,7 @@ public class IncludeNestedDocsQuery extends Query {
             return currentDoc;
         }
 
+        @Override
         public int advance(int target) throws IOException {
             if (target == NO_MORE_DOCS) {
                 return (currentDoc = NO_MORE_DOCS);
@@ -226,14 +225,17 @@ public class IncludeNestedDocsQuery extends Query {
             return currentDoc;
         }
 
+        @Override
         public float score() throws IOException {
             return parentScorer.score();
         }
 
+        @Override
         public int freq() throws IOException {
             return parentScorer.freq();
         }
 
+        @Override
         public int docID() {
             return currentDoc;
         }

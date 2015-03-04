@@ -29,10 +29,10 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -118,9 +118,6 @@ public class RecoveryTarget extends AbstractComponent {
                 return null;
             }
             final RecoveryStatus recoveryStatus = statusRef.status();
-            if (recoveryStatus.state().getTimer().startTime() > 0 && recoveryStatus.stage() != RecoveryState.Stage.DONE) {
-                recoveryStatus.state().getTimer().time(System.currentTimeMillis() - recoveryStatus.state().getTimer().startTime());
-            }
             return recoveryStatus.state();
         } catch (Exception e) {
             // shouldn't really happen, but have to be here due to auto close
@@ -130,19 +127,14 @@ public class RecoveryTarget extends AbstractComponent {
 
     public void startRecovery(final IndexShard indexShard, final RecoveryState.Type recoveryType, final DiscoveryNode sourceNode, final RecoveryListener listener) {
         try {
-            indexShard.recovering("from " + sourceNode);
+            indexShard.recovering("from " + sourceNode, recoveryType, sourceNode);
         } catch (IllegalIndexShardStateException e) {
             // that's fine, since we might be called concurrently, just ignore this, we are already recovering
             logger.debug("{} ignore recovery. already in recovering process, {}", indexShard.shardId(), e.getMessage());
             return;
         }
         // create a new recovery status, and process...
-        RecoveryState recoveryState = new RecoveryState(indexShard.shardId());
-        recoveryState.setType(recoveryType);
-        recoveryState.setSourceNode(sourceNode);
-        recoveryState.setTargetNode(clusterService.localNode());
-        recoveryState.setPrimary(indexShard.routingEntry().primary());
-        final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, recoveryState, listener, recoverySettings.activityTimeout());
+        final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, listener, recoverySettings.activityTimeout());
         threadPool.generic().execute(new RecoveryRunner(recoveryId));
 
     }
@@ -176,8 +168,7 @@ public class RecoveryTarget extends AbstractComponent {
         final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
         try {
             logger.trace("[{}][{}] starting recovery from {}", request.shardId().index().name(), request.shardId().id(), request.sourceNode());
-
-            StopWatch stopWatch = new StopWatch().start();
+            recoveryStatus.indexShard().prepareForIndexRecovery();
             recoveryStatus.CancellableThreads().execute(new CancellableThreads.Interruptable() {
                 @Override
                 public void run() throws InterruptedException {
@@ -191,11 +182,13 @@ public class RecoveryTarget extends AbstractComponent {
             });
             final RecoveryResponse recoveryResponse = responseHolder.get();
             assert responseHolder != null;
-            stopWatch.stop();
+            final TimeValue recoveryTime = new TimeValue(recoveryStatus.state().getTimer().time());
+            // do this through ongoing recoveries to remove it from the collection
+            onGoingRecoveries.markRecoveryAsDone(recoveryStatus.recoveryId());
             if (logger.isTraceEnabled()) {
                 StringBuilder sb = new StringBuilder();
                 sb.append('[').append(request.shardId().index().name()).append(']').append('[').append(request.shardId().id()).append("] ");
-                sb.append("recovery completed from ").append(request.sourceNode()).append(", took[").append(stopWatch.totalTime()).append("]\n");
+                sb.append("recovery completed from ").append(request.sourceNode()).append(", took[").append(recoveryTime).append("]\n");
                 sb.append("   phase1: recovered_files [").append(recoveryResponse.phase1FileNames.size()).append("]").append(" with total_size of [").append(new ByteSizeValue(recoveryResponse.phase1TotalSize)).append("]")
                         .append(", took [").append(timeValueMillis(recoveryResponse.phase1Time)).append("], throttling_wait [").append(timeValueMillis(recoveryResponse.phase1ThrottlingWaitTime)).append(']')
                         .append("\n");
@@ -207,11 +200,9 @@ public class RecoveryTarget extends AbstractComponent {
                 sb.append("   phase3: recovered [").append(recoveryResponse.phase3Operations).append("]").append(" transaction log operations")
                         .append(", took [").append(timeValueMillis(recoveryResponse.phase3Time)).append("]");
                 logger.trace(sb.toString());
-            } else if (logger.isDebugEnabled()) {
-                logger.debug("{} recovery completed from [{}], took [{}]", request.shardId(), request.sourceNode(), stopWatch.totalTime());
+            } else {
+                logger.debug("{} recovery done from [{}], took [{}]", request.shardId(), recoveryStatus.sourceNode(), recoveryTime);
             }
-            // do this through ongoing recoveries to remove it from the collection
-            onGoingRecoveries.markRecoveryAsDone(recoveryStatus.recoveryId());
         } catch (CancellableThreads.ExecutionCancelledException e) {
             logger.trace("recovery cancelled", e);
         } catch (Throwable e) {
@@ -286,9 +277,7 @@ public class RecoveryTarget extends AbstractComponent {
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
-                recoveryStatus.indexShard().performRecoveryPrepareForTranslog();
-                recoveryStatus.stage(RecoveryState.Stage.TRANSLOG);
-                recoveryStatus.state().getStart().checkIndexTime(recoveryStatus.indexShard().checkIndexTook());
+                recoveryStatus.indexShard().prepareForTranslogRecovery();
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -310,9 +299,7 @@ public class RecoveryTarget extends AbstractComponent {
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
-                recoveryStatus.indexShard().performRecoveryFinalization(false, recoveryStatus.state());
-                recoveryStatus.state().getTimer().time(System.currentTimeMillis() - recoveryStatus.state().getTimer().startTime());
-                recoveryStatus.stage(RecoveryState.Stage.DONE);
+                recoveryStatus.indexShard().finalizeRecovery();
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -362,14 +349,13 @@ public class RecoveryTarget extends AbstractComponent {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
                 final RecoveryState.Index index = recoveryStatus.state().getIndex();
-                index.addFileDetails(request.phase1FileNames, request.phase1FileSizes);
-                index.addReusedFileDetails(request.phase1ExistingFileNames, request.phase1ExistingFileSizes);
-                index.totalByteCount(request.phase1TotalSize);
-                index.totalFileCount(request.phase1FileNames.size() + request.phase1ExistingFileNames.size());
-                index.reusedByteCount(request.phase1ExistingTotalSize);
-                index.reusedFileCount(request.phase1ExistingFileNames.size());
+                for (int i = 0; i < request.phase1ExistingFileNames.size(); i++) {
+                    index.addFileDetail(request.phase1ExistingFileNames.get(i), request.phase1ExistingFileSizes.get(i), true);
+                }
+                for (int i = 0; i < request.phase1FileNames.size(); i++) {
+                    index.addFileDetail(request.phase1FileNames.get(i), request.phase1FileSizes.get(i), false);
+                }
                 // recoveryBytesCount / recoveryFileCount will be set as we go...
-                recoveryStatus.stage(RecoveryState.Stage.INDEX);
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             }
         }
@@ -407,7 +393,12 @@ public class RecoveryTarget extends AbstractComponent {
                     // broken. We have to clean up this shard entirely, remove all files and bubble it up to the
                     // source shard since this index might be broken there as well? The Source can handle this and checks
                     // its content on disk if possible.
-                    store.deleteContent(); // clean up and delete all files
+                    try {
+                        Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
+                    } catch (Throwable e) {
+                        logger.debug("Failed to clean lucene index", e);
+                        ex.addSuppressed(e);
+                    }
                     throw new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
                 } catch (Exception ex) {
                     throw new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
@@ -448,11 +439,7 @@ public class RecoveryTarget extends AbstractComponent {
                     content = content.toBytesArray();
                 }
                 indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
-                recoveryStatus.state().getIndex().addRecoveredByteCount(content.length());
-                RecoveryState.File file = recoveryStatus.state().getIndex().file(request.name());
-                if (file != null) {
-                    file.updateRecovered(request.length());
-                }
+                recoveryStatus.state().getIndex().addRecoveredBytesToFile(request.name(), content.length());
                 if (indexOutput.getFilePointer() >= request.length() || request.lastChunk()) {
                     try {
                         Store.verify(indexOutput);
@@ -466,7 +453,6 @@ public class RecoveryTarget extends AbstractComponent {
                     assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName);
                     store.directory().sync(Collections.singleton(temporaryFileName));
                     IndexOutput remove = recoveryStatus.removeOpenIndexOutputs(request.name());
-                    recoveryStatus.state().getIndex().addRecoveredFileCount(1);
                     assert remove == null || remove == indexOutput; // remove maybe null if we got finished
                 }
             }

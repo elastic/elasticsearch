@@ -618,6 +618,7 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             if (writer == null) {
                 throw new EngineClosedException(shardId, failedEngine);
             }
+            // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
             innerDelete(delete, writer);
             dirty = true;
             possibleMergeNeeded = true;
@@ -690,7 +691,19 @@ public class InternalEngine extends AbstractIndexShardComponent implements Engin
             if (writer == null) {
                 throw new EngineClosedException(shardId);
             }
+            if (delete.origin() == Operation.Origin.RECOVERY) {
+                // Don't throttle recovery operations
+                innerDelete(delete, writer);
+            } else {
+                try (Releasable r = throttle.acquireThrottle()) {
+                    innerDelete(delete, writer);
+                }
+            }
+        }
+    }
 
+    private void innerDelete(DeleteByQuery delete, IndexWriter writer) throws EngineException {
+        try {
             Query query;
             if (delete.nested() && delete.aliasFilter() != null) {
                 query = new IncludeNestedDocsQuery(new XFilteredQuery(delete.query(), delete.aliasFilter()), delete.parentFilter());

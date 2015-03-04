@@ -440,6 +440,7 @@ public class InternalEngine extends Engine {
     public void delete(Delete delete) throws EngineException {
         try (ReleasableLock _ = readLock.acquire()) {
             ensureOpen();
+            // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
             innerDelete(delete);
             flushNeeded = true;
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {

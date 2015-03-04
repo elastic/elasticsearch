@@ -83,7 +83,7 @@ public class ManualPublicSmtpServersTests {
                             .put("alerts.actions.email.service.account.ses.smtp.starttls.enable", true)
                             .put("alerts.actions.email.service.account.ses.smtp.starttls.required", true)
                             .put("alerts.actions.email.service.account.ses.smtp.host", "email-smtp.us-east-1.amazonaws.com")
-                            .put("alerts.actions.email.service.account.ses.smtp.port", 25)
+                            .put("alerts.actions.email.service.account.ses.smtp.port", 587)
                             .put("alerts.actions.email.service.account.ses.smtp.user", terminal.readText("user: "))
                             .put("alerts.actions.email.service.account.ses.smtp.password", new String(terminal.readSecret("password: ")))
                             .put("alerts.actions.email.service.account.ses.email_defaults.from", "dummy.user@elasticsearch.com")

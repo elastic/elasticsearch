@@ -38,7 +38,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.HashMap;

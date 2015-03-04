@@ -44,11 +44,10 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
                 .put("path.conf", this.getResource("config").getPath()).build();
     }
 
-
     @Test
     public void testFieldOnDiskScript()  throws ExecutionException, InterruptedException {
 
-        List<IndexRequestBuilder> builders = new ArrayList();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}"));
         builders.add(client().prepareIndex("test", "scriptTest", "2").setSource("{\"theField\":\"foo 2\"}"));
         builders.add(client().prepareIndex("test", "scriptTest", "3").setSource("{\"theField\":\"foo 3\"}"));
@@ -64,14 +63,12 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
         SearchHit sh = searchResponse.getHits().getAt(0);
         assertThat((Integer)sh.field("test1").getValue(), equalTo(2));
         assertThat((Integer)sh.field("test2").getValue(), equalTo(6));
-
-
     }
 
     @Test
     public void testFieldOnDiskBackwardCompatScript()  throws ExecutionException, InterruptedException {
 
-        List<IndexRequestBuilder> builders = new ArrayList();
+        List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}"));
         builders.add(client().prepareIndex("test", "scriptTest", "2").setSource("{\"theField\":\"foo 2\"}"));
         builders.add(client().prepareIndex("test", "scriptTest", "3").setSource("{\"theField\":\"foo 3\"}"));
@@ -87,8 +84,5 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
         SearchHit sh = searchResponse.getHits().getAt(0);
         assertThat((Integer)sh.field("test1").getValue(), equalTo(2));
         assertThat((Integer)sh.field("test2").getValue(), equalTo(6));
-
     }
-
-
 }

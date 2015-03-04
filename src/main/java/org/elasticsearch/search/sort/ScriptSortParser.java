@@ -31,7 +31,6 @@ import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
-import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.script.ScriptService;
@@ -126,7 +125,6 @@ public class ScriptSortParser implements SortParser {
         }
 
         // If nested_path is specified, then wrap the `fieldComparatorSource` in a `NestedFieldComparatorSource`
-        ObjectMapper objectMapper;
         final Nested nested;
         if (nestedHelper != null && nestedHelper.getPath() != null) {
             FixedBitSetFilter rootDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE);

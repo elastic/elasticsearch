@@ -27,6 +27,7 @@ import org.elasticsearch.action.suggest.SuggestResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -90,7 +91,7 @@ public class TransformOnIndexMapperIntegrationTest extends ElasticsearchIntegrat
         builder.endObject();
         builder.startObject("transform");
         builder.field("script", "ctx._source.suggest = ['input': ctx._source.text];ctx._source.suggest.payload = ['display': ctx._source.text, 'display_detail': 'on the fly']");
-        builder.field("lang", "groovy");
+        builder.field("lang", GroovyScriptEngineService.NAME);
         builder.endObject();
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("test", builder));
         // Payload is stored using original source format (json, smile, yaml, whatever)
@@ -127,7 +128,7 @@ public class TransformOnIndexMapperIntegrationTest extends ElasticsearchIntegrat
             // Single transform
             builder.startObject();
             buildTransformScript(builder);
-            builder.field("lang", "groovy");
+            builder.field("lang", GroovyScriptEngineService.NAME);
             builder.endObject();
         } else {
             // Multiple transforms
@@ -141,7 +142,7 @@ public class TransformOnIndexMapperIntegrationTest extends ElasticsearchIntegrat
                 } else {
                     builder.field("script", "true");
                 }
-                builder.field("lang", "groovy");
+                builder.field("lang", GroovyScriptEngineService.NAME);
                 builder.endObject();
             }
             builder.endArray();

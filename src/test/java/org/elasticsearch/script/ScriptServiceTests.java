@@ -82,7 +82,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         logger.info("--> verify that file with extension was correctly removed");
         try {
             scriptService.compile("test", "test_script", ScriptService.ScriptType.FILE);
-            fail("the script test_script should no longe exist");
+            fail("the script test_script should no longer exist");
         } catch (ElasticsearchIllegalArgumentException ex) {
             assertThat(ex.getMessage(), containsString("Unable to find on disk script test_script"));
         }

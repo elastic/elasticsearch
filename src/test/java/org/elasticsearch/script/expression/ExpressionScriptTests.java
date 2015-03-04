@@ -20,24 +20,21 @@
 package org.elasticsearch.script.expression;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.get.GetRequestBuilder;
-import org.elasticsearch.action.search.*;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
-import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
-import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -225,8 +222,8 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
 
         SearchRequestBuilder req = new SearchRequestBuilder(client()).setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
-           .addAggregation(AggregationBuilders.stats("int_agg").field("x").script("_value * 3").lang("expression"))
-           .addAggregation(AggregationBuilders.stats("double_agg").field("y").script("_value - 1.1").lang("expression"));
+           .addAggregation(AggregationBuilders.stats("int_agg").field("x").script("_value * 3").lang(ExpressionScriptEngineService.NAME))
+           .addAggregation(AggregationBuilders.stats("double_agg").field("y").script("_value - 1.1").lang(ExpressionScriptEngineService.NAME));
 
         SearchResponse rsp = req.get();
         assertEquals(3, rsp.getHits().getTotalHits());
@@ -251,7 +248,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
 
         SearchRequestBuilder req = new SearchRequestBuilder(client()).setIndices("test");
         req.setQuery(QueryBuilders.matchAllQuery())
-           .addAggregation(AggregationBuilders.terms("term_agg").field("text").script("_value").lang("expression"));
+           .addAggregation(AggregationBuilders.terms("term_agg").field("text").script("_value").lang(ExpressionScriptEngineService.NAME));
 
         String message;
         try {

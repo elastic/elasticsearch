@@ -47,6 +47,8 @@ import java.util.Map;
  */
 public class MustacheScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
+    public static final String NAME = "mustache";
+
     /** Thread local UTF8StreamWriter to store template execution results in, thread local to save object creation.*/
     private static ThreadLocal<SoftReference<UTF8StreamWriter>> utf8StreamWriter = new ThreadLocal<>();
 
@@ -114,12 +116,12 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
 
     @Override
     public String[] types() {
-        return new String[] {"mustache"};
+        return new String[] {NAME};
     }
 
     @Override
     public String[] extensions() {
-        return new String[] {"mustache"};
+        return new String[] {NAME};
     }
 
     @Override
@@ -170,7 +172,7 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
         public MustacheExecutableScript(Mustache mustache,
                 Map<String, Object> vars) {
             this.mustache = mustache;
-            this.vars = vars == null ? Collections.EMPTY_MAP : vars;
+            this.vars = vars == null ? Collections.<String, Object>emptyMap() : vars;
         }
 
         @Override
@@ -182,7 +184,7 @@ public class MustacheScriptEngineService extends AbstractComponent implements Sc
         public Object run() {
             BytesStreamOutput result = new BytesStreamOutput();
             UTF8StreamWriter writer = utf8StreamWriter().setOutput(result);
-            ((Mustache) mustache).execute(writer, vars);
+            mustache.execute(writer, vars);
             try {
                 writer.flush();
             } catch (IOException e) {

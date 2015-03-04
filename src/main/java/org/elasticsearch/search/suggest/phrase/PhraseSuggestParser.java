@@ -29,6 +29,8 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -148,7 +150,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             if (suggestion.getCollateQueryScript() != null) {
                                 throw new ElasticsearchIllegalArgumentException("suggester[phrase][collate] query already set, doesn't support additional [" + fieldName + "]");
                             }
-                            CompiledScript compiledScript = suggester.scriptService().compile("mustache", templateNameOrTemplateContent);
+                            CompiledScript compiledScript = suggester.scriptService().compile(MustacheScriptEngineService.NAME, templateNameOrTemplateContent, ScriptService.ScriptType.INLINE);
                             if ("query".equals(fieldName)) {
                                 suggestion.setCollateQueryScript(compiledScript);
                             } else {

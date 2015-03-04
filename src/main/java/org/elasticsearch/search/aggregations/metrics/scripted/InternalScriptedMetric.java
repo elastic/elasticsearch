@@ -91,9 +91,9 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
         if (firstAggregation.reduceScript != null) {
             Map<String, Object> params;
             if (firstAggregation.reduceParams != null) {
-                params = new HashMap<String, Object>(firstAggregation.reduceParams);
+                params = new HashMap<>(firstAggregation.reduceParams);
             } else {
-                params = new HashMap<String, Object>();
+                params = new HashMap<>();
             }
             params.put("_aggs", aggregationObjects);
             ExecutableScript script = reduceContext.scriptService().executable(firstAggregation.scriptLang, firstAggregation.reduceScript,

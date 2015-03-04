@@ -51,6 +51,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -204,10 +205,28 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 if (!tmpRecoveringFile.exists()) {
                     File tmpTranslogFile = new File(translogLocation, translogName);
                     if (tmpTranslogFile.exists()) {
+                        logger.trace("Translog file found in {} - renaming", translogLocation);
+                        boolean success = false;
                         for (int i = 0; i < RECOVERY_TRANSLOG_RENAME_RETRIES; i++) {
                             if (tmpTranslogFile.renameTo(tmpRecoveringFile)) {
+
                                 recoveringTranslogFile = tmpRecoveringFile;
+                                logger.trace("Renamed translog from {} to {}", tmpTranslogFile.getName(), recoveringTranslogFile.getName());
+                                success = true;
                                 break;
+                            }
+                        }
+                        if (success == false) {
+                            try {
+                                // this is a fallback logic that to ensure we can recover from the file.
+                                // on windows a virus-scanner etc can hold on to the file and after retrying
+                                // we just skip the recovery and the engine will reuse the file and truncate it.
+                                // in 2.0 this is all not needed since translog files are write once.
+                                Files.copy(tmpTranslogFile.toPath(), tmpRecoveringFile.toPath());
+                                recoveringTranslogFile = tmpRecoveringFile;
+                                logger.trace("Copied translog from {} to {}", tmpTranslogFile.getName(), recoveringTranslogFile.getName());
+                            } catch (IOException ex) {
+                                throw new ElasticsearchException("failed to copy recovery file", ex);
                             }
                         }
                     }

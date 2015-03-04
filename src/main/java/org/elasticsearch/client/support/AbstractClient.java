@@ -286,6 +286,7 @@ public abstract class AbstractClient implements Client {
      * @param request The put request
      * @return The result future
      */
+    @Override
     public ActionFuture<DeleteIndexedScriptResponse> deleteIndexedScript(DeleteIndexedScriptRequest request){
         return execute(DeleteIndexedScriptAction.INSTANCE, request);
     }
@@ -294,6 +295,7 @@ public abstract class AbstractClient implements Client {
     /**
      * Delete an indexed script
      */
+    @Override
     public DeleteIndexedScriptRequestBuilder prepareDeleteIndexedScript(){
         return DeleteIndexedScriptAction.INSTANCE.newRequestBuilder(this);
     }
@@ -304,6 +306,7 @@ public abstract class AbstractClient implements Client {
      * @param id
      * @return
      */
+    @Override
     public DeleteIndexedScriptRequestBuilder prepareDeleteIndexedScript(@Nullable String scriptLang, String id){
         return prepareDeleteIndexedScript().setScriptLang(scriptLang).setId(id);
     }

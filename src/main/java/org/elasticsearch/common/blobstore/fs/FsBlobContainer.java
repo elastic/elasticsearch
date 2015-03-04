@@ -47,6 +47,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         this.path = path;
     }
 
+    @Override
     public ImmutableMap<String, BlobMetaData> listBlobs() throws IOException {
         Path[] files = FileSystemUtils.files(path);
         if (files.length == 0) {
@@ -66,9 +67,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     @Override
     public void deleteBlob(String blobName) throws IOException {
         Path blobPath = path.resolve(blobName);
-        if (Files.exists(blobPath)) {
-            Files.delete(blobPath);
-        }
+        Files.deleteIfExists(blobPath);
     }
 
     @Override

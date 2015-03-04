@@ -108,6 +108,7 @@ public class GND extends NXYSignificanceHeuristic {
             return NAMES_FIELD.getAllNamesIncludedDeprecated();
         }
 
+        @Override
         protected SignificanceHeuristic newHeuristic(boolean includeNegatives, boolean backgroundIsSuperset) {
             return new GND(backgroundIsSuperset);
         }

@@ -67,6 +67,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
         this.shardFailures = shardFailures;
     }
 
+    @Override
     public RestStatus status() {
         if (shardFailures.length == 0) {
             if (successfulShards == 0 && totalShards > 0) {

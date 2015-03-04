@@ -128,7 +128,7 @@ public class Bootstrap {
      * hook for JSVC
      */
     public void stop() {
-        node.stop();
+       destroy();
     }
 
 

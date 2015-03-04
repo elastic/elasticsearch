@@ -47,14 +47,14 @@ public class TieredMergePolicyProvider extends AbstractMergePolicyProvider<Tiere
         super(store);
         this.indexSettingsService = indexSettingsService;
 
-        double forceMergeDeletesPctAllowed = componentSettings.getAsDouble("expunge_deletes_allowed", DEFAULT_EXPUNGE_DELETES_ALLOWED); // percentage
-        ByteSizeValue floorSegment = componentSettings.getAsBytesSize("floor_segment", DEFAULT_FLOOR_SEGMENT);
-        int maxMergeAtOnce = componentSettings.getAsInt("max_merge_at_once", DEFAULT_MAX_MERGE_AT_ONCE);
-        int maxMergeAtOnceExplicit = componentSettings.getAsInt("max_merge_at_once_explicit", DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT);
+        double forceMergeDeletesPctAllowed = indexSettings.getAsDouble("index.merge.policy.expunge_deletes_allowed", DEFAULT_EXPUNGE_DELETES_ALLOWED); // percentage
+        ByteSizeValue floorSegment = indexSettings.getAsBytesSize("index.merge.policy.floor_segment", DEFAULT_FLOOR_SEGMENT);
+        int maxMergeAtOnce = indexSettings.getAsInt("index.merge.policy.max_merge_at_once", DEFAULT_MAX_MERGE_AT_ONCE);
+        int maxMergeAtOnceExplicit = indexSettings.getAsInt("index.merge.policy.max_merge_at_once_explicit", DEFAULT_MAX_MERGE_AT_ONCE_EXPLICIT);
         // TODO is this really a good default number for max_merge_segment, what happens for large indices, won't they end up with many segments?
-        ByteSizeValue maxMergedSegment = componentSettings.getAsBytesSize("max_merged_segment", DEFAULT_MAX_MERGED_SEGMENT);
-        double segmentsPerTier = componentSettings.getAsDouble("segments_per_tier", DEFAULT_SEGMENTS_PER_TIER);
-        double reclaimDeletesWeight = componentSettings.getAsDouble("reclaim_deletes_weight", DEFAULT_RECLAIM_DELETES_WEIGHT);
+        ByteSizeValue maxMergedSegment = indexSettings.getAsBytesSize("index.merge.policy.max_merged_segment", DEFAULT_MAX_MERGED_SEGMENT);
+        double segmentsPerTier = indexSettings.getAsDouble("index.merge.policy.segments_per_tier", DEFAULT_SEGMENTS_PER_TIER);
+        double reclaimDeletesWeight = indexSettings.getAsDouble("index.merge.policy.reclaim_deletes_weight", DEFAULT_RECLAIM_DELETES_WEIGHT);
 
         maxMergeAtOnce = adjustMaxMergeAtOnceIfNeeded(maxMergeAtOnce, segmentsPerTier);
         mergePolicy.setNoCFSRatio(noCFSRatio);

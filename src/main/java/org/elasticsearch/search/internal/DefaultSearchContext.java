@@ -216,6 +216,7 @@ public class DefaultSearchContext extends SearchContext {
     /**
      * Should be called before executing the main query and after all other parameters have been set.
      */
+    @Override
     public void preProcess() {
         if (!(from() == -1 && size() == -1)) {
             // from and size have been set.
@@ -244,6 +245,7 @@ public class DefaultSearchContext extends SearchContext {
         }
     }
 
+    @Override
     public Filter searchFilter(String[] types) {
         Filter filter = mapperService().searchFilter(types);
         if (filter == null) {
@@ -257,60 +259,74 @@ public class DefaultSearchContext extends SearchContext {
         }
     }
 
+    @Override
     public long id() {
         return this.id;
     }
 
+    @Override
     public String source() {
         return engineSearcher.source();
     }
 
+    @Override
     public ShardSearchRequest request() {
         return this.request;
     }
 
+    @Override
     public SearchType searchType() {
         return this.searchType;
     }
 
+    @Override
     public SearchContext searchType(SearchType searchType) {
         this.searchType = searchType;
         return this;
     }
 
+    @Override
     public SearchShardTarget shardTarget() {
         return this.shardTarget;
     }
 
+    @Override
     public int numberOfShards() {
         return request.numberOfShards();
     }
 
+    @Override
     public boolean hasTypes() {
         return request.types() != null && request.types().length > 0;
     }
 
+    @Override
     public String[] types() {
         return request.types();
     }
 
+    @Override
     public float queryBoost() {
         return queryBoost;
     }
 
+    @Override
     public SearchContext queryBoost(float queryBoost) {
         this.queryBoost = queryBoost;
         return this;
     }
 
+    @Override
     protected long nowInMillisImpl() {
         return request.nowInMillis();
     }
 
+    @Override
     public Scroll scroll() {
         return this.scroll;
     }
 
+    @Override
     public SearchContext scroll(Scroll scroll) {
         this.scroll = scroll;
         return this;
@@ -327,22 +343,27 @@ public class DefaultSearchContext extends SearchContext {
         return this;
     }
 
+    @Override
     public SearchContextHighlight highlight() {
         return highlight;
     }
 
+    @Override
     public void highlight(SearchContextHighlight highlight) {
         this.highlight = highlight;
     }
 
+    @Override
     public SuggestionSearchContext suggest() {
         return suggest;
     }
 
+    @Override
     public void suggest(SuggestionSearchContext suggest) {
         this.suggest = suggest;
     }
 
+    @Override
     public List<RescoreSearchContext> rescore() {
         if (rescore == null) {
             return Collections.emptyList();
@@ -350,6 +371,7 @@ public class DefaultSearchContext extends SearchContext {
         return rescore;
     }
 
+    @Override
     public void addRescore(RescoreSearchContext rescore) {
         if (this.rescore == null) {
             this.rescore = new ArrayList<>();
@@ -357,10 +379,12 @@ public class DefaultSearchContext extends SearchContext {
         this.rescore.add(rescore);
     }
 
+    @Override
     public boolean hasFieldDataFields() {
         return fieldDataFields != null;
     }
 
+    @Override
     public FieldDataFieldsContext fieldDataFields() {
         if (fieldDataFields == null) {
             fieldDataFields = new FieldDataFieldsContext();
@@ -368,10 +392,12 @@ public class DefaultSearchContext extends SearchContext {
         return this.fieldDataFields;
     }
 
+    @Override
     public boolean hasScriptFields() {
         return scriptFields != null;
     }
 
+    @Override
     public ScriptFieldsContext scriptFields() {
         if (scriptFields == null) {
             scriptFields = new ScriptFieldsContext();
@@ -384,59 +410,73 @@ public class DefaultSearchContext extends SearchContext {
      *
      * @return
      */
+    @Override
     public boolean sourceRequested() {
         return fetchSourceContext != null && fetchSourceContext.fetchSource();
     }
 
+    @Override
     public boolean hasFetchSourceContext() {
         return fetchSourceContext != null;
     }
 
+    @Override
     public FetchSourceContext fetchSourceContext() {
         return this.fetchSourceContext;
     }
 
+    @Override
     public SearchContext fetchSourceContext(FetchSourceContext fetchSourceContext) {
         this.fetchSourceContext = fetchSourceContext;
         return this;
     }
 
+    @Override
     public ContextIndexSearcher searcher() {
         return this.searcher;
     }
 
+    @Override
     public IndexShard indexShard() {
         return this.indexShard;
     }
 
+    @Override
     public MapperService mapperService() {
         return indexService.mapperService();
     }
 
+    @Override
     public AnalysisService analysisService() {
         return indexService.analysisService();
     }
 
+    @Override
     public IndexQueryParserService queryParserService() {
         return indexService.queryParserService();
     }
 
+    @Override
     public SimilarityService similarityService() {
         return indexService.similarityService();
     }
 
+    @Override
     public ScriptService scriptService() {
         return scriptService;
     }
 
+    @Override
     public PageCacheRecycler pageCacheRecycler() {
         return pageCacheRecycler;
     }
 
+    @Override
     public BigArrays bigArrays() {
         return bigArrays;
     }
 
+    @Override
     public FilterCache filterCache() {
         return indexService.cache().filter();
     }
@@ -446,14 +486,17 @@ public class DefaultSearchContext extends SearchContext {
         return indexService.bitsetFilterCache();
     }
 
+    @Override
     public IndexFieldDataService fieldData() {
         return indexService.fieldData();
     }
 
+    @Override
     public long timeoutInMillis() {
         return timeoutInMillis;
     }
 
+    @Override
     public void timeoutInMillis(long timeoutInMillis) {
         this.timeoutInMillis = timeoutInMillis;
     }
@@ -468,46 +511,56 @@ public class DefaultSearchContext extends SearchContext {
         this.terminateAfter = terminateAfter;
     }
 
+    @Override
     public SearchContext minimumScore(float minimumScore) {
         this.minimumScore = minimumScore;
         return this;
     }
 
+    @Override
     public Float minimumScore() {
         return this.minimumScore;
     }
 
+    @Override
     public SearchContext sort(Sort sort) {
         this.sort = sort;
         return this;
     }
 
+    @Override
     public Sort sort() {
         return this.sort;
     }
 
+    @Override
     public SearchContext trackScores(boolean trackScores) {
         this.trackScores = trackScores;
         return this;
     }
 
+    @Override
     public boolean trackScores() {
         return this.trackScores;
     }
 
+    @Override
     public SearchContext parsedPostFilter(ParsedFilter postFilter) {
         this.postFilter = postFilter;
         return this;
     }
 
+    @Override
     public ParsedFilter parsedPostFilter() {
         return this.postFilter;
     }
 
+    @Override
     public Filter aliasFilter() {
         return aliasFilter;
     }
 
+    @Override
     public SearchContext parsedQuery(ParsedQuery query) {
         queryRewritten = false;
         this.originalQuery = query;
@@ -515,6 +568,7 @@ public class DefaultSearchContext extends SearchContext {
         return this;
     }
 
+    @Override
     public ParsedQuery parsedQuery() {
         return this.originalQuery;
     }
@@ -522,6 +576,7 @@ public class DefaultSearchContext extends SearchContext {
     /**
      * The query to execute, might be rewritten.
      */
+    @Override
     public Query query() {
         return this.query;
     }
@@ -529,6 +584,7 @@ public class DefaultSearchContext extends SearchContext {
     /**
      * Has the query been rewritten already?
      */
+    @Override
     public boolean queryRewritten() {
         return queryRewritten;
     }
@@ -536,34 +592,41 @@ public class DefaultSearchContext extends SearchContext {
     /**
      * Rewrites the query and updates it. Only happens once.
      */
+    @Override
     public SearchContext updateRewriteQuery(Query rewriteQuery) {
         query = rewriteQuery;
         queryRewritten = true;
         return this;
     }
 
+    @Override
     public int from() {
         return from;
     }
 
+    @Override
     public SearchContext from(int from) {
         this.from = from;
         return this;
     }
 
+    @Override
     public int size() {
         return size;
     }
 
+    @Override
     public SearchContext size(int size) {
         this.size = size;
         return this;
     }
 
+    @Override
     public boolean hasFieldNames() {
         return fieldNames != null;
     }
 
+    @Override
     public List<String> fieldNames() {
         if (fieldNames == null) {
             fieldNames = Lists.newArrayList();
@@ -571,47 +634,58 @@ public class DefaultSearchContext extends SearchContext {
         return fieldNames;
     }
 
+    @Override
     public void emptyFieldNames() {
         this.fieldNames = ImmutableList.of();
     }
 
+    @Override
     public boolean explain() {
         return explain;
     }
 
+    @Override
     public void explain(boolean explain) {
         this.explain = explain;
     }
 
+    @Override
     @Nullable
     public List<String> groupStats() {
         return this.groupStats;
     }
 
+    @Override
     public void groupStats(List<String> groupStats) {
         this.groupStats = groupStats;
     }
 
+    @Override
     public boolean version() {
         return version;
     }
 
+    @Override
     public void version(boolean version) {
         this.version = version;
     }
 
+    @Override
     public int[] docIdsToLoad() {
         return docIdsToLoad;
     }
 
+    @Override
     public int docIdsToLoadFrom() {
         return docsIdsToLoadFrom;
     }
 
+    @Override
     public int docIdsToLoadSize() {
         return docsIdsToLoadSize;
     }
 
+    @Override
     public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize) {
         this.docIdsToLoad = docIdsToLoad;
         this.docsIdsToLoadFrom = docsIdsToLoadFrom;
@@ -619,18 +693,22 @@ public class DefaultSearchContext extends SearchContext {
         return this;
     }
 
+    @Override
     public void accessed(long accessTime) {
         this.lastAccessTime = accessTime;
     }
 
+    @Override
     public long lastAccessTime() {
         return this.lastAccessTime;
     }
 
+    @Override
     public long keepAlive() {
         return this.keepAlive;
     }
 
+    @Override
     public void keepAlive(long keepAlive) {
         this.keepAlive = keepAlive;
     }
@@ -645,6 +723,7 @@ public class DefaultSearchContext extends SearchContext {
         return lastEmittedDoc;
     }
 
+    @Override
     public SearchLookup lookup() {
         // TODO: The types should take into account the parsing context in QueryParserContext...
         if (searchLookup == null) {
@@ -653,18 +732,22 @@ public class DefaultSearchContext extends SearchContext {
         return searchLookup;
     }
 
+    @Override
     public DfsSearchResult dfsResult() {
         return dfsResult;
     }
 
+    @Override
     public QuerySearchResult queryResult() {
         return queryResult;
     }
 
+    @Override
     public FetchSearchResult fetchResult() {
         return fetchResult;
     }
 
+    @Override
     public ScanContext scanContext() {
         if (scanContext == null) {
             scanContext = new ScanContext();

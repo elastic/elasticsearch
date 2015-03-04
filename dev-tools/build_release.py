@@ -358,6 +358,22 @@ def get_artifacts(release):
     raise RuntimeError('Could not find required artifact at %s' % rpm)
   return common_artifacts
 
+# Checks the jar files in each package
+# Barfs if any of the package jar files differ
+def check_artifacts_for_same_jars(artifacts):
+  jars = []
+  for file in artifacts:
+    if file.endswith('.zip'):
+      jars.append(subprocess.check_output("unzip -l %s  | grep '\.jar$' | awk -F '/' '{ print $NF }' | sort" % file, shell=True))
+    if file.endswith('.tar.gz'):
+      jars.append(subprocess.check_output("tar tzvf %s  | grep '\.jar$' | awk -F '/' '{ print $NF }' | sort" % file, shell=True))
+    if file.endswith('.rpm'):
+      jars.append(subprocess.check_output("rpm -pqli %s | grep '\.jar$' | awk -F '/' '{ print $NF }' | sort" % file, shell=True))
+    if file.endswith('.deb'):
+      jars.append(subprocess.check_output("dpkg -c %s   | grep '\.jar$' | awk -F '/' '{ print $NF }' | sort" % file, shell=True))
+  if len(set(jars)) != 1:
+    raise RuntimeError('JAR contents of packages are not the same, please check the package contents. Use [unzip -l], [tar tzvf], [dpkg -c], [rpm -pqli] to inspect')
+
 # Generates sha1 checsums for all files
 # and returns the checksum files as well
 # as the given files in a list
@@ -646,6 +662,8 @@ if __name__ == '__main__':
         print('  Running maven builds now run-tests [%s]' % run_tests)
       build_release(run_tests=run_tests, dry_run=dry_run, cpus=cpus, bwc_version=find_bwc_version(release_version, bwc_path))
       artifacts = get_artifacts(release_version)
+      print('Checking if all artifacts contain the same jars')
+      check_artifacts_for_same_jars(artifacts)
       artifacts_and_checksum = generate_checksums(artifacts)
       smoke_test_release(release_version, artifacts, get_head_hash(), PLUGINS)
       print(''.join(['-' for _ in range(80)]))

@@ -59,6 +59,7 @@ public interface MultiBucketsAggregation extends Aggregation {
         /**
          * @return  The sub-aggregations of this bucket
          */
+        @Override
         Aggregations getAggregations();
 
         Object getProperty(String containingAggName, List<String> path);

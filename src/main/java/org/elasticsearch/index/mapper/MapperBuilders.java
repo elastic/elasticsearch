@@ -89,10 +89,6 @@ public final class MapperBuilders {
         return new ParentFieldMapper.Builder();
     }
 
-    public static BoostFieldMapper.Builder boost(String name) {
-        return new BoostFieldMapper.Builder(name);
-    }
-
     public static AllFieldMapper.Builder all() {
         return new AllFieldMapper.Builder();
     }

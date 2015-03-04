@@ -38,10 +38,9 @@ import static org.elasticsearch.common.recycler.Recyclers.*;
 /** A recycler of fixed-size pages. */
 public class PageCacheRecycler extends AbstractComponent {
 
-    public static final String TYPE = "page.type";
-    public static final String LIMIT_HEAP = "page.limit.heap";
-    public static final String LIMIT_PER_THREAD = "page.limit.per_thread";
-    public static final String WEIGHT = "page.weight";
+    public static final String TYPE = "recycler.page.type";
+    public static final String LIMIT_HEAP = "recycler.page.limit.heap";
+    public static final String WEIGHT = "recycler.page.weight";
 
     private final Recycler<byte[]> bytePage;
     private final Recycler<int[]> intPage;
@@ -79,8 +78,8 @@ public class PageCacheRecycler extends AbstractComponent {
     @Inject
     public PageCacheRecycler(Settings settings, ThreadPool threadPool) {
         super(settings);
-        final Type type = Type.parse(componentSettings.get(TYPE));
-        final long limit = componentSettings.getAsMemory(LIMIT_HEAP, "10%").bytes();
+        final Type type = Type.parse(settings.get(TYPE));
+        final long limit = settings.getAsMemory(LIMIT_HEAP, "10%").bytes();
         final int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
         final int searchThreadPoolSize = maximumSearchThreadPoolSize(threadPool, settings);
 
@@ -97,11 +96,11 @@ public class PageCacheRecycler extends AbstractComponent {
         // to direct ByteBuffers or sun.misc.Unsafe on a byte[] but this would have other issues
         // that would need to be addressed such as garbage collection of native memory or safety
         // of Unsafe writes.
-        final double bytesWeight = componentSettings.getAsDouble(WEIGHT + ".bytes", 1d);
-        final double intsWeight = componentSettings.getAsDouble(WEIGHT + ".ints", 1d);
-        final double longsWeight = componentSettings.getAsDouble(WEIGHT + ".longs", 1d);
+        final double bytesWeight = settings.getAsDouble(WEIGHT + ".bytes", 1d);
+        final double intsWeight = settings.getAsDouble(WEIGHT + ".ints", 1d);
+        final double longsWeight = settings.getAsDouble(WEIGHT + ".longs", 1d);
         // object pages are less useful to us so we give them a lower weight by default
-        final double objectsWeight = componentSettings.getAsDouble(WEIGHT + ".objects", 0.1d);
+        final double objectsWeight = settings.getAsDouble(WEIGHT + ".objects", 0.1d);
 
         final double totalWeight = bytesWeight + intsWeight + longsWeight + objectsWeight;
 

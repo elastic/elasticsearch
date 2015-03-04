@@ -51,6 +51,7 @@ public abstract class AbstractListenableActionFuture<T, L> extends AdapterAction
         return threadPool;
     }
 
+    @Override
     public void addListener(final ActionListener<T> listener) {
         internalAddListener(listener);
     }

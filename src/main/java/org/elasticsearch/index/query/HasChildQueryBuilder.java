@@ -55,6 +55,7 @@ public class HasChildQueryBuilder extends BaseQueryBuilder implements BoostableQ
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
      * weightings) have their score multiplied by the boost provided.
      */
+    @Override
     public HasChildQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;

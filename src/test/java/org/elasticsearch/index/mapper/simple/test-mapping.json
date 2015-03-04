@@ -6,14 +6,7 @@
         date_formats:["yyyy-MM-dd", "dd-MM-yyyy"],
         dynamic:false,
         enabled:true,
-        _id:{
-        },
         _source:{
-        },
-        _type:{
-        },
-        _boost:{
-            null_value:2.0
         },
         properties:{
             name:{

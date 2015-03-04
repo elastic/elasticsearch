@@ -73,7 +73,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllS
 /**
  * Base testcase for randomized unit testing with Elasticsearch
  */
-@ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
 @ThreadLeakScope(Scope.SUITE)
 @ThreadLeakLingering(linger = 5000) // 5 sec lingering
 @TimeoutSuite(millis = 20 * TimeUnits.MINUTE) // timeout the suite after 20min and fail the test.
@@ -556,13 +555,6 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
      */
     public static Path newTempDirPath(LifecycleScope scope) {
         return newTempDir(scope).toPath();
-    }
-    
-    /**
-     * Returns 'global' temp dir (seems like a bad idea)
-     */
-    public static Path globalTempDirPath() {
-        return globalTempDir().toPath();
     }
 
     /**

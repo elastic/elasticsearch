@@ -80,8 +80,8 @@ public class GatewayAllocator extends AbstractComponent {
         this.listGatewayStartedShards = listGatewayStartedShards;
         this.listShardStoreMetaData = listShardStoreMetaData;
 
-        this.listTimeout = componentSettings.getAsTime("list_timeout", settings.getAsTime("gateway.local.list_timeout", TimeValue.timeValueSeconds(30)));
-        this.initialShards = componentSettings.get("initial_shards", settings.get("gateway.local.initial_shards", "quorum"));
+        this.listTimeout = settings.getAsTime("gateway.list_timeout", settings.getAsTime("gateway.local.list_timeout", TimeValue.timeValueSeconds(30)));
+        this.initialShards = settings.get("gateway.initial_shards", settings.get("gateway.local.initial_shards", "quorum"));
 
         logger.debug("using initial_shards [{}], list_timeout [{}]", initialShards, listTimeout);
     }

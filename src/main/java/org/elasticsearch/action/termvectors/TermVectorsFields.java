@@ -324,14 +324,9 @@ public final class TermVectorsFields extends Fields {
                 }
 
                 @Override
-                public DocsEnum docs(Bits liveDocs, DocsEnum reuse, int flags) throws IOException {
-                    return docsAndPositions(liveDocs, reuse instanceof DocsAndPositionsEnum ? (DocsAndPositionsEnum) reuse : null, 0);
-                }
-
-                @Override
-                public DocsAndPositionsEnum docsAndPositions(Bits liveDocs, DocsAndPositionsEnum reuse, int flags) throws IOException {
-                    final TermVectorDocsAndPosEnum retVal = (reuse instanceof TermVectorDocsAndPosEnum ? (TermVectorDocsAndPosEnum) reuse
-                            : new TermVectorDocsAndPosEnum());
+                public PostingsEnum postings(Bits liveDocs, PostingsEnum reuse, int flags) throws IOException {
+                    final TermVectorPostingsEnum retVal = (reuse instanceof TermVectorPostingsEnum ? (TermVectorPostingsEnum) reuse
+                            : new TermVectorPostingsEnum());
                     return retVal.reset(hasPositions ? positions : null, hasOffsets ? startOffsets : null, hasOffsets ? endOffsets
                             : null, hasPayloads ? payloads : null, freq);
                 }
@@ -380,7 +375,7 @@ public final class TermVectorsFields extends Fields {
         }
     }
 
-    private final class TermVectorDocsAndPosEnum extends DocsAndPositionsEnum {
+    private final class TermVectorPostingsEnum extends PostingsEnum {
         private boolean hasPositions;
         private boolean hasOffsets;
         private boolean hasPayloads;
@@ -392,7 +387,7 @@ public final class TermVectorsFields extends Fields {
         private BytesRefBuilder[] payloads;
         private int[] endOffsets;
 
-        private DocsAndPositionsEnum reset(int[] positions, int[] startOffsets, int[] endOffsets, BytesRefBuilder[] payloads, int freq) {
+        private PostingsEnum reset(int[] positions, int[] startOffsets, int[] endOffsets, BytesRefBuilder[] payloads, int freq) {
             curPos = -1;
             doc = -1;
             this.hasPositions = positions != null;

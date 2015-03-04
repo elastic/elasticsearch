@@ -93,6 +93,7 @@ public class DocLookup implements Map {
         return scriptValues;
     }
 
+    @Override
     public boolean containsKey(Object key) {
         // assume its a string...
         String fieldName = key.toString();
@@ -106,42 +107,52 @@ public class DocLookup implements Map {
         return true;
     }
 
+    @Override
     public int size() {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public boolean isEmpty() {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public boolean containsValue(Object value) {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Object put(Object key, Object value) {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Object remove(Object key) {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public void putAll(Map m) {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public void clear() {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Set keySet() {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Collection values() {
         throw new UnsupportedOperationException();
     }
 
+    @Override
     public Set entrySet() {
         throw new UnsupportedOperationException();
     }

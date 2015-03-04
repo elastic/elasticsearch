@@ -39,6 +39,7 @@ public interface Histogram extends MultiBucketsAggregation {
     /**
      * @return  The buckets of this histogram (each bucket representing an interval in the histogram)
      */
+    @Override
     List<? extends Bucket> getBuckets();
 
 

@@ -154,6 +154,7 @@ public class MasterFaultDetection extends FaultDetection {
         this.masterNode = null;
     }
 
+    @Override
     public void close() {
         super.close();
         stop("closing");

@@ -148,6 +148,7 @@ public class PercolateContext extends SearchContext {
         );
     }
 
+    @Override
     public IndexShard indexShard() {
         return indexShard;
     }

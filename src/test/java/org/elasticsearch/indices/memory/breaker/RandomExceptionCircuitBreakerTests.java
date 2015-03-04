@@ -254,19 +254,20 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
                 }
             }
 
+            @Override
             public boolean wrapTerms(String field) {
                 return field.startsWith("test");
             }
         }
 
 
-        public RandomExceptionDirectoryReaderWrapper(DirectoryReader in, Settings settings) {
+        public RandomExceptionDirectoryReaderWrapper(DirectoryReader in, Settings settings) throws IOException {
             super(in, new ThrowingSubReaderWrapper(settings));
             this.settings = settings;
         }
 
         @Override
-        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) {
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
             return new RandomExceptionDirectoryReaderWrapper(in, settings);
         }
     }

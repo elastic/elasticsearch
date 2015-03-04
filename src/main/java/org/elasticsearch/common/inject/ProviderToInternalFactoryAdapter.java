@@ -36,10 +36,12 @@ class ProviderToInternalFactoryAdapter<T> implements Provider<T> {
         this.internalFactory = internalFactory;
     }
 
+    @Override
     public T get() {
         final Errors errors = new Errors();
         try {
             T t = injector.callInContext(new ContextualCallable<T>() {
+                @Override
                 public T call(InternalContext context) throws ErrorsException {
                     Dependency dependency = context.getDependency();
                     return internalFactory.get(errors, context, dependency);

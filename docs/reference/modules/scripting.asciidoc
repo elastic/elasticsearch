@@ -69,7 +69,7 @@ GET /_search
 {
     "script_fields": {
         "my_field": {
-            "file": "my_test",
+            "script_file": "my_test",
             "params": {
               "my_var": 2
             }
@@ -126,7 +126,7 @@ curl -XPOST localhost:9200/_search -d '{
       "functions": [
         {
           "script_score": {
-            "script": "calculate-score",
+            "script_file": "calculate-score",
             "params": {
               "my_modifier": 8
             }

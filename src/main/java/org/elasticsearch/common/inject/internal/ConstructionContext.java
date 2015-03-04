@@ -96,6 +96,7 @@ public class ConstructionContext<T> {
 
         T delegate;
 
+        @Override
         public Object invoke(Object proxy, Method method, Object[] args)
                 throws Throwable {
             if (delegate == null) {

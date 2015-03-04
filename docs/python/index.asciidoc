@@ -74,7 +74,7 @@ The client's features include:
 
 === License
 
-Copyright 2013 Elasticsearch
+Copyright 2013-2015 Elasticsearch
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.

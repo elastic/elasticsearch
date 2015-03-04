@@ -21,6 +21,7 @@ package org.elasticsearch.index.search.child;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 
@@ -73,5 +74,4 @@ public class ConstantScorer extends Scorer {
     public long cost() {
         return docIdSetIterator.cost();
     }
-
 }

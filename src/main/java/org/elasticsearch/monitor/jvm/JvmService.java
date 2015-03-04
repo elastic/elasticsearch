@@ -41,7 +41,7 @@ public class JvmService extends AbstractComponent {
         this.jvmInfo = JvmInfo.jvmInfo();
         this.jvmStats = JvmStats.jvmStats();
 
-        this.refreshInterval = componentSettings.getAsTime("refresh_interval", TimeValue.timeValueSeconds(1));
+        this.refreshInterval = this.settings.getAsTime("refresh_interval", TimeValue.timeValueSeconds(1));
 
         logger.debug("Using refresh_interval [{}]", refreshInterval);
     }

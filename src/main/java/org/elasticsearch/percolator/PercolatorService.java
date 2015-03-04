@@ -19,7 +19,6 @@
 package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.ByteObjectOpenHashMap;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.memory.ExtendedMemoryIndex;
@@ -68,7 +67,9 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -99,8 +100,6 @@ import static org.elasticsearch.percolator.QueryCollector.count;
 import static org.elasticsearch.percolator.QueryCollector.match;
 import static org.elasticsearch.percolator.QueryCollector.matchAndScore;
 
-/**
- */
 public class PercolatorService extends AbstractComponent {
 
     public final static float NO_SCORE = Float.NEGATIVE_INFINITY;
@@ -741,18 +740,18 @@ public class PercolatorService extends AbstractComponent {
                     hls = new ArrayList<>(topDocs.scoreDocs.length);
                 }
 
-                final FieldMapper<?> idMapper = context.mapperService().smartNameFieldMapper(IdFieldMapper.NAME);
-                final IndexFieldData<?> idFieldData = context.fieldData().getForField(idMapper);
+                final FieldMapper<?> uidMapper = context.mapperService().smartNameFieldMapper(UidFieldMapper.NAME);
+                final IndexFieldData<?> uidFieldData = context.fieldData().getForField(uidMapper);
                 int i = 0;
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                     int segmentIdx = ReaderUtil.subIndex(scoreDoc.doc, percolatorSearcher.reader().leaves());
                     LeafReaderContext atomicReaderContext = percolatorSearcher.reader().leaves().get(segmentIdx);
-                    SortedBinaryDocValues values = idFieldData.load(atomicReaderContext).getBytesValues();
+                    SortedBinaryDocValues values = uidFieldData.load(atomicReaderContext).getBytesValues();
                     final int localDocId = scoreDoc.doc - atomicReaderContext.docBase;
                     values.setDocument(localDocId);
                     final int numValues = values.count();
                     assert numValues == 1;
-                    BytesRef bytes = values.valueAt(0);
+                    BytesRef bytes = Uid.splitUidIntoTypeAndId(values.valueAt(0))[1];
                     matches.add(BytesRef.deepCopyOf(bytes));
                     if (hls != null) {
                         Query query = context.percolateQueries().get(bytes);

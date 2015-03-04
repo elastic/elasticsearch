@@ -104,6 +104,7 @@ public class NettyTransportTests extends ElasticsearchIntegrationTest {
                 this.logger = exceptionThrowingNettyTransport.logger;
             }
 
+            @Override
             public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = super.getPipeline();
                 pipeline.replace("dispatcher", "dispatcher", new MessageChannelHandler(nettyTransport, logger, NettyTransport.DEFAULT_PROFILE) {
@@ -112,7 +113,7 @@ public class NettyTransportTests extends ElasticsearchIntegrationTest {
                     protected String handleRequest(Channel channel, StreamInput buffer, long requestId, Version version) throws IOException {
                         final String action = buffer.readString();
 
-                        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, action, channel, requestId, version, name);
+                        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, transportServiceAdapter, action, channel, requestId, version, name);
                         try {
                             final TransportRequestHandler handler = transportServiceAdapter.handler(action);
                             if (handler == null) {

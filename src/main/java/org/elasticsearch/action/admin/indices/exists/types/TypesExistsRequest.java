@@ -76,6 +76,7 @@ public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExis
         return this;
     }
 
+    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (indices == null) { // Specifying '*' via rest api results in an empty array

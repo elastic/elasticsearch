@@ -36,7 +36,7 @@ import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.transport.TransportModule;
 
@@ -63,7 +63,7 @@ public class GlobalOrdinalsBenchmark {
     private static final boolean USE_DOC_VALUES = false;
 
     static long COUNT = SizeValue.parseSizeValue("5m").singles();
-    static InternalNode node;
+    static Node node;
     static Client client;
 
     public static void main(String[] args) throws Exception {
@@ -79,7 +79,7 @@ public class GlobalOrdinalsBenchmark {
                 .build();
 
         String clusterName = GlobalOrdinalsBenchmark.class.getSimpleName();
-        node = (InternalNode) nodeBuilder().clusterName(clusterName)
+        node = nodeBuilder().clusterName(clusterName)
                     .settings(settingsBuilder().put(settings))
                     .node();
 

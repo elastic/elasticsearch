@@ -95,7 +95,7 @@ public class RegexpFilter extends Filter {
     }
 
     @Override
-    public String toString() {
+    public String toString(String field) {
         // todo should we also show the flags?
         return term.field() + ":" + term.text();
     }

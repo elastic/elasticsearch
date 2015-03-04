@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.engine;
 
-import com.google.common.base.Predicate;
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
@@ -35,12 +34,14 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -56,7 +57,6 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.merge.policy.LogByteSizeMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
 import org.elasticsearch.index.merge.scheduler.ConcurrentMergeSchedulerProvider;
@@ -73,6 +73,7 @@ import org.elasticsearch.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -83,19 +84,22 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.TimeUnit;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
+import static org.apache.lucene.util.AbstractRandomizedTest.CHILD_JVM_ID;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.REPLICA;
-import static org.elasticsearch.test.ElasticsearchTestCase.awaitBusy;
+import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.ElasticsearchTestCase.terminate;
 import static org.hamcrest.Matchers.*;
 
+@TestLogging("index.translog:TRACE")
 public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
+    public static final String TRANSLOG_PRIMARY_LOCATION = "work/fs-translog/JVM_" + CHILD_JVM_ID + "/primary";
+    public static final String TRANSLOG_REPLICA_LOCATION = "work/fs-translog/JVM_" + CHILD_JVM_ID + "/replica";
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
     protected ThreadPool threadPool;
@@ -106,16 +110,30 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     protected Translog translog;
     protected Translog replicaTranslog;
 
-    protected Engine engine;
-    protected Engine replicaEngine;
+    protected InternalEngine engine;
+    protected InternalEngine replicaEngine;
 
     private Settings defaultSettings;
     private int indexConcurrency;
     private String codecName;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
+        // clean up shared directory
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    IOUtils.rm(Paths.get(TRANSLOG_PRIMARY_LOCATION));
+                    IOUtils.rm(Paths.get(TRANSLOG_REPLICA_LOCATION));
+                } catch (IOException e) {
+                    fail("failed to delete translogs before tests."
+                            + ExceptionsHelper.detailedMessage(e) + "\n" + ExceptionsHelper.stackTrace(e));
+                }
+            }
+        }, 30, TimeUnit.SECONDS);
         CodecService codecService = new CodecService(shardId.index());
         indexConcurrency = randomIntBetween(1, 20);
         String name = Codec.getDefault().getName();
@@ -135,38 +153,37 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                 .build(); // TODO randomize more settings
         threadPool = new ThreadPool(getClass().getName());
         store = createStore();
-        store.deleteContent();
         storeReplica = createStore();
-        storeReplica.deleteContent();
+        Lucene.cleanLuceneIndex(store.directory());
+        Lucene.cleanLuceneIndex(storeReplica.directory());
         translog = createTranslog();
         engine = createEngine(store, translog);
-        LiveIndexWriterConfig currentIndexWriterConfig = ((InternalEngine)engine).getCurrentIndexWriterConfig();
+        LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
-        assertEquals(((InternalEngine)engine).config().getCodec().getName(), codecService.codec(codecName).getName());
+        assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
         assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
         if (randomBoolean()) {
-            ((InternalEngine)engine).config().setEnableGcDeletes(false);
+            engine.config().setEnableGcDeletes(false);
         }
         replicaTranslog = createTranslogReplica();
         replicaEngine = createEngine(storeReplica, replicaTranslog);
-        currentIndexWriterConfig = ((InternalEngine)replicaEngine).getCurrentIndexWriterConfig();
+        currentIndexWriterConfig = replicaEngine.getCurrentIndexWriterConfig();
 
-        assertEquals(((InternalEngine)replicaEngine).config().getCodec().getName(), codecService.codec(codecName).getName());
+        assertEquals(replicaEngine.config().getCodec().getName(), codecService.codec(codecName).getName());
         assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
         if (randomBoolean()) {
-            ((InternalEngine)engine).config().setEnableGcDeletes(false);
-
+            engine.config().setEnableGcDeletes(false);
         }
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        replicaEngine.close();
-        storeReplica.close();
+        IOUtils.close(
+                replicaEngine, storeReplica, replicaTranslog,
+                engine, store, translog);
 
-        engine.close();
-        store.close();
         terminate(threadPool);
     }
 
@@ -190,14 +207,14 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     }
 
     protected Store createStore() throws IOException {
-       return createStore(newDirectory());
+        return createStore(newDirectory());
     }
 
     protected Store createStore(final Directory directory) throws IOException {
         final DirectoryService directoryService = new DirectoryService(shardId, EMPTY_SETTINGS) {
             @Override
             public Directory[] build() throws IOException {
-                return new Directory[]{ directory };
+                return new Directory[]{directory};
             }
 
             @Override
@@ -209,11 +226,11 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     }
 
     protected Translog createTranslog() throws IOException {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, Paths.get("work/fs-translog/primary"));
+        return new FsTranslog(shardId, EMPTY_SETTINGS, Paths.get(TRANSLOG_PRIMARY_LOCATION));
     }
 
     protected Translog createTranslogReplica() throws IOException {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, Paths.get("work/fs-translog/replica"));
+        return new FsTranslog(shardId, EMPTY_SETTINGS, Paths.get(TRANSLOG_REPLICA_LOCATION));
     }
 
     protected IndexDeletionPolicy createIndexDeletionPolicy() {
@@ -245,7 +262,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         IndexWriterConfig iwc = newIndexWriterConfig();
         EngineConfig config = new EngineConfig(shardId, false/*per default optimization for auto generated ids is disabled*/, threadPool, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), indexSettingsService
                 , null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), mergeSchedulerProvider,
-                iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(shardId.index()), new Engine.FailedEngineListener() {
+                iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(shardId.index()), new Engine.FailedEngineListener() {
             @Override
             public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
@@ -303,7 +320,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
         assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
-        ((InternalEngine)engine).config().setCompoundOnFlush(false);
+        ((InternalEngine) engine).config().setCompoundOnFlush(false);
 
         ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, false);
         engine.create(new Engine.Create(null, newUid("3"), doc3));
@@ -351,7 +368,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
         assertThat(segments.get(1).isCompound(), equalTo(false));
 
-        ((InternalEngine)engine).config().setCompoundOnFlush(true);
+        ((InternalEngine) engine).config().setCompoundOnFlush(true);
         ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, false);
         engine.create(new Engine.Create(null, newUid("4"), doc4));
         engine.refresh("test");
@@ -378,11 +395,11 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(segments.get(2).getDeletedDocs(), equalTo(0));
         assertThat(segments.get(2).isCompound(), equalTo(true));
     }
-    
+
     public void testVerboseSegments() throws Exception {
         List<Segment> segments = engine.segments(true);
         assertThat(segments.isEmpty(), equalTo(true));
-        
+
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
         engine.refresh("test");
@@ -390,7 +407,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         segments = engine.segments(true);
         assertThat(segments.size(), equalTo(1));
         assertThat(segments.get(0).ramTree, notNullValue());
-        
+
         ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, false);
         engine.create(new Engine.Create(null, newUid("2"), doc2));
         engine.refresh("test");
@@ -403,66 +420,65 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(segments.get(0).ramTree, notNullValue());
         assertThat(segments.get(1).ramTree, notNullValue());
         assertThat(segments.get(2).ramTree, notNullValue());
-        
+
     }
 
 
     @Test
     public void testSegmentsWithMergeFlag() throws Exception {
-        final Store store = createStore();
         ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        final Engine engine = createEngine(indexSettingsService, store, createTranslog(), mergeSchedulerProvider);
-        
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
-        Engine.Index index = new Engine.Index(null, newUid("1"), doc);
-        engine.index(index);
-        engine.flush();
-        assertThat(engine.segments(false).size(), equalTo(1));
-        index = new Engine.Index(null, newUid("2"), doc);
-        engine.index(index);
-        engine.flush();
-        List<Segment> segments = engine.segments(false);
-        assertThat(segments.size(), equalTo(2));
-        for (Segment segment : segments) {
-            assertThat(segment.getMergeId(), nullValue());
-        }
-        index = new Engine.Index(null, newUid("3"), doc);
-        engine.index(index);
-        engine.flush();
-        segments = engine.segments(false);
-        assertThat(segments.size(), equalTo(3));
-        for (Segment segment : segments) {
-            assertThat(segment.getMergeId(), nullValue());
-        }
-        
-        index = new Engine.Index(null, newUid("4"), doc);
-        engine.index(index);
-        engine.flush();
-        final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
-        // now, optimize and wait for merges, see that we have no merge flag
-        engine.forceMerge(true);
+        try (Store store = createStore();
+             Translog translog = createTranslog();
+             Engine engine = createEngine(indexSettingsService, store, translog, mergeSchedulerProvider)) {
 
-        for (Segment segment : engine.segments(false)) {
-            assertThat(segment.getMergeId(), nullValue());
-        }
-        // we could have multiple underlying merges, so the generation may increase more than once
-        assertTrue(store.readLastCommittedSegmentsInfo().getGeneration() > gen1);
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, false);
+            Engine.Index index = new Engine.Index(null, newUid("1"), doc);
+            engine.index(index);
+            engine.flush();
+            assertThat(engine.segments(false).size(), equalTo(1));
+            index = new Engine.Index(null, newUid("2"), doc);
+            engine.index(index);
+            engine.flush();
+            List<Segment> segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(2));
+            for (Segment segment : segments) {
+                assertThat(segment.getMergeId(), nullValue());
+            }
+            index = new Engine.Index(null, newUid("3"), doc);
+            engine.index(index);
+            engine.flush();
+            segments = engine.segments(false);
+            assertThat(segments.size(), equalTo(3));
+            for (Segment segment : segments) {
+                assertThat(segment.getMergeId(), nullValue());
+            }
 
-        final boolean flush = randomBoolean();
-        final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
-        engine.forceMerge(flush);
-        for (Segment segment : engine.segments(false)) {
-            assertThat(segment.getMergeId(), nullValue());
-        }
+            index = new Engine.Index(null, newUid("4"), doc);
+            engine.index(index);
+            engine.flush();
+            final long gen1 = store.readLastCommittedSegmentsInfo().getGeneration();
+            // now, optimize and wait for merges, see that we have no merge flag
+            engine.forceMerge(true);
 
-        if (flush) {
-            // we should have had just 1 merge, so last generation should be exact
-            assertEquals(gen2 + 1, store.readLastCommittedSegmentsInfo().getLastGeneration());
-        }
+            for (Segment segment : engine.segments(false)) {
+                assertThat(segment.getMergeId(), nullValue());
+            }
+            // we could have multiple underlying merges, so the generation may increase more than once
+            assertTrue(store.readLastCommittedSegmentsInfo().getGeneration() > gen1);
 
-        engine.close();
-        store.close();
+            final boolean flush = randomBoolean();
+            final long gen2 = store.readLastCommittedSegmentsInfo().getGeneration();
+            engine.forceMerge(flush);
+            for (Segment segment : engine.segments(false)) {
+                assertThat(segment.getMergeId(), nullValue());
+            }
+
+            if (flush) {
+                // we should have had just 1 merge, so last generation should be exact
+                assertEquals(gen2 + 1, store.readLastCommittedSegmentsInfo().getLastGeneration());
+            }
+        }
     }
 
     @Test
@@ -759,9 +775,16 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             }
         });
         // post recovery should flush the translog
-        MatcherAssert.assertThat(translog.snapshot(), TranslogSizeMatcher.translogSize(0));
+        try (Translog.Snapshot snapshot = translog.snapshot()) {
+            MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
+        }
+        // and we should not leak files
+        assertThat("there are unreferenced translog files left", translog.clearUnreferenced(), equalTo(0));
 
         engine.flush();
+
+        assertThat("there are unreferenced translog files left, post flush", translog.clearUnreferenced(), equalTo(0));
+
         engine.close();
     }
 
@@ -1345,68 +1368,64 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
     @Slow
     @Test
     public void testEnableGcDeletes() throws Exception {
-
-        Store store = createStore();
-
-
-
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        Engine engine = new InternalEngine(config(indexSettingsService, store, createTranslog(), createMergeScheduler(indexSettingsService)));
-        ((InternalEngine)engine).config().setEnableGcDeletes(false);
+        try (Store store = createStore();
+             Translog translog = createTranslog();
+             Engine engine = new InternalEngine(config(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService)))) {
+            engine.config().setEnableGcDeletes(false);
 
-        // Add document
-        Document document = testDocument();
-        document.add(new TextField("value", "test1", Field.Store.YES));
+            // Add document
+            Document document = testDocument();
+            document.add(new TextField("value", "test1", Field.Store.YES));
 
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_2, false);
-        engine.index(new Engine.Index(null, newUid("1"), doc, 1, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, document, B_2, false);
+            engine.index(new Engine.Index(null, newUid("1"), doc, 1, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
 
-        // Delete document we just added:
-        engine.delete(new Engine.Delete("test", "1", newUid("1"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
+            // Delete document we just added:
+            engine.delete(new Engine.Delete("test", "1", newUid("1"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
 
-        // Get should not find the document
-        Engine.GetResult getResult = engine.get(new Engine.Get(true, newUid("1")));
-        assertThat(getResult.exists(), equalTo(false));
+            // Get should not find the document
+            Engine.GetResult getResult = engine.get(new Engine.Get(true, newUid("1")));
+            assertThat(getResult.exists(), equalTo(false));
 
-        // Give the gc pruning logic a chance to kick in
-        Thread.sleep(1000);
+            // Give the gc pruning logic a chance to kick in
+            Thread.sleep(1000);
 
-        if (randomBoolean()) {
-            engine.refresh("test");
+            if (randomBoolean()) {
+                engine.refresh("test");
+            }
+
+            // Delete non-existent document
+            engine.delete(new Engine.Delete("test", "2", newUid("2"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
+
+            // Get should not find the document (we never indexed uid=2):
+            getResult = engine.get(new Engine.Get(true, newUid("2")));
+            assertThat(getResult.exists(), equalTo(false));
+
+            // Try to index uid=1 with a too-old version, should fail:
+            try {
+                engine.index(new Engine.Index(null, newUid("1"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
+                fail("did not hit expected exception");
+            } catch (VersionConflictEngineException vcee) {
+                // expected
+            }
+
+            // Get should still not find the document
+            getResult = engine.get(new Engine.Get(true, newUid("1")));
+            assertThat(getResult.exists(), equalTo(false));
+
+            // Try to index uid=2 with a too-old version, should fail:
+            try {
+                engine.index(new Engine.Index(null, newUid("2"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
+                fail("did not hit expected exception");
+            } catch (VersionConflictEngineException vcee) {
+                // expected
+            }
+
+            // Get should not find the document
+            getResult = engine.get(new Engine.Get(true, newUid("2")));
+            assertThat(getResult.exists(), equalTo(false));
         }
-
-        // Delete non-existent document
-        engine.delete(new Engine.Delete("test", "2", newUid("2"), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
-
-        // Get should not find the document (we never indexed uid=2):
-        getResult = engine.get(new Engine.Get(true, newUid("2")));
-        assertThat(getResult.exists(), equalTo(false));
-
-        // Try to index uid=1 with a too-old version, should fail:
-        try {
-            engine.index(new Engine.Index(null, newUid("1"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
-            fail("did not hit expected exception");
-        } catch (VersionConflictEngineException vcee) {
-            // expected
-        }
-
-        // Get should still not find the document
-        getResult = engine.get(new Engine.Get(true, newUid("1")));
-        assertThat(getResult.exists(), equalTo(false));
-
-        // Try to index uid=2 with a too-old version, should fail:
-        try {
-            engine.index(new Engine.Index(null, newUid("2"), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
-            fail("did not hit expected exception");
-        } catch (VersionConflictEngineException vcee) {
-            // expected
-        }
-
-        // Get should not find the document
-        getResult = engine.get(new Engine.Get(true, newUid("2")));
-        assertThat(getResult.exists(), equalTo(false));
-        engine.close();
-        store.close();
     }
 
     protected Term newUid(String id) {
@@ -1438,7 +1457,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             wrapper.setRandomIOExceptionRateOnOpen(randomDouble());
             try (Store store = createStore(wrapper)) {
                 int refCount = store.refCount();
-                assertTrue("refCount: "+ store.refCount(), store.refCount() > 0);
+                assertTrue("refCount: " + store.refCount(), store.refCount() > 0);
                 Translog translog = createTranslog();
                 InternalEngine holder;
                 try {
@@ -1448,7 +1467,7 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                     continue;
                 }
                 holder.config().setFailEngineOnCorruption(true);
-                assertEquals(store.refCount(), refCount+1);
+                assertEquals(store.refCount(), refCount + 1);
                 final int numStarts = scaledRandomIntBetween(1, 5);
                 for (int j = 0; j < numStarts; j++) {
                     try {

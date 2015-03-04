@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
@@ -129,7 +130,7 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
                 .startObject("properties").startObject("field").field("type", "string").field("analyzer", "standard").field("search_analyzer", "whitespace").endObject().endObject()
                 .endObject().endObject().string();
         String mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("field").field("type", "string").field("analyzer", "standard").field("postings_format", "Lucene41").endObject().endObject()
+                .startObject("properties").startObject("field").field("type", "string").field("analyzer", "standard").field("ignore_above", 14).endObject().endObject()
                 .endObject().endObject().string();
 
         DocumentMapper existing = parser.parse(mapping1);
@@ -140,7 +141,7 @@ public class TestMergeMapperTests extends ElasticsearchSingleNodeTest {
 
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         assertThat(((NamedAnalyzer) existing.mappers().name("field").mapper().searchAnalyzer()).name(), equalTo("standard"));
-        assertThat((existing.mappers().name("field").mapper().postingsFormatProvider()).name(), equalTo("Lucene41"));
+        assertThat(((StringFieldMapper) (existing.mappers().name("field").mapper())).getIgnoreAbove(), equalTo(14));
     }
 
 }

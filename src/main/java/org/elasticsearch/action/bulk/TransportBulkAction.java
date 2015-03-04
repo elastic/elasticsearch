@@ -86,7 +86,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.createIndexAction = createIndexAction;
 
         this.autoCreateIndex = new AutoCreateIndex(settings);
-        this.allowIdGeneration = componentSettings.getAsBoolean("action.allow_id_generation", true);
+        this.allowIdGeneration = this.settings.getAsBoolean("action.bulk.action.allow_id_generation", true);
     }
 
     @Override

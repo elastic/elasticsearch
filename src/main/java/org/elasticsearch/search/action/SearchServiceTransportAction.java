@@ -840,6 +840,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
     private abstract class FetchByIdTransportHandler<Request extends ShardFetchRequest> extends BaseTransportRequestHandler<Request> {
 
+        @Override
         public abstract Request newInstance();
 
         @Override

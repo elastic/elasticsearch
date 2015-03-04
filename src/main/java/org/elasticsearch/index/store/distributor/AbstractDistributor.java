@@ -39,6 +39,7 @@ public abstract class AbstractDistributor implements Distributor {
         delegates = directoryService.build();
     }
 
+    @Override
     public Directory[] all() {
         return delegates;
     }

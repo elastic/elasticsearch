@@ -68,6 +68,7 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
         return sum;
     }
 
+    @Override
     public double getValue() {
         return sum;
     }

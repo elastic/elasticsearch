@@ -92,7 +92,7 @@ public class FileSystemUtilsTests extends ElasticsearchTestCase {
 
     @Test
     public void testMoveOverExistingFileAndIgnore() throws IOException {
-        Path dest = globalTempDirPath();
+        Path dest = newTempDirPath();
 
         FileSystemUtils.moveFilesWithoutOverwriting(src.resolve("v1"), dest, null);
         assertFileContent(dest, "file1.txt", "version1");

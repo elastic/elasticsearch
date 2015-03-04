@@ -210,11 +210,11 @@ public class ParentQueryTests extends AbstractChildTests {
                 if (terms != null) {
                     NavigableMap<String, Float> childIdsAndScore = parentValueToChildIds.lget();
                     TermsEnum termsEnum = terms.iterator(null);
-                    DocsEnum docsEnum = null;
+                    PostingsEnum docsEnum = null;
                     for (Map.Entry<String, Float> entry : childIdsAndScore.entrySet()) {
                         TermsEnum.SeekStatus seekStatus = termsEnum.seekCeil(Uid.createUidAsBytes("child", entry.getKey()));
                         if (seekStatus == TermsEnum.SeekStatus.FOUND) {
-                            docsEnum = termsEnum.docs(slowLeafReader.getLiveDocs(), docsEnum, DocsEnum.FLAG_NONE);
+                            docsEnum = termsEnum.postings(slowLeafReader.getLiveDocs(), docsEnum, PostingsEnum.NONE);
                             expectedResult.set(docsEnum.nextDoc());
                             FloatArrayList s = scores[docsEnum.docID()];
                             if (s == null) {

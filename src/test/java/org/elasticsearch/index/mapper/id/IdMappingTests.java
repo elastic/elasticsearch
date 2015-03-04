@@ -71,11 +71,12 @@ public class IdMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(doc.rootDoc().get(IdFieldMapper.NAME), nullValue());
     }
     
-    public void testIdIndexed() throws Exception {
+    public void testIdIndexedBackcompat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_id").field("index", "not_analyzed").endObject()
                 .endObject().endObject().string();
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = docMapper.parse("type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -95,7 +96,7 @@ public class IdMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(doc.rootDoc().get(IdFieldMapper.NAME), notNullValue());
     }
     
-    public void testIdPath() throws Exception {
+    public void testIdPathBackcompat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_id").field("path", "my_path").endObject()
                 .endObject().endObject().string();

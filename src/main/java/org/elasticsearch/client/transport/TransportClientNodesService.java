@@ -104,15 +104,15 @@ public class TransportClientNodesService extends AbstractComponent {
         this.minCompatibilityVersion = version.minimumCompatibilityVersion();
         this.headers = headers;
 
-        this.nodesSamplerInterval = componentSettings.getAsTime("nodes_sampler_interval", timeValueSeconds(5));
-        this.pingTimeout = componentSettings.getAsTime("ping_timeout", timeValueSeconds(5)).millis();
-        this.ignoreClusterName = componentSettings.getAsBoolean("ignore_cluster_name", false);
+        this.nodesSamplerInterval = this.settings.getAsTime("client.transport.nodes_sampler_interval", timeValueSeconds(5));
+        this.pingTimeout = this.settings.getAsTime("client.transport.ping_timeout", timeValueSeconds(5)).millis();
+        this.ignoreClusterName = this.settings.getAsBoolean("client.transport.ignore_cluster_name", false);
 
         if (logger.isDebugEnabled()) {
             logger.debug("node_sampler_interval[" + nodesSamplerInterval + "]");
         }
 
-        if (componentSettings.getAsBoolean("sniff", false)) {
+        if (this.settings.getAsBoolean("client.transport.sniff", false)) {
             this.nodesSampler = new SniffNodesSampler();
         } else {
             this.nodesSampler = new SimpleNodeSampler();

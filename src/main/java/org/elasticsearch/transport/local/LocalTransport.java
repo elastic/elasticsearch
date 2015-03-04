@@ -207,7 +207,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             final byte[] data = stream.bytes().toBytes();
 
             transportServiceAdapter.sent(data.length);
-
+            transportServiceAdapter.onRequestSent(node, requestId, action, request, options);
             targetTransport.workers().execute(new Runnable() {
                 @Override
                 public void run() {
@@ -235,6 +235,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             if (isRequest) {
                 handleRequest(stream, requestId, sourceTransport, version);
             } else {
+                // notify with response before we process it and before we remove information about it.
+                transportServiceAdapter.onResponseReceived(requestId);
                 final TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
                 // ignore if its null, the adapter logs it
                 if (handler != null) {
@@ -259,7 +261,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
     private void handleRequest(StreamInput stream, long requestId, LocalTransport sourceTransport, Version version) throws Exception {
         final String action = stream.readString();
-        final LocalTransportChannel transportChannel = new LocalTransportChannel(this, sourceTransport, action, requestId, version);
+        transportServiceAdapter.onRequestReceived(requestId, action);
+        final LocalTransportChannel transportChannel = new LocalTransportChannel(this, transportServiceAdapter, sourceTransport, action, requestId, version);
         try {
             final TransportRequestHandler handler = transportServiceAdapter.handler(action);
             if (handler == null) {

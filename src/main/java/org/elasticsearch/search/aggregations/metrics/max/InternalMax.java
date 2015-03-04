@@ -68,6 +68,7 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
         return max;
     }
 
+    @Override
     public double getValue() {
         return max;
     }

@@ -19,7 +19,9 @@
 package org.elasticsearch.index.search.child;
 
 import com.carrotsearch.hppc.FloatArrayList;
+
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 

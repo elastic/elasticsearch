@@ -158,6 +158,8 @@ NOTE:   `shard_size` cannot be smaller than `size` (as it doesn't make much sens
 It is possible to not limit the number of terms that are returned by setting `size` to `0`. Don't use this
 on high-cardinality fields as this will kill both your CPU since terms need to be return sorted, and your network.
 
+The default `shard_size` is a multiple of the `size` parameter which is dependant on the number of shards.
+
 ==== Calculating Document Count Error
 
 There are two error values which can be shown on the terms aggregation.  The first gives a value for the aggregation as

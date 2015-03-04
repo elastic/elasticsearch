@@ -113,6 +113,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         loadedFilters.invalidate(ownerCoreCacheKey);
     }
 
+    @Override
     public void close() throws ElasticsearchException {
         indicesWarmer.removeListener(warmer);
         clear("close");
@@ -222,15 +223,18 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
             }
         }
 
-        public String toString() {
+        @Override
+        public String toString(String field) {
             return "random_access(" + filter + ")";
         }
 
+        @Override
         public boolean equals(Object o) {
             if (!(o instanceof BitDocIdSetFilterWrapper)) return false;
             return this.filter.equals(((BitDocIdSetFilterWrapper) o).filter);
         }
 
+        @Override
         public int hashCode() {
             return filter.hashCode() ^ 0x1117BF26;
         }

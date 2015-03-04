@@ -271,6 +271,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             bucketOrds = new LongHash(1, aggregationContext.bigArrays());
         }
 
+        @Override
         protected LeafBucketCollector newCollector(final RandomAccessOrds ords, final LeafBucketCollector sub) {
             final SortedDocValues singleValues = DocValues.unwrapSingleton(ords);
             if (singleValues != null) {
@@ -341,6 +342,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         // bucketOrd is ord + 1 to avoid a branch to deal with the missing ord
+        @Override
         protected LeafBucketCollector newCollector(final RandomAccessOrds ords, LeafBucketCollector sub) {
             segmentDocCounts = context.bigArrays().grow(segmentDocCounts, 1 + ords.getValueCount());
             assert sub == LeafBucketCollector.NO_OP_COLLECTOR;

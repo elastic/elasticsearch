@@ -23,6 +23,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 
 /**
@@ -35,6 +37,17 @@ public abstract class ElasticsearchSingleNodeLuceneTestCase extends Elasticsearc
     @After
     public void cleanup() {
         ElasticsearchSingleNodeTest.cleanup(resetNodeAfterTest());
+    }
+
+
+    @BeforeClass
+    public static void setUpClass() throws Exception {
+        ElasticsearchSingleNodeTest.setUpClass();
+    }
+
+    @AfterClass
+    public static void tearDownClass() {
+        ElasticsearchSingleNodeTest.tearDownClass();
     }
 
     /**

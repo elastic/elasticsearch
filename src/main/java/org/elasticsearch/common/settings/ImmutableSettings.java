@@ -188,34 +188,13 @@ public class ImmutableSettings implements Settings {
         return map;
     }
 
-
-    @Override
-    public Settings getComponentSettings(Class component) {
-        if (component.getName().startsWith("org.elasticsearch")) {
-            return getComponentSettings("org.elasticsearch", component);
-        }
-        // not starting with org.elasticsearch, just remove the first package part (probably org/net/com)
-        return getComponentSettings(component.getName().substring(0, component.getName().indexOf('.')), component);
-    }
-
-    @Override
-    public Settings getComponentSettings(String prefix, Class component) {
-        String type = component.getName();
-        if (!type.startsWith(prefix)) {
-            throw new SettingsException("Component [" + type + "] does not start with prefix [" + prefix + "]");
-        }
-        String settingPrefix = type.substring(prefix.length() + 1); // 1 for the '.'
-        settingPrefix = settingPrefix.substring(0, settingPrefix.length() - component.getSimpleName().length()); // remove the simple class name (keep the dot)
-        return getByPrefix(settingPrefix);
-    }
-
     @Override
     public Settings getByPrefix(String prefix) {
         Builder builder = new Builder();
         for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
             if (entry.getKey().startsWith(prefix)) {
                 if (entry.getKey().length() < prefix.length()) {
-                    // ignore this one
+                    // ignore this. one
                     continue;
                 }
                 builder.put(entry.getKey().substring(prefix.length()), entry.getValue());
@@ -648,12 +627,13 @@ public class ImmutableSettings implements Settings {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        Settings settings = SettingsFilter.filterSettings(params, this);
         if (!params.paramAsBoolean("flat_settings", false)) {
-            for (Map.Entry<String, Object> entry : getAsStructuredMap().entrySet()) {
+            for (Map.Entry<String, Object> entry : settings.getAsStructuredMap().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
         } else {
-            for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
+            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
             }
         }
@@ -1124,6 +1104,7 @@ public class ImmutableSettings implements Settings {
          * Builds a {@link Settings} (underlying uses {@link ImmutableSettings}) based on everything
          * set on this builder.
          */
+        @Override
         public Settings build() {
             return new ImmutableSettings(Collections.unmodifiableMap(map), classLoader);
         }

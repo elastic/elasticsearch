@@ -42,10 +42,10 @@ public abstract class SignificanceHeuristic {
             throw new ElasticsearchIllegalArgumentException("Frequencies of subset and superset must be positive in " + scoreFunctionName + ".getScore()");
         }
         if (subsetFreq > subsetSize) {
-            throw new ElasticsearchIllegalArgumentException("subsetFreq > subsetSize, in JLHScore.score(..)");
+            throw new ElasticsearchIllegalArgumentException("subsetFreq > subsetSize, in " + scoreFunctionName);
         }
         if (supersetFreq > supersetSize) {
-            throw new ElasticsearchIllegalArgumentException("supersetFreq > supersetSize, in JLHScore.score(..)");
+            throw new ElasticsearchIllegalArgumentException("supersetFreq > supersetSize, in " + scoreFunctionName);
         }
     }
 }

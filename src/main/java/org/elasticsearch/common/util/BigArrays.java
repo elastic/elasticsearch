@@ -95,6 +95,7 @@ public class BigArrays extends AbstractComponent {
             this.size = size;
         }
 
+        @Override
         public final long size() {
             return size;
         }

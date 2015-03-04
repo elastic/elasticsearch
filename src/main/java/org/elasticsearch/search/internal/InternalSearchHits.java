@@ -119,6 +119,7 @@ public class InternalSearchHits implements SearchHits {
         }
     }
 
+    @Override
     public long totalHits() {
         return totalHits;
     }
@@ -138,6 +139,7 @@ public class InternalSearchHits implements SearchHits {
         return maxScore();
     }
 
+    @Override
     public SearchHit[] hits() {
         return this.hits;
     }

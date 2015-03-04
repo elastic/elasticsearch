@@ -19,8 +19,8 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.apache.lucene.index.DocsAndPositionsEnum;
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -121,7 +121,7 @@ public class GetTermVectorsCheckDocFreqTests extends ElasticsearchIntegrationTes
                 assertThat("expected ttf of " + string, numDocs, equalTo((int) iterator.totalTermFreq()));
             }
 
-            DocsAndPositionsEnum docsAndPositions = iterator.docsAndPositions(null, null);
+            PostingsEnum docsAndPositions = iterator.postings(null, null, PostingsEnum.ALL);
             assertThat(docsAndPositions.nextDoc(), equalTo(0));
             assertThat(freq[j], equalTo(docsAndPositions.freq()));
             assertThat(iterator.docFreq(), equalTo(numDocs));
@@ -178,7 +178,7 @@ public class GetTermVectorsCheckDocFreqTests extends ElasticsearchIntegrationTes
 
             assertThat("expected ttf of " + string, -1, equalTo((int) iterator.totalTermFreq()));
 
-            DocsAndPositionsEnum docsAndPositions = iterator.docsAndPositions(null, null);
+            PostingsEnum docsAndPositions = iterator.postings(null, null, PostingsEnum.ALL);
             assertThat(docsAndPositions.nextDoc(), equalTo(0));
             assertThat(freq[j], equalTo(docsAndPositions.freq()));
             assertThat(iterator.docFreq(), equalTo(-1));
@@ -238,7 +238,7 @@ public class GetTermVectorsCheckDocFreqTests extends ElasticsearchIntegrationTes
                 assertThat("expected ttf of " + string, numDocs, equalTo((int) iterator.totalTermFreq()));
             }
 
-            DocsAndPositionsEnum docsAndPositions = iterator.docsAndPositions(null, null);
+            PostingsEnum docsAndPositions = iterator.postings(null, null, PostingsEnum.ALL);
             assertThat(docsAndPositions.nextDoc(), equalTo(0));
             assertThat(freq[j], equalTo(docsAndPositions.freq()));
             assertThat(iterator.docFreq(), equalTo(numDocs));

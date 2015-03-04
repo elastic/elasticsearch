@@ -24,8 +24,8 @@ import com.carrotsearch.hppc.ObjectLongOpenHashMap;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.FieldsConsumer;
-import org.apache.lucene.index.DocsAndPositionsEnum;
 import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -141,7 +141,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
                         continue;
                     }
                     TermsEnum termsEnum = terms.iterator(null);
-                    DocsAndPositionsEnum docsEnum = null;
+                    PostingsEnum docsEnum = null;
                     final SuggestPayload spare = new SuggestPayload();
                     int maxAnalyzedPathsForOneInput = 0;
                     final XAnalyzingSuggester.XBuilder builder = new XAnalyzingSuggester.XBuilder(maxSurfaceFormsPerAnalyzedForm, hasPayloads, XAnalyzingSuggester.PAYLOAD_SEP);
@@ -151,7 +151,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
                         if (term == null) {
                             break;
                         }
-                        docsEnum = termsEnum.docsAndPositions(null, docsEnum, DocsAndPositionsEnum.FLAG_PAYLOADS);
+                        docsEnum = termsEnum.postings(null, docsEnum, PostingsEnum.PAYLOADS);
                         builder.startTerm(term);
                         int docFreq = 0;
                         while (docsEnum.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {

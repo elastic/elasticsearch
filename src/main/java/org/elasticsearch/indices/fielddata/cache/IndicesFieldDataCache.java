@@ -54,6 +54,8 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
 
     public static final String FIELDDATA_CLEAN_INTERVAL_SETTING = "indices.fielddata.cache.cleanup_interval";
     public static final String FIELDDATA_CACHE_CONCURRENCY_LEVEL = "indices.fielddata.cache.concurrency_level";
+    public static final String INDICES_FIELDDATA_CACHE_SIZE_KEY = "indices.fielddata.cache.size";
+    public static final String INDICES_FIELDDATA_CACHE_EXPIRE_KEY = "indices.fielddata.cache.expire";
 
 
     private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
@@ -67,9 +69,9 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         super(settings);
         this.threadPool = threadPool;
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
-        final String size = componentSettings.get("size", "-1");
-        final long sizeInBytes = componentSettings.getAsMemory("size", "-1").bytes();
-        final TimeValue expire = componentSettings.getAsTime("expire", null);
+        final String size = settings.get(INDICES_FIELDDATA_CACHE_SIZE_KEY, "-1");
+        final long sizeInBytes = settings.getAsMemory(INDICES_FIELDDATA_CACHE_SIZE_KEY, "-1").bytes();
+        final TimeValue expire = settings.getAsTime(INDICES_FIELDDATA_CACHE_EXPIRE_KEY, null);
         CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.newBuilder()
                 .removalListener(this);
         if (sizeInBytes > 0) {
@@ -186,6 +188,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             return (FD) accountable;
         }
 
+        @Override
         public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final IndexReader indexReader, final IFD indexFieldData) throws Exception {
             final Key key = new Key(this, indexReader.getCoreCacheKey());
             //noinspection unchecked

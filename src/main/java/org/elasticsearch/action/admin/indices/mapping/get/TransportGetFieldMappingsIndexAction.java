@@ -161,6 +161,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleCustomO
             return defaultValue;
         }
 
+        @Override
         public Boolean paramAsBoolean(String key, Boolean defaultValue) {
             if (INCLUDE_DEFAULTS.equals(key)) {
                 return true;

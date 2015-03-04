@@ -32,7 +32,12 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -73,16 +78,6 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
         assertThat(paramParser.lang(), nullValue());
 
         parser = XContentHelper.createParser(new BytesArray("{ \"scriptFile\" : \"scriptValue\" }"));
-        token = parser.nextToken();
-        while (token != Token.VALUE_STRING) {
-            token = parser.nextToken();
-        }
-        paramParser = new ScriptParameterParser();
-        assertThat(paramParser.token(parser.currentName(), parser.currentToken(), parser), equalTo(true));
-        assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.FILE);
-        assertThat(paramParser.lang(), nullValue());
-
-        parser = XContentHelper.createParser(new BytesArray("{ \"file\" : \"scriptValue\" }"));
         token = parser.nextToken();
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
@@ -555,14 +550,6 @@ public class ScriptParameterParserTest extends ElasticsearchTestCase {
 
         config = new HashMap<>();
         config.put("scriptFile", "scriptValue");
-        paramParser = new ScriptParameterParser();
-        paramParser.parseConfig(config, true);
-        assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.FILE);
-        assertThat(paramParser.lang(), nullValue());
-        assertThat(config.isEmpty(), equalTo(true));
-
-        config = new HashMap<>();
-        config.put("file", "scriptValue");
         paramParser = new ScriptParameterParser();
         paramParser.parseConfig(config, true);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.FILE);

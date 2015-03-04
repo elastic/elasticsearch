@@ -41,17 +41,20 @@ public class IndexStoreModule extends AbstractModule implements SpawnModules {
 
     public static enum Type {
         NIOFS {
+            @Override
             public boolean match(String setting) {
                 return super.match(setting) || "nio_fs".equalsIgnoreCase(setting);
             }
         },
         MMAPFS {
+            @Override
             public boolean match(String setting) {
                 return super.match(setting) || "mmap_fs".equalsIgnoreCase(setting);
             }
         },
 
         SIMPLEFS {
+            @Override
             public boolean match(String setting) {
                 return super.match(setting) || "simple_fs".equalsIgnoreCase(setting);
             }

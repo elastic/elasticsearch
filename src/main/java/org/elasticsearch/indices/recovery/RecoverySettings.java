@@ -124,12 +124,12 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
         );
 
 
-        this.concurrentStreams = componentSettings.getAsInt("concurrent_streams", settings.getAsInt("index.shard.recovery.concurrent_streams", 3));
+        this.concurrentStreams = settings.getAsInt("indices.recovery.concurrent_streams", settings.getAsInt("index.shard.recovery.concurrent_streams", 3));
         this.concurrentStreamPool = EsExecutors.newScaling(0, concurrentStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[recovery_stream]"));
-        this.concurrentSmallFileStreams = componentSettings.getAsInt("concurrent_small_file_streams", settings.getAsInt("index.shard.recovery.concurrent_small_file_streams", 2));
+        this.concurrentSmallFileStreams = settings.getAsInt("indices.recovery.concurrent_small_file_streams", settings.getAsInt("index.shard.recovery.concurrent_small_file_streams", 2));
         this.concurrentSmallFileStreamPool = EsExecutors.newScaling(0, concurrentSmallFileStreams, 60, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory(settings, "[small_file_recovery_stream]"));
 
-        this.maxBytesPerSec = componentSettings.getAsBytesSize("max_bytes_per_sec", componentSettings.getAsBytesSize("max_size_per_sec", new ByteSizeValue(20, ByteSizeUnit.MB)));
+        this.maxBytesPerSec = settings.getAsBytesSize("indices.recovery.max_bytes_per_sec", settings.getAsBytesSize("indices.recovery.max_size_per_sec", new ByteSizeValue(20, ByteSizeUnit.MB)));
         if (maxBytesPerSec.bytes() <= 0) {
             rateLimiter = null;
         } else {
@@ -142,8 +142,10 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
         nodeSettingsService.addListener(new ApplySettings());
     }
 
+    @Override
     public void close() {
         ThreadPool.terminate(concurrentStreamPool, 1, TimeUnit.SECONDS);
+        ThreadPool.terminate(concurrentSmallFileStreamPool, 1, TimeUnit.SECONDS);
     }
 
     public ByteSizeValue fileChunkSize() {

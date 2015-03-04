@@ -27,9 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.store.Store;
 
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
-
 /**
  *
  */
@@ -50,10 +47,10 @@ public class LogDocMergePolicyProvider extends AbstractMergePolicyProvider<LogDo
         Preconditions.checkNotNull(store, "Store must be provided to merge policy");
         this.indexSettingsService = indexSettingsService;
 
-        int minMergeDocs = componentSettings.getAsInt("min_merge_docs", LogDocMergePolicy.DEFAULT_MIN_MERGE_DOCS);
-        int maxMergeDocs = componentSettings.getAsInt("max_merge_docs", LogDocMergePolicy.DEFAULT_MAX_MERGE_DOCS);
-        int mergeFactor = componentSettings.getAsInt("merge_factor", LogDocMergePolicy.DEFAULT_MERGE_FACTOR);
-        boolean calibrateSizeByDeletes = componentSettings.getAsBoolean("calibrate_size_by_deletes", true);
+        int minMergeDocs = indexSettings.getAsInt(MIN_MERGE_DOCS_KEY, LogDocMergePolicy.DEFAULT_MIN_MERGE_DOCS);
+        int maxMergeDocs = indexSettings.getAsInt(MAX_MERGE_DOCS_KEY, LogDocMergePolicy.DEFAULT_MAX_MERGE_DOCS);
+        int mergeFactor = indexSettings.getAsInt(MERGE_FACTORY_KEY, LogDocMergePolicy.DEFAULT_MERGE_FACTOR);
+        boolean calibrateSizeByDeletes = indexSettings.getAsBoolean("index.merge.policy.calibrate_size_by_deletes", true);
 
         mergePolicy.setMinMergeDocs(minMergeDocs);
         mergePolicy.setMaxMergeDocs(maxMergeDocs);

@@ -68,8 +68,8 @@ class MultiDocumentPercolatorIndex implements PercolatorIndex {
             Analyzer analyzer = context.mapperService().documentMapper(parsedDocument.type()).mappers().indexAnalyzer();
             memoryIndices[i] = indexDoc(d, analyzer, memoryIndex).createSearcher().getIndexReader();
         }
-        MultiReader mReader = new MultiReader(memoryIndices, true);
         try {
+            MultiReader mReader = new MultiReader(memoryIndices, true);
             LeafReader slowReader = SlowCompositeReaderWrapper.wrap(mReader);
             DocSearcher docSearcher = new DocSearcher(new IndexSearcher(slowReader), rootDocMemoryIndex);
             context.initialize(docSearcher, parsedDocument);

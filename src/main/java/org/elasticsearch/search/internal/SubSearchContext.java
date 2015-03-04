@@ -112,10 +112,12 @@ public class SubSearchContext extends FilteredSearchContext {
         throw new UnsupportedOperationException("Not supported");
     }
 
+    @Override
     public SearchContextHighlight highlight() {
         return highlight;
     }
 
+    @Override
     public void highlight(SearchContextHighlight highlight) {
         this.highlight = highlight;
     }

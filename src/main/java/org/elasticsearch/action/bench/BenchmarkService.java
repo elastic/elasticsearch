@@ -405,6 +405,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
             countDown = new CountDown(size);
         }
 
+        @Override
         public abstract T newInstance();
 
         protected abstract void sendResponse();
@@ -426,6 +427,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
             }
         }
 
+        @Override
         public String executor() {
             return ThreadPool.Names.SAME;
         }
@@ -669,6 +671,7 @@ public class BenchmarkService extends AbstractLifecycleComponent<BenchmarkServic
             this.patterns = patterns;
         }
 
+        @Override
         protected boolean match(BenchmarkMetaData.Entry entry) {
             return entry.state() == BenchmarkMetaData.State.STARTED && Regex.simpleMatch(this.patterns, benchmarkId);
         }

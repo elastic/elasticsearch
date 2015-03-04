@@ -88,6 +88,7 @@ public class FuzzyLikeThisFieldQueryBuilder extends BaseQueryBuilder implements 
         return this;
     }
 
+    @Override
     public FuzzyLikeThisFieldQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;

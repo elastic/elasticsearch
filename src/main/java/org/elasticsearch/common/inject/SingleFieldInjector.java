@@ -45,10 +45,12 @@ class SingleFieldInjector implements SingleMemberInjector {
         factory = injector.getInternalFactory(dependency.getKey(), errors);
     }
 
+    @Override
     public InjectionPoint getInjectionPoint() {
         return injectionPoint;
     }
 
+    @Override
     public void inject(Errors errors, InternalContext context, Object o) {
         errors = errors.withSource(dependency);
 

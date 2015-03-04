@@ -71,14 +71,14 @@ public class SimpleTTLTests extends ElasticsearchIntegrationTest {
                         .startObject()
                         .startObject("type1")
                         .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
-                        .startObject("_ttl").field("enabled", true).field("store", "yes").endObject()
+                        .startObject("_ttl").field("enabled", true).endObject()
                         .endObject()
                         .endObject())
                 .addMapping("type2", XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("type2")
                         .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
-                        .startObject("_ttl").field("enabled", true).field("store", "yes").field("default", "1d").endObject()
+                        .startObject("_ttl").field("enabled", true).field("default", "1d").endObject()
                         .endObject()
                         .endObject()));
         ensureYellow("test");

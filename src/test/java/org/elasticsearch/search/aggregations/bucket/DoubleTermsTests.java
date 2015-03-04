@@ -74,6 +74,7 @@ public class DoubleTermsTests extends AbstractTermsTests {
     private static final String MULTI_VALUED_FIELD_NAME = "d_values";
     private static HashMap<Double, Map<String, Object>> expectedMultiSortBuckets;
 
+    @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
         List<IndexRequestBuilder> builders = new ArrayList<>();

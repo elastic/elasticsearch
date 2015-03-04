@@ -51,6 +51,7 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -82,7 +83,6 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchService;
@@ -730,14 +730,14 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private final class NodeAndClient implements Closeable {
-        private InternalNode node;
+        private Node node;
         private Client nodeClient;
         private Client transportClient;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final String name;
 
         NodeAndClient(String name, Node node) {
-            this.node = (InternalNode) node;
+            this.node = node;
             this.name = name;
         }
 
@@ -824,7 +824,7 @@ public final class InternalTestCluster extends TestCluster {
                     IOUtils.rm(nodeEnv.nodeDataPaths());
                 }
             }
-            node = (InternalNode) nodeBuilder().settings(node.settings()).settings(newSettings).node();
+            node = nodeBuilder().settings(node.settings()).settings(newSettings).node();
         }
 
         void registerDataPath() {
@@ -871,7 +871,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         public Client client(Node node, String clusterName) {
-            TransportAddress addr = ((InternalNode) node).injector().getInstance(TransportService.class).boundAddress().publishAddress();
+            TransportAddress addr = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             Settings nodeSettings = node.settings();
             Builder builder = settingsBuilder()
                     .put("client.transport.nodes_sampler_interval", "1s")
@@ -902,7 +902,9 @@ public final class InternalTestCluster extends TestCluster {
         for (NodeAndClient nodeAndClient : nodes.values()) {
             TransportService transportService = nodeAndClient.node.injector().getInstance(TransportService.class);
             if (transportService instanceof MockTransportService) {
-                ((MockTransportService) transportService).clearAllRules();
+                final MockTransportService mockTransportService = (MockTransportService) transportService;
+                mockTransportService.clearAllRules();
+                mockTransportService.clearTracers();
             }
         }
         randomlyResetClients();
@@ -1009,10 +1011,17 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Returns a reference to a random nodes {@link ClusterService}
+     * Returns a reference to a random node's {@link ClusterService}
      */
-    public synchronized ClusterService clusterService() {
-        return getInstance(ClusterService.class);
+    public ClusterService clusterService() {
+        return clusterService(null);
+    }
+
+    /**
+     * Returns a reference to a node's {@link ClusterService}. If the given node is null, a random node will be selected.
+     */
+    public synchronized ClusterService clusterService(@Nullable String node) {
+        return getInstance(ClusterService.class, node);
     }
 
     /**
@@ -1049,6 +1058,7 @@ public final class InternalTestCluster extends TestCluster {
         final Predicate<InternalTestCluster.NodeAndClient> predicate;
         if (node != null) {
             predicate = new Predicate<InternalTestCluster.NodeAndClient>() {
+                @Override
                 public boolean apply(NodeAndClient nodeAndClient) {
                     return node.equals(nodeAndClient.name);
                 }
@@ -1076,7 +1086,7 @@ public final class InternalTestCluster extends TestCluster {
         return getInstance(clazz, Predicates.<NodeAndClient>alwaysTrue());
     }
 
-    private synchronized <T> T getInstanceFromNode(Class<T> clazz, InternalNode node) {
+    private synchronized <T> T getInstanceFromNode(Class<T> clazz, Node node) {
         return node.injector().getInstance(clazz);
     }
 
@@ -1255,6 +1265,7 @@ public final class InternalTestCluster extends TestCluster {
 
 
     private static final RestartCallback EMPTY_CALLBACK = new RestartCallback() {
+        @Override
         public Settings onNodeStopped(String node) {
             return null;
         }
@@ -1290,11 +1301,20 @@ public final class InternalTestCluster extends TestCluster {
 
 
     /**
-     * get the name of the current master node
+     * Returns the name of the current master node in the cluster.
      */
     public String getMasterName() {
+        return getMasterName(null);
+    }
+
+    /**
+     * Returns the name of the current master node in the cluster and executes the request via the node specified
+     * in the viaNode parameter. If viaNode isn't specified a random node will be picked to the send the request to.
+     */
+    public String getMasterName(@Nullable String viaNode) {
         try {
-            ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+            Client client = viaNode != null ? client(viaNode) : client();
+            ClusterState state = client.admin().cluster().prepareState().execute().actionGet().getState();
             return state.nodes().masterNode().name();
         } catch (Throwable e) {
             logger.warn("Can't fetch cluster state", e);
@@ -1584,7 +1604,7 @@ public final class InternalTestCluster extends TestCluster {
         assertThat(shard, greaterThanOrEqualTo(0));
         assertThat(shard, greaterThanOrEqualTo(0));
         for (NodeAndClient n : nodes.values()) {
-            InternalNode node = (InternalNode) n.node;
+            Node node = n.node;
             IndicesService indicesService = getInstanceFromNode(IndicesService.class, node);
             ClusterService clusterService = getInstanceFromNode(ClusterService.class, node);
             IndexService indexService = indicesService.indexService(index);

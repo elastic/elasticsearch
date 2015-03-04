@@ -80,6 +80,7 @@ public class InternalPercentileRanks extends AbstractInternalPercentiles impleme
         return percent(key);
     }
 
+    @Override
     protected AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
             List<Reducer> reducers, Map<String, Object> metaData) {
         return new InternalPercentileRanks(name, keys, merged, keyed, valueFormatter, reducers, metaData);

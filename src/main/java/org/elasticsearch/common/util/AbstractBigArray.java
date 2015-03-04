@@ -72,6 +72,7 @@ abstract class AbstractBigArray extends AbstractArray {
         return (int) (index & pageMask);
     }
 
+    @Override
     public final long size() {
         return size;
     }
@@ -80,6 +81,7 @@ abstract class AbstractBigArray extends AbstractArray {
 
     protected abstract int numBytesPerElement();
 
+    @Override
     public final long ramBytesUsed() {
         // rough approximate, we only take into account the size of the values, not the overhead of the array objects
         return ((long) pageIndex(size - 1) + 1) * pageSize() * numBytesPerElement();

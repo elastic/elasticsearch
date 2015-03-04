@@ -23,7 +23,7 @@ $ curl -XPUT 'http://localhost:9200/_snapshot/my_backup' -d '{
 }'
 -----------------------------------
 
-Once repository is registered, its information can be obtained using the following command:
+Once a repository is registered, its information can be obtained using the following command:
 
 [source,js]
 -----------------------------------
@@ -122,7 +122,7 @@ initialization (default) or wait for snapshot completion. During snapshot initia
 previous snapshots is loaded into the memory, which means that in large repositories it may take several seconds (or
 even minutes) for this command to return even if the `wait_for_completion` parameter is set to `false`.
 
-By default snapshot of all open and started indices in the cluster is created. This behavior can be changed by
+By default a snapshot of all open and started indices in the cluster is created. This behavior can be changed by
 specifying the list of indices in the body of the snapshot request.
 
 [source,js]
@@ -139,7 +139,7 @@ supports <<search-multi-index-type,multi index syntax>>. The snapshot request al
 `ignore_unavailable` option. Setting it to `true` will cause indices that do not exist to be ignored during snapshot
 creation. By default, when `ignore_unavailable` option is not set and an index is missing the snapshot request will fail.
 By setting `include_global_state` to false it's possible to prevent the cluster global state to be stored as part of
-the snapshot. By default, entire snapshot will fail if one or more indices participating in the snapshot don't have
+the snapshot. By default, the entire snapshot will fail if one or more indices participating in the snapshot don't have
 all primary shards available. This behaviour can be changed by setting `partial` to `true`.
 
 The index snapshot process is incremental. In the process of making the index snapshot Elasticsearch analyses
@@ -147,7 +147,7 @@ the list of the index files that are already stored in the repository and copies
 changed since the last snapshot. That allows multiple snapshots to be preserved in the repository in a compact form.
 Snapshotting process is executed in non-blocking fashion. All indexing and searching operation can continue to be
 executed against the index that is being snapshotted. However, a snapshot represents the point-in-time view of the index
-at the moment when snapshot was created, so no records that were added to the index after snapshot process had started
+at the moment when snapshot was created, so no records that were added to the index after the snapshot process was started
 will be present in the snapshot. The snapshot process starts immediately for the primary shards that has been started
 and are not relocating at the moment. Before version 1.2.0, the snapshot operation fails if the cluster has any relocating or
 initializing primaries of indices participating in the snapshot. Starting with version 1.2.0, Elasticsearch waits for
@@ -159,8 +159,8 @@ the snapshot.
 
 Only one snapshot process can be executed in the cluster at any time. While snapshot of a particular shard is being
 created this shard cannot be moved to another node, which can interfere with rebalancing process and allocation
-filtering. Once snapshot of the shard is finished Elasticsearch will be able to move shard to another node according
-to the current allocation filtering settings and rebalancing algorithm.
+filtering. Elasticsearch will only be able to move a shard to another node (according to the current allocation
+filtering settings and rebalancing algorithm) once the snapshot is finished.
 
 Once a snapshot is created information about this snapshot can be obtained using the following command:
 
@@ -174,6 +174,13 @@ All snapshots currently stored in the repository can be listed using the followi
 [source,shell]
 -----------------------------------
 $ curl -XGET "localhost:9200/_snapshot/my_backup/_all"
+-----------------------------------
+
+coming[2.0] A currently running snapshot can be retrieved using the following command:
+
+[source,shell]
+-----------------------------------
+$ curl -XGET "localhost:9200/_snapshot/my_backup/_current"
 -----------------------------------
 
 A snapshot can be deleted from the repository using the following command:
@@ -237,7 +244,7 @@ persistent settings are added to the existing persistent settings.
 [float]
 === Partial restore
 
-By default, entire restore operation will fail if one or more indices participating in the operation don't have
+By default, the entire restore operation will fail if one or more indices participating in the operation don't have
 snapshots of all shards available. It can occur if some shards failed to snapshot for example. It is still possible to
 restore such indices by setting `partial` to `true`. Please note, that only successfully snapshotted shards will be
 restored in this case and all missing shards will be recreated empty.
@@ -337,10 +344,10 @@ detailed insight into the current state of the recovery process by using <<indic
 [float]
 === Stopping currently running snapshot and restore operations
 
-The snapshot and restore framework allows running only one snapshot or one restore operation at a time. If currently
-running snapshot was executed by mistake or takes unusually long, it can be terminated using snapshot delete operation.
-The snapshot delete operation checks if deleted snapshot is currently running and if it does, the delete operation stops
-such snapshot before deleting the snapshot data from the repository.
+The snapshot and restore framework allows running only one snapshot or one restore operation at a time. If a currently
+running snapshot was executed by mistake, or takes unusually long, it can be terminated using the snapshot delete operation.
+The snapshot delete operation checks if the deleted snapshot is currently running and if it does, the delete operation stops
+that snapshot before deleting the snapshot data from the repository.
 
 The restore operation uses the standard shard recovery mechanism. Therefore, any currently running restore operation can
 be canceled by deleting indices that are being restored. Please note that data for all deleted indices will be removed

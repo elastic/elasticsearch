@@ -71,4 +71,9 @@ public class LimitFilter extends NoCacheFilter {
             return RamUsageEstimator.NUM_BYTES_INT;
         }
     }
+
+    @Override
+    public String toString(String field) {
+        return "limit(limit=" + limit + ")";
+    }
 }

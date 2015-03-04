@@ -594,6 +594,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
      * them from following the stale master.
      */
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/pull/9963")
     public void testStaleMasterNotHijackingMajority() throws Exception {
         // TODO: on mac OS multicast threads are shared between nodes and we therefore we can't simulate GC and stop pinging for just one node
         // find a way to block thread creation in the generic thread pool to avoid this.

@@ -94,7 +94,12 @@ public class LdapSessionFactory extends SessionFactory {
                 connection.bind(dn, passwordString);
                 return new LdapSession(connectionLogger, connection, dn, groupResolver, timeout);
             } catch (LDAPException e) {
-                logger.warn("failed LDAP authentication with user template [{}] and DN [{}]", e, template, dn);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("failed LDAP authentication with user template [{}] and DN [{}]", e, template, dn);
+                } else {
+                    logger.warn("failed LDAP authentication with user template [{}] and DN [{}]: {}", template, dn, e.getMessage());
+                }
+
                 lastException = e;
             }
         }

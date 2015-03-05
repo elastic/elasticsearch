@@ -93,7 +93,7 @@ public class ActiveDirectorySessionFactory extends SessionFactory {
         try {
             connection = ldapServerSet.getConnection();
         } catch (LDAPException e) {
-            throw new ActiveDirectoryException("failed to connect to any active directory servers");
+            throw new ActiveDirectoryException("failed to connect to any active directory servers", e);
         }
 
         String userPrincipal = userName + "@" + domainName;

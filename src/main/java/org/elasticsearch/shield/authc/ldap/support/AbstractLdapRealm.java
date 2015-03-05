@@ -46,6 +46,13 @@ public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
         } catch (Throwable e) {
             if (logger.isDebugEnabled()) {
                 logger.debug("authentication failed for user [{}]", e, token.principal());
+            } else {
+                String causeMessage = (e.getCause() == null) ? null : e.getCause().getMessage();
+                if (causeMessage == null) {
+                    logger.warn("authentication failed for user [{}]: {}", token.principal(), e.getMessage());
+                } else {
+                    logger.warn("authentication failed for user [{}]: {}\ncause: {}: {}", token.principal(), e.getMessage(), e.getCause().getClass().getName(), causeMessage);
+                }
             }
             return null;
         }

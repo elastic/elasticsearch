@@ -101,17 +101,20 @@ public class MovAvgReducer extends Reducer {
 
         for (InternalHistogram.Bucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
-            values.offer(thisBucketValue);
+            if (thisBucketValue != null) {
+                values.offer(thisBucketValue);
 
-            // TODO handle "edge policy"
-            double movavg = MovAvgModel.next(values, this.weightingType);
+                // TODO handle "edge policy"
+                double movavg = MovAvgModel.next(values, this.weightingType);
 
-            List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), FUNCTION));
-            aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<Reducer>(), metaData()));
-            InternalHistogram.Bucket newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(), new InternalAggregations(
-                    aggs), bucket.getKeyed(), bucket.getFormatter());
-            newBuckets.add(newBucket);
-
+                List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), FUNCTION));
+                aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<Reducer>(), metaData()));
+                InternalHistogram.Bucket newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(), new InternalAggregations(
+                        aggs), bucket.getKeyed(), bucket.getFormatter());
+                newBuckets.add(newBucket);
+            } else {
+                newBuckets.add(bucket);
+            }
         }
         return factory.create(histo.getName(), newBuckets, histo);
     }

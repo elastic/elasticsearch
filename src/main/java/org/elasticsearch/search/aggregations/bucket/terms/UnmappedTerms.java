@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ import java.util.Map;
 /**
  *
  */
-public class UnmappedTerms extends InternalTerms {
+public class UnmappedTerms extends InternalTerms<UnmappedTerms, InternalTerms.Bucket> {
 
     public static final Type TYPE = new Type("terms", "umterms");
 
@@ -66,6 +67,21 @@ public class UnmappedTerms extends InternalTerms {
     }
 
     @Override
+    public UnmappedTerms create(List<InternalTerms.Bucket> buckets) {
+        return new UnmappedTerms(this.name, this.order, this.requiredSize, this.shardSize, this.minDocCount, this.reducers(), this.metaData);
+    }
+
+    @Override
+    public InternalTerms.Bucket createBucket(InternalAggregations aggregations, InternalTerms.Bucket prototype) {
+        throw new UnsupportedOperationException("not supported for UnmappedTerms");
+    }
+
+    @Override
+    protected UnmappedTerms create(String name, List<Bucket> buckets, long docCountError, long otherDocCount, InternalTerms prototype) {
+        throw new UnsupportedOperationException("not supported for UnmappedTerms");
+    }
+
+    @Override
     protected void doReadFrom(StreamInput in) throws IOException {
         this.docCountError = 0;
         this.order = InternalOrder.Streams.readOrder(in);
@@ -90,12 +106,6 @@ public class UnmappedTerms extends InternalTerms {
             }
         }
         return this;
-    }
-
-    @Override
-    protected InternalTerms newAggregation(String name, List<Bucket> buckets, boolean showTermDocCountError, long docCountError,
-            long otherDocCount, List<Reducer> reducers, Map<String, Object> metaData) {
-        throw new UnsupportedOperationException("How did you get there?");
     }
 
     @Override

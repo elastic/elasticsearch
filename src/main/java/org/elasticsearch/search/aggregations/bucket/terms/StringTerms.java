@@ -38,7 +38,7 @@ import java.util.Map;
 /**
  *
  */
-public class StringTerms extends InternalTerms {
+public class StringTerms extends InternalTerms<StringTerms, StringTerms.Bucket> {
 
     public static final InternalAggregation.Type TYPE = new Type("terms", "sterms");
 
@@ -73,7 +73,6 @@ public class StringTerms extends InternalTerms {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
         BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
-
 
     public static class Bucket extends InternalTerms.Bucket {
 
@@ -149,10 +148,11 @@ public class StringTerms extends InternalTerms {
         }
     }
 
-    StringTerms() {} // for serialization
+    StringTerms() {
+    } // for serialization
 
     public StringTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount,
-            List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount,
+            List<? extends InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount,
             List<Reducer> reducers, Map<String, Object> metaData) {
         super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, reducers,
                 metaData);
@@ -164,10 +164,21 @@ public class StringTerms extends InternalTerms {
     }
 
     @Override
-    protected InternalTerms newAggregation(String name, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError,
-            long docCountError, long otherDocCount, List<Reducer> reducers, Map<String, Object> metaData) {
-        return new StringTerms(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError,
-                otherDocCount, reducers, metaData);
+    public StringTerms create(List<Bucket> buckets) {
+        return new StringTerms(this.name, this.order, this.requiredSize, this.shardSize, this.minDocCount, buckets,
+                this.showTermDocCountError, this.docCountError, this.otherDocCount, this.reducers(), this.metaData);
+    }
+
+    @Override
+    public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
+        return new Bucket(prototype.termBytes, prototype.docCount, aggregations, prototype.showDocCountError, prototype.docCountError);
+    }
+
+    @Override
+    protected StringTerms create(String name, List<org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.Bucket> buckets,
+            long docCountError, long otherDocCount, InternalTerms prototype) {
+        return new StringTerms(name, prototype.order, prototype.requiredSize, prototype.shardSize, prototype.minDocCount, buckets,
+                prototype.showTermDocCountError, docCountError, otherDocCount, prototype.reducers(), prototype.getMetaData());
     }
 
     @Override

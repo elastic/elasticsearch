@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 
@@ -34,7 +35,7 @@ import java.util.Map;
 /**
  *
  */
-public class UnmappedSignificantTerms extends InternalSignificantTerms {
+public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedSignificantTerms, InternalSignificantTerms.Bucket> {
 
     public static final Type TYPE = new Type("significant_terms", "umsigterms");
 
@@ -68,6 +69,21 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms {
     }
 
     @Override
+    public UnmappedSignificantTerms create(List<InternalSignificantTerms.Bucket> buckets) {
+        return new UnmappedSignificantTerms(this.name, this.requiredSize, this.minDocCount, this.reducers(), this.metaData);
+    }
+
+    @Override
+    public InternalSignificantTerms.Bucket createBucket(InternalAggregations aggregations, InternalSignificantTerms.Bucket prototype) {
+        throw new UnsupportedOperationException("not supported for UnmappedSignificantTerms");
+    }
+
+    @Override
+    protected UnmappedSignificantTerms create(long subsetSize, long supersetSize, List<Bucket> buckets, InternalSignificantTerms prototype) {
+        throw new UnsupportedOperationException("not supported for UnmappedSignificantTerms");
+    }
+
+    @Override
     public InternalAggregation doReduce(ReduceContext reduceContext) {
         for (InternalAggregation aggregation : reduceContext.aggregations()) {
             if (!(aggregation instanceof UnmappedSignificantTerms)) {
@@ -75,11 +91,6 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms {
             }
         }
         return this;
-    }
-
-    @Override
-    InternalSignificantTerms newAggregation(long subsetSize, long supersetSize, List<Bucket> buckets) {
-        throw new UnsupportedOperationException("How did you get there?");
     }
 
     @Override

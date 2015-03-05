@@ -42,7 +42,7 @@ sudo /etc/init.d/elasticsearch start
 
 Note that on Ubuntu it is recommended to use upstart instead. Example:
 --------------------------------------------------
-sudo mv elasticsearch.conf /etc/ini
+sudo mv elasticsearch.conf /etc/init
 sudo initctl reload-configuration
 sudo start elasticsearch
 --------------------------------------------------

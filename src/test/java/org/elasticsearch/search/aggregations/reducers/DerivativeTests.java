@@ -110,7 +110,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         // setup for index with empty buckets
         valueCounts_empty = new Long[] { 1l, 1l, 2l, 0l, 2l, 2l, 0l, 0l, 0l, 3l, 2l, 1l };
-        firstDerivValueCounts_empty = new Double[] { null, 0d, 1d, -2d, 2d, 0d, -2d, 0d, 0d, 3d, -1d, -1d};
+        firstDerivValueCounts_empty = new Double[] { null, 0d, 1d, -2d, 2d, 0d, -2d, 0d, 0d, 3d, -1d, -1d };
 
         assertAcked(prepareCreate("empty_bucket_idx").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
         for (int i = 0; i < valueCounts_empty.length; i++) {
@@ -151,7 +151,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
-            checkBucketValues("Bucket "+i, bucket, i * interval, valueCounts[i]);
+            checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, valueCounts[i]);
             SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
             if (i > 0) {
                 assertThat(docCountDeriv, notNullValue());
@@ -189,10 +189,11 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         Object[] propertiesSumCounts = (Object[]) deriv.getProperty("sum.value");
 
         List<Bucket> buckets = new ArrayList<Bucket>(deriv.getBuckets());
-        Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets overwritten
+        Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
+                                                         // overwritten
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
-            checkBucketValues("Bucket " + i, bucket, i * interval, valueCounts[i]);
+            checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, valueCounts[i]);
             Sum sum = bucket.getAggregations().get("sum");
             assertThat(sum, notNullValue());
             long expectedSum = valueCounts[i] * (i * interval);
@@ -248,7 +249,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
-            checkBucketValues("Bucket "+i, bucket, i * interval, valueCounts[i]);
+            checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, valueCounts[i]);
             SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
             if (i > 0) {
                 assertThat(docCountDeriv, notNullValue());
@@ -278,7 +279,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         for (int i = 0; i < valueCounts_empty.length; i++) {
             Histogram.Bucket bucket = buckets.get(i);
-            checkBucketValues("Bucket "+i, bucket, i , valueCounts_empty[i]);
+            checkBucketKeyAndDocCount("Bucket " + i, bucket, i, valueCounts_empty[i]);
             SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
             if (firstDerivValueCounts_empty[i] == null) {
                 assertThat(docCountDeriv, nullValue());
@@ -308,7 +309,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
         for (int i = 0; i < valueCounts_empty.length; i++) {
             Histogram.Bucket bucket = buckets.get(i);
-            checkBucketValues("Bucket " + i + ": ", bucket, i, valueCounts_empty[i]);
+            checkBucketKeyAndDocCount("Bucket " + i + ": ", bucket, i, valueCounts_empty[i]);
             SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
             if (firstDerivValueCounts_empty[i] == null) {
                 assertThat(docCountDeriv, nullValue());
@@ -318,9 +319,10 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    private void checkBucketValues(final String msg, final Histogram.Bucket bucket, final long key, final long docCount) {
+    private void checkBucketKeyAndDocCount(final String msg, final Histogram.Bucket bucket, final long expectedKey,
+            final long expectedDocCount) {
         assertThat(msg, bucket, notNullValue());
-        assertThat(msg + " key", ((Number) bucket.getKey()).longValue(), equalTo(key));
-        assertThat(msg + " docCount", bucket.getDocCount(), equalTo(docCount));
+        assertThat(msg + " key", ((Number) bucket.getKey()).longValue(), equalTo(expectedKey));
+        assertThat(msg + " docCount", bucket.getDocCount(), equalTo(expectedDocCount));
     }
 }

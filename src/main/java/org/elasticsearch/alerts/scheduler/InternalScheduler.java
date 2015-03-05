@@ -10,6 +10,7 @@ import org.elasticsearch.alerts.AlertsSettingsException;
 import org.elasticsearch.alerts.scheduler.schedule.CronnableSchedule;
 import org.elasticsearch.alerts.scheduler.schedule.IntervalSchedule;
 import org.elasticsearch.alerts.scheduler.schedule.Schedule;
+import org.elasticsearch.alerts.support.clock.Clock;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
@@ -31,17 +32,19 @@ public class InternalScheduler extends AbstractComponent implements Scheduler {
     // Not happy about it, but otherwise we're stuck with Quartz's SimpleThreadPool
     private volatile static ThreadPool threadPool;
 
-    private volatile org.quartz.Scheduler scheduler;
-
-    private List<Listener> listeners;
-
+    private final Clock clock;
     private final DateTimeZone defaultTimeZone;
 
+    private volatile org.quartz.Scheduler scheduler;
+    private List<Listener> listeners;
+
+
     @Inject
-    public InternalScheduler(Settings settings, ThreadPool threadPool) {
+    public InternalScheduler(Settings settings, ThreadPool threadPool, Clock clock) {
         super(settings);
-        this.listeners = new CopyOnWriteArrayList<>();
         InternalScheduler.threadPool = threadPool;
+        this.clock = clock;
+        this.listeners = new CopyOnWriteArrayList<>();
         String timeZoneStr = componentSettings.get("time_zone", "UTC");
         try {
             this.defaultTimeZone = DateTimeZone.forID(timeZoneStr);
@@ -65,7 +68,7 @@ public class InternalScheduler extends AbstractComponent implements Scheduler {
             scheduler.setJobFactory(new SimpleJobFactory());
             Map<JobDetail, Set<? extends Trigger>> quartzJobs = new HashMap<>();
             for (Job alert : jobs) {
-                quartzJobs.put(jobDetail(alert.name(), this), createTrigger(alert.schedule(), defaultTimeZone));
+                quartzJobs.put(jobDetail(alert.name(), this), createTrigger(alert.schedule(), defaultTimeZone, clock));
             }
             scheduler.scheduleJobs(quartzJobs, false);
             scheduler.start();
@@ -107,7 +110,7 @@ public class InternalScheduler extends AbstractComponent implements Scheduler {
     public void add(Job job) {
         try {
             logger.trace("scheduling [{}] with schedule [{}]", job.name(), job.schedule());
-            scheduler.scheduleJob(jobDetail(job.name(), this), createTrigger(job.schedule(), defaultTimeZone), true);
+            scheduler.scheduleJob(jobDetail(job.name(), this), createTrigger(job.schedule(), defaultTimeZone, clock), true);
         } catch (org.quartz.SchedulerException se) {
             logger.error("Failed to schedule job",se);
             throw new SchedulerException("Failed to schedule job", se);
@@ -122,13 +125,13 @@ public class InternalScheduler extends AbstractComponent implements Scheduler {
         }
     }
 
-    static Set<Trigger> createTrigger(Schedule schedule, DateTimeZone timeZone) {
+    static Set<Trigger> createTrigger(Schedule schedule, DateTimeZone timeZone, Clock clock) {
         HashSet<Trigger> triggers = new HashSet<>();
         if (schedule instanceof CronnableSchedule) {
             for (String cron : ((CronnableSchedule) schedule).crons()) {
                 triggers.add(TriggerBuilder.newTrigger()
                         .withSchedule(CronScheduleBuilder.cronSchedule(cron).inTimeZone(timeZone.toTimeZone()))
-                        .startNow()
+                        .startAt(clock.now().toDate())
                         .build());
             }
         } else {
@@ -137,7 +140,7 @@ public class InternalScheduler extends AbstractComponent implements Scheduler {
             triggers.add(TriggerBuilder.newTrigger().withSchedule(SimpleScheduleBuilder.simpleSchedule()
                     .withIntervalInSeconds((int) interval.seconds())
                     .repeatForever())
-                    .startNow()
+                    .startAt(clock.now().toDate())
                     .build());
         }
         return triggers;

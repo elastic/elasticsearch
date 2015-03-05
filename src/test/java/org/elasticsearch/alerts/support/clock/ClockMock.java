@@ -38,16 +38,24 @@ public class ClockMock implements Clock {
         return TimeValue.timeValueMillis(new Duration(time, now).getMillis());
     }
 
-    public void setTime(DateTime now) {
+    public ClockMock setTime(DateTime now) {
         this.now = now;
+        return this;
     }
 
-    public void fastForward(TimeValue timeValue) {
-        setTime(now.plusMillis((int) timeValue.millis()));
+    public ClockMock fastForward(TimeValue timeValue) {
+        return setTime(now.plusMillis((int) timeValue.millis()));
     }
 
-    public void rewind(TimeValue timeValue) {
-        setTime(now.minusMillis((int) timeValue.millis()));
+    public ClockMock fastForwardSeconds(int seconds) {
+        return fastForward(TimeValue.timeValueSeconds(seconds));
     }
 
+    public ClockMock rewind(TimeValue timeValue) {
+        return setTime(now.minusMillis((int) timeValue.millis()));
+    }
+
+    public ClockMock rewindSeconds(int seconds) {
+        return rewind(TimeValue.timeValueSeconds(seconds));
+    }
 }

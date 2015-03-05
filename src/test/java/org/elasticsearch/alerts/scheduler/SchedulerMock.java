@@ -5,7 +5,14 @@
  */
 package org.elasticsearch.alerts.scheduler;
 
+import org.elasticsearch.alerts.support.clock.Clock;
+import org.elasticsearch.alerts.support.clock.ClockMock;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Collection;
 import java.util.List;
@@ -19,9 +26,16 @@ import java.util.concurrent.CopyOnWriteArrayList;
  */
 public class SchedulerMock implements Scheduler {
 
+    private final ESLogger logger;
     private final List<Listener> listeners = new CopyOnWriteArrayList<>();
-
     private final ConcurrentMap<String, Job> jobs = new ConcurrentHashMap<>();
+    private final Clock clock;
+
+    @Inject
+    public SchedulerMock(Settings settings, Clock clock) {
+        this.logger = Loggers.getLogger(SchedulerMock.class, settings);
+        this.clock = clock;
+    }
 
     @Override
     public void start(Collection<? extends Job> jobs) {
@@ -47,9 +61,31 @@ public class SchedulerMock implements Scheduler {
     }
 
     public void fire(String jobName) {
-        DateTime now = new DateTime();
-        for (Listener listener : listeners) {
-            listener.fire(jobName, now ,now);
+        fire(jobName, 1, null);
+    }
+
+    public void fire(String jobName, int times) {
+        fire(jobName, times, null);
+    }
+
+    public void fire(String jobName, int times, TimeValue interval) {
+        for (int i = 0; i < times; i++) {
+            DateTime now = clock.now();
+            logger.debug("firing [" + jobName + "] at [" + now + "]");
+            for (Listener listener : listeners) {
+                listener.fire(jobName, now, now);
+            }
+            if (clock instanceof ClockMock) {
+                ((ClockMock) clock).fastForward(interval == null ? TimeValue.timeValueMillis(10) : interval);
+            } else {
+                if (interval != null) {
+                    try {
+                        Thread.sleep(interval.millis());
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                    }
+                }
+            }
         }
     }
 }

@@ -36,6 +36,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.alerts.test.AlertsTestUtils.mockExecutionContext;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.when;
 
 /**
@@ -88,7 +89,7 @@ public class ScriptConditionSearchTests extends AbstractAlertsSingleNodeTests {
                 .get();
 
         ctx = mockExecutionContext("_name", new Payload.ActionResponse(response));
-        assertTrue(condition.execute(ctx).met());
+        assertThat(condition.execute(ctx).met(), is(true));
     }
 
     @Test
@@ -102,10 +103,10 @@ public class ScriptConditionSearchTests extends AbstractAlertsSingleNodeTests {
         SearchResponse response = new SearchResponse(internalSearchResponse, "", 3, 3, 500l, new ShardSearchFailure[0]);
 
         ExecutionContext ctx = mockExecutionContext("_alert_name", new Payload.ActionResponse(response));
-        assertTrue(condition.execute(ctx).met());
+        assertThat(condition.execute(ctx).met(), is(true));
         hit.score(2f);
         when(ctx.payload()).thenReturn(new Payload.ActionResponse(response));
-        assertFalse(condition.execute(ctx).met());
+        assertThat(condition.execute(ctx).met(), is(false));
     }
 
 }

@@ -10,6 +10,7 @@ import org.elasticsearch.alerts.AlertsPlugin;
 import org.elasticsearch.alerts.scheduler.schedule.Schedule;
 import org.elasticsearch.alerts.scheduler.schedule.support.DayOfWeek;
 import org.elasticsearch.alerts.scheduler.schedule.support.WeekTimes;
+import org.elasticsearch.alerts.support.clock.SystemClock;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -47,7 +48,7 @@ public class InternalSchedulerTests extends ElasticsearchTestCase {
                 .put("name", "test")
                 .build();
         threadPool = new ThreadPool(settings, null);
-        scheduler = new InternalScheduler(ImmutableSettings.EMPTY, threadPool);
+        scheduler = new InternalScheduler(ImmutableSettings.EMPTY, threadPool, SystemClock.INSTANCE);
     }
 
     @After

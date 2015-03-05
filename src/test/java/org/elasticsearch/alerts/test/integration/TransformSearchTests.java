@@ -22,11 +22,11 @@ import java.util.Map;
 import static org.elasticsearch.alerts.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.alerts.client.AlertSourceBuilder.alertSourceBuilder;
 import static org.elasticsearch.alerts.input.InputBuilders.searchInput;
-import static org.elasticsearch.alerts.transform.TransformBuilders.searchTransform;
 import static org.elasticsearch.alerts.scheduler.schedule.Schedules.interval;
+import static org.elasticsearch.alerts.transform.TransformBuilders.searchTransform;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -37,7 +37,7 @@ public class TransformSearchTests extends AbstractAlertsIntegrationTests {
         createIndex("my-condition-index", "my-payload-index", "my-payload-output");
         ensureGreen("my-condition-index", "my-payload-index", "my-payload-output");
 
-        index("my-payload-index","payload", "mytestresult");
+        index("my-payload-index", "payload", "mytestresult");
         refresh();
 
         SearchRequest inputRequest = AlertsTestUtils.newInputSearchRequest("my-condition-index").source(searchSource().query(matchAllQuery()));
@@ -57,7 +57,12 @@ public class TransformSearchTests extends AbstractAlertsIntegrationTests {
                         .metadata(metadata)
                         .throttlePeriod(TimeValue.timeValueSeconds(0)))
                 .get();
-        assertTrue(putAlertResponse.indexResponse().isCreated());
+        assertThat(putAlertResponse.indexResponse().isCreated(), is(true));
+
+        if (timeWarped()) {
+            timeWarp().scheduler().fire("test-payload");
+            refresh();
+        }
 
         assertAlertWithMinimumPerformedActionsCount("test-payload", 1, false);
         refresh();
@@ -69,6 +74,6 @@ public class TransformSearchTests extends AbstractAlertsIntegrationTests {
         SearchHit hit = searchResponse.getHits().getHits()[0];
         String source = hit.getSourceRef().toUtf8();
 
-        assertTrue(source.contains("mytestresult"));
+        assertThat(source, containsString("mytestresult"));
     }
 }

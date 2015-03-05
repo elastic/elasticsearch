@@ -17,10 +17,16 @@ import java.util.Map;
  */
 public class SchedulerModule extends AbstractModule {
 
+    private final Class<? extends Scheduler> schedulerClass;
+
     private final Map<String, Class<? extends Schedule.Parser>> parsers = new HashMap<>();
 
-    public void registerSchedule(String type, Class<? extends Schedule.Parser> parser) {
-        parsers.put(type, parser);
+    public SchedulerModule() {
+        this(InternalScheduler.class);
+    }
+
+    protected SchedulerModule(Class<? extends Scheduler> schedulerClass) {
+        this.schedulerClass = schedulerClass;
     }
 
     @Override
@@ -48,6 +54,7 @@ public class SchedulerModule extends AbstractModule {
         }
 
         bind(ScheduleRegistry.class).asEagerSingleton();
-        bind(Scheduler.class).to(InternalScheduler.class).asEagerSingleton();
+        bind(schedulerClass).asEagerSingleton();
+        bind(Scheduler.class).to(schedulerClass);
     }
 }

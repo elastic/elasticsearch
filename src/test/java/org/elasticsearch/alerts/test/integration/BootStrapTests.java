@@ -6,7 +6,6 @@
 package org.elasticsearch.alerts.test.integration;
 
 import org.elasticsearch.action.WriteConsistencyLevel;
-import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.Alert;
@@ -33,7 +32,6 @@ import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
@@ -67,7 +65,7 @@ public class BootStrapTests extends AbstractAlertsIntegrationTests {
         startAlerting();
 
         AlertsStatsResponse response = alertClient().prepareAlertsStats().get();
-        assertTrue(response.isAlertActionManagerStarted());
+        assertThat(response.isAlertActionManagerStarted(), is(true));
         assertThat(response.getAlertManagerStarted(), equalTo(AlertsService.State.STARTED));
         assertThat(response.getNumberOfRegisteredAlerts(), equalTo(1L));
     }
@@ -78,7 +76,7 @@ public class BootStrapTests extends AbstractAlertsIntegrationTests {
         ensureAlertingStarted();
 
         AlertsStatsResponse response = alertClient().prepareAlertsStats().get();
-        assertTrue(response.isAlertActionManagerStarted());
+        assertThat(response.isAlertActionManagerStarted(), is(true));
         assertThat(response.getAlertManagerStarted(), equalTo(AlertsService.State.STARTED));
         assertThat(response.getNumberOfRegisteredAlerts(), equalTo(0L));
 
@@ -114,13 +112,13 @@ public class BootStrapTests extends AbstractAlertsIntegrationTests {
                 .setConsistencyLevel(WriteConsistencyLevel.ALL)
                 .setSource(jsonBuilder().value(firedAlert))
                 .get();
-        assertTrue(indexResponse.isCreated());
+        assertThat(indexResponse.isCreated(), is(true));
 
         stopAlerting();
         startAlerting();
 
         response = alertClient().prepareAlertsStats().get();
-        assertTrue(response.isAlertActionManagerStarted());
+        assertThat(response.isAlertActionManagerStarted(), is(true));
         assertThat(response.getAlertManagerStarted(), equalTo(AlertsService.State.STARTED));
         assertThat(response.getNumberOfRegisteredAlerts(), equalTo(1L));
         assertThat(response.getAlertActionManagerLargestQueueSize(), greaterThanOrEqualTo(1l));
@@ -130,8 +128,8 @@ public class BootStrapTests extends AbstractAlertsIntegrationTests {
     @TestLogging("alerts.actions:DEBUG")
     public void testBootStrapManyHistoryIndices() throws Exception {
         DateTime now = new DateTime(DateTimeZone.UTC);
-        long numberOfAlertHistoryIndices = randomIntBetween(2,8);
-        long numberOfAlertHistoryEntriesPerIndex = randomIntBetween(5,10);
+        long numberOfAlertHistoryIndices = randomIntBetween(2, 8);
+        long numberOfAlertHistoryEntriesPerIndex = randomIntBetween(5, 10);
         SearchRequest searchRequest = AlertsTestUtils.newInputSearchRequest("my-index").source(searchSource().query(termQuery("field", "value")));
 
         for (int i = 0; i < numberOfAlertHistoryIndices; i++) {
@@ -141,10 +139,10 @@ public class BootStrapTests extends AbstractAlertsIntegrationTests {
             ensureGreen(actionHistoryIndex);
             logger.info("Created index {}", actionHistoryIndex);
 
-            for (int j=0; j<numberOfAlertHistoryEntriesPerIndex; ++j){
+            for (int j = 0; j < numberOfAlertHistoryEntriesPerIndex; j++) {
 
                 Alert alert = new Alert(
-                        "action-test-"+ i + " " + j,
+                        "action-test-" + i + " " + j,
                         SystemClock.INSTANCE,
                         new CronSchedule("0/5 * * * * ? 2035"), //Set a cron schedule far into the future so this alert is never scheduled
                         new SearchInput(logger, scriptService(), ClientProxy.of(client()),
@@ -159,7 +157,7 @@ public class BootStrapTests extends AbstractAlertsIntegrationTests {
                 alert.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
 
                 PutAlertResponse putAlertResponse = alertClient().preparePutAlert(alert.name()).source(jsonBuilder.bytes()).get();
-                assertTrue(putAlertResponse.indexResponse().isCreated());
+                assertThat(putAlertResponse.indexResponse().isCreated(), is(true));
 
                 FiredAlert firedAlert = new FiredAlert(alert, historyIndexDate, historyIndexDate);
 
@@ -170,7 +168,7 @@ public class BootStrapTests extends AbstractAlertsIntegrationTests {
                         .setConsistencyLevel(WriteConsistencyLevel.ALL)
                         .setSource(jsonBuilder2.bytes())
                         .get();
-                assertTrue(indexResponse.isCreated());
+                assertThat(indexResponse.isCreated(), is(true));
             }
             client().admin().indices().prepareRefresh(actionHistoryIndex).get();
         }
@@ -179,18 +177,16 @@ public class BootStrapTests extends AbstractAlertsIntegrationTests {
         startAlerting();
         AlertsStatsResponse response = alertClient().prepareAlertsStats().get();
 
-        assertTrue(response.isAlertActionManagerStarted());
+        assertThat(response.isAlertActionManagerStarted(), is(true));
         assertThat(response.getAlertManagerStarted(), equalTo(AlertsService.State.STARTED));
-        final long totalHistoryEntries = numberOfAlertHistoryEntriesPerIndex * numberOfAlertHistoryIndices ;
+        final long totalHistoryEntries = numberOfAlertHistoryEntriesPerIndex * numberOfAlertHistoryIndices;
 
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                CountResponse countResponse = client().prepareCount(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")
-                        .setTypes(HistoryStore.ALERT_HISTORY_TYPE)
-                        .setQuery(QueryBuilders.termQuery(FiredAlert.Parser.STATE_FIELD.getPreferredName(), FiredAlert.State.EXECUTED.id())).get();
-
-                assertEquals(totalHistoryEntries, countResponse.getCount());
+                long count = docCount(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*", HistoryStore.ALERT_HISTORY_TYPE,
+                        termQuery(FiredAlert.Parser.STATE_FIELD.getPreferredName(), FiredAlert.State.EXECUTED.id()));
+                assertThat(count, is(totalHistoryEntries));
             }
         }, 30, TimeUnit.SECONDS);
 

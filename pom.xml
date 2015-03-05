@@ -31,6 +31,7 @@
         <execution.hint.file>.local-${project.version}-execution-hints.log</execution.hint.file>
         <tests.rest>false</tests.rest>
         <tests.slow>false</tests.slow>
+        <tests.timewarp>true</tests.timewarp>
     </properties>
 
     <dependencies>
@@ -400,6 +401,7 @@
                                 <tests.cluster>${tests.cluster}</tests.cluster>
                                 <tests.heap.size>${tests.heap.size}</tests.heap.size>
                                 <tests.filter>${tests.filter}</tests.filter>
+                                <tests.timewarp>${tests.timewarp}</tests.timewarp>
                                 <es.node.local>${env.ES_TEST_LOCAL}</es.node.local>
                                 <es.node.mode>${es.node.mode}</es.node.mode>
                                 <es.logger.level>${es.logger.level}</es.logger.level>

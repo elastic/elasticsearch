@@ -10,6 +10,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.AlertsPlugin;
 import org.elasticsearch.alerts.AlertsService;
 import org.elasticsearch.alerts.actions.email.service.Authentication;
@@ -20,7 +21,12 @@ import org.elasticsearch.alerts.actions.webhook.HttpClient;
 import org.elasticsearch.alerts.client.AlertsClient;
 import org.elasticsearch.alerts.history.FiredAlert;
 import org.elasticsearch.alerts.history.HistoryStore;
+import org.elasticsearch.alerts.scheduler.Scheduler;
+import org.elasticsearch.alerts.scheduler.SchedulerMock;
+import org.elasticsearch.alerts.scheduler.schedule.Schedule;
+import org.elasticsearch.alerts.scheduler.schedule.Schedules;
 import org.elasticsearch.alerts.support.AlertUtils;
+import org.elasticsearch.alerts.support.clock.ClockMock;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.alerts.support.template.Template;
 import org.elasticsearch.alerts.transport.actions.stats.AlertsStatsResponse;
@@ -30,11 +36,13 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hppc.cursors.ObjectObjectCursor;
+import org.elasticsearch.common.netty.util.internal.SystemPropertyUtil;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -60,13 +68,41 @@ import static org.hamcrest.core.IsNot.not;
 @ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false)
 public abstract class AbstractAlertsIntegrationTests extends ElasticsearchIntegrationTest {
 
+    private static final boolean timeWarpEnabled = SystemPropertyUtil.getBoolean("tests.timewarp", true);
+
+    private TimeWarp timeWarp;
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("scroll.size", randomIntBetween(1, 100))
-                .put("plugin.types", AlertsPlugin.class.getName())
+                .put("plugin.types", timeWarped() ? TimeWarpedAlertsPlugin.class.getName() : AlertsPlugin.class.getName())
                 .build();
+    }
+
+    /**
+     * @return  whether the test suite should run in time warp mode. By default this will be determined globally
+     *          to all test suites based on {@code -Dtests.timewarp} system property (when missing, defaults to
+     *          {@code true}). If a test suite requires to force the mode or force not running under this mode
+     *          this method can be overridden.
+     */
+    protected boolean timeWarped() {
+        return timeWarpEnabled;
+    }
+
+    @Before
+    public void setupTimeWarp() throws Exception {
+        if (timeWarped()) {
+            timeWarp = new TimeWarp(
+                    internalTestCluster().getInstance(SchedulerMock.class, internalTestCluster().getMasterName()),
+                    internalTestCluster().getInstance(ClockMock.class, internalTestCluster().getMasterName()));
+        }
+    }
+
+    protected TimeWarp timeWarp() {
+        assert timeWarped() : "cannot access TimeWarp when test context is not time warped";
+        return timeWarp;
     }
 
     public boolean randomizeNumberOfShardsAndReplicas() {
@@ -103,6 +139,10 @@ public abstract class AbstractAlertsIntegrationTests extends ElasticsearchIntegr
         stopAlerting();
     }
 
+    protected long docCount(String index, String type, QueryBuilder query) {
+        return docCount(index, type, SearchSourceBuilder.searchSource().query(query));
+    }
+
     protected long docCount(String index, String type, SearchSourceBuilder source) {
         SearchRequestBuilder builder = client().prepareSearch(index).setSearchType(SearchType.COUNT);
         if (type != null) {
@@ -116,12 +156,20 @@ public abstract class AbstractAlertsIntegrationTests extends ElasticsearchIntegr
         return createAlertSource(cron, conditionRequest, conditionScript, null);
     }
 
+    protected BytesReference createAlertSource(Schedule schedule, SearchRequest conditionRequest, String conditionScript) throws IOException {
+        return createAlertSource(schedule, conditionRequest, conditionScript, null);
+    }
+
     protected BytesReference createAlertSource(String cron, SearchRequest conditionRequest, String conditionScript, Map<String,Object> metadata) throws IOException {
+        return createAlertSource(Schedules.cron(cron), conditionRequest, conditionScript, metadata);
+    }
+
+    protected BytesReference createAlertSource(Schedule schedule, SearchRequest conditionRequest, String conditionScript, Map<String,Object> metadata) throws IOException {
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         {
             builder.startObject("schedule")
-                    .field("cron", cron)
+                    .field(schedule.type(), schedule)
                     .endObject();
 
             if (metadata != null) {
@@ -160,6 +208,14 @@ public abstract class AbstractAlertsIntegrationTests extends ElasticsearchIntegr
         builder.endObject();
 
         return builder.bytes();
+    }
+
+    protected Alert.Parser alertParser() {
+        return internalTestCluster().getInstance(Alert.Parser.class, internalTestCluster().getMasterName());
+    }
+
+    protected Scheduler scheduler() {
+        return internalTestCluster().getInstance(Scheduler.class, internalTestCluster().getMasterName());
     }
 
     protected AlertsClient alertClient() {
@@ -225,7 +281,7 @@ public abstract class AbstractAlertsIntegrationTests extends ElasticsearchIntegr
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                         .setQuery(boolQuery().must(matchQuery("alert_name", alertName)).must(matchQuery("state", FiredAlert.State.EXECUTED.id())))
                         .get();
-                assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(minimumExpectedAlertActionsWithActionPerformed));
+                assertThat("could not find executed fired alert", searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(minimumExpectedAlertActionsWithActionPerformed));
                 if (assertConditionMet) {
                     assertThat((Integer) XContentMapValues.extractValue("alert_execution.input_result.search.payload.hits.total", searchResponse.getHits().getAt(0).sourceAsMap()), greaterThanOrEqualTo(1));
                 }
@@ -441,6 +497,25 @@ public abstract class AbstractAlertsIntegrationTests extends ElasticsearchIntegr
         @Override
         public EmailSent send(Email email, Authentication auth, Profile profile, String accountName) {
             return new EmailSent(accountName, email);
+        }
+    }
+
+    protected static class TimeWarp {
+
+        protected final SchedulerMock scheduler;
+        protected final ClockMock clock;
+
+        public TimeWarp(SchedulerMock scheduler, ClockMock clock) {
+            this.scheduler = scheduler;
+            this.clock = clock;
+        }
+
+        public SchedulerMock scheduler() {
+            return scheduler;
+        }
+
+        public ClockMock clock() {
+            return clock;
         }
     }
 

@@ -41,15 +41,20 @@ public class AlertMetadataTests extends AbstractAlertsIntegrationTests {
         metaList.add("test");
 
         metadata.put("baz", metaList);
-        alertClient().preparePutAlert("1")
+        alertClient().preparePutAlert("_name")
                 .source(alertSourceBuilder()
                         .schedule(cron("0/5 * * * * ? *"))
                         .input(searchInput(AlertsTestUtils.newInputSearchRequest("my-index").source(searchSource().query(matchAllQuery()))))
                         .condition(scriptCondition("ctx.payload.hits.total == 1"))
                         .metadata(metadata))
                 .get();
-        // Wait for a no action entry to be added. (the condition search request will not match, because there are no docs in my-index)
-        assertAlertWithNoActionNeeded("1", 1);
+
+        if (timeWarped()) {
+            timeWarp().scheduler().fire("_name");
+        } else {
+            // Wait for a no action entry to be added. (the condition search request will not match, because there are no docs in my-index)
+            assertAlertWithNoActionNeeded("_name", 1);
+        }
 
         refresh();
         SearchResponse searchResponse = client().prepareSearch(HistoryStore.ALERT_HISTORY_INDEX_PREFIX + "*")

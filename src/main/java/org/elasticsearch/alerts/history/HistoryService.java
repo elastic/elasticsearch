@@ -24,8 +24,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,7 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class HistoryService extends AbstractComponent {
 
     private final HistoryStore historyStore;
-    private final ThreadPool threadPool;
+    private final AlertsExecutor executor;
     private final AlertsStore alertsStore;
     private final ClusterService clusterService;
     private final AlertLockService alertLockService;
@@ -48,12 +46,12 @@ public class HistoryService extends AbstractComponent {
     private final AtomicInteger initializationRetries = new AtomicInteger();
 
     @Inject
-    public HistoryService(Settings settings, HistoryStore historyStore, ThreadPool threadPool,
+    public HistoryService(Settings settings, HistoryStore historyStore, AlertsExecutor executor,
                           AlertsStore alertsStore, AlertLockService alertLockService, Scheduler scheduler,
                           ClusterService clusterService, Clock clock) {
         super(settings);
         this.historyStore = historyStore;
-        this.threadPool = threadPool;
+        this.executor = executor;
         this.alertsStore = alertsStore;
         this.alertLockService = alertLockService;
         this.clusterService = clusterService;
@@ -67,7 +65,7 @@ public class HistoryService extends AbstractComponent {
             return;
         }
 
-        assert alertsThreadPool().getQueue().isEmpty() : "queue should be empty, but contains " + alertsThreadPool().getQueue().size() + " elements.";
+        assert executor.queue().isEmpty() : "queue should be empty, but contains " + executor.queue().size() + " elements.";
         HistoryStore.LoadResult loadResult = historyStore.loadFiredAlerts(state, FiredAlert.State.AWAITS_EXECUTION);
         if (!loadResult.succeeded()) {
             retry(callback);
@@ -87,7 +85,7 @@ public class HistoryService extends AbstractComponent {
             // We could also rely on the shutdown in #updateSettings call, but
             // this is a forceful shutdown that also interrupts the worker threads in the threadpool
             List<Runnable> cancelledTasks = new ArrayList<>();
-            alertsThreadPool().getQueue().drainTo(cancelledTasks);
+            executor.queue().drainTo(cancelledTasks);
             logger.debug("cancelled [{}] queued tasks", cancelledTasks.size());
             logger.debug("stopped history service");
         }
@@ -98,13 +96,13 @@ public class HistoryService extends AbstractComponent {
     }
 
     // TODO: should be removed from the stats api? This is already visible in the thread pool cat api.
-    public long getQueueSize() {
-        return alertsThreadPool().getQueue().size();
+    public long queueSize() {
+        return executor.queue().size();
     }
 
     // TODO: should be removed from the stats api? This is already visible in the thread pool cat api.
-    public long getLargestQueueSize() {
-        return alertsThreadPool().getLargestPoolSize();
+    public long largestQueueSize() {
+        return executor.largestPoolSize();
     }
 
     void fire(Alert alert, DateTime scheduledFireTime, DateTime fireTime) throws HistoryException {
@@ -130,7 +128,7 @@ public class HistoryService extends AbstractComponent {
 
     void executeAsync(FiredAlert firedAlert, Alert alert) {
         try {
-            alertsThreadPool().execute(new AlertExecutionTask(firedAlert, alert));
+            executor.execute(new AlertExecutionTask(firedAlert, alert));
         } catch (EsRejectedExecutionException e) {
             logger.debug("[{}] failed to execute fired alert", firedAlert.name());
             firedAlert.update(FiredAlert.State.FAILED, "failed to run fired alert due to thread pool capacity");
@@ -180,10 +178,6 @@ public class HistoryService extends AbstractComponent {
         }
     }
 
-    private EsThreadPoolExecutor alertsThreadPool() {
-        return (EsThreadPoolExecutor) threadPool.executor(AlertsPlugin.NAME);
-    }
-
     private void retry(final Callback<ClusterState> callback) {
         ClusterStateListener clusterStateListener = new ClusterStateListener() {
 
@@ -193,7 +187,7 @@ public class HistoryService extends AbstractComponent {
                 assert initializationRetries.decrementAndGet() == 0 : "Only one retry can run at the time";
                 clusterService.remove(this);
                 // We fork into another thread, because start(...) is expensive and we can't call this from the cluster update thread.
-                threadPool.executor(ThreadPool.Names.GENERIC).execute(new Runnable() {
+                executor.execute(new Runnable() {
 
                     @Override
                     public void run() {

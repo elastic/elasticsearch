@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.alerts.test.integration;
 
+import org.apache.lucene.util.LuceneTestCase.Slow;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.alerts.AlertsService;
@@ -22,7 +23,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -39,10 +39,16 @@ import static org.hamcrest.core.Is.is;
 
 /**
  */
+@Slow
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 0)
 public class NoMasterNodeTests extends AbstractAlertsIntegrationTests {
 
     private ClusterDiscoveryConfiguration.UnicastZen config;
+
+    @Override
+    protected boolean timeWarped() {
+        return false;
+    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

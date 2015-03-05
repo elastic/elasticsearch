@@ -127,7 +127,8 @@ public class SearchInput extends Input<SearchInput.Result> {
         } else if (requestPrototype.templateName() != null) {
             MapBuilder<String, String> templateParams = MapBuilder.newMapBuilder(requestPrototype.templateParams())
                     .put(Variables.SCHEDULED_FIRE_TIME, formatDate(scheduledFireTime))
-                    .put(Variables.FIRE_TIME, formatDate(fireTime));
+                    .put(Variables.FIRE_TIME, formatDate(fireTime))
+                    .put(Variables.EXECUTION_TIME, formatDate(executionTime));
             request.templateParams(templateParams.map());
             request.templateName(requestPrototype.templateName());
             request.templateType(requestPrototype.templateType());

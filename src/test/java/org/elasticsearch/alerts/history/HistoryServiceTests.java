@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -50,12 +49,12 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         when(input.execute(any(ExecutionContext.class))).thenReturn(inputResult);
 
         HistoryStore historyStore = mock(HistoryStore.class);
-        ThreadPool threadPool = mock(ThreadPool.class);
+        AlertsExecutor executor = mock(AlertsExecutor.class);
         AlertsStore alertsStore = mock(AlertsStore.class);
         AlertLockService alertLockService = mock(AlertLockService.class);
         Scheduler scheduler = mock(Scheduler.class);
         ClusterService clusterService = mock(ClusterService.class);
-        historyService = new HistoryService(ImmutableSettings.EMPTY, historyStore, threadPool, alertsStore, alertLockService, scheduler, clusterService, SystemClock.INSTANCE);
+        historyService = new HistoryService(ImmutableSettings.EMPTY, historyStore, executor, alertsStore, alertLockService, scheduler, clusterService, SystemClock.INSTANCE);
     }
 
     @Test

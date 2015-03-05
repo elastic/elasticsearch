@@ -123,22 +123,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
             // check and write changes in indices
             for (IndexMetaData indexMetaData : newMetaData) {
-
-                boolean shardsAllocatedOnThisNodeInLastClusterState = true;
-                if (isDataOnlyNode(state)) {
-                    boolean shardsCurrentlyAllocatedOnThisNode = shardsAllocatedOnLocalNode(state, indexMetaData);
-                    shardsAllocatedOnThisNodeInLastClusterState = shardsAllocatedOnLocalNode(event.previousState(), indexMetaData);
-
-                    if (shardsCurrentlyAllocatedOnThisNode == false) {
-                        // remove the index state for this index if it is only a data node
-                        // only delete if the last shard was removed
-                        if (shardsAllocatedOnThisNodeInLastClusterState) {
-                            removeIndexState(indexMetaData);
-                        }
-                        // nothing left to do, we do not write the index state for data only nodes if they do not have shards allocated on them
-                        continue;
-                    }
-                }
                 String writeReason = null;
                 IndexMetaData currentIndexMetaData;
                 if (currentMetaData == null) {
@@ -151,13 +135,16 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                 } else {
                     currentIndexMetaData = currentMetaData.index(indexMetaData.index());
                 }
-                if (currentIndexMetaData == null) {
-                    writeReason = "freshly created";
-                } else if (currentIndexMetaData.version() != indexMetaData.version()) {
-                    writeReason = "version changed from [" + currentIndexMetaData.version() + "] to [" + indexMetaData.version() + "]";
-                } else if (shardsAllocatedOnThisNodeInLastClusterState == false && isDataOnlyNode(state)) {
+                boolean shardsAllocatedOnThisNodeInLastClusterState = shardsAllocatedOnLocalNode(event.previousState(), indexMetaData);
+                boolean shardsAllocatedOnThisNodeInNewClusterState = shardsAllocatedOnLocalNode(event.state(), indexMetaData);
+                if (isDataOnlyNode(state) && (shardsAllocatedOnThisNodeInLastClusterState == false) && (shardsAllocatedOnThisNodeInNewClusterState == true)) {
                     // shard was newly allocated because it was not allocated in last cluster state but is now
+                    // we removed the index state before so now we have to write it again
                     writeReason = "shard allocated on data only node";
+                } else if (shouldWriteOnNode(state, shardsAllocatedOnThisNodeInNewClusterState) && currentIndexMetaData == null) {
+                    writeReason = "freshly created";
+                } else if (shouldWriteOnNode(state, shardsAllocatedOnThisNodeInNewClusterState) && currentIndexMetaData.version() != indexMetaData.version()) {
+                    writeReason = "version changed from [" + currentIndexMetaData.version() + "] to [" + indexMetaData.version() + "]";
                 }
 
                 // we update the writeReason only if we really need to write it
@@ -200,21 +187,18 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     }
 
     protected boolean isDataOnlyNode(ClusterState state) {
-        return ((state.nodes().localNode().masterNode() == false) && (state.nodes().localNode().dataNode() == true));
+        return ((isMasterEligibleNode(state) == false) && (state.nodes().localNode().dataNode() == true));
     }
 
-    private void removeIndexState(IndexMetaData indexMetaData) {
-        final MetaDataStateFormat<IndexMetaData> writer = indexStateFormat(format, formatParams, true);
-        try {
-            Path[] locations = nodeEnv.indexPaths(new Index(indexMetaData.index()));
-            Preconditions.checkArgument(locations != null, "Locations must not be null");
-            Preconditions.checkArgument(locations.length > 0, "One or more locations required");
-            writer.cleanupOldFiles(INDEX_STATE_FILE_PREFIX, null, locations);
-            logger.debug("successfully deleted state for {}", indexMetaData.getIndex());
-        } catch (Throwable ex) {
-            logger.warn("[{}]: failed to delete index state", ex, indexMetaData.index());
-           // and now what?
-        }
+    protected boolean isMasterEligibleNode(ClusterState state) {
+        return state.nodes().localNode().masterNode() == true;
+    }
+
+    /**
+     * Returns true if the local node is either a master eligible node or if shards are allocated on this node
+     */
+    private boolean shouldWriteOnNode(ClusterState state, boolean shardsAllocatedOnThisNodeInNewClusterState) {
+        return (shardsAllocatedOnThisNodeInNewClusterState == true) || isMasterEligibleNode(state);
     }
 
     /**

@@ -47,37 +47,38 @@ sudo initctl reload-configuration
 sudo start elasticsearch
 --------------------------------------------------
 
-elasticsearch.conf can be found in various places, here's an example ([ref](https://gist.github.com/crofty/8841470)):
+elasticsearch.conf can be found in various places, here's an example ([ref](https://github.com/gds-attic/puppet-elasticsearch/blob/master/templates/upstart.conf.erb)):
 --------------------------------------------------
-description     "ElasticSearch"
+# ElasticSearch Service
 
-start on (net-device-up
-          and local-filesystems
-          and runlevel [2345])
+description "ElasticSearch server"
 
-stop on runlevel [016]
+start on runlevel [2345]
+stop on runlevel [!2345]
 
-respawn limit 10 5
+respawn
+respawn limit 5 120
 
 env ES_HOME=/usr/share/elasticsearch
-env JAVA_HOME=/usr/lib/jvm/java-7-openjdk-amd64
-env LOG_DIR=/var/log/elasticsearch
-env DATA_DIR=/var/lib/elasticsearch
-env WORK_DIR=/tmp/elasticsearch
-env CONFIG_DIR=/etc/elasticsearch
-env DEFAULT_CONFIG=/etc/elasticsearch/elasticsearch.yml
+env ES_PIDFILE="/var/run/elasticsearch/elasticsearch.pid"
 
-env DAEMON=/usr/share/elasticsearch/bin/elasticsearch
+limit nofile 64000 64000
+limit memlock unlimited unlimited
 
-console output
+pre-start script
+    mkdir -p /var/run/elasticsearch
+end script
 
-script
-  if [ -f /etc/default/elasticsearch ]; then
-    . /etc/default/elasticsearch
-  fi
-
-  su -s /bin/dash -c "$DAEMON -f -Des.default.config=$DEFAULT_CONFIG -Des.path.conf=$CONFIG_DIR -Des.path.home=$ES_HOME -Des.path.logs=$LOG_DIR -Des.path.data=$DATA_DIR -Des.path.work=$WORK_DIR" elasticsearch
+exec start-stop-daemon --start \
+                       --chuid elasticsearch:elasticsearch \
+                       --pidfile "$ES_PIDFILE" \
+                       --make-pidfile \
+                       --startas "${ES_HOME}/bin/elasticsearch" -- -f
 --------------------------------------------------
+
+Log files can be found in:
+  - `/var/log/elasticsearch/`
+  - `/var/log/upstart/elasticsearch.log`
 
 [float]
 ===== Installing the oracle JDK

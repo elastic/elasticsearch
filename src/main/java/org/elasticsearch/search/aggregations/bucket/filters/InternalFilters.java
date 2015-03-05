@@ -29,6 +29,7 @@ import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation.InternalBucket;
 import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
 import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
@@ -42,7 +43,7 @@ import java.util.Map;
 /**
  *
  */
-public class InternalFilters extends InternalMultiBucketAggregation implements Filters {
+public class InternalFilters extends InternalMultiBucketAggregation<InternalFilters, InternalFilters.Bucket> implements Filters {
 
     public final static Type TYPE = new Type("filters");
 
@@ -173,6 +174,16 @@ public class InternalFilters extends InternalMultiBucketAggregation implements F
     @Override
     public Type type() {
         return TYPE;
+    }
+
+    @Override
+    public InternalFilters create(List<Bucket> buckets) {
+        return new InternalFilters(this.name, buckets, this.keyed, this.reducers(), this.metaData);
+    }
+
+    @Override
+    public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
+        return new Bucket(prototype.key, prototype.docCount, aggregations, prototype.keyed);
     }
 
     @Override

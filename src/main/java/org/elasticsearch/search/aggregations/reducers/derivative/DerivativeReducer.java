@@ -95,7 +95,7 @@ public class DerivativeReducer extends Reducer {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        InternalHistogram<? extends InternalHistogram.Bucket> histo = (InternalHistogram<? extends InternalHistogram.Bucket>) aggregation;
+        InternalHistogram histo = (InternalHistogram) aggregation;
         List<? extends InternalHistogram.Bucket> buckets = histo.getBuckets();
         InternalHistogram.Factory<? extends InternalHistogram.Bucket> factory = histo.getFactory();
 
@@ -116,7 +116,7 @@ public class DerivativeReducer extends Reducer {
             }
             lastBucketValue = thisBucketValue;
         }
-        return factory.create(histo.getName(), newBuckets, histo);
+        return factory.create(newBuckets, histo);
     }
 
     @Override

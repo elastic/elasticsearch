@@ -71,6 +71,11 @@ public class InternalDateHistogram {
         }
 
         @Override
+        public InternalDateHistogram.Bucket createBucket(InternalAggregations aggregations, InternalDateHistogram.Bucket prototype) {
+            return new Bucket(prototype.key, prototype.docCount, aggregations, prototype.getKeyed(), prototype.formatter, this);
+        }
+
+        @Override
         public InternalDateHistogram.Bucket createBucket(Object key, long docCount, InternalAggregations aggregations, boolean keyed,
                 @Nullable ValueFormatter formatter) {
             if (key instanceof Number) {

@@ -52,17 +52,17 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
     @Test
     public void testMetaWrittenAlsoOnDataNode() throws Exception {
         // this test checks that index state is written on data only nodes
-        startMasterNode("master_node", false);
-        startDataNode("red_node", "red", false);
+        String masterNodeName = startMasterNode(false);
+        String redNode = startDataNode("red", false);
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.number_of_replicas", 0)));
         index("test", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
         waitForConcreteMappingsOnAll("test", "doc", "text");
         ensureGreen("test");
-        assertIndexInMetaState("red_node", "test");
-        assertIndexInMetaState("master_node", "test");
+        assertIndexInMetaState(redNode, "test");
+        assertIndexInMetaState(masterNodeName, "test");
         //stop master node and start again with an empty data folder
         ((InternalTestCluster) cluster()).stopCurrentMasterNode();
-        startMasterNode("new_master_node", true);
+        String newMasterNode = startMasterNode(true);
         client().admin().cluster().prepareHealth()
                 .setWaitForRelocatingShards(0)
                 .setWaitForEvents(Priority.LANGUID)
@@ -72,8 +72,8 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         // wait for mapping also on master becasue then we can be sure the state was written
         waitForConcreteMappingsOnAll("test", "doc", "text");
         // check for meta data
-        assertIndexInMetaState("red_node", "test");
-        assertIndexInMetaState("new_master_node", "test");
+        assertIndexInMetaState(redNode, "test");
+        assertIndexInMetaState(newMasterNode, "test");
         // check if index and doc is still there
         ensureGreen("test");
         assertTrue(client().prepareGet("test", "doc", "1").get().isExists());
@@ -82,9 +82,9 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
     @Test
     public void testMetaWrittenOnlyForIndicesOnNodesThatHaveAShard() throws Exception {
         // this test checks that the index state is only written to a data only node if they have a shard of that index allocated on the node
-        startMasterNode("master_node", false);
-        startDataNode("blue_node", "blue", false);
-        startDataNode("red_node", "red", false);
+        String masterNode = startMasterNode(false);
+        String blueNode = startDataNode("blue", false);
+        String redNode = startDataNode("red", false);
 
         assertAcked(prepareCreate("blue_index").setSettings(ImmutableSettings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "blue")));
         index("blue_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
@@ -93,27 +93,27 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         ensureGreen();
         waitForConcreteMappingsOnAll("blue_index", "doc", "text");
         waitForConcreteMappingsOnAll("red_index", "doc", "text");
-        assertIndexNotInMetaState("blue_node", "red_index");
-        assertIndexNotInMetaState("red_node", "blue_index");
-        assertIndexInMetaState("blue_node", "blue_index");
-        assertIndexInMetaState("red_node", "red_index");
-        assertIndexInMetaState("master_node", "red_index");
-        assertIndexInMetaState("master_node", "blue_index");
+        assertIndexNotInMetaState(blueNode, "red_index");
+        assertIndexNotInMetaState(redNode, "blue_index");
+        assertIndexInMetaState(blueNode, "blue_index");
+        assertIndexInMetaState(redNode, "red_index");
+        assertIndexInMetaState(masterNode, "red_index");
+        assertIndexInMetaState(masterNode, "blue_index");
 
         // not the index state for blue_index should only be written on blue_node and the for red_index only on red_node
         // we restart red node and master but with empty data folders
-        stopNode("red_node");
+        stopNode(redNode);
         ((InternalTestCluster) cluster()).stopCurrentMasterNode();
-        startMasterNode("new_master_node", true);
-        startDataNode("new_red_node", "red", true);
+        masterNode = startMasterNode(true);
+        redNode = startDataNode("red", true);
 
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForEvents(Priority.LANGUID).get();
-        assertIndexNotInMetaState("blue_node", "red_index");
-        assertIndexInMetaState("blue_node", "blue_index");
-        assertIndexNotInMetaState("new_red_node", "red_index");
-        assertIndexNotInMetaState("new_red_node", "blue_index");
-        assertIndexNotInMetaState("new_master_node", "red_index");
-        assertIndexInMetaState("new_master_node", "blue_index");
+        assertIndexNotInMetaState(blueNode, "red_index");
+        assertIndexInMetaState(blueNode, "blue_index");
+        assertIndexNotInMetaState(redNode, "red_index");
+        assertIndexNotInMetaState(redNode, "blue_index");
+        assertIndexNotInMetaState(masterNode, "red_index");
+        assertIndexInMetaState(masterNode, "blue_index");
         // check that blue index is still there
         assertFalse(client().admin().indices().prepareExists("red_index").get().isExists());
         assertTrue(client().prepareGet("blue_index", "doc", "1").get().isExists());
@@ -127,9 +127,9 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
     @Test
     public void testMetaIsRemovedIfAllShardsFromIndexRemoved() throws Exception {
         // this test checks that the index state is removed from a data only node once all shards have been allocated away from it
-        startMasterNode("master_node", false);
-        startDataNode("blue_node", "blue", false);
-        startDataNode("red_node", "red", false);
+        String masterNode = startMasterNode(false);
+        String blueNode = startDataNode("blue", false);
+        String redNode = startDataNode("red", false);
 
         // create blue_index on blue_node and same for red
         client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("3")).get();
@@ -139,12 +139,12 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         index("red_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
 
         ensureGreen();
-        assertIndexNotInMetaState("red_node", "blue_index");
-        assertIndexNotInMetaState("blue_node", "red_index");
-        assertIndexInMetaState("red_node", "red_index");
-        assertIndexInMetaState("blue_node", "blue_index");
-        assertIndexInMetaState("master_node", "red_index");
-        assertIndexInMetaState("master_node", "blue_index");
+        assertIndexNotInMetaState(redNode, "blue_index");
+        assertIndexNotInMetaState(blueNode, "red_index");
+        assertIndexInMetaState(redNode, "red_index");
+        assertIndexInMetaState(blueNode, "blue_index");
+        assertIndexInMetaState(masterNode, "red_index");
+        assertIndexInMetaState(masterNode, "blue_index");
 
         // now relocate blue_index to red_node and red_index to blue_node
         logger.debug("relocating indices...");
@@ -152,28 +152,28 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareUpdateSettings("red_index").setSettings(ImmutableSettings.builder().put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "blue")).get();
         client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).get();
         ensureGreen();
-        assertIndexNotInMetaState("red_node", "red_index");
-        assertIndexNotInMetaState("blue_node", "blue_index");
-        assertIndexInMetaState("red_node", "blue_index");
-        assertIndexInMetaState("blue_node", "red_index");
-        assertIndexInMetaState("master_node", "red_index");
-        assertIndexInMetaState("master_node", "blue_index");
+        assertIndexNotInMetaState(redNode, "red_index");
+        assertIndexNotInMetaState(blueNode, "blue_index");
+        assertIndexInMetaState(redNode, "blue_index");
+        assertIndexInMetaState(blueNode, "red_index");
+        assertIndexInMetaState(masterNode, "red_index");
+        assertIndexInMetaState(masterNode, "blue_index");
         waitForConcreteMappingsOnAll("blue_index", "doc", "text");
         waitForConcreteMappingsOnAll("red_index", "doc", "text");
 
         //at this point the blue_index is on red node and the red_index on blue node
         // now, when we start red and master node again but without data folder, the red index should be gone but the blue index should initialize fine
-        stopNode("red_node");
+        stopNode(redNode);
         ((InternalTestCluster) cluster()).stopCurrentMasterNode();
-        startMasterNode("new_master_node", true);
-        startDataNode("new_red_node", "red", true);
+        masterNode = startMasterNode(true);
+        redNode = startDataNode("red", true);
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForEvents(Priority.LANGUID).get();
-        assertIndexNotInMetaState("new_red_node", "blue_index");
-        assertIndexNotInMetaState("blue_node", "blue_index");
-        assertIndexNotInMetaState("new_red_node", "red_index");
-        assertIndexInMetaState("blue_node", "red_index");
-        assertIndexInMetaState("new_master_node", "red_index");
-        assertIndexNotInMetaState("new_master_node", "blue_index");
+        assertIndexNotInMetaState(redNode, "blue_index");
+        assertIndexNotInMetaState(blueNode, "blue_index");
+        assertIndexNotInMetaState(redNode, "red_index");
+        assertIndexInMetaState(blueNode, "red_index");
+        assertIndexInMetaState(masterNode, "red_index");
+        assertIndexNotInMetaState(masterNode, "blue_index");
         assertTrue(client().prepareGet("red_index", "doc", "1").get().isExists());
         // if the red_node had stored the index state then cluster health would be red and blue_index would exist
         assertFalse(client().admin().indices().prepareExists("blue_index").get().isExists());
@@ -187,12 +187,12 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         Map<String, Boolean> runningMasterNodes = new HashMap<>();
         String[] masterNodeNames = {"master_node_1", "master_node_2"};
         for (String name : masterNodeNames) {
-            runningMasterNodes.put(name, true);
-            startMasterNode(name, false);
+            runningMasterNodes.put(startMasterNode(false), true);
         }
         logger.debug("start data node");
-        startDataNode("blue_node", "blue", false);
-        startDataNode("red_node", "red", false);
+        String redNode = startDataNode("red", false);
+        String blueNode = startDataNode("blue", false);
+
 
         client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("3")).get();
         assertAcked(prepareCreate("blue_index").setSettings(ImmutableSettings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "blue")));
@@ -269,10 +269,10 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
 
     protected int startMasterNode(Map<String, Boolean> runningMasterNodes, int numMasterNodesUp) {
         String downMasterNode = getDownMasterNode(runningMasterNodes);
+        runningMasterNodes.remove(downMasterNode);
         boolean withNewDataPath = randomBoolean();
         logger.info("Starting master eligible node {} with {} data path", downMasterNode, (withNewDataPath ? "random empty " : "default"));
-        startMasterNode(downMasterNode, withNewDataPath);
-        runningMasterNodes.put(downMasterNode, true);
+        runningMasterNodes.put(startMasterNode(withNewDataPath), true);
         numMasterNodesUp++;
         return numMasterNodesUp;
     }
@@ -295,31 +295,29 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         return null;
     }
 
-    private void startDataNode(String name, String color, boolean newDataPath) {
+    private String startDataNode(String color, boolean newDataPath) {
         ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder()
                 .put("node.data", true)
                 .put("node.master", false)
-                .put("node.color", color)
-                .put("node.name", name);
+                .put("node.color", color);
         if (newDataPath) {
             settingsBuilder.put("path.data", newTempDirPath().toString());
         }
-        internalCluster().startNode(settingsBuilder.build());
+        return internalCluster().startNode(settingsBuilder.build());
     }
 
-    private void startMasterNode(String name, boolean newDataPath) {
+    private String startMasterNode(boolean newDataPath) {
         ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder()
                 .put("node.data", false)
-                .put("node.master", true)
-                .put("node.name", name);
+                .put("node.master", true);
         if (newDataPath) {
             settingsBuilder.put("path.data", newTempDirPath().toString());
         }
-        internalCluster().startNode(settingsBuilder.build());
+        return internalCluster().startNode(settingsBuilder.build());
     }
 
     private void stopNode(String name) throws IOException {
-        ((InternalTestCluster) cluster()).stopNode(name);
+       internalCluster().stopRandomNode(InternalTestCluster.nameFilter(name));
     }
 
     protected void assertIndexNotInMetaState(String nodeName, String indexName) throws Exception {

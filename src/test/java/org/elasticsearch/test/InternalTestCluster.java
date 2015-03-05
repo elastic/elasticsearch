@@ -579,12 +579,7 @@ public final class InternalTestCluster extends TestCluster {
         assert Thread.holdsLock(this);
         ensureOpen();
         settings = getSettings(nodeId, seed, settings);
-        String name;
-        if (settings.get("node.name") != null) {
-            name = settings.get("node.name");
-        } else {
-            name = buildNodeName(nodeId);
-        }
+        String name = buildNodeName(nodeId);
         assert !nodes.containsKey(name);
         Settings finalSettings = settingsBuilder()
                 .put("path.home", baseDir) // allow overriding path.home
@@ -1122,27 +1117,14 @@ public final class InternalTestCluster extends TestCluster {
     public synchronized boolean stopRandomDataNode() throws IOException {
         ensureOpen();
         NodeAndClient nodeAndClient = getRandomNodeAndClient(new DataNodePredicate());
-        return stopNode(nodeAndClient, true);
-    }
-
-    private boolean stopNode(NodeAndClient nodeAndClient, boolean isRandomNode) throws IOException {
         if (nodeAndClient != null) {
-            logger.info("Closing {}node [{}] ", (isRandomNode? "random ": ""), nodeAndClient.name);
+            logger.info("Closing random node [{}] ", nodeAndClient.name);
             removeDisruptionSchemeFromNode(nodeAndClient);
             nodes.remove(nodeAndClient.name);
             nodeAndClient.close();
             return true;
         }
         return false;
-    }
-
-    /**
-     * Stops a node. Returns true if a node was found to stop, false otherwise.
-     */
-    public synchronized boolean stopNode(String name) throws IOException {
-        ensureOpen();
-        NodeAndClient nodeAndClient = nodes.get(name);
-        return stopNode(nodeAndClient, false);
     }
 
     /**

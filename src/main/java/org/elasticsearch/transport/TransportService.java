@@ -390,8 +390,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                     // lets see if its in the timeout holder
                     TimeoutInfoHolder timeoutInfoHolder = timeoutInfoHandlers.get(requestId);
                     if (timeoutInfoHolder != null) {
-                        action = holder.action();
-                        sourceNode = holder.node();
+                        action = timeoutInfoHolder.action();
+                        sourceNode = timeoutInfoHolder.node();
                     }
                 }
                 if (action == null) {

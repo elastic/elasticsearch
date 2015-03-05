@@ -662,8 +662,15 @@ public class InternalEngine extends Engine {
                     }
 
                 }
-                // reread the last committed segment infos
+                /*
+                 * we have to inc-ref the store here since if the engine is closed by a tragic event
+                 * we don't acquire the write lock and wait until we have exclusive access. This might also
+                 * dec the store reference which can essentially close the store and unless we can inc the reference
+                 * we can't use it.
+                 */
+                store.incRef();
                 try {
+                    // reread the last committed segment infos
                     lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 } catch (Throwable e) {
                     if (isClosed.get() == false) {
@@ -672,6 +679,8 @@ public class InternalEngine extends Engine {
                             throw new FlushFailedEngineException(shardId, e);
                         }
                     }
+                } finally {
+                    store.decRef();
                 }
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);

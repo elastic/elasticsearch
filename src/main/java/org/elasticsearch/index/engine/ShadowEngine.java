@@ -112,7 +112,15 @@ public class ShadowEngine extends Engine {
         logger.trace("skipping FLUSH on shadow engine");
         // reread the last committed segment infos
         refresh("flush");
+        /*
+         * we have to inc-ref the store here since if the engine is closed by a tragic event
+         * we don't acquire the write lock and wait until we have exclusive access. This might also
+         * dec the store reference which can essentially close the store and unless we can inc the reference
+         * we can't use it.
+         */
+        store.incRef();
         try (ReleasableLock _ = readLock.acquire()) {
+            // reread the last committed segment infos
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
         } catch (Throwable e) {
             if (isClosed.get() == false) {
@@ -121,6 +129,8 @@ public class ShadowEngine extends Engine {
                     throw new FlushFailedEngineException(shardId, e);
                 }
             }
+        } finally {
+            store.decRef();
         }
     }
 

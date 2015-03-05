@@ -443,6 +443,8 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         RestRequest request = new InternalRestRequest();
 
         User user = service.authenticate(request);
+        assertThat(request.getFromContext(InternalAuthenticationService.USER_KEY), notNullValue());
+        assertThat(request.getFromContext(InternalAuthenticationService.USER_KEY), sameInstance((Object) user));
         assertThat(user, notNullValue());
         assertThat(user.principal(), equalTo(username));
         assertThat(user.roles(), arrayContainingInAnyOrder("r1", "r2", "r3"));

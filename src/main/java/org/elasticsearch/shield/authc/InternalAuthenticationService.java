@@ -56,6 +56,9 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         AuthenticationToken token = token(request);
         if (token == null) {
             if (anonymouseUser != null) {
+                // we must put the user in the request context, so it'll be copied to the
+                // transport request - without it, the transport will assume system user
+                request.putInContext(USER_KEY, anonymouseUser);
                 return anonymouseUser;
             }
             auditTrail.anonymousAccessDenied(request);
@@ -65,6 +68,8 @@ public class InternalAuthenticationService extends AbstractComponent implements 
         if (user == null) {
             throw new AuthenticationException("unable to authenticate user [" + token.principal() + "] for REST request [" + request.uri() + "]");
         }
+        // we must put the user in the request context, so it'll be copied to the
+        // transport request - without it, the transport will assume system user
         request.putInContext(USER_KEY, user);
         return user;
     }

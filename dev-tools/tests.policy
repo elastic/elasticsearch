@@ -99,6 +99,9 @@ grant {
   // needed by plugin manager to set unix permissions
   permission java.lang.RuntimePermission "accessUserInformation";
 
+  // needed by plugin manager
+  permission javax.net.ssl.SSLPermission "setHostnameVerifier";
+
   // These two *have* to be spelled out a separate
   permission java.lang.management.ManagementPermission "control";
   permission java.lang.management.ManagementPermission "monitor";

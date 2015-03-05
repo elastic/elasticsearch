@@ -588,10 +588,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                         assertThat("test leaves transient cluster metadata behind: " + metaData.transientSettings().getAsMap(), metaData
                             .transientSettings().getAsMap().size(), equalTo(0));
                     }
-                    ensureClusterSizeConsistency();
-                    cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
-                    if (afterClass || currentClusterScope == Scope.TEST) {
-                        cluster().close();
+                    // tlrx Need to check if the cluster if up?
+                    if (cluster().size() > 0) {
+                        ensureClusterSizeConsistency();
+                        cluster().wipe(); // wipe after to make sure we fail in the test that didn't ack the delete
+                        if (afterClass || currentClusterScope == Scope.TEST) {
+                            cluster().close();
+                        }
                     }
                     cluster().assertAfterTest();
                 }

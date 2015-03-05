@@ -32,6 +32,8 @@ import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -216,22 +218,21 @@ public final class FileSystemUtils {
 
                 return FileVisitResult.CONTINUE;
             }
-
-            /**
-             * Compares the content of two paths by comparing them
-             */
-            private boolean isSameFile(Path first, Path second) throws IOException {
-                // do quick file size comparison before hashing
-                boolean sameFileSize = Files.size(first) == Files.size(second);
-                if (!sameFileSize) {
-                    return false;
-                }
-
-                byte[] firstBytes = Files.readAllBytes(first);
-                byte[] secondBytes = Files.readAllBytes(second);
-                return Arrays.equals(firstBytes, secondBytes);
-            }
         });
+    }
+
+    /**
+     * Compares the content of two paths by comparing them
+     */
+    public static boolean isSameFile(Path first, Path second) throws IOException {
+        // do quick file size comparison before hashing
+        boolean sameFileSize = Files.size(first) == Files.size(second);
+        if (!sameFileSize) {
+            return false;
+        }
+        byte[] firstBytes = Files.readAllBytes(first);
+        byte[] secondBytes = Files.readAllBytes(second);
+        return Arrays.equals(firstBytes, secondBytes);
     }
 
     /**

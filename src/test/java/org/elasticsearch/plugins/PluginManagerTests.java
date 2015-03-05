@@ -18,528 +18,347 @@
  */
 package org.elasticsearch.plugins;
 
-import com.google.common.base.Predicate;
-
-import org.apache.http.impl.client.HttpClients;
-import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.FileSystemUtils;
+import com.google.common.collect.Lists;
+import org.elasticsearch.common.cli.CliTool.ExitStatus;
+import org.elasticsearch.common.cli.CliToolTestCase.CaptureOutputTerminal;
+import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import org.elasticsearch.test.junit.annotations.Network;
-import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
-import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.junit.After;
-import org.junit.Before;
+import org.elasticsearch.plugins.repository.PluginDescriptor;
+import org.elasticsearch.plugins.repository.PluginRepositoryException;
 import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
-import java.net.URI;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
 import java.nio.file.attribute.PosixFilePermission;
-import java.util.concurrent.TimeUnit;
+import java.util.Collection;
+import java.util.List;
 
-import static org.elasticsearch.common.io.FileSystemUtilsTests.assertFileContent;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertDirectoryExists;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
+import static org.elasticsearch.plugins.AbstractPluginsTests.ZippedFileBuilder.createZippedFile;
+import static org.elasticsearch.plugins.repository.PluginDescriptor.Builder.pluginDescriptor;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
-public class PluginManagerTests extends ElasticsearchIntegrationTest {
-    private static final Settings SETTINGS = ImmutableSettings.settingsBuilder()
-            .put("discovery.zen.ping.multicast.enabled", false)
-            .put("force.http.enabled", true)
-            .build();
-    private static final String PLUGIN_DIR = "plugins";
-
-    @After
-    public void afterTest() throws IOException {
-        deletePluginsFolder();
-    }
-
-    @Before
-    public void beforeTest() throws IOException {
-        deletePluginsFolder();
-    }
-
-    @Test(expected = ElasticsearchIllegalArgumentException.class)
-    public void testDownloadAndExtract_NullName_ThrowsException() throws IOException {
-        pluginManager(getPluginUrlForResource("plugin_single_folder.zip")).downloadAndExtract(null);
-    }
-
-    @Test
-    public void testLocalPluginInstallSingleFolder() throws Exception {
-        //When we have only a folder in top-level (no files either) we remove that folder while extracting
-        String pluginName = "plugin-test";
-        downloadAndExtract(pluginName, getPluginUrlForResource("plugin_single_folder.zip"));
-
-        internalCluster().startNode(SETTINGS);
-
-        assertPluginLoaded(pluginName);
-        assertPluginAvailable(pluginName);
-    }
-
-    @Test
-    public void testLocalPluginInstallWithBinAndConfig() throws Exception {
-        String pluginName = "plugin-test";
-        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
-                ImmutableSettings.settingsBuilder().build(), false);
-        Environment env = initialSettings.v2();
-        Path binDir = env.homeFile().resolve("bin");
-        if (!Files.exists(binDir)) {
-            Files.createDirectories(binDir);
-        }
-        Path pluginBinDir = binDir.resolve(pluginName);
-        Path configDir = env.configFile();
-        if (!Files.exists(configDir)) {
-            Files.createDirectories(configDir);
-        }
-        Path pluginConfigDir =configDir.resolve(pluginName);
-        try {
-
-            PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_bin_and_config.zip"), initialSettings);
-
-            pluginManager.downloadAndExtract(pluginName);
-
-            Path[] plugins = pluginManager.getListInstalledPlugins();
-
-            assertThat(plugins, arrayWithSize(1));
-            assertDirectoryExists(pluginBinDir);
-            assertDirectoryExists(pluginConfigDir);
-            Path toolFile = pluginBinDir.resolve("tool");
-            assertFileExists(toolFile);
-            
-            // check that the file is marked executable, without actually checking that we can execute it.
-            PosixFileAttributeView view = Files.getFileAttributeView(toolFile, PosixFileAttributeView.class);
-            // the view might be null, on e.g. windows, there is nothing to check there!
-            if (view != null) {
-                PosixFileAttributes attributes = view.readAttributes();
-                assertTrue("unexpected permissions: " + attributes.permissions(), 
-                           attributes.permissions().contains(PosixFilePermission.OWNER_EXECUTE));
-            }
-        } finally {
-            // we need to clean up the copied dirs
-            IOUtils.rm(pluginBinDir, pluginConfigDir);
-        }
-    }
+public class PluginManagerTests extends AbstractPluginsTests {
 
     /**
-     * Test for #7890
+     * Main method to test a plugin with the PluginManager.
+     *
+     * It basically installs the plugin, checks the files, lists
+     * all installed plugins and search for the new one, then removes the plugin and finally
+     * checks that files are deleted.
+     *
+     * @param fqn   the fully qualified name of the plugin
+     * @param zip   the zip file of the plugin to test
+     * @param files the expected files of the plugin
+     * @param env the environment
      */
-    @Test
-    public void testLocalPluginInstallWithBinAndConfigInAlreadyExistingConfigDir_7890() throws Exception {
-        String pluginName = "plugin-test";
-        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
-                ImmutableSettings.settingsBuilder().build(), false);
-        Environment env = initialSettings.v2();
+    protected void testPlugin(String fqn, Path zip, Collection<String> files, Environment env) throws Exception {
+        logger.info("-> Testing plugin '{}'", fqn);
+        assertNotNull(fqn);
 
-        Path configDir = env.configFile();
-        if (!Files.exists(configDir)) {
-            Files.createDirectories(configDir);
-        }
-        Path pluginConfigDir = configDir.resolve(pluginName);
+        // Creates the plugin descriptor corresponding to the plugin to test
+        final PluginDescriptor plugin = pluginDescriptor(fqn).build();
+        assertNotNull(plugin);
 
-        try {
-            PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_config_v1.zip"), initialSettings);
-            pluginManager.downloadAndExtract(pluginName);
+        // Installs the plugin
+        CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+        ExitStatus status = new PluginManager(terminal)
+                .parse("install", new String[]{fqn, "--url", zip.toUri().toString()})
+                .execute(ImmutableSettings.EMPTY, env);
 
-            Path[] plugins = pluginManager.getListInstalledPlugins();
-            assertThat(plugins, arrayWithSize(1));
+        assertThat(status, equalTo(ExitStatus.OK));
+        assertThat(terminal.getTerminalOutput(), hasItem(startsWith("Installing plugin [" + plugin.name() + "]...")));
+        assertThat(terminal.getTerminalOutput(), hasItem(startsWith("Plugin installed successfully!")));
 
-            /*
-            First time, our plugin contains:
-            - config/test.txt (version1)
-             */
-            assertFileContent(pluginConfigDir, "test.txt", "version1\n");
+        // Print all installed files
+        if (logger.isDebugEnabled()) {
+            logger.debug("-> List of installed files:");
+            Files.walkFileTree(env.homeFile(), new SimpleFileVisitor<Path>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
+                    logger.debug("dir : {}", dir);
+                    return super.preVisitDirectory(dir, attrs);
+                }
 
-            // We now remove the plugin
-            pluginManager.removePlugin(pluginName);
-            // We should still have test.txt
-            assertFileContent(pluginConfigDir, "test.txt", "version1\n");
-
-            // Installing a new plugin version
-            /*
-            Second time, our plugin contains:
-            - config/test.txt (version2)
-            - config/dir/testdir.txt (version1)
-            - config/dir/subdir/testsubdir.txt (version1)
-             */
-            pluginManager = pluginManager(getPluginUrlForResource("plugin_with_config_v2.zip"), initialSettings);
-            pluginManager.downloadAndExtract(pluginName);
-
-            assertFileContent(pluginConfigDir, "test.txt", "version1\n");
-            assertFileContent(pluginConfigDir, "test.txt.new", "version2\n");
-            assertFileContent(pluginConfigDir, "dir/testdir.txt", "version1\n");
-            assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt", "version1\n");
-
-            // Removing
-            pluginManager.removePlugin(pluginName);
-            assertFileContent(pluginConfigDir, "test.txt", "version1\n");
-            assertFileContent(pluginConfigDir, "test.txt.new", "version2\n");
-            assertFileContent(pluginConfigDir, "dir/testdir.txt", "version1\n");
-            assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt", "version1\n");
-
-            // Installing a new plugin version
-            /*
-            Third time, our plugin contains:
-            - config/test.txt (version3)
-            - config/test2.txt (version1)
-            - config/dir/testdir.txt (version2)
-            - config/dir/testdir2.txt (version1)
-            - config/dir/subdir/testsubdir.txt (version2)
-             */
-            pluginManager = pluginManager(getPluginUrlForResource("plugin_with_config_v3.zip"), initialSettings);
-            pluginManager.downloadAndExtract(pluginName);
-
-            assertFileContent(pluginConfigDir, "test.txt", "version1\n");
-            assertFileContent(pluginConfigDir, "test2.txt", "version1\n");
-            assertFileContent(pluginConfigDir, "test.txt.new", "version3\n");
-            assertFileContent(pluginConfigDir, "dir/testdir.txt", "version1\n");
-            assertFileContent(pluginConfigDir, "dir/testdir.txt.new", "version2\n");
-            assertFileContent(pluginConfigDir, "dir/testdir2.txt", "version1\n");
-            assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt", "version1\n");
-            assertFileContent(pluginConfigDir, "dir/subdir/testsubdir.txt.new", "version2\n");
-        } finally {
-            // we need to clean up the copied dirs
-            IOUtils.rm(pluginConfigDir);
-        }
-    }
-
-    // For #7152
-    @Test
-    public void testLocalPluginInstallWithBinOnly_7152() throws Exception {
-        String pluginName = "plugin-test";
-        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
-                ImmutableSettings.settingsBuilder().build(), false);
-        Environment env = initialSettings.v2();
-        Path binDir = env.homeFile().resolve("bin");
-        if (!Files.exists(binDir)) {
-            Files.createDirectories(binDir);
-        }
-        Path pluginBinDir = binDir.resolve(pluginName);
-        try {
-            PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_bin_only.zip"), initialSettings);
-            pluginManager.downloadAndExtract(pluginName);
-            Path[] plugins = pluginManager.getListInstalledPlugins();
-            assertThat(plugins.length, is(1));
-            assertDirectoryExists(pluginBinDir);
-        } finally {
-            // we need to clean up the copied dirs
-            IOUtils.rm(pluginBinDir);
-        }
-    }
-
-    @Test
-    public void testLocalPluginInstallSiteFolder() throws Exception {
-        //When we have only a folder in top-level (no files either) but it's called _site, we make it work
-        //we can either remove the folder while extracting and then re-add it manually or just leave it as it is
-        String pluginName = "plugin-test";
-        downloadAndExtract(pluginName, getPluginUrlForResource("plugin_folder_site.zip"));
-
-        internalCluster().startNode(SETTINGS);
-
-        assertPluginLoaded(pluginName);
-        assertPluginAvailable(pluginName);
-    }
-
-    @Test
-    public void testLocalPluginWithoutFolders() throws Exception {
-        //When we don't have folders at all in the top-level, but only files, we don't modify anything
-        String pluginName = "plugin-test";
-        downloadAndExtract(pluginName, getPluginUrlForResource("plugin_without_folders.zip"));
-
-        internalCluster().startNode(SETTINGS);
-
-        assertPluginLoaded(pluginName);
-        assertPluginAvailable(pluginName);
-    }
-
-    @Test
-    public void testLocalPluginFolderAndFile() throws Exception {
-        //When we have a single top-level folder but also files in the top-level, we don't modify anything
-        String pluginName = "plugin-test";
-        downloadAndExtract(pluginName, getPluginUrlForResource("plugin_folder_file.zip"));
-
-        internalCluster().startNode(SETTINGS);
-
-        assertPluginLoaded(pluginName);
-        assertPluginAvailable(pluginName);
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testSitePluginWithSourceThrows() throws Exception {
-        String pluginName = "plugin-with-source";
-        downloadAndExtract(pluginName, getPluginUrlForResource("plugin_with_sourcefiles.zip"));
-    }
-
-    private static PluginManager pluginManager(String pluginUrl) throws IOException {
-        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(
-                ImmutableSettings.settingsBuilder().build(), false);
-        return pluginManager(pluginUrl, initialSettings);
-    }
-
-    /**
-     * We build a plugin manager instance which wait only for 30 seconds before
-     * raising an ElasticsearchTimeoutException
-     */
-    private static PluginManager pluginManager(String pluginUrl, Tuple<Settings, Environment> initialSettings) throws IOException {
-        if (!Files.exists(initialSettings.v2().pluginsFile())) {
-            Files.createDirectories(initialSettings.v2().pluginsFile());
-        }
-        return new PluginManager(initialSettings.v2(), pluginUrl, PluginManager.OutputMode.SILENT, TimeValue.timeValueSeconds(30));
-    }
-
-    private static void downloadAndExtract(String pluginName, String pluginUrl) throws IOException {
-        pluginManager(pluginUrl).downloadAndExtract(pluginName);
-    }
-
-    private void assertPluginLoaded(String pluginName) {
-        NodesInfoResponse nodesInfoResponse = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).get();
-        assertThat(nodesInfoResponse.getNodes().length, equalTo(1));
-        assertThat(nodesInfoResponse.getNodes()[0].getPlugins().getInfos(), notNullValue());
-        assertThat(nodesInfoResponse.getNodes()[0].getPlugins().getInfos().size(), not(0));
-
-        boolean pluginFound = false;
-
-        for (PluginInfo pluginInfo : nodesInfoResponse.getNodes()[0].getPlugins().getInfos()) {
-            if (pluginInfo.getName().equals(pluginName)) {
-                pluginFound = true;
-                break;
-            }
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    logger.debug("file: {}", file);
+                    return super.visitFile(file, attrs);
+                }
+            });
         }
 
-        assertThat(pluginFound, is(true));
-    }
+        // Checks that files have been copied
+        if (files != null) {
+            for (String file : files) {
+                Path f = env.homeFile().resolve(file);
+                assertTrue("File must exist: " + f, Files.exists(f));
 
-    private void assertPluginAvailable(String pluginName) throws InterruptedException, IOException {
-        final HttpRequestBuilder httpRequestBuilder = getHttpRequestBuilder();
-
-        //checking that the http connector is working properly
-        // We will try it for some seconds as it could happen that the REST interface is not yet fully started
-        assertThat(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object obj) {
-                try {
-                    HttpResponse response = httpRequestBuilder.method("GET").path("/").execute();
-                    if (response.getStatusCode() != RestStatus.OK.getStatus()) {
-                        // We want to trace what's going on here before failing the test
-                        logger.info("--> error caught [{}], headers [{}]", response.getStatusCode(), response.getHeaders());
-                        logger.info("--> cluster state [{}]", internalCluster().clusterService().state());
-                        return false;
+                if (file.startsWith("bin/" + plugin.name())) {
+                    // check that the file is marked executable, without actually checking that we can execute it.
+                    PosixFileAttributeView view = Files.getFileAttributeView(f, PosixFileAttributeView.class);
+                    // the view might be null, on e.g. windows, there is nothing to check there!
+                    if (view != null) {
+                        PosixFileAttributes attributes = view.readAttributes();
+                        assertTrue("unexpected permissions: " + attributes.permissions(),
+                                attributes.permissions().contains(PosixFilePermission.OWNER_EXECUTE));
                     }
-                    return true;
-                } catch (IOException e) {
-                    throw new ElasticsearchException("HTTP problem", e);
                 }
             }
-        }, 5, TimeUnit.SECONDS), equalTo(true));
-
-
-        //checking now that the plugin is available
-        HttpResponse response = getHttpRequestBuilder().method("GET").path("/_plugin/" + pluginName + "/").execute();
-        assertThat(response, notNullValue());
-        assertThat(response.getReasonPhrase(), response.getStatusCode(), equalTo(RestStatus.OK.getStatus()));
-    }
-
-    private HttpRequestBuilder getHttpRequestBuilder() {
-        return new HttpRequestBuilder(HttpClients.createDefault()).httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class));
-    }
-
-    @Test
-    public void testListInstalledEmpty() throws IOException {
-        Path[] plugins = pluginManager(null).getListInstalledPlugins();
-        assertThat(plugins, notNullValue());
-        assertThat(plugins.length, is(0));
-    }
-
-    @Test(expected = IOException.class)
-    public void testInstallPluginNull() throws IOException {
-        pluginManager(null).downloadAndExtract("plugin-test");
-    }
-
-
-    @Test
-    public void testInstallPlugin() throws IOException {
-        PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_with_classfile.zip"));
-
-        pluginManager.downloadAndExtract("plugin-classfile");
-        Path[] plugins = pluginManager.getListInstalledPlugins();
-        assertThat(plugins, notNullValue());
-        assertThat(plugins.length, is(1));
-    }
-
-    @Test
-    public void testInstallSitePlugin() throws IOException {
-        PluginManager pluginManager = pluginManager(getPluginUrlForResource("plugin_without_folders.zip"));
-
-        pluginManager.downloadAndExtract("plugin-site");
-        Path[] plugins = pluginManager.getListInstalledPlugins();
-        assertThat(plugins, notNullValue());
-        assertThat(plugins.length, is(1));
-
-        // We want to check that Plugin Manager moves content to _site
-        String pluginDir = PLUGIN_DIR.concat("/plugin-site/_site");
-        assertFileExists(Paths.get(pluginDir));
-    }
-
-
-    private void singlePluginInstallAndRemove(String pluginShortName, String pluginCoordinates) throws IOException {
-        logger.info("--> trying to download and install [{}]", pluginShortName);
-        PluginManager pluginManager = pluginManager(pluginCoordinates);
-        try {
-            pluginManager.downloadAndExtract(pluginShortName);
-            Path[] plugins = pluginManager.getListInstalledPlugins();
-            assertThat(plugins, notNullValue());
-            assertThat(plugins.length, is(1));
-
-            // We remove it
-            pluginManager.removePlugin(pluginShortName);
-            plugins = pluginManager.getListInstalledPlugins();
-            assertThat(plugins, notNullValue());
-            assertThat(plugins.length, is(0));
-        } catch (IOException e) {
-            logger.warn("--> IOException raised while downloading plugin [{}]. Skipping test.", e, pluginShortName);
-        } catch (ElasticsearchTimeoutException e) {
-            logger.warn("--> timeout exception raised while downloading plugin [{}]. Skipping test.", pluginShortName);
         }
-    }
 
-    /**
-     * We are ignoring by default these tests as they require to have an internet access
-     * To activate the test, use -Dtests.network=true
-     * We test regular form: username/reponame/version
-     * It should find it in download.elasticsearch.org service
-     */
-    @Test
-    @Network
-    public void testInstallPluginWithElasticsearchDownloadService() throws IOException {
-        assumeTrue(isDownloadServiceWorking("download.elasticsearch.org", 80, "/elasticsearch/ci-test.txt"));
-        singlePluginInstallAndRemove("elasticsearch/elasticsearch-transport-thrift/2.4.0", null);
-    }
+        // List all plugin and verify that the plugin is present
+        terminal = new CaptureOutputTerminal();
+        status = new PluginManager.List(terminal).execute(ImmutableSettings.EMPTY, env);
 
-    /**
-     * We are ignoring by default these tests as they require to have an internet access
-     * To activate the test, use -Dtests.network=true
-     * We test regular form: groupId/artifactId/version
-     * It should find it in maven central service
-     */
-    @Test
-    @Network
-    public void testInstallPluginWithMavenCentral() throws IOException {
-        assumeTrue(isDownloadServiceWorking("search.maven.org", 80, "/"));
-        assumeTrue(isDownloadServiceWorking("repo1.maven.org", 443, "/maven2/org/elasticsearch/elasticsearch-transport-thrift/2.4.0/elasticsearch-transport-thrift-2.4.0.pom"));
-        singlePluginInstallAndRemove("org.elasticsearch/elasticsearch-transport-thrift/2.4.0", null);
-    }
+        assertThat(status, equalTo(ExitStatus.OK));
+        assertFalse(terminal.getTerminalOutput().isEmpty());
+        if (plugin.version() != null) {
+            assertThat(terminal.getTerminalOutput(), hasItem(startsWith(plugin.name() + " (" + plugin.version() + ")")));
+        } else {
+            assertThat(terminal.getTerminalOutput(), hasItem(startsWith(plugin.name() + " (no version)")));
+        }
 
-    /**
-     * We are ignoring by default these tests as they require to have an internet access
-     * To activate the test, use -Dtests.network=true
-     * We test site plugins from github: userName/repoName
-     * It should find it on github
-     */
-    @Test
-    @Network
-    public void testInstallPluginWithGithub() throws IOException {
-        assumeTrue(isDownloadServiceWorking("github.com", 443, "/"));
-        singlePluginInstallAndRemove("elasticsearch/kibana", null);
-    }
+        // Removes the plugin
+        terminal = new CaptureOutputTerminal();
+        status = new PluginManager(terminal)
+                .parse("uninstall", new String[]{plugin.name(), "-v"})
+                .execute(ImmutableSettings.EMPTY, env);
 
-    private boolean isDownloadServiceWorking(String host, int port, String resource) {
-        try {
-            String protocol = port == 443 ? "https" : "http";
-            HttpResponse response = new HttpRequestBuilder(HttpClients.createDefault()).protocol(protocol).host(host).port(port).path(resource).execute();
-            if (response.getStatusCode() != 200) {
-                logger.warn("[{}{}] download service is not working. Disabling current test.", host, resource);
-                return false;
+        assertThat(terminal.verbosity(), equalTo(Terminal.Verbosity.VERBOSE));
+        assertThat(status, equalTo(ExitStatus.OK));
+
+        assertThat(terminal.getTerminalOutput(), hasItem(startsWith("Uninstalling plugin [" + plugin.name() + "]...")));
+        assertThat(terminal.getTerminalOutput(), hasItem(startsWith("Found " + plugin.name())));
+        assertThat(terminal.getTerminalOutput(), hasItem(startsWith("Removed " + plugin.name())));
+
+        // List all plugin and checks if the plugin is not found
+        terminal = new CaptureOutputTerminal();
+        status = new PluginManager.List(terminal).execute(ImmutableSettings.EMPTY, env);
+
+        assertThat(status, equalTo(ExitStatus.OK));
+        assertTrue(terminal.getTerminalOutput().isEmpty());
+
+        // Check that files are correctly deleted
+        if (files != null) {
+            for (String file : files) {
+                // Config files are never removed
+                if (file.startsWith("config")) {
+                    assertTrue("Files must exist: " + file, Files.exists(env.homeFile().resolve(file)));
+                } else {
+                    assertFalse("File must not exist: " + file, Files.exists(env.homeFile().resolve(file)));
+                }
             }
-            return true;
-        } catch (Throwable t) {
-            logger.warn("[{}{}] download service is not working. Disabling current test.", host, resource);
         }
-        return false;
-    }
 
-    private void deletePluginsFolder() throws IOException {
-        IOUtils.rm(Paths.get(PLUGIN_DIR));
+        logger.info("-> Plugin '{}' tested with success", plugin.name());
     }
 
     @Test
-    public void testRemovePlugin() throws Exception {
-        // We want to remove plugin with plugin short name
-        singlePluginInstallAndRemove("plugintest", getPluginUrlForResource("plugin_without_folders.zip"));
+    public void testPluginUnavailable() throws Exception {
+        try (InMemoryEnvironment env = new InMemoryEnvironment()) {
+            CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+            ExitStatus status = new PluginManager(terminal)
+                    .parse("install", new String[]{"plugin-unavailable", "--url", newTempFilePath().toString()})
+                    .execute(ImmutableSettings.EMPTY, env);
 
-        // We want to remove plugin with groupid/artifactid/version form
-        singlePluginInstallAndRemove("groupid/plugintest/1.0.0", getPluginUrlForResource("plugin_without_folders.zip"));
-
-        // We want to remove plugin with groupid/artifactid form
-        singlePluginInstallAndRemove("groupid/plugintest", getPluginUrlForResource("plugin_without_folders.zip"));
+            assertThat(status, equalTo(ExitStatus.UNAVAILABLE));
+            assertThat(terminal.getTerminalOutput(), hasItem(startsWith("Installing plugin [plugin-unavailable]...")));
+            assertThat(terminal.getTerminalOutput(), hasItem(startsWith("ERROR: Download failed")));
+            assertThat(terminal.getTerminalOutput(), hasItem(startsWith("ERROR: Failed to resolve plugin")));
+        }
     }
 
-    @Test(expected = ElasticsearchIllegalArgumentException.class)
-    public void testRemovePlugin_NullName_ThrowsException() throws IOException {
-        pluginManager(getPluginUrlForResource("plugin_single_folder.zip")).removePlugin(null);
-    }
 
-    @Test(expected = ElasticsearchIllegalArgumentException.class)
-    public void testRemovePluginWithURLForm() throws Exception {
-        PluginManager pluginManager = pluginManager(null);
-        pluginManager.removePlugin("file://whatever");
-    }
 
+    /**
+     * Test a plugin with the following zipped content :
+     * <p/>
+     * |
+     * +-- /plugin-with-sourcefiles/
+     *       +-- src/main/java/org/elasticsearch/plugin/foo/bar/FooBar.java
+     *       +-- bin/
+     *            +-- cmd.sh
+     */
     @Test
-    public void testForbiddenPluginName_ThrowsException() throws IOException {
-        runTestWithForbiddenName(null);
-        runTestWithForbiddenName("");
-        runTestWithForbiddenName("elasticsearch");
-        runTestWithForbiddenName("elasticsearch.bat");
-        runTestWithForbiddenName("elasticsearch.in.sh");
-        runTestWithForbiddenName("plugin");
-        runTestWithForbiddenName("plugin.bat");
-        runTestWithForbiddenName("service.bat");
-        runTestWithForbiddenName("ELASTICSEARCH");
-        runTestWithForbiddenName("ELASTICSEARCH.IN.SH");
+    public void testPluginWithSourceFilesAndConfig() throws Exception {
+        Path zip = createZippedFile(newTempDirPath(), "plugin_with_sourcefiles_and_bin.zip")
+                .addDir("plugin-with-sourcefiles-and-bin/bin/")
+                .addFile("plugin-with-sourcefiles-and-bin/bin/cmd.sh", "Command file")
+                .addDir("plugin-with-sourcefiles-and-bin/src/main/java/org/elasticsearch/plugin/foo/bar/")
+                .addFile("plugin-with-sourcefiles-and-bin/src/main/java/org/elasticsearch/plugin/foo/bar/FooBar.java", "package foo.bar")
+                .toPath();
+
+        try (InMemoryEnvironment env = new InMemoryEnvironment()) {
+
+            // Installs the plugin
+            CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+            ExitStatus status = new PluginManager(terminal)
+                    .parse("install", new String[]{"plugin-with-sourcefiles-and-bin", "--url", zip.toUri().toString()})
+                    .execute(ImmutableSettings.EMPTY, env);
+
+            assertThat(status, equalTo(ExitStatus.CANT_CREATE));
+            assertThat(terminal.getTerminalOutput(), hasItem(startsWith("Installing plugin [plugin-with-sourcefiles-and-bin]...")));
+            assertThat(terminal.getTerminalOutput(), hasItem(startsWith("ERROR: [local] Error when installing the plugin 'plugin-with-sourcefiles-and-bin'")));
+
+            // Checks that the plugin has been removed
+            assertNotNull(env);
+            assertFalse(Files.exists(env.pluginsFile().resolve("plugin-with-sourcefiles-and-bin")));
+            assertFalse(Files.exists(env.homeFile().resolve("bin").resolve("plugin-with-sourcefiles-and-bin")));
+        }
     }
 
-    private void runTestWithForbiddenName(String name) throws IOException {
-        try {
-            pluginManager(null).removePlugin(name);
-            fail("this plugin name [" + name +
-                    "] should not be allowed");
-        } catch (ElasticsearchIllegalArgumentException e) {
-            // We expect that error
+    /**
+     * Test a plugin with the following zipped content :
+     * <p/>
+     * |
+     * +-- /plugin-with-sourcefiles/src/main/java/org/elasticsearch/plugin/foo/bar/FooBar.java
+     */
+    @Test
+    public void testPluginWithSourceFiles() throws Exception {
+        Path zip = createZippedFile(newTempDirPath(), "plugin_with_sourcefiles.zip")
+                .addDir("plugin-with-sourcefiles/src/main/java/org/elasticsearch/plugin/foo/bar/")
+                .addFile("plugin-with-sourcefiles/src/main/java/org/elasticsearch/plugin/foo/bar/FooBar.java", "package foo.bar")
+                .toPath();
+
+        try (InMemoryEnvironment env = new InMemoryEnvironment()) {
+
+            // Installs the plugin
+            CaptureOutputTerminal terminal = new CaptureOutputTerminal();
+            ExitStatus status = new PluginManager(terminal)
+                    .parse("install", new String[]{"plugin-with-sourcefiles", "--url", zip.toUri().toString()})
+                    .execute(ImmutableSettings.EMPTY, env);
+
+            assertThat(status, equalTo(ExitStatus.CANT_CREATE));
+            assertThat(terminal.getTerminalOutput(), hasItem(startsWith("Installing plugin [plugin-with-sourcefiles]...")));
+            assertThat(terminal.getTerminalOutput(), hasItem(startsWith("ERROR: [local] Error when installing the plugin 'plugin-with-sourcefiles'")));
+
+            // Checks that the plugin has been removed
+            assertNotNull(env);
+            assertFalse(Files.exists(env.pluginsFile().resolve("plugin-with-sourcefiles")));
+            assertFalse(Files.exists(env.homeFile().resolve("bin").resolve("plugin-with-sourcefiles")));
         }
     }
 
 
     /**
-     * Retrieve a URL string that represents the resource with the given {@code resourceName}.
-     * @param resourceName The resource name relative to {@link PluginManagerTests}.
-     * @return Never {@code null}.
-     * @throws NullPointerException if {@code resourceName} does not point to a valid resource.
+     * Test that configuration files are not remove and not overridden (see issue #7890):
      */
-    private String getPluginUrlForResource(String resourceName) {
-        URI uri = URI.create(PluginManagerTests.class.getResource(resourceName).toString());
+    @Test
+    public void testPluginWithExistingConfigurations() throws Exception {
+        try (InMemoryEnvironment env = new InMemoryEnvironment()) {
 
-        return "file://" + uri.getPath();
+            Path tmp = newTempDirPath();
+
+            //
+            // First install, the plugin contains:
+            //
+            // +-- config/
+            //      +-- config.yml
+            //
+            Path zip = createZippedFile(tmp, "plugin_with_config_v1.zip")
+                    .addDir("config/")
+                    .addFile("config/config.yml", "First version of the config file")
+                    .toPath();
+
+            List<String> files = Lists.newArrayList("config/plugin-with-existing-config/config.yml");
+
+            testPlugin("plugin-with-existing-config", zip, files, env);
+
+            Path configDir = env.configFile().resolve("plugin-with-existing-config");
+            assertFileExist(configDir, "config.yml");
+
+            //
+            // Second install, the plugin contains:
+            //
+            // +-- config/
+            //      |-- config.yml (version 2)
+            //      |-- users/
+            //           |-- users.yml
+            //           +-- roles/
+            //                +-- roles.yml
+            zip = createZippedFile(tmp, "plugin_with_config_v2.zip")
+                    .addDir("config/")
+                    .addFile("config/config.yml", "Second version of the config file")
+                    .addDir("config/users/")
+                    .addFile("config/users/users.yml", "Users config file")
+                    .addDir("config/users/roles/")
+                    .addFile("config/users/roles/roles.yml", "Roles config file")
+                    .toPath();
+
+            files = Lists.newArrayList("config/plugin-with-existing-config/config.yml",
+                    "config/plugin-with-existing-config/users/users.yml",
+                    "config/plugin-with-existing-config/users/roles/roles.yml");
+
+            testPlugin("plugin-with-existing-config", zip, files, env);
+
+            assertFileExist(configDir, "config.yml");
+            assertFileExist(configDir, "config.yml.new");
+            assertFileExist(configDir, "users/users.yml");
+            assertFileExist(configDir, "users/roles/roles.yml");
+
+            assertFileContains(configDir.resolve("config.yml"), "First version of the config file");
+            assertFileContains(configDir.resolve("config.yml.new"), "Second version of the config file");
+            assertFileContains(configDir.resolve("users/users.yml"), "Users config file");
+            assertFileContains(configDir.resolve("users/roles/roles.yml"), "Roles config file");
+
+            //
+            // Third install, the plugin contains:
+            //
+            // +-- config/
+            //      |-- config.yml (version 3)
+            //      |-- other.yml (version 1)
+            //      |-- users/
+            //           |-- users.yml (version 2)
+            //           |-- groups.yml (version 1)
+            //           +-- roles/
+            //                +-- roles.yml (version 2)
+            //                +-- admin.yml (version 1)
+            zip = createZippedFile(tmp, "plugin_with_config_v3.zip")
+                    .addDir("config/")
+                    .addFile("config/config.yml", "Third version of the config file")
+                    .addFile("config/other.yml", "First version of the other file")
+                    .addDir("config/users/")
+                    .addFile("config/users/users.yml", "Users config file (version 2)")
+                    .addFile("config/users/groups.yml", "Groups config file (version 1)")
+                    .addDir("config/users/roles/")
+                    .addFile("config/users/roles/roles.yml", "Roles config file (version 2)")
+                    .addFile("config/users/roles/admin.yml", "Admin config file (version 1)")
+                    .toPath();
+
+            files = Lists.newArrayList("config/plugin-with-existing-config/config.yml",
+                    "config/plugin-with-existing-config/other.yml",
+                    "config/plugin-with-existing-config/users/users.yml",
+                    "config/plugin-with-existing-config/users/groups.yml",
+                    "config/plugin-with-existing-config/users/roles/roles.yml",
+                    "config/plugin-with-existing-config/users/roles/admin.yml");
+
+            testPlugin("plugin-with-existing-config", zip, files, env);
+
+            assertFileExist(configDir, "config.yml");
+            assertFileExist(configDir, "config.yml.new");
+            assertFileExist(configDir, "other.yml");
+            assertFileExist(configDir, "users/users.yml");
+            assertFileExist(configDir, "users/users.yml.new");
+            assertFileExist(configDir, "users/roles/roles.yml");
+            assertFileExist(configDir, "users/roles/roles.yml.new");
+            assertFileExist(configDir, "users/roles/admin.yml");
+
+            assertFileContains(configDir.resolve("config.yml"), "First version of the config file");
+            assertFileContains(configDir.resolve("config.yml.new"), "Third version of the config file");
+            assertFileContains(configDir.resolve("other.yml"), "First version of the other file");
+            assertFileContains(configDir.resolve("users/users.yml"), "Users config file");
+            assertFileContains(configDir.resolve("users/users.yml.new"), "Users config file (version 2)");
+            assertFileContains(configDir.resolve("users/roles/roles.yml"), "Roles config file");
+            assertFileContains(configDir.resolve("users/roles/roles.yml.new"), "Roles config file (version 2)");
+            assertFileContains(configDir.resolve("users/roles/admin.yml"), "Admin config file (version 1)");
+        }
     }
+
 }

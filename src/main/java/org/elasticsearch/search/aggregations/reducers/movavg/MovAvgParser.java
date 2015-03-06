@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.reducers.movavg;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
@@ -120,7 +121,14 @@ public class MovAvgParser implements Reducer.Parser {
         return new MovAvgReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy, weightingType, window, settings);
     }
 
-    private Map<String, Object> getDefaultSettings(Weighting weightingType, Map<String, Object> settings) {
+    /**
+     * Provide some default values depending on the weighting type being used
+     *
+     * @param weightingType     Weighting being used for the agg (simple, linear, etc)
+     * @param settings          Map of settings provided by the user. May be null if no settings
+     * @return                  Return a map of settings if valid, otherwise null
+     */
+    private @Nullable Map<String, Object> getDefaultSettings(Weighting weightingType, @Nullable Map<String, Object> settings) {
         // simple and linear have no settings
         if (weightingType.equals(MovAvgModel.Weighting.SIMPLE) || weightingType.equals(MovAvgModel.Weighting.LINEAR)) {
             return null;

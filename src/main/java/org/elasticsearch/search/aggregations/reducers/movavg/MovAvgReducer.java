@@ -76,7 +76,7 @@ public class MovAvgReducer extends Reducer {
     }
 
     public MovAvgReducer(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
-                         MovAvgModel.Weighting weightingType, int window, Map<String, Object> settings, Map<String, Object> metadata) {
+                         MovAvgModel.Weighting weightingType, int window, @Nullable Map<String, Object> settings, Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
         this.gapPolicy = gapPolicy;
@@ -146,7 +146,7 @@ public class MovAvgReducer extends Reducer {
         private Map<String, Object> settings;
 
         public Factory(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
-                       MovAvgModel.Weighting weightingType, int window, Map<String, Object> settings) {
+                       MovAvgModel.Weighting weightingType, int window, @Nullable Map<String, Object> settings) {
             super(name, TYPE.name(), bucketsPaths);
             this.formatter = formatter;
             this.gapPolicy = gapPolicy;

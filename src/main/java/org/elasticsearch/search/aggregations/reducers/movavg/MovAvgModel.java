@@ -1,6 +1,7 @@
 package org.elasticsearch.search.aggregations.reducers.movavg;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -11,6 +12,10 @@ import org.elasticsearch.search.internal.SearchContext;
 import java.io.IOException;
 import java.util.*;
 
+/**
+ * Provides a set of moving average based models.  Given a series of data, will return
+ * variously weighted averages of the mean
+ */
 public final class MovAvgModel {
 
     public static enum Weighting {
@@ -72,7 +77,7 @@ public final class MovAvgModel {
      * @param <T>    Type T extending Number
      * @return       Returns a double containing the moving avg for the window
      */
-    public static <T extends Number> double next(Collection<T> values, Weighting weight, Map<String, Object> settings) {
+    public static <T extends Number> double next(Collection<T> values, @Nullable Weighting weight, Map<String, Object> settings) {
         double alpha;
         double beta;
 
@@ -94,6 +99,13 @@ public final class MovAvgModel {
         }
     }
 
+    /**
+     * Calculate a simple unweighted (arithmetic) moving average
+     *
+     * @param values Collection of values to calculate avg for
+     * @param <T>    Type T extending Number
+     * @return       Returns a Double containing the moving avg for the window
+     */
     private static <T extends Number> double simpleMovingAvg(Collection<T> values) {
         double avg = 0;
         for (T v : values) {
@@ -102,6 +114,14 @@ public final class MovAvgModel {
         return avg / values.size();
     }
 
+    /**
+     * Calculate a linearly weighted moving average, such that older values are
+     * linearly less important.  "Time" is determined by position in collection
+     *
+     * @param values Collection of values to calculate avg for
+     * @param <T>    Type T extending Number
+     * @return       Returns a Double containing the moving avg for the window
+     */
     private static <T extends Number> double linearMovingAvg(Collection<T> values) {
         double avg = 0;
         long totalWeight = 1;
@@ -115,6 +135,17 @@ public final class MovAvgModel {
         return avg / totalWeight;
     }
 
+    /**
+     * Calculate a exponentially weighted moving average
+     *
+     * @param values Collection of values to calculate avg for
+     * @param alpha  Controls smoothing of data. Alpha = 1 retains no memory of past values
+     *               (e.g. random walk), while alpha = 0 retains infinite memory of past values (e.g.
+     *               mean of the series).  Useful values are somewhere in between
+     *
+     * @param <T>    Type T extending Number
+     * @return       Returns a Double containing the moving avg for the window
+     */
     private static <T extends Number> double singleExponential(Collection<T> values, double alpha) {
         double avg = 0;
         boolean first = true;
@@ -130,6 +161,19 @@ public final class MovAvgModel {
         return avg;
     }
 
+    /**
+     * Calculate a doubly exponential weighted moving average
+     *
+     * @param values Collection of values to calculate avg for
+     * @param alpha  Controls smoothing of data. Alpha = 1 retains no memory of past values
+     *               (e.g. random walk), while alpha = 0 retains infinite memory of past values (e.g.
+     *               mean of the series).  Useful values are somewhere in between
+     * @param beta   Equivalent to <code>alpha</code>, but controls the smoothing of the trend instead
+     *               of the data
+     *
+     * @param <T>    Type T extending Number
+     * @return       Returns a Double containing the moving avg for the window
+     */
     private static <T extends Number> List<Double> doubleExponential(Collection<T> values, int numForecasts, double alpha, double beta) {
         // Smoothed value
         double s = 0;

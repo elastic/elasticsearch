@@ -50,17 +50,15 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
 
     static int interval;
     static int numValueBuckets;
+    static int numFilledValueBuckets;
     static int windowSize;
+    static BucketHelpers.GapPolicy gapPolicy;
 
     static long[] valueCounts;
-    static double[] simpleMovAvgCounts;
-    static double[] linearMovAvgCounts;
-    static double[] singleExpMovAvgCounts;
-    static double[] doubleExpMovAvgCounts;
-
-    static Long[] valueCounts_empty;
-    static long numDocsEmptyIdx;
-    static Double[] firstDerivValueCounts_empty;
+    static Double[] simpleMovAvgCounts;
+    static Double[] linearMovAvgCounts;
+    static Double[] singleExpMovAvgCounts;
+    static Double[] doubleExpMovAvgCounts;
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -69,17 +67,22 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
 
         interval = 5;
         numValueBuckets = randomIntBetween(6, 80);
+        numFilledValueBuckets = numValueBuckets;
         windowSize = randomIntBetween(3,10);
+        gapPolicy = randomBoolean() ? BucketHelpers.GapPolicy.IGNORE : BucketHelpers.GapPolicy.INSERT_ZEROS;
 
         valueCounts = new long[numValueBuckets];
         for (int i = 0; i < numValueBuckets; i++) {
-            valueCounts[i] = randomIntBetween(1, 20);
+            valueCounts[i] = randomIntBetween(0, 20);
         }
 
-        simpleMovAvgCounts = new double[numValueBuckets];
+        simpleMovAvgCounts = new Double[numValueBuckets];
         EvictingQueue<Double> window = EvictingQueue.create(windowSize);
         for (int i = 0; i < numValueBuckets; i++) {
             double thisValue = valueCounts[i];
+            if (thisValue == 0) {
+                thisValue = 0;
+            }
             window.offer(thisValue);
 
             double movAvg = 0;
@@ -91,10 +94,13 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             simpleMovAvgCounts[i] = movAvg;
         }
 
-        linearMovAvgCounts = new double[numValueBuckets];
+        linearMovAvgCounts = new Double[numValueBuckets];
         window.clear();
         for (int i = 0; i < numValueBuckets; i++) {
             double thisValue = valueCounts[i];
+            if (thisValue == -1) {
+                thisValue = 0;
+            }
             window.offer(thisValue);
 
             double avg = 0;
@@ -109,10 +115,13 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             linearMovAvgCounts[i] = avg / totalWeight;
         }
 
-        singleExpMovAvgCounts = new double[numValueBuckets];
+        singleExpMovAvgCounts = new Double[numValueBuckets];
         window.clear();
         for (int i = 0; i < numValueBuckets; i++) {
             double thisValue = valueCounts[i];
+            if (thisValue == -1) {
+                thisValue = 0;
+            }
             window.offer(thisValue);
 
             double avg = 0;
@@ -130,10 +139,13 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             singleExpMovAvgCounts[i] = avg ;
         }
 
-        doubleExpMovAvgCounts = new double[numValueBuckets];
+        doubleExpMovAvgCounts = new Double[numValueBuckets];
         window.clear();
         for (int i = 0; i < numValueBuckets; i++) {
             double thisValue = valueCounts[i];
+            if (thisValue == -1) {
+                thisValue = 0;
+            }
             window.offer(thisValue);
 
             double s = 0;
@@ -166,16 +178,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             doubleExpMovAvgCounts[i] = s + (0 * b) ;
         }
 
-
-
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < numValueBuckets; i++) {
             for (int docs = 0; docs < valueCounts[i]; docs++) {
                 builders.add(client().prepareIndex("idx", "type").setSource(newDocBuilder(i * interval)));
             }
         }
-
-       // TODO empty buckets
 
         indexRandom(true, builders);
         ensureSearchable();
@@ -194,10 +202,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
+                                .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
                                 .subAggregation(movavg("movavg")
                                         .window(windowSize)
                                         .weightingType(MovAvgModel.Weighting.SIMPLE)
+                                        .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
                 ).execute().actionGet();
 
@@ -227,10 +237,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
+                                .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
                                 .subAggregation(movavg("movavg")
                                         .window(windowSize)
                                         .weightingType(MovAvgModel.Weighting.LINEAR)
+                                        .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
                 ).execute().actionGet();
 
@@ -260,10 +272,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
+                                .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
                                 .subAggregation(movavg("movavg")
                                         .window(windowSize)
                                         .weightingType(MovAvgModel.Weighting.SINGLE_EXP)
+                                        .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
                 ).execute().actionGet();
 
@@ -293,10 +307,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
+                                .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
                                 .subAggregation(movavg("movavg")
                                         .window(windowSize)
                                         .weightingType(MovAvgModel.Weighting.DOUBLE_EXP)
+                                        .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
                 ).execute().actionGet();
 
@@ -319,7 +335,10 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
 
 
     private void checkBucketKeyAndDocCount(final String msg, final Histogram.Bucket bucket, final long expectedKey,
-                                           final long expectedDocCount) {
+                                           long expectedDocCount) {
+        if (expectedDocCount == -1) {
+            expectedDocCount = 0;
+        }
         assertThat(msg, bucket, notNullValue());
         assertThat(msg + " key", ((Number) bucket.getKey()).longValue(), equalTo(expectedKey));
         assertThat(msg + " docCount", bucket.getDocCount(), equalTo(expectedDocCount));

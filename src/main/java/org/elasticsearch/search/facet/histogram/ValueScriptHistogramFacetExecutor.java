@@ -26,6 +26,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.script.ScriptedOp;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.DoubleFacetAggregatorBase;
 import org.elasticsearch.search.facet.FacetExecutor;
@@ -53,7 +54,7 @@ public class ValueScriptHistogramFacetExecutor extends FacetExecutor {
         this.comparatorType = comparatorType;
         this.indexFieldData = indexFieldData;
         this.interval = interval;
-        this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, scriptType, params);
+        this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, scriptType, ScriptedOp.AGGS, params);
 
         this.entries = context.cacheRecycler().longObjectMap(-1);
     }

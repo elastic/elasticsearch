@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptedOp;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
@@ -189,7 +190,7 @@ public class DateHistogramFacetParser extends AbstractComponent implements Facet
                 .build();
 
         if (valueScript != null) {
-            SearchScript script = context.scriptService().search(context.lookup(), scriptLang, valueScript, valueScriptType, params);
+            SearchScript script = context.scriptService().search(context.lookup(), scriptLang, valueScript, valueScriptType, ScriptedOp.AGGS, params);
             return new ValueScriptDateHistogramFacetExecutor(keyIndexFieldData, script, tzRounding, comparatorType, context.cacheRecycler());
         } else if (valueField != null) {
             FieldMapper valueMapper = context.smartNameFieldMapper(valueField);

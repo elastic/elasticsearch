@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptedOp;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -187,7 +188,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
     }
 
     private SearchScript createScript() {
-        return input.script == null ? null : context.scriptService().search(context.lookup(), input.lang, input.script, input.scriptType, input.params);
+        return input.script == null ? null : context.scriptService().search(context.lookup(), input.lang, input.script, input.scriptType, ScriptedOp.AGGS, input.params);
     }
 
     private static ValueFormat resolveFormat(@Nullable String format, @Nullable ValueType valueType) {

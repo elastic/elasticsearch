@@ -22,6 +22,7 @@ package org.elasticsearch.search.facet.statistical;
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptedOp;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -44,7 +45,7 @@ public class ScriptStatisticalFacetExecutor extends FacetExecutor {
     private long count;
 
     public ScriptStatisticalFacetExecutor(String scriptLang, String script, ScriptService.ScriptType scriptType, Map<String, Object> params, SearchContext context) {
-        this.script = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, params);
+        this.script = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, ScriptedOp.AGGS, params);
     }
 
     @Override

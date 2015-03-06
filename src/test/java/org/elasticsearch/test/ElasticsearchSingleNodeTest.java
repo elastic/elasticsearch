@@ -130,7 +130,8 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
             .put("node.name", nodeName())
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("script.disable_dynamic", false)
+                .put("script.dynamic", "enable")
+                .put("script.indexed", "enable")
                 .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
             .put("http.enabled", false)
                 .put("index.store.type", "ram")

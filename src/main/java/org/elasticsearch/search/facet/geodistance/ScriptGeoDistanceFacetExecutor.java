@@ -19,17 +19,18 @@
 
 package org.elasticsearch.search.facet.geodistance;
 
-import java.io.IOException;
-import java.util.Map;
-
 import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptedOp;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
+import java.util.Map;
 
 /**
  *
@@ -42,7 +43,7 @@ public class ScriptGeoDistanceFacetExecutor extends GeoDistanceFacetExecutor {
                                           GeoDistanceFacet.Entry[] entries, SearchContext context,
                                           String scriptLang, String script, ScriptService.ScriptType scriptType, Map<String, Object> params) {
         super(indexFieldData, lat, lon, unit, geoDistance, entries, context);
-        this.script = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, params);
+        this.script = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, ScriptedOp.AGGS, params);
     }
 
     @Override

@@ -20,24 +20,44 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.script.expression.ExpressionScriptEngineService;
+import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 public class IndexedScriptTests extends ElasticsearchIntegrationTest {
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal));
+        builder.put("script.engine.groovy.indexed.update", "disable");
+        builder.put("script.engine.groovy.indexed.search", "enable");
+        builder.put("script.engine.groovy.indexed.aggs", "enable");
+        builder.put("script.engine.groovy.dynamic.aggs", "disable");
+        builder.put("script.engine.expression.indexed.update", "disable");
+        builder.put("script.engine.expression.indexed.search", "disable");
+        builder.put("script.engine.expression.indexed.aggs", "disable");
+        builder.put("script.engine.expression.indexed.mapping", "disable");
+        return builder.build();
+    }
+
     @Test
-    public void testFieldIndexedScript()  throws ExecutionException, InterruptedException{
+    public void testFieldIndexedScript()  throws ExecutionException, InterruptedException {
         List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "groovy", "script1").setSource("{" +
                 "\"script\":\"2\""+
@@ -65,5 +85,68 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
         SearchHit sh = searchResponse.getHits().getAt(0);
         assertThat((Integer)sh.field("test1").getValue(), equalTo(2));
         assertThat((Integer)sh.field("test2").getValue(), equalTo(6));
+    }
+
+    @Test
+    public void testDisabledUpdateIndexedScriptsOnly() {
+        if (randomBoolean()) {
+            client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "script1", "{\"script\":\"2\"}").get();
+        } else {
+            client().prepareIndex(ScriptService.SCRIPT_INDEX, GroovyScriptEngineService.NAME, "script1").setSource("{\"script\":\"2\"}").get();
+        }
+        client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
+        try {
+            client().prepareUpdate("test", "scriptTest", "1").setScript("script1", ScriptService.ScriptType.INDEXED).setScriptLang(GroovyScriptEngineService.NAME).get();
+            fail("update script should have been rejected");
+        } catch(Exception e) {
+            assertThat(e.getMessage(), containsString("failed to execute script"));
+            assertThat(ExceptionsHelper.detailedMessage(e), containsString("scripts of type [indexed], operation [update] and lang [groovy] are disabled"));
+        }
+    }
+
+    @Test
+    public void testDisabledAggsDynamicScripts() {
+        //dynamic scripts don't need to be enabled for an indexed script to be indexed and later on executed
+        if (randomBoolean()) {
+            client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "script1", "{\"script\":\"2\"}").get();
+        } else {
+            client().prepareIndex(ScriptService.SCRIPT_INDEX, GroovyScriptEngineService.NAME, "script1").setSource("{\"script\":\"2\"}").get();
+        }
+        client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
+        refresh();
+        String source = "{\"aggs\": {\"test\": { \"terms\" : { \"script_id\":\"script1\" } } } }";
+        SearchResponse searchResponse = client().prepareSearch("test").setSource(source).get();
+        assertHitCount(searchResponse, 1);
+        assertThat(searchResponse.getAggregations().get("test"), notNullValue());
+    }
+
+    @Test
+    public void testAllOpsDisabledIndexedScripts() throws IOException {
+        if (randomBoolean()) {
+            client().preparePutIndexedScript(ExpressionScriptEngineService.NAME, "script1", "{\"script\":\"2\"}").get();
+        } else {
+            client().prepareIndex(ScriptService.SCRIPT_INDEX, ExpressionScriptEngineService.NAME, "script1").setSource("{\"script\":\"2\"}").get();
+        }
+        client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
+        try {
+            client().prepareUpdate("test", "scriptTest", "1").setScript("script1", ScriptService.ScriptType.INDEXED).setScriptLang(ExpressionScriptEngineService.NAME).get();
+            fail("update script should have been rejected");
+        } catch(Exception e) {
+            assertThat(e.getMessage(), containsString("failed to execute script"));
+            assertThat(ExceptionsHelper.detailedMessage(e), containsString("scripts of type [indexed], operation [update] and lang [expression] are disabled"));
+        }
+        try {
+            String query = "{ \"script_fields\" : { \"test1\" : { \"script_id\" : \"script1\", \"lang\":\"expression\" }}}";
+            client().prepareSearch().setSource(query).setIndices("test").setTypes("scriptTest").get();
+            fail("search script should have been rejected");
+        } catch(Exception e) {
+            assertThat(e.getMessage(), containsString("scripts of type [indexed], operation [search] and lang [expression] are disabled"));
+        }
+        try {
+            String source = "{\"aggs\": {\"test\": { \"terms\" : { \"script_id\":\"script1\", \"script_lang\":\"expression\" } } } }";
+            client().prepareSearch("test").setSource(source).get();
+        } catch(Exception e) {
+            assertThat(e.getMessage(), containsString("scripts of type [indexed], operation [aggs] and lang [expression] are disabled"));
+        }
     }
 }

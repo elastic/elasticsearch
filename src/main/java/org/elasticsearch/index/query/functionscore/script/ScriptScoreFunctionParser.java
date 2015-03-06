@@ -28,7 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.*;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
@@ -87,7 +87,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
 
         SearchScript searchScript;
         try {
-            searchScript = parseContext.scriptService().search(parseContext.lookup(), scriptParameterParser.lang(), script, scriptType, vars);
+            searchScript = parseContext.scriptService().search(parseContext.lookup(), scriptParameterParser.lang(), script, scriptType, ScriptedOp.SEARCH, vars);
             return new ScriptScoreFunction(script, vars, searchScript);
         } catch (Exception e) {
             throw new QueryParsingException(parseContext.index(), NAMES[0] + " the script could not be loaded", e);

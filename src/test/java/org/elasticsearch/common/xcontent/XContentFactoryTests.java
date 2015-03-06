@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.xcontent;
 
+import com.fasterxml.jackson.dataformat.cbor.CBORConstants;
+import com.fasterxml.jackson.dataformat.smile.SmileConstants;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -68,5 +70,22 @@ public class XContentFactoryTests extends ElasticsearchTestCase {
         if (type != XContentType.CBOR) {
             assertThat(XContentFactory.xContentType(builder.string()), equalTo(type));
         }
+    }
+
+    public void testCBORBasedOnMajorObjectDetection() {
+        // for this {"foo"=> 5} perl encoder for example generates:
+        byte[] bytes = new byte[] {(byte) 0xA1, (byte) 0x43, (byte) 0x66, (byte) 6f, (byte) 6f, (byte) 5};
+        assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.CBOR));
+
+        // also make sure major type check doesn't collide with SMILE and JSON, just in case
+        assertThat(CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, SmileConstants.HEADER_BYTE_1), equalTo(false));
+        assertThat(CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, (byte) '{'), equalTo(false));
+        assertThat(CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, (byte) ' '), equalTo(false));
+        assertThat(CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, (byte) '-'), equalTo(false));
+    }
+
+    public void testCBORBasedOnMagicHeaderDetection() {
+        byte[] bytes = new byte[] {(byte) 0xd9, (byte) 0xd9, (byte) 0xf7};
+        assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.CBOR));
     }
 }

@@ -28,29 +28,12 @@ public class MapperParsingException extends MapperException {
 
     public MapperParsingException(String message) {
         super(message);
-        mappingsModified = false;
-    }
-
-    public boolean isMappingsModified() {
-        return mappingsModified;
-    }
-
-    private boolean mappingsModified = false;
-
-    public MapperParsingException(String message, boolean mappingsModified) {
-        super(message);
-        this.mappingsModified = mappingsModified;
-    }
-
-    public MapperParsingException(String message, Throwable cause, boolean mappingsModified) {
-        super(message, cause);
-        this.mappingsModified = mappingsModified;
     }
 
     public MapperParsingException(String message, Throwable cause) {
         super(message, cause);
-        this.mappingsModified = false;
     }
+
 
     @Override
     public RestStatus status() {

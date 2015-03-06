@@ -407,7 +407,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                 }
             }
         } catch (Exception e) {
-            throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e, context.mappingsModified());
+            throw new MapperParsingException("failed to parse [" + names.fullName() + "]", e);
         }
         multiFields.parse(this, context);
         if (copyTo != null) {
@@ -1104,7 +1104,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                     ObjectMapper mapper = context.docMapper().objectMappers().get(objectPath);
                     if (mapper == null) {
                         //TODO: Create an object dynamically?
-                        throw new MapperParsingException("attempt to copy value to non-existing object [" + field + "]", context.mappingsModified());
+                        throw new MapperParsingException("attempt to copy value to non-existing object [" + field + "]");
                     }
 
                     context.path().add(objectPath);

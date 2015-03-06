@@ -100,6 +100,9 @@ public class MovAvgParser implements Reducer.Parser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (SETTINGS.match(currentFieldName)) {
                     settings = parser.map();
+                } else {
+                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
+                            + currentFieldName + "].");
                 }
             } else {
                 throw new SearchParseException(context, "Unexpected token " + token + " in [" + reducerName + "].");

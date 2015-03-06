@@ -21,6 +21,7 @@ package org.elasticsearch.indices.analysis;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.util.concurrent.UncheckedExecutionException;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -30,8 +31,8 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
-import java.io.*;
-import java.net.MalformedURLException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -108,7 +109,7 @@ public class HunspellService extends AbstractComponent {
      *
      * @param locale The name of the locale
      */
-    public Dictionary getDictionary(String locale)  {
+    public Dictionary getDictionary(String locale) {
         return dictionaries.getUnchecked(locale);
     }
 
@@ -117,7 +118,7 @@ public class HunspellService extends AbstractComponent {
         if (location != null) {
             return Paths.get(location);
         }
-        return env.configFile().resolve( "hunspell");
+        return env.configFile().resolve("hunspell");
     }
 
     /**
@@ -130,7 +131,13 @@ public class HunspellService extends AbstractComponent {
                     if (Files.isDirectory(file)) {
                         try (DirectoryStream<Path> inner = Files.newDirectoryStream(hunspellDir.resolve(file), "*.dic")) {
                             if (inner.iterator().hasNext()) { // just making sure it's indeed a dictionary dir
-                                dictionaries.getUnchecked(file.getFileName().toString());
+                                try {
+                                    dictionaries.getUnchecked(file.getFileName().toString());
+                                } catch (UncheckedExecutionException e) {
+                                    // The cache loader throws unchecked exception (see #loadDictionary()),
+                                    // here we simply report the exception and continue loading the dictionaries
+                                    logger.error("exception while loading dictionary {}", file.getFileName(), e);
+                                }
                             }
                         }
                     }

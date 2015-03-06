@@ -146,9 +146,9 @@ named `group1_group2_test`.
 
 [float]
 === Indexed Scripts
-If dynamic scripting is enabled, Elasticsearch allows you to store scripts
-in an internal index known as `.scripts` and reference them by id. There are
-REST endpoints to manage indexed scripts as follows:
+Elasticsearch allows you to store scripts in an internal index known as
+`.scripts` and reference them by id. There are REST endpoints to manage
+indexed scripts as follows:
 
 Requests to the scripts endpoint look like :
 [source,js]
@@ -197,8 +197,6 @@ curl -XPOST localhost:9200/_search -d '{
   }
 }'
 --------------------------------------------------
-Note that you must have dynamic scripting enabled to use indexed scripts
-for non sandboxed languages at query time.
 
 The script can be viewed by:
 [source,js]
@@ -222,42 +220,117 @@ curl -XDELETE localhost:9200/_scripts/groovy/indexedCalculateScore
 -----------------------------------
 
 [float]
+[[enable-dynamic-scripting]]
 === Enabling dynamic scripting
 
 We recommend running Elasticsearch behind an application or proxy, which
 protects Elasticsearch from the outside world. If users are allowed to run
-dynamic scripts (even in a search request), then they have the same access to
-your box as the user that Elasticsearch is running as. For this reason dynamic
-scripting is allowed only for sandboxed languages by default.
+inline scripts (even in a search request) or indexed scripts, then they have
+the same access to your box as the user that Elasticsearch is running as. For
+this reason dynamic scripting is allowed only for sandboxed languages by default.
+The script engines that currently support sandboxing are `mustache` and
+`expressions`.
 
 First, you should not run Elasticsearch as the `root` user, as this would allow
 a script to access or do *anything* on your server, without limitations. Second,
 you should not expose Elasticsearch directly to users, but instead have a proxy
 application inbetween. If you *do* intend to expose Elasticsearch directly to
 your users, then you have to decide whether you trust them enough to run scripts
-on your box or not. If you do, you can enable dynamic scripting by adding the
-following setting to the `config/elasticsearch.yml` file on every node:
+on your box or not.
+
+deprecated[1.6.0, the `script.disable_dynamic` setting is deprecated in favour of fine-grained settings described as follows]
+
+coming[1.6.0, Fine-grained script settings replace the `script.disable_dynamic` setting]
+
+It is possible to enable scripts based on their source, for
+every script engine, through the following settings that need to be added to the
+`config/elasticsearch.yml` file on every node.
 
 [source,yaml]
 -----------------------------------
-script.disable_dynamic: false
+script.inline: on
+script.indexed: on
+
 -----------------------------------
 
 While this still allows execution of named scripts provided in the config, or
 _native_ Java scripts registered through plugins, it also allows users to run
 arbitrary scripts via the API. Instead of sending the name of the file as the
-script, the body of the script can be sent instead.
+script, the body of the script can be sent instead or retrieved from the
+`.scripts` indexed if previously stored.
 
-There are three possible configuration values for the `script.disable_dynamic`
-setting, the default value is `sandbox`:
+There are three possible configuration values for any of the fine-grained
+script settings:
 
 [cols="<,<",options="header",]
 |=======================================================================
 |Value |Description
-| `true` |all dynamic scripting is disabled, scripts must be placed in the `config/scripts` directory.
-| `false` |all dynamic scripting is enabled, scripts may be sent as strings in requests.
-| `sandbox` |scripts may be sent as strings for languages that are sandboxed.
+| `off` |scripting is turned off completely, in the context of the setting being set.
+| `on`  |scripting is turned on, in the context of the setting being set.
+| `sandbox` |scripts may be executed only for languages that are sandboxed (`mustache` and `expressions`)
 |=======================================================================
+
+The default values are the following:
+
+[source,yaml]
+-----------------------------------
+script.inline: sandbox
+script.indexed: sandbox
+script.file: on
+
+-----------------------------------
+
+NOTE: Global scripting settings affect the `mustache` scripting language.
+<<search-template,Search templates>> internally use the `mustache` language,
+and will still be enabled by default as the `mustache` engine is sandboxed,
+but they will be enabled/disabled according to fine-grained settings
+specified in `elasticsearch.yml`. coming[1.6.0, `mustache` scripts were previously always on regardless of whether dynamic scripts were enabled or not]
+
+It is also possible to control which operations can execute scripts. The
+supported operations are:
+
+[cols="<,<",options="header",]
+|=======================================================================
+|Value |Description
+| `aggs`    |Aggregations (wherever they may be used)
+| `mapping` |Mappings (script transform feature)
+| `search`  |Search api, Percolator api and Suggester api (e.g filters, script_fields)
+| `update`  |Update api
+|=======================================================================
+
+The following example disables scripting for `update` and `mapping` operations,
+regardless of the script source, for any engine. Scripts can still be
+executed from sandboxed languages as part of `aggregations` and `search`
+operations though, as the above defaults still get applied.
+
+[source,yaml]
+-----------------------------------
+script.update: off
+script.mapping: off
+
+-----------------------------------
+
+Generic settings get applied in order, operation based ones have precedence
+over source based ones. Language specific settings are supported too. They
+need to be prefixed with the `script.engine.<engine>` prefix and have
+precedence over any other generic settings.
+
+[source,yaml]
+-----------------------------------
+script.engine.groovy.file.aggs: on
+script.engine.groovy.file.mapping: on
+script.engine.groovy.file.search: on
+script.engine.groovy.file.update: on
+script.engine.groovy.indexed.aggs: on
+script.engine.groovy.indexed.mapping: off
+script.engine.groovy.indexed.search: on
+script.engine.groovy.indexed.update: off
+script.engine.groovy.inline.aggs: on
+script.engine.groovy.inline.mapping: off
+script.engine.groovy.inline.search: off
+script.engine.groovy.inline.update: off
+
+-----------------------------------
 
 [float]
 === Default Scripting Language

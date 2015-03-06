@@ -189,8 +189,14 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         private String lang = null;
         private Map<String, Object> params = null;
         private String scriptId;
+        private String scriptFile;
         public ScriptHeuristicBuilder setScript(String script) {
             this.script = script;
+            return this;
+        }
+
+        public ScriptHeuristicBuilder setScriptFile(String script) {
+            this.scriptFile = script;
             return this;
         }
 
@@ -223,6 +229,9 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             }
             if (scriptId != null) {
                 builder.field("script_id", scriptId);
+            }
+            if (scriptFile != null) {
+                builder.field("script_file", scriptFile);
             }
             builder.endObject();
         }

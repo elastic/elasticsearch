@@ -650,6 +650,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
         // Wait for the majority side to get stable
         assertDifferentMaster(majoritySide.get(0), oldMasterNode);
         assertDifferentMaster(majoritySide.get(1), oldMasterNode);
+        assertDiscoveryCompleted(majoritySide);
 
         // The old master node is frozen, but here we submit a cluster state update task that doesn't get executed,
         // but will be queued and once the old master node un-freezes it gets executed.

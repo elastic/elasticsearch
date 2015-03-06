@@ -19,20 +19,29 @@
 
 package org.elasticsearch.script;
 
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Test;
 
+import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class NativeScriptTests extends ElasticsearchTestCase {
 
@@ -49,9 +58,47 @@ public class NativeScriptTests extends ElasticsearchTestCase {
 
         ScriptService scriptService = injector.getInstance(ScriptService.class);
 
-        ExecutableScript executable = scriptService.executable(NativeScriptEngineService.NAME, "my", ScriptService.ScriptType.INLINE, null);
+        ExecutableScript executable = scriptService.executable(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, ScriptContext.SEARCH, null);
         assertThat(executable.run().toString(), equalTo("test"));
         terminate(injector.getInstance(ThreadPool.class));
+    }
+
+    @Test
+    public void testFineGrainedSettingsDontAffectNativeScripts() throws IOException {
+        ImmutableSettings.Builder builder = ImmutableSettings.settingsBuilder();
+        if (randomBoolean()) {
+            ScriptType scriptType = randomFrom(ScriptType.values());
+            builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptType, randomFrom(ScriptMode.values()));
+        } else {
+            ScriptContext scriptContext = randomFrom(ScriptContext.values());
+            builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptContext, randomFrom(ScriptMode.values()));
+        }
+        Settings settings = builder.build();
+        Environment environment = new Environment(settings);
+        ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, null);
+        Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();
+        nativeScriptFactoryMap.put("my", new MyNativeScriptFactory());
+        Set<ScriptEngineService> scriptEngineServices = ImmutableSet.<ScriptEngineService>of(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
+        ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, new NodeSettingsService(settings));
+
+        for (ScriptContext scriptContext : ScriptContext.values()) {
+            assertThat(scriptService.compile(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, scriptContext), notNullValue());
+        }
+    }
+
+    @Test
+    public void testDisableDynamicDoesntAffectNativeScripts() throws IOException {
+        Settings settings = ImmutableSettings.settingsBuilder().put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, randomFrom("true", "false", "sandbox")).build();
+        Environment environment = new Environment(settings);
+        ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, null);
+        Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();
+        nativeScriptFactoryMap.put("my", new MyNativeScriptFactory());
+        Set<ScriptEngineService> scriptEngineServices = ImmutableSet.<ScriptEngineService>of(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
+        ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, new NodeSettingsService(settings));
+
+        for (ScriptContext scriptContext : ScriptContext.values()) {
+            assertThat(scriptService.compile(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, scriptContext), notNullValue());
+        }
     }
 
     static class MyNativeScriptFactory implements NativeScriptFactory {

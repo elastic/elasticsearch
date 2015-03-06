@@ -49,14 +49,14 @@ public class IpFilteringUpdateTests extends ShieldIntegrationTest {
                 .put("shield.transport.filter.allow", "127.0.0.1")
                 .put("shield.transport.filter.deny", "127.0.0.8")
                 .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        updateSettings(settings);
         assertConnectionRejected("default", "127.0.0.8");
 
         settings = settingsBuilder()
                 .putArray("shield.http.filter.allow", "127.0.0.1")
                 .putArray("shield.http.filter.deny", "127.0.0.8")
                 .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateSettings(settings);
         assertConnectionRejected("default", "127.0.0.8");
         assertConnectionRejected(".http", "127.0.0.8");
 
@@ -64,7 +64,7 @@ public class IpFilteringUpdateTests extends ShieldIntegrationTest {
                 .put("transport.profiles.client.shield.filter.allow", "127.0.0.1")
                 .put("transport.profiles.client.shield.filter.deny", "127.0.0.8")
                 .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        updateSettings(settings);
         assertConnectionRejected("default", "127.0.0.8");
         assertConnectionRejected(".http", "127.0.0.8");
         assertConnectionRejected("client", "127.0.0.8");
@@ -73,8 +73,8 @@ public class IpFilteringUpdateTests extends ShieldIntegrationTest {
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
         assertThat(clusterState.metaData().settings().get("shield.transport.filter.allow"), is("127.0.0.1"));
         assertThat(clusterState.metaData().settings().get("shield.transport.filter.deny"), is("127.0.0.8"));
-        assertThat(clusterState.metaData().persistentSettings().get("shield.http.filter.allow.0"), is("127.0.0.1"));
-        assertThat(clusterState.metaData().persistentSettings().get("shield.http.filter.deny.0"), is("127.0.0.8"));
+        assertThat(clusterState.metaData().settings().get("shield.http.filter.allow.0"), is("127.0.0.1"));
+        assertThat(clusterState.metaData().settings().get("shield.http.filter.deny.0"), is("127.0.0.8"));
         assertThat(clusterState.metaData().settings().get("transport.profiles.client.shield.filter.allow"), is("127.0.0.1"));
         assertThat(clusterState.metaData().settings().get("transport.profiles.client.shield.filter.deny"), is("127.0.0.8"));
 
@@ -83,17 +83,69 @@ public class IpFilteringUpdateTests extends ShieldIntegrationTest {
                 .put(IPFilter.IP_FILTER_ENABLED_SETTING, false)
                 .put(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING, true)
                 .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        updateSettings(settings);
         assertConnectionAccepted("default", "127.0.0.8");
         assertConnectionAccepted("client", "127.0.0.8");
 
+        // disabling should not have any effect on the cluster state settings
+        clusterState = client().admin().cluster().prepareState().get().getState();
+        assertThat(clusterState.metaData().settings().get("shield.transport.filter.allow"), is("127.0.0.1"));
+        assertThat(clusterState.metaData().settings().get("shield.transport.filter.deny"), is("127.0.0.8"));
+        assertThat(clusterState.metaData().settings().get("shield.http.filter.allow.0"), is("127.0.0.1"));
+        assertThat(clusterState.metaData().settings().get("shield.http.filter.deny.0"), is("127.0.0.8"));
+        assertThat(clusterState.metaData().settings().get("transport.profiles.client.shield.filter.allow"), is("127.0.0.1"));
+        assertThat(clusterState.metaData().settings().get("transport.profiles.client.shield.filter.deny"), is("127.0.0.8"));
+
         // now also disable for HTTP
-        assertConnectionRejected(".http", "127.0.0.8");
-        settings = settingsBuilder()
-                .put(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING, false)
+        if (httpEnabled) {
+            assertConnectionRejected(".http", "127.0.0.8");
+            settings = settingsBuilder()
+                    .put(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING, false)
+                    .build();
+            // as we permanently switch between persistent and transient settings, just set both here to make sure we overwrite
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+            assertConnectionAccepted(".http", "127.0.0.8");
+        }
+    }
+
+    @Test // issue #762, occured because in the above test we use HTTP and transport
+    public void testThatDisablingIpFilterWorksAsExpected() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("shield.transport.filter.deny", "127.0.0.8")
                 .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
-        assertConnectionAccepted(".http", "127.0.0.8");
+        updateSettings(settings);
+        assertConnectionRejected("default", "127.0.0.8");
+
+        settings = settingsBuilder()
+                .put("shield.transport.filter.enabled", false)
+                .build();
+        updateSettings(settings);
+        assertConnectionAccepted("default", "127.0.0.8");
+    }
+
+    @Test
+    public void testThatDisablingIpFilterForProfilesWorksAsExpected() throws Exception {
+        Settings settings = settingsBuilder()
+                .put("transport.profiles.myprofile.shield.filter.deny", "127.0.0.8")
+                .build();
+        updateSettings(settings);
+        assertConnectionRejected("myprofile", "127.0.0.8");
+
+        settings = settingsBuilder()
+                .put("shield.transport.filter.enabled", false)
+                .build();
+        updateSettings(settings);
+        assertConnectionAccepted("myprofile", "127.0.0.8");
+    }
+
+
+    private void updateSettings(Settings settings) {
+        if (randomBoolean()) {
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings));
+        } else {
+            assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
+        }
     }
 
     private void assertConnectionAccepted(String profile, String host) throws UnknownHostException {

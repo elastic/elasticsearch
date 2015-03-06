@@ -212,10 +212,10 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
         private void loadValuesFromSettings(Settings settings) {
             this.enabled = settings.getAsBoolean(IP_FILTER_ENABLED_SETTING, this.enabled);
             this.httpEnabled = settings.getAsBoolean(IP_FILTER_ENABLED_HTTP_SETTING, this.httpEnabled);
-            this.allowed = settings.getAsArray("shield.transport.filter.allow");
-            this.denied = settings.getAsArray("shield.transport.filter.deny");
-            this.httpAllowed = settings.getAsArray("shield.http.filter.allow");
-            this.httpDenied = settings.getAsArray("shield.http.filter.deny");
+            this.allowed = settings.getAsArray("shield.transport.filter.allow", this.allowed);
+            this.denied = settings.getAsArray("shield.transport.filter.deny", this.denied);
+            this.httpAllowed = settings.getAsArray("shield.http.filter.allow", this.httpAllowed);
+            this.httpDenied = settings.getAsArray("shield.http.filter.deny", this.httpDenied);
 
             if (settings.getGroups("transport.profiles.").size() == 0) {
                 profileAllowed = HppcMaps.newMap(0);

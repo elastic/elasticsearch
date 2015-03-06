@@ -4,14 +4,12 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 
 public final class MovAvgModel {
 
@@ -74,16 +72,23 @@ public final class MovAvgModel {
      * @param <T>    Type T extending Number
      * @return       Returns a double containing the moving avg for the window
      */
-    public static <T extends Number> double next(Collection<T> values, Weighting weight) {
+    public static <T extends Number> double next(Collection<T> values, Weighting weight, Map<String, Object> settings) {
+        double alpha;
+        double beta;
+
         switch (weight) {
             case SIMPLE:
                 return simpleMovingAvg(values);
             case LINEAR:
                 return linearMovingAvg(values);
             case SINGLE_EXP:
-                return singleExponential(values);
+                alpha = (double)settings.get("alpha");
+                return singleExponential(values, alpha);
             case DOUBLE_EXP:
-                return (doubleExponential(values, 1, 0.5, 0.5)).get(0);  //TODO expose settings somehow?
+                alpha = (double)settings.get("alpha");
+                beta = (double)settings.get("beta");
+
+                return (doubleExponential(values, 1, alpha, beta)).get(0);
             default:
                 return simpleMovingAvg(values);
         }
@@ -110,9 +115,8 @@ public final class MovAvgModel {
         return avg / totalWeight;
     }
 
-    private static <T extends Number> double singleExponential(Collection<T> values) {
+    private static <T extends Number> double singleExponential(Collection<T> values, double alpha) {
         double avg = 0;
-        double alpha = 2.0 / (double) (values.size() + 1);  //TODO expose alpha or period as a param to the user
         boolean first = true;
 
         for (T v : values) {

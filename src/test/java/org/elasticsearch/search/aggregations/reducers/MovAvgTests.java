@@ -125,7 +125,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
             window.offer(thisValue);
 
             double avg = 0;
-            double alpha = 2.0 / (double) (window.size() + 1);
+            double alpha = 0.5;
             boolean first = true;
 
             for (double value : window) {

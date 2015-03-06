@@ -30,7 +30,9 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
 import static org.elasticsearch.search.aggregations.reducers.movavg.MovAvgModel.Weighting;
@@ -41,6 +43,7 @@ public class MovAvgParser implements Reducer.Parser {
     public static final ParseField GAP_POLICY = new ParseField("gap_policy");
     public static final ParseField WEIGHTING_TYPE = new ParseField("weighting");
     public static final ParseField WINDOW = new ParseField("window");
+    public static final ParseField SETTINGS = new ParseField("settings");
 
     @Override
     public String type() {
@@ -56,6 +59,7 @@ public class MovAvgParser implements Reducer.Parser {
         GapPolicy gapPolicy = GapPolicy.IGNORE;
         Weighting weightingType = Weighting.SIMPLE;
         int window = 5;
+        Map<String, Object> settings = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -92,6 +96,10 @@ public class MovAvgParser implements Reducer.Parser {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
                             + currentFieldName + "].");
                 }
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if (SETTINGS.match(currentFieldName)) {
+                    settings = parser.map();
+                }
             } else {
                 throw new SearchParseException(context, "Unexpected token " + token + " in [" + reducerName + "].");
             }
@@ -107,7 +115,34 @@ public class MovAvgParser implements Reducer.Parser {
             formatter = ValueFormat.Patternable.Number.format(format).formatter();
         }
 
-        return new MovAvgReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy, weightingType, window);
+        settings = getDefaultSettings(weightingType, settings);
+
+        return new MovAvgReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy, weightingType, window, settings);
+    }
+
+    private Map<String, Object> getDefaultSettings(Weighting weightingType, Map<String, Object> settings) {
+        // simple and linear have no settings
+        if (weightingType.equals(MovAvgModel.Weighting.SIMPLE) || weightingType.equals(MovAvgModel.Weighting.LINEAR)) {
+            return null;
+        }
+
+        Map<String, Object> newSettings = new HashMap<>(2);
+
+        if (weightingType.equals(MovAvgModel.Weighting.DOUBLE_EXP)) {
+            Double beta;
+            if (settings == null || (beta = (Double)settings.get("beta")) == null) {
+                beta = 0.5;
+            }
+            newSettings.put("beta", beta);
+        }
+
+        Double alpha;
+        if (settings == null || (alpha = (Double)settings.get("alpha")) == null) {
+            alpha = 0.5;
+        }
+        newSettings.put("alpha", alpha);
+
+        return newSettings;
     }
 
 }

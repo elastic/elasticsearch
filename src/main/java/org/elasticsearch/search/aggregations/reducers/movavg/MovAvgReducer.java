@@ -29,10 +29,8 @@ import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
-import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.reducers.*;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -72,17 +70,19 @@ public class MovAvgReducer extends Reducer {
     private GapPolicy gapPolicy;
     private MovAvgModel.Weighting weightingType;
     private int window;
+    private Map<String, Object> settings;
 
     public MovAvgReducer() {
     }
 
     public MovAvgReducer(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
-                         MovAvgModel.Weighting weightingType, int window, Map<String, Object> metadata) {
+                         MovAvgModel.Weighting weightingType, int window, Map<String, Object> settings, Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
         this.gapPolicy = gapPolicy;
         this.weightingType = weightingType;
         this.window = window;
+        this.settings = settings;
     }
 
     @Override
@@ -105,7 +105,7 @@ public class MovAvgReducer extends Reducer {
                 values.offer(thisBucketValue);
 
                 // TODO handle "edge policy"
-                double movavg = MovAvgModel.next(values, this.weightingType);
+                double movavg = MovAvgModel.next(values, this.weightingType, this.settings);
 
                 List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), FUNCTION));
                 aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<Reducer>(), metaData()));
@@ -125,6 +125,7 @@ public class MovAvgReducer extends Reducer {
         gapPolicy = GapPolicy.readFrom(in);
         weightingType = MovAvgModel.Weighting.readFrom(in);
         window = in.readVInt();
+        settings = in.readMap();
     }
 
     @Override
@@ -133,6 +134,7 @@ public class MovAvgReducer extends Reducer {
         gapPolicy.writeTo(out);
         weightingType.writeTo(out);
         out.writeVInt(window);
+        out.writeMap(settings);
     }
 
     public static class Factory extends ReducerFactory {
@@ -141,20 +143,22 @@ public class MovAvgReducer extends Reducer {
         private GapPolicy gapPolicy;
         private MovAvgModel.Weighting weightingType;
         private int window;
+        private Map<String, Object> settings;
 
         public Factory(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
-                       MovAvgModel.Weighting weightingType, int window) {
+                       MovAvgModel.Weighting weightingType, int window, Map<String, Object> settings) {
             super(name, TYPE.name(), bucketsPaths);
             this.formatter = formatter;
             this.gapPolicy = gapPolicy;
             this.weightingType = weightingType;
             this.window = window;
+            this.settings = settings;
         }
 
         @Override
         protected Reducer createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
                 Map<String, Object> metaData) throws IOException {
-            return new MovAvgReducer(name, bucketsPaths, formatter, gapPolicy, weightingType, window, metaData);
+            return new MovAvgReducer(name, bucketsPaths, formatter, gapPolicy, weightingType, window, settings, metaData);
         }
 
     }

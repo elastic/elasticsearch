@@ -437,7 +437,7 @@ public class DocumentMapper implements ToXContent {
         ParseContext.InternalParseContext context = cache.get();
 
         if (source.type() != null && !source.type().equals(this.type)) {
-            throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type [" + this.type + "]", context.mappingsModified());
+            throw new MapperParsingException("Type mismatch, provide type [" + source.type() + "] but mapper is of type [" + this.type + "]");
         }
         source.type(this.type);
 
@@ -455,7 +455,7 @@ public class DocumentMapper implements ToXContent {
             int countDownTokens = 0;
             XContentParser.Token token = parser.nextToken();
             if (token != XContentParser.Token.START_OBJECT) {
-                throw new MapperParsingException("Malformed content, must start with an object", context.mappingsModified());
+                throw new MapperParsingException("Malformed content, must start with an object");
             }
             boolean emptyDoc = false;
             token = parser.nextToken();
@@ -463,7 +463,7 @@ public class DocumentMapper implements ToXContent {
                 // empty doc, we can handle it...
                 emptyDoc = true;
             } else if (token != XContentParser.Token.FIELD_NAME) {
-                throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist", context.mappingsModified());
+                throw new MapperParsingException("Malformed content, after first object, either the type field or the actual properties should exist");
             }
 
             for (RootMapper rootMapper : rootMappersOrdered) {
@@ -489,10 +489,10 @@ public class DocumentMapper implements ToXContent {
 
             // Throw a more meaningful message if the document is empty.
             if (source.source() != null && source.source().length() == 0) {
-                throw new MapperParsingException("failed to parse, document is empty", context.mappingsModified());
+                throw new MapperParsingException("failed to parse, document is empty");
             }
 
-            throw new MapperParsingException("failed to parse", e, context.mappingsModified());
+            throw new MapperParsingException("failed to parse", e);
         } finally {
             // only close the parser when its not provided externally
             if (source.parser() == null && parser != null) {

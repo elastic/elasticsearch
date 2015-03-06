@@ -79,6 +79,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         return settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("plugin.types", CustomSignificanceHeuristicPlugin.class.getName())
+                .put("path.conf", this.getResource("config").getPath())
                 .build();
     }
 
@@ -527,6 +528,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
         String script = null;
         String lang = null;
         String scriptId = null;
+        String scriptFile = null;
         if (randomBoolean()) {
             params = new HashMap<>();
             params.put("param", randomIntBetween(1, 100));
@@ -561,9 +563,9 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
             }
             case 2: {
                 if (params == null) {
-                    script = "significance_script_no_params";
+                    scriptFile = "significance_script_no_params";
                 } else {
-                    script = "significance_script_with_params";
+                    scriptFile = "significance_script_with_params";
                 }
                 break;
             }
@@ -580,7 +582,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
                 break;
             }
         }
-        ScriptHeuristic.ScriptHeuristicBuilder builder = new ScriptHeuristic.ScriptHeuristicBuilder().setScript(script).setLang(lang).setParams(params).setScriptId(scriptId);
+        ScriptHeuristic.ScriptHeuristicBuilder builder = new ScriptHeuristic.ScriptHeuristicBuilder().setScript(script).setLang(lang).setParams(params).setScriptId(scriptId).setScriptFile(scriptFile);
 
         return builder;
     }

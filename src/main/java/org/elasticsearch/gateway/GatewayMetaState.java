@@ -27,6 +27,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -136,11 +137,12 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     private final Map<String, DanglingIndex> danglingIndices = ConcurrentCollections.newConcurrentMap();
     private final Object danglingMutex = new Object();
     private final IndicesService indicesService;
+    private final ClusterService clusterService;
 
     @Inject
     public GatewayMetaState(Settings settings, ThreadPool threadPool, NodeEnvironment nodeEnv,
                             TransportNodesListGatewayMetaState nodesListGatewayMetaState, LocalAllocateDangledIndices allocateDangledIndices,
-                            IndicesService indicesService) throws Exception {
+                            IndicesService indicesService, ClusterService clusterService) throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
         this.threadPool = threadPool;
@@ -187,6 +189,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             }
         }
         this.indicesService = indicesService;
+        this.clusterService = clusterService;
     }
 
     public MetaData loadMetaState() throws Exception {
@@ -279,7 +282,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                                     danglingIndices.put(indexName, new DanglingIndex(indexName, null));
                                 } else if (danglingTimeout.millis() == 0) {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, timeout set to 0, deleting now", indexName);
-                                    indicesService.deleteIndexStore("dangling index with timeout set to 0", indexMetaData);
+                                    indicesService.deleteIndexStore("dangling index with timeout set to 0", indexMetaData, state);
                                 } else {
                                     logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, scheduling to delete in [{}], auto import to cluster state [{}]", indexName, danglingTimeout, autoImportDangled);
                                     danglingIndices.put(indexName,
@@ -530,7 +533,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                 }
                 logger.warn("[{}] deleting dangling index", metaData.index());
                 try {
-                    indicesService.deleteIndexStore("deleting dangling index", metaData);
+                    indicesService.deleteIndexStore("deleting dangling index", metaData, clusterService.state());
                 } catch (Exception ex) {
                     logger.debug("failed to delete dangling index", ex);
                 }

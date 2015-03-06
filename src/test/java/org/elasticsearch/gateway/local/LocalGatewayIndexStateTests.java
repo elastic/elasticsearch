@@ -109,6 +109,10 @@ public class LocalGatewayIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> indexing a simple document");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").execute().actionGet();
 
+        // we need this until we have  https://github.com/elasticsearch/elasticsearch/issues/8688
+        // the test rarely fails else because the master does not apply the new mapping quick enough and it is lost
+        waitForConcreteMappingsOnAll("test", "type1", "field1");
+
         logger.info("--> closing test index...");
         client().admin().indices().prepareClose("test").execute().actionGet();
 

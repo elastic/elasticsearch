@@ -34,6 +34,8 @@ import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static java.lang.Thread.sleep;
+
 /**
  *
  */
@@ -83,6 +85,12 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
         discovery.addListener(initialStateListener);
         discovery.start();
         logger.info(discovery.nodeDescription());
+        try {
+            //NOCOMMIT
+            sleep(1000);
+        } catch (InterruptedException e) {
+
+        }
     }
 
     public void waitForInitialState() {

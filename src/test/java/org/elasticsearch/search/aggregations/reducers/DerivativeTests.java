@@ -34,6 +34,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -52,17 +53,23 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "l_value";
 
-    static int interval;
-    static int numValueBuckets;
-    static int numFirstDerivValueBuckets, numFirstDerivValuesBuckets;
-    static int numSecondDerivValueBuckets;
-    static long[] valueCounts;
-    static long[] firstDerivValueCounts;
-    static long[] secondDerivValueCounts;
+    private static int interval;
+    private static int numValueBuckets;
+    private static int numFirstDerivValueBuckets;
+    private static int numSecondDerivValueBuckets;
+    private static long[] valueCounts;
+    private static long[] firstDerivValueCounts;
+    private static long[] secondDerivValueCounts;
 
-    static Long[] valueCounts_empty;
-    static long numDocsEmptyIdx;
-    static Double[] firstDerivValueCounts_empty;
+    private static Long[] valueCounts_empty;
+    private static long numDocsEmptyIdx;
+    private static Double[] firstDerivValueCounts_empty;
+
+    // expected bucket values for random setup with gaps
+    private static int numBuckets_empty_rnd;
+    private static Long[] valueCounts_empty_rnd;
+    private static Double[] firstDerivValueCounts_empty_rnd;
+    private static long numDocsEmptyIdx_rnd;
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -117,6 +124,27 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
             for (int docs = 0; docs < valueCounts_empty[i]; docs++) {
                 builders.add(client().prepareIndex("empty_bucket_idx", "type").setSource(newDocBuilder(i)));
                 numDocsEmptyIdx++;
+            }
+        }
+
+        // randomized setup for index with empty buckets
+        numBuckets_empty_rnd = randomIntBetween(20, 100);
+        valueCounts_empty_rnd = new Long[numBuckets_empty_rnd];
+        firstDerivValueCounts_empty_rnd = new Double[numBuckets_empty_rnd];
+        firstDerivValueCounts_empty_rnd[0] = null;
+
+        assertAcked(prepareCreate("empty_bucket_idx_rnd").addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=integer"));
+        for (int i = 0; i < numBuckets_empty_rnd; i++) {
+            valueCounts_empty_rnd[i] = (long) randomIntBetween(1, 10);
+            // make approximately half of the buckets empty
+            if (randomBoolean())
+                valueCounts_empty_rnd[i] = 0l;
+            for (int docs = 0; docs < valueCounts_empty_rnd[i]; docs++) {
+                builders.add(client().prepareIndex("empty_bucket_idx_rnd", "type").setSource(newDocBuilder(i)));
+                numDocsEmptyIdx_rnd++;
+            }
+            if (i > 0) {
+                firstDerivValueCounts_empty_rnd[i] = (double) valueCounts_empty_rnd[i] - valueCounts_empty_rnd[i - 1];
             }
         }
 
@@ -285,6 +313,37 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
                 assertThat(docCountDeriv, nullValue());
             } else {
                 assertThat(docCountDeriv.value(), equalTo(firstDerivValueCounts_empty[i]));
+            }
+        }
+    }
+
+    @Test
+    public void singleValuedFieldWithGaps_random() throws Exception {
+        SearchResponse searchResponse = client()
+                .prepareSearch("empty_bucket_idx_rnd")
+                .setQuery(matchAllQuery())
+                .addAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1).minDocCount(0)
+                                .extendedBounds(0l, (long) numBuckets_empty_rnd - 1)
+                                .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
+
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocsEmptyIdx_rnd));
+
+        InternalHistogram<Bucket> deriv = searchResponse.getAggregations().get("histo");
+        assertThat(deriv, Matchers.notNullValue());
+        assertThat(deriv.getName(), equalTo("histo"));
+        List<Bucket> buckets = deriv.getBuckets();
+        assertThat(buckets.size(), equalTo(numBuckets_empty_rnd));
+
+        for (int i = 0; i < valueCounts_empty_rnd.length; i++) {
+            Histogram.Bucket bucket = buckets.get(i);
+            System.out.println(bucket.getDocCount());
+            checkBucketKeyAndDocCount("Bucket " + i, bucket, i, valueCounts_empty_rnd[i]);
+            SimpleValue docCountDeriv = bucket.getAggregations().get("deriv");
+            if (firstDerivValueCounts_empty_rnd[i] == null) {
+                assertThat(docCountDeriv, nullValue());
+            } else {
+                assertThat(docCountDeriv.value(), equalTo(firstDerivValueCounts_empty_rnd[i]));
             }
         }
     }

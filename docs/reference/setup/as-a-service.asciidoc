@@ -67,6 +67,7 @@ limit memlock unlimited unlimited
 
 pre-start script
     mkdir -p /var/run/elasticsearch
+    chown -R elasticsearch:elasticsearch "${ES_HOME}/data"
 end script
 
 exec start-stop-daemon --start \

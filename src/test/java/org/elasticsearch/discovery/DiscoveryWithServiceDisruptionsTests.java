@@ -624,6 +624,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
                     DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
                     DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
                     if (!Objects.equals(previousMaster, currentMaster)) {
+                        logger.info("node {} received new cluster state: {} \n and had previous cluster state: {}", node, event.state(), event.previousState());
                         String previousMasterNodeName = previousMaster != null ? previousMaster.name() : null;
                         String currentMasterNodeName = currentMaster != null ? currentMaster.name() : null;
                         masters.get(node).add(new Tuple<>(previousMasterNodeName, currentMasterNodeName));

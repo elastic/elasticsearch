@@ -114,3 +114,7 @@ org.apache.lucene.search.TimeLimitingCollector#getGlobalCounter()
 
 @defaultMessage Don't interrupt threads use FutureUtils#cancel(Future<T>) instead
 java.util.concurrent.Future#cancel(boolean)
+
+@defaultMessage Use ExceptionsHelper.stackTrace(Throwable) instead
+java.lang.Throwable#getMessage()
+java.lang.Throwable#toString()

@@ -216,7 +216,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public GetResult get(Get get) throws EngineException {
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (get.realtime()) {
                 VersionValue versionValue = versionMap.getUnderLock(get.uid().bytes());
@@ -245,7 +245,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void create(Create create) throws EngineException {
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (create.origin() == Operation.Origin.RECOVERY) {
                 // Don't throttle recovery operations
@@ -351,7 +351,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void index(Index index) throws EngineException {
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (index.origin() == Operation.Origin.RECOVERY) {
                 // Don't throttle recovery operations
@@ -450,7 +450,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void delete(Delete delete) throws EngineException {
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
             innerDelete(delete);
@@ -518,7 +518,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void delete(DeleteByQuery delete) throws EngineException {
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (delete.origin() == Operation.Origin.RECOVERY) {
                 // Don't throttle recovery operations
@@ -561,7 +561,7 @@ public class InternalEngine extends Engine {
     public void refresh(String source) throws EngineException {
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             updateIndexWriterSettings();
             searcherManager.maybeRefreshBlocking();
@@ -606,7 +606,7 @@ public class InternalEngine extends Engine {
          *  Thread 1: flushes via API and gets the flush lock but blocks on the readlock since Thread 2 has the writeLock
          *  Thread 2: flushes at the end of the recovery holding the writeLock and blocks on the flushLock owned by Thread 1
          */
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             updateIndexWriterSettings();
             if (flushLock.tryLock() == false) {
@@ -761,7 +761,7 @@ public class InternalEngine extends Engine {
     @Override
     public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, final boolean upgrade) throws EngineException {
         if (optimizeMutex.compareAndSet(false, true)) {
-            try (ReleasableLock _ = readLock.acquire()) {
+            try (ReleasableLock lock = readLock.acquire()) {
                 ensureOpen();
                 /*
                  * The way we implement upgrades is a bit hackish in the sense that we set an instance
@@ -800,7 +800,7 @@ public class InternalEngine extends Engine {
         // we have to flush outside of the readlock otherwise we might have a problem upgrading
         // the to a write lock when we fail the engine in this operation
         flush(false, false, true);
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             return deletionPolicy.snapshot();
         } catch (IOException e) {
@@ -812,7 +812,7 @@ public class InternalEngine extends Engine {
     public void recover(RecoveryHandler recoveryHandler) throws EngineException {
         // take a write lock here so it won't happen while a flush is in progress
         // this means that next commits will not be allowed once the lock is released
-        try (ReleasableLock _ = writeLock.acquire()) {
+        try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
             onGoingRecoveries.startRecovery();
         }
@@ -924,7 +924,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public List<Segment> segments() {
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos);
 
             // fill in the merges flag

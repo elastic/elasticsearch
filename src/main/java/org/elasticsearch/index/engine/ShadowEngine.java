@@ -119,7 +119,7 @@ public class ShadowEngine extends Engine {
          * we can't use it.
          */
         store.incRef();
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             // reread the last committed segment infos
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
         } catch (Throwable e) {
@@ -148,7 +148,7 @@ public class ShadowEngine extends Engine {
 
     @Override
     public List<Segment> segments() {
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos);
             for (int i = 0; i < segmentsArr.length; i++) {
                 // hard code all segments as committed, because they are in
@@ -173,7 +173,7 @@ public class ShadowEngine extends Engine {
     public void refresh(String source) throws EngineException {
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             searcherManager.maybeRefreshBlocking();
         } catch (AlreadyClosedException e) {

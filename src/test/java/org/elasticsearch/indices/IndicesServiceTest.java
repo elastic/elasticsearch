@@ -71,7 +71,7 @@ public class IndicesServiceTest extends ElasticsearchSingleNodeTest {
         assertTrue(test.hasShard(0));
 
         try {
-            indicesService.deleteIndexStore("boom", firstMetaData);
+            indicesService.deleteIndexStore("boom", firstMetaData, clusterService.state());
             fail();
         } catch (ElasticsearchIllegalStateException ex) {
             // all good
@@ -101,7 +101,7 @@ public class IndicesServiceTest extends ElasticsearchSingleNodeTest {
         }
 
         try {
-            indicesService.deleteIndexStore("boom", secondMetaData);
+            indicesService.deleteIndexStore("boom", secondMetaData, clusterService.state());
             fail();
         } catch (ElasticsearchIllegalStateException ex) {
             // all good
@@ -113,7 +113,7 @@ public class IndicesServiceTest extends ElasticsearchSingleNodeTest {
 
         // now delete the old one and make sure we resolve against the name
         try {
-            indicesService.deleteIndexStore("boom", firstMetaData);
+            indicesService.deleteIndexStore("boom", firstMetaData, clusterService.state());
             fail();
         } catch (ElasticsearchIllegalStateException ex) {
             // all good

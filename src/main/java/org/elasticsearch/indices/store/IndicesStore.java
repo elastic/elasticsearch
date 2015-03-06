@@ -304,7 +304,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                     // nodes keep the index metadata around 
                     if (indicesService.hasIndex(shardId.getIndex()) == false && currentState.nodes().localNode().masterNode() == false) {
                         try {
-                            indicesService.deleteIndexStore("no longer used", indexMeta);
+                            indicesService.deleteIndexStore("no longer used", indexMeta, currentState);
                         } catch (Throwable ex) {
                             logger.debug("{} failed to delete unallocated index, ignoring", ex, shardId.getIndex());
                         }

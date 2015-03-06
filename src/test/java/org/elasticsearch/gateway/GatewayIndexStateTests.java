@@ -238,8 +238,7 @@ public class GatewayIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> cleaning nodes");
 
         logger.info("--> starting 2 nodes");
-        internalCluster().startNode();
-        internalCluster().startNode();
+        internalCluster().startNodesAsync(2).get();
 
         logger.info("--> indexing a simple document");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
@@ -332,19 +331,13 @@ public class GatewayIndexStateTests extends ElasticsearchIntegrationTest {
         logger.info("--> verifying dangling index contains doc");
 
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
-
     }
 
     @Test
-    public void testDanglingIndicesAutoImportYes() throws Exception {
-        Settings settings = settingsBuilder()
-                .put(GatewayMetaState.GATEWAY_AUTO_IMPORT_DANGLED, "yes")
-                .put(GatewayMetaState.GATEWAY_DANGLING_TIMEOUT, randomIntBetween(0, 120))
-                .build();
+    public void testDanglingIndices() throws Exception {
         logger.info("--> starting two nodes");
 
-        final String node_1 = internalCluster().startNode(settings);
-        internalCluster().startNode(settings);
+        final String node_1 = internalCluster().startNodesAsync(2).get().get(0);
 
         logger.info("--> indexing a simple document");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
@@ -389,188 +382,5 @@ public class GatewayIndexStateTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> verify the doc is there");
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
-    }
-
-    @Test
-    public void testDanglingIndicesAutoImportClose() throws Exception {
-        Settings settings = settingsBuilder()
-                .put("gateway.local.auto_import_dangled", "closed")
-                .build();
-
-
-        logger.info("--> starting two nodes");
-        final String node_1 = internalCluster().startNode(settings);
-        internalCluster().startNode(settings);
-
-        logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
-
-        logger.info("--> waiting for green status");
-        ensureGreen();
-
-        logger.info("--> verify 1 doc in the index");
-        for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
-        }
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
-
-        logger.info("--> restarting the nodes");
-        final Gateway gateway1 = internalCluster().getInstance(Gateway.class, node_1);
-        internalCluster().fullRestart(new RestartCallback() {
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                if (node_1.equals(nodeName)) {
-                    logger.info("--> deleting the data for the first node");
-                    gateway1.reset();
-                }
-                return null;
-            }
-        });
-
-        logger.info("--> waiting for green status");
-        ensureGreen();
-
-        // spin a bit waiting for the index to exists
-        long time = System.currentTimeMillis();
-        while ((System.currentTimeMillis() - time) < TimeValue.timeValueSeconds(10).millis()) {
-            if (client().admin().indices().prepareExists("test").execute().actionGet().isExists()) {
-                break;
-            }
-        }
-
-        logger.info("--> verify that the dangling index exists");
-        assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
-        logger.info("--> waiting for green status");
-        ensureGreen();
-
-        logger.info("--> verify the index state is closed");
-        assertThat(client().admin().cluster().prepareState().execute().actionGet().getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
-        logger.info("--> open the index");
-        assertAcked(client().admin().indices().prepareOpen("test").get());
-        logger.info("--> waiting for green status");
-        ensureGreen();
-
-        logger.info("--> verify the doc is there");
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
-    }
-
-    @Test
-    public void testDanglingIndicesNoAutoImport() throws Exception {
-        Settings settings = settingsBuilder()
-                .put("gateway.local.auto_import_dangled", "no")
-                .build();
-        logger.info("--> starting two nodes");
-        final String node_1 = internalCluster().startNodesAsync(2, settings).get().get(0);
-        internalCluster().startNode(settings);
-
-        logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
-
-        logger.info("--> waiting for green status");
-        ensureGreen();
-
-        logger.info("--> verify 1 doc in the index");
-        for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 1l);
-        }
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
-
-        logger.info("--> restarting the nodes");
-        final Gateway gateway1 = internalCluster().getInstance(Gateway.class, node_1);
-        internalCluster().fullRestart(new RestartCallback() {
-
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                if (node_1.equals(nodeName)) {
-                    logger.info("--> deleting the data for the first node");
-                    gateway1.reset();
-                }
-                return null;
-            }
-        });
-
-        logger.info("--> waiting for green status");
-        ensureGreen();
-
-        // we need to wait for the allocate dangled to kick in (even though in this case its disabled)
-        // just to make sure
-        Thread.sleep(500);
-
-        logger.info("--> verify that the dangling index does not exists");
-        assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(false));
-
-        logger.info("--> restart start the nodes, but make sure we do recovery only after we have 2 nodes in the cluster");
-        internalCluster().fullRestart(new RestartCallback() {
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                return settingsBuilder().put("gateway.recover_after_nodes", 2).build();
-            }
-        });
-
-        logger.info("--> waiting for green status");
-        ensureGreen();
-
-        logger.info("--> verify that the dangling index does exists now!");
-        assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(true));
-        logger.info("--> verify the doc is there");
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
-    }
-
-    @Test
-    public void testDanglingIndicesNoAutoImportStillDanglingAndCreatingSameIndex() throws Exception {
-        Settings settings = settingsBuilder()
-                .put("gateway.local.auto_import_dangled", "no")
-                .build();
-
-        logger.info("--> starting two nodes");
-        final String node_1 = internalCluster().startNode(settings);
-        internalCluster().startNode(settings);
-
-        logger.info("--> indexing a simple document");
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value1").setRefresh(true).execute().actionGet();
-
-        logger.info("--> waiting for green status");
-        ensureGreen();
-
-        logger.info("--> verify 1 doc in the index");
-        for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
-        }
-
-        logger.info("--> restarting the nodes");
-        final Gateway gateway1 = internalCluster().getInstance(Gateway.class, node_1);
-        internalCluster().fullRestart(new RestartCallback() {
-
-            @Override
-            public Settings onNodeStopped(String nodeName) throws Exception {
-                if (node_1.equals(nodeName)) {
-                    logger.info("--> deleting the data for the first node");
-                    gateway1.reset();
-                }
-                return null;
-            }
-        });
-
-        logger.info("--> waiting for green status");
-        ensureGreen();
-
-        logger.info("--> verify that the dangling index does not exists");
-        assertThat(client().admin().indices().prepareExists("test").execute().actionGet().isExists(), equalTo(false));
-
-        logger.info("--> close the first node, so we remain with the second that has the dangling index");
-        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node_1));
-
-        logger.info("--> index a different doc");
-        client().prepareIndex("test", "type1", "2").setSource("field1", "value2").setRefresh(true).execute().actionGet();
-
-        logger.info("--> verify that doc 2 does exist");
-        assertThat(client().prepareGet("test", "type1", "2").execute().actionGet().isExists(), equalTo(true));
-
-        // Need an ensure yellow here, since the index gets created (again) when we index doc2, so the shard that doc
-        // with id 1 is assigned to might not be in a started state. We don't need to do this when verifying if doc 2
-        // exists, because we index into the shard that doc gets assigned to.
-        ensureYellow("test");
-        logger.info("--> verify that doc 1 doesn't exist");
-        assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
     }
 }

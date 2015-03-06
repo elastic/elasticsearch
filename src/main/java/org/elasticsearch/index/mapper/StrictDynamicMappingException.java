@@ -24,8 +24,8 @@ import org.elasticsearch.rest.RestStatus;
  */
 public class StrictDynamicMappingException extends MapperParsingException {
 
-    public StrictDynamicMappingException(String path, String fieldName, boolean mappingsModified) {
-        super("mapping set to strict, dynamic introduction of [" + fieldName + "] within [" + path + "] is not allowed", mappingsModified);
+    public StrictDynamicMappingException(String path, String fieldName) {
+        super("mapping set to strict, dynamic introduction of [" + fieldName + "] within [" + path + "] is not allowed");
     }
 
     @Override

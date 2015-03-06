@@ -60,7 +60,7 @@ wildcards to control what part of the `_source` will be loaded based on
     },
     "partial_fields" : {
         "partial1" : {
-            "include" : "obj1.obj2.*",
+            "include" : "obj1.obj2.*"
         }
     }
 }

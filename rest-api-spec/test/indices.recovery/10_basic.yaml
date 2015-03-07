@@ -33,6 +33,8 @@
   - gte:   { test_1.shards.0.index.size.recovered_in_bytes:     0                       }
   - match: { test_1.shards.0.index.size.percent:                /^\d+\.\d\%$/           }
   - gte:   { test_1.shards.0.translog.recovered:                0                       }
+  - gte:   { test_1.shards.0.translog.total:                    -1                      }
+  - gte:   { test_1.shards.0.translog.total_on_start:           0                       }
   - gte:   { test_1.shards.0.translog.total_time_in_millis:     0                       }
   - gte:   { test_1.shards.0.start.check_index_time_in_millis:  0                       }
   - gte:   { test_1.shards.0.start.total_time_in_millis:        0                       }

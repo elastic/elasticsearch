@@ -191,6 +191,8 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
 
             if (recoveringTranslogFile == null || Files.exists(recoveringTranslogFile) == false) {
                 // no translog files, bail
+                recoveryState.getTranslog().totalOperations(0);
+                recoveryState.getTranslog().totalOperationsOnStart(0);
                 indexShard.finalizeRecovery();
                 indexShard.postRecovery("post recovery from gateway, no translog");
                 // no index, just start the shard and bail
@@ -236,7 +238,7 @@ public class IndexShardGateway extends AbstractIndexShardComponent implements Cl
                                 typesToUpdate.add(potentialIndexOperation.docMapper().type());
                             }
                         }
-                        recoveryState.getTranslog().addTranslogOperations(1);
+                        recoveryState.getTranslog().incrementRecoveredOperations();
                     } catch (ElasticsearchException e) {
                         if (e.status() == RestStatus.BAD_REQUEST) {
                             // mainly for MapperParsingException and Failure to detect xcontent

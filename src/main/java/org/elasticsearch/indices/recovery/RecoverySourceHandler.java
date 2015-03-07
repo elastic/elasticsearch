@@ -200,6 +200,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                 public void run() throws InterruptedException {
                     RecoveryFilesInfoRequest recoveryInfoFilesRequest = new RecoveryFilesInfoRequest(request.recoveryId(), request.shardId(),
                             response.phase1FileNames, response.phase1FileSizes, response.phase1ExistingFileNames, response.phase1ExistingFileSizes,
+                            shard.translog().estimatedNumberOfOperations(),
                             response.phase1TotalSize, response.phase1ExistingTotalSize);
                     transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILES_INFO, recoveryInfoFilesRequest,
                             TransportRequestOptions.options().withTimeout(recoverySettings.internalActionTimeout()),
@@ -288,7 +289,8 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                                     public void run() throws InterruptedException {
                                         // Actually send the file chunk to the target node, waiting for it to complete
                                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK,
-                                                new RecoveryFileChunkRequest(request.recoveryId(), request.shardId(), md, position, content, lastChunk),
+                                                new RecoveryFileChunkRequest(request.recoveryId(), request.shardId(), md, position, content,
+                                                        lastChunk, shard.translog().estimatedNumberOfOperations()),
                                                 requestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                                     }
                                 });
@@ -350,7 +352,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                     // are deleted
                     try {
                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.CLEAN_FILES,
-                                new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), recoverySourceMetadata),
+                                new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), recoverySourceMetadata, shard.translog().estimatedNumberOfOperations()),
                                 TransportRequestOptions.options().withTimeout(recoverySettings.internalActionTimeout()),
                                 EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                     } catch (RemoteTransportException remoteException) {
@@ -427,7 +429,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                 // operations. This ensures the shard engine is started and disables
                 // garbage collection (not the JVM's GC!) of tombstone deletes
                 transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.PREPARE_TRANSLOG,
-                        new RecoveryPrepareForTranslogOperationsRequest(request.recoveryId(), request.shardId()),
+                        new RecoveryPrepareForTranslogOperationsRequest(request.recoveryId(), request.shardId(), shard.translog().estimatedNumberOfOperations()),
                         TransportRequestOptions.options().withTimeout(recoverySettings.internalActionTimeout()), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
             }
         });
@@ -616,7 +618,8 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                 cancellableThreads.execute(new Interruptable() {
                     @Override
                     public void run() throws InterruptedException {
-                        final RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(request.recoveryId(), request.shardId(), operations);
+                        final RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(
+                                request.recoveryId(), request.shardId(), operations, shard.translog().estimatedNumberOfOperations());
                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.TRANSLOG_OPS, translogOperationsRequest,
                                 recoveryOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                     }
@@ -633,7 +636,8 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
             cancellableThreads.execute(new Interruptable() {
                 @Override
                 public void run() throws InterruptedException {
-                    RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(request.recoveryId(), request.shardId(), operations);
+                    RecoveryTranslogOperationsRequest translogOperationsRequest = new RecoveryTranslogOperationsRequest(
+                            request.recoveryId(), request.shardId(), operations, shard.translog().estimatedNumberOfOperations());
                     transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.TRANSLOG_OPS, translogOperationsRequest,
                             recoveryOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                 }

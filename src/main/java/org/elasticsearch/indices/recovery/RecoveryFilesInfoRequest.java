@@ -42,6 +42,8 @@ class RecoveryFilesInfoRequest extends TransportRequest {
     List<String> phase1ExistingFileNames;
     List<Long> phase1ExistingFileSizes;
 
+    int totalTranslogOps;
+
     @Deprecated
     long phase1TotalSize;
 
@@ -52,7 +54,7 @@ class RecoveryFilesInfoRequest extends TransportRequest {
     }
 
     RecoveryFilesInfoRequest(long recoveryId, ShardId shardId, List<String> phase1FileNames, List<Long> phase1FileSizes,
-                             List<String> phase1ExistingFileNames, List<Long> phase1ExistingFileSizes,
+                             List<String> phase1ExistingFileNames, List<Long> phase1ExistingFileSizes, int totalTranslogOps,
                              // needed for BWC only
                              @Deprecated long phase1TotalSize, @Deprecated long phase1ExistingTotalSize) {
         this.recoveryId = recoveryId;
@@ -61,6 +63,7 @@ class RecoveryFilesInfoRequest extends TransportRequest {
         this.phase1FileSizes = phase1FileSizes;
         this.phase1ExistingFileNames = phase1ExistingFileNames;
         this.phase1ExistingFileSizes = phase1ExistingFileSizes;
+        this.totalTranslogOps = totalTranslogOps;
         this.phase1TotalSize = phase1TotalSize;
         this.phase1ExistingTotalSize = phase1ExistingTotalSize;
     }
@@ -107,6 +110,9 @@ class RecoveryFilesInfoRequest extends TransportRequest {
             in.readVLong();
             //phase1ExistingTotalSize
             in.readVLong();
+            totalTranslogOps = RecoveryState.Translog.UNKNOWN;
+        } else {
+            totalTranslogOps = in.readVInt();
         }
     }
 
@@ -139,6 +145,8 @@ class RecoveryFilesInfoRequest extends TransportRequest {
         if (out.getVersion().before(Version.V_1_5_0)) {
             out.writeVLong(phase1TotalSize);
             out.writeVLong(phase1ExistingTotalSize);
+        } else {
+            out.writeVInt(totalTranslogOps);
         }
     }
 }

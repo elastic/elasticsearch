@@ -56,7 +56,6 @@ import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -229,6 +228,8 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
             if (recoveringTranslogFile == null || !recoveringTranslogFile.exists()) {
                 // no translog to recovery from, start and bail
                 // no translog files, bail
+                recoveryState.getTranslog().totalOperations(0);
+                recoveryState.getTranslog().totalOperationsOnStart(0);
                 indexShard.finalizeRecovery();
                 indexShard.postRecovery("post recovery from gateway, no translog");
                 // no index, just start the shard and bail
@@ -273,7 +274,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                                 typesToUpdate.add(potentialIndexOperation.docMapper().type());
                             }
                         }
-                        recoveryState.getTranslog().addTranslogOperations(1);
+                        recoveryState.getTranslog().incrementRecoveredOperations();
                     } catch (ElasticsearchException e) {
                         if (e.status() == RestStatus.BAD_REQUEST) {
                             // mainly for MapperParsingException and Failure to detect xcontent

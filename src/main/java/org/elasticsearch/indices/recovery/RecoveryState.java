@@ -40,7 +40,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Keeps track of state related to shard recovery.
@@ -368,6 +367,7 @@ public class RecoveryState implements ToXContent, Streamable {
         static final XContentBuilderString TARGET = new XContentBuilderString("target");
         static final XContentBuilderString INDEX = new XContentBuilderString("index");
         static final XContentBuilderString TRANSLOG = new XContentBuilderString("translog");
+        static final XContentBuilderString TOTAL_ON_START = new XContentBuilderString("total_on_start");
         static final XContentBuilderString START = new XContentBuilderString("start");
         static final XContentBuilderString RECOVERED = new XContentBuilderString("recovered");
         static final XContentBuilderString RECOVERED_IN_BYTES = new XContentBuilderString("recovered_in_bytes");
@@ -493,51 +493,105 @@ public class RecoveryState implements ToXContent, Streamable {
     }
 
     public static class Translog extends Timer implements ToXContent, Streamable {
-        private final AtomicInteger currentTranslogOperations = new AtomicInteger();
+        public static final int UNKNOWN = -1;
 
-        public void reset() {
+        private int recovered;
+        private int total = UNKNOWN;
+        private int totalOnStart = UNKNOWN;
+
+        public synchronized void reset() {
             super.reset();
-            currentTranslogOperations.set(0);
+            recovered = 0;
+            total = UNKNOWN;
+            totalOnStart = UNKNOWN;
         }
 
-        public void addTranslogOperations(int count) {
-            this.currentTranslogOperations.addAndGet(count);
+        public synchronized void incrementRecoveredOperations() {
+            recovered++;
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
         }
 
-        public void incrementTranslogOperations() {
-            this.currentTranslogOperations.incrementAndGet();
+        /** returns the total number of translog operations recovered so far */
+        public synchronized int recoveredOperations() {
+            return recovered;
         }
 
-        public int currentTranslogOperations() {
-            return this.currentTranslogOperations.get();
+        /**
+         * returns the total number of translog operations needed to be recovered at this moment.
+         * Note that this can change as the number of operations grows during recovery.
+         * <p/>
+         * A value of -1 ({@link RecoveryState.Translog#UNKNOWN} is return if this is unknown (typically a gateway recovery)
+         */
+        public synchronized int totalOperations() {
+            return total;
+        }
+
+        public synchronized void totalOperations(int total) {
+            this.total = total;
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
+        }
+
+        /**
+         * returns the total number of translog operations to recovered, on the start of the recovery. Unlike {@link #totalOperations}
+         * this does change during recovery.
+         * <p/>
+         * A value of -1 ({@link RecoveryState.Translog#UNKNOWN} is return if this is unknown (typically a gateway recovery)
+         */
+        public synchronized int totalOperationsOnStart() {
+            return this.totalOnStart;
+        }
+
+        public synchronized void totalOperationsOnStart(int total) {
+            this.totalOnStart = total;
+        }
+
+        public synchronized float recoveredPercent() {
+            if (total == UNKNOWN) {
+                return -1.f;
+            }
+            if (total == 0) {
+                return 100.f;
+            }
+            return recovered * 100.0f / total;
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
+        public synchronized void readFrom(StreamInput in) throws IOException {
             if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
                 super.readFrom(in);
+                recovered = in.readVInt();
+                total = in.readVInt();
+                totalOnStart = in.readVInt();
             } else {
                 startTime = in.readVLong();
                 long time = in.readVLong();
                 stopTime = startTime + time;
+                recovered = in.readVInt();
+                total = UNKNOWN;
+                totalOnStart = UNKNOWN;
             }
-            currentTranslogOperations.set(in.readVInt());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
                 super.writeTo(out);
+                out.writeVInt(recovered);
+                out.writeVInt(total);
+                out.writeVInt(totalOnStart);
             } else {
                 out.writeVLong(startTime);
                 out.writeVLong(time());
+                out.writeVInt(recovered);
             }
-            out.writeVInt(currentTranslogOperations.get());
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(Fields.RECOVERED, currentTranslogOperations.get());
+        public synchronized XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(Fields.RECOVERED, recovered);
+            builder.field(Fields.TOTAL, total);
+            builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredPercent()));
+            builder.field(Fields.TOTAL_ON_START, totalOnStart);
             builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time());
             return builder;
         }

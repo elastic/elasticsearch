@@ -65,6 +65,8 @@ coming[1.5.0, this syntax was change to fix inconsistencies with other API]
       },
       "translog" : {
         "recovered" : 0,
+        "total" : 0,
+        "percent" : "100.0%",
         "total_time" : "0s",
         "total_time_in_millis" : 0
       },

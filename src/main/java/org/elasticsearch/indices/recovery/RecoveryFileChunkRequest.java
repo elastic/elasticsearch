@@ -42,16 +42,20 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
     private BytesReference content;
     private StoreFileMetaData metaData;
 
+    private int totalTranslogOps;
+
     RecoveryFileChunkRequest() {
     }
 
-    public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetaData metaData, long position, BytesReference content, boolean lastChunk) {
+    public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetaData metaData, long position, BytesReference content,
+                                    boolean lastChunk, int totalTranslogOps) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.metaData = metaData;
         this.position = position;
         this.content = content;
         this.lastChunk = lastChunk;
+        this.totalTranslogOps = totalTranslogOps;
     }
 
     public long recoveryId() {
@@ -83,6 +87,10 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         return content;
     }
 
+    public int totalTranslogOps() {
+        return totalTranslogOps;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -104,6 +112,12 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         } else {
             lastChunk = false;
         }
+
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_5_0)) {
+            totalTranslogOps = in.readVInt();
+        } else {
+            totalTranslogOps = RecoveryState.Translog.UNKNOWN;
+        }
     }
 
     @Override
@@ -122,6 +136,10 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0_Beta1)) {
             out.writeBoolean(lastChunk);
         }
+        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_5_0)) {
+            out.writeVInt(totalTranslogOps);
+        }
+
     }
 
     @Override

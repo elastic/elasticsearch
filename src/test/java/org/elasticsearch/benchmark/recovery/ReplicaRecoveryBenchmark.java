@@ -132,7 +132,7 @@ public class ReplicaRecoveryBenchmark {
                     long translogOps;
                     long bytes;
                     if (indexRecoveries.size() > 0) {
-                        translogOps = indexRecoveries.get(0).recoveryState().getTranslog().currentTranslogOperations();
+                        translogOps = indexRecoveries.get(0).recoveryState().getTranslog().recoveredOperations();
                         bytes = recoveryResponse.shardResponses().get(INDEX_NAME).get(0).recoveryState().getIndex().recoveredBytes();
                     } else {
                         bytes = lastBytes = 0;

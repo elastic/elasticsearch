@@ -26,7 +26,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
@@ -296,6 +295,7 @@ public class RecoveryTarget extends AbstractComponent {
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
+                recoveryStatus.state().getTranslog().totalOperations(request.totalTranslogOps());
                 recoveryStatus.indexShard().prepareForTranslogRecovery();
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -341,9 +341,11 @@ public class RecoveryTarget extends AbstractComponent {
         public void messageReceived(RecoveryTranslogOperationsRequest request, TransportChannel channel) throws Exception {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
+                final RecoveryState.Translog translog = recoveryStatus.state().getTranslog();
+                translog.totalOperations(request.totalTranslogOps());
                 for (Translog.Operation operation : request.operations()) {
                     recoveryStatus.indexShard().performRecoveryOperation(operation);
-                    recoveryStatus.state().getTranslog().incrementTranslogOperations();
+                    translog.incrementRecoveredOperations();
                 }
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -374,6 +376,8 @@ public class RecoveryTarget extends AbstractComponent {
                 for (int i = 0; i < request.phase1FileNames.size(); i++) {
                     index.addFileDetail(request.phase1FileNames.get(i), request.phase1FileSizes.get(i), false);
                 }
+                recoveryStatus.state().getTranslog().totalOperations(request.totalTranslogOps);
+                recoveryStatus.state().getTranslog().totalOperationsOnStart(request.totalTranslogOps);
                 // recoveryBytesCount / recoveryFileCount will be set as we go...
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             }
@@ -396,6 +400,7 @@ public class RecoveryTarget extends AbstractComponent {
         public void messageReceived(RecoveryCleanFilesRequest request, TransportChannel channel) throws Exception {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
+                recoveryStatus.state().getTranslog().totalOperations(request.totalTranslogOps());
                 // first, we go and move files that were created with the recovery id suffix to
                 // the actual names, its ok if we have a corrupted index here, since we have replicas
                 // to recover from in case of a full cluster shutdown just when this code executes...
@@ -458,6 +463,7 @@ public class RecoveryTarget extends AbstractComponent {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
                 final Store store = recoveryStatus.store();
+                recoveryStatus.state().getTranslog().totalOperations(request.totalTranslogOps());
                 IndexOutput indexOutput;
                 if (request.position() == 0) {
                     indexOutput = recoveryStatus.openAndPutIndexOutput(request.name(), request.metadata(), store);

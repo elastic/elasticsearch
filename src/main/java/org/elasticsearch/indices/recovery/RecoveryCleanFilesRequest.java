@@ -40,14 +40,16 @@ class RecoveryCleanFilesRequest extends TransportRequest {
     private ShardId shardId;
     private Set<String> legacySnapshotFiles; // legacy - we moved to a real snapshot in 1.5
     private Store.MetadataSnapshot snapshotFiles;
+    private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
 
     RecoveryCleanFilesRequest() {
     }
 
-    RecoveryCleanFilesRequest(long recoveryId, ShardId shardId, Store.MetadataSnapshot snapshotFiles) {
+    RecoveryCleanFilesRequest(long recoveryId, ShardId shardId, Store.MetadataSnapshot snapshotFiles, int totalTranslogOps) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.snapshotFiles = snapshotFiles;
+        this.totalTranslogOps = totalTranslogOps;
     }
 
     public long recoveryId() {
@@ -65,6 +67,7 @@ class RecoveryCleanFilesRequest extends TransportRequest {
         shardId = ShardId.readShardId(in);
         if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
             snapshotFiles = Store.MetadataSnapshot.read(in);
+            totalTranslogOps = in.readVInt();
         } else {
             int size = in.readVInt();
             legacySnapshotFiles = Sets.newHashSetWithExpectedSize(size);
@@ -82,6 +85,7 @@ class RecoveryCleanFilesRequest extends TransportRequest {
         shardId.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
             snapshotFiles.writeTo(out);
+            out.writeVInt(totalTranslogOps);
         } else {
             out.writeVInt(snapshotFiles.size());
             for (StoreFileMetaData snapshotFile : snapshotFiles) {
@@ -97,5 +101,9 @@ class RecoveryCleanFilesRequest extends TransportRequest {
 
     public Set<String> legacySnapshotFiles() {
         return legacySnapshotFiles;
+    }
+
+    public int totalTranslogOps() {
+        return totalTranslogOps;
     }
 }

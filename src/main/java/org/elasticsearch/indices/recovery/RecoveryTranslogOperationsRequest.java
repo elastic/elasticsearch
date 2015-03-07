@@ -24,8 +24,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.index.translog.TranslogStreams;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -39,14 +39,16 @@ class RecoveryTranslogOperationsRequest extends TransportRequest {
     private long recoveryId;
     private ShardId shardId;
     private List<Translog.Operation> operations;
+    private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
 
     RecoveryTranslogOperationsRequest() {
     }
 
-    RecoveryTranslogOperationsRequest(long recoveryId, ShardId shardId, List<Translog.Operation> operations) {
+    RecoveryTranslogOperationsRequest(long recoveryId, ShardId shardId, List<Translog.Operation> operations, int totalTranslogOps) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.operations = operations;
+        this.totalTranslogOps = totalTranslogOps;
     }
 
     public long recoveryId() {
@@ -59,6 +61,10 @@ class RecoveryTranslogOperationsRequest extends TransportRequest {
 
     public List<Translog.Operation> operations() {
         return operations;
+    }
+
+    public int totalTranslogOps() {
+        return totalTranslogOps;
     }
 
     @Override
@@ -76,6 +82,9 @@ class RecoveryTranslogOperationsRequest extends TransportRequest {
             }
 
         }
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            totalTranslogOps = in.readVInt();
+        }
     }
 
     @Override
@@ -90,6 +99,9 @@ class RecoveryTranslogOperationsRequest extends TransportRequest {
             } else {
                 TranslogStreams.LEGACY_TRANSLOG_STREAM.write(out, operation);
             }
+        }
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            out.writeVInt(totalTranslogOps);
         }
     }
 }

@@ -202,7 +202,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                             recoveryState.getTimer().time(),
                             index.totalBytes(),
                             index.reusedBytes(),
-                            index.recoveredBytes(), recoveryState.getTranslog().currentTranslogOperations());
+                            index.recoveredBytes(), recoveryState.getTranslog().recoveredOperations());
                 } else if (recoveryState.getType() == RecoveryState.Type.GATEWAY) {
                     GatewayRecoveryStatus.Stage stage;
                     switch (recoveryState.getStage()) {
@@ -222,7 +222,7 @@ public class TransportIndicesStatusAction extends TransportBroadcastOperationAct
                             stage = GatewayRecoveryStatus.Stage.INIT;
                     }
                     shardStatus.gatewayRecoveryStatus = new GatewayRecoveryStatus(stage, recoveryState.getTimer().startTime(), recoveryState.getTimer().time(),
-                            index.totalBytes(), index.reusedBytes(), index.recoveredBytes(), recoveryState.getTranslog().currentTranslogOperations());
+                            index.totalBytes(), index.reusedBytes(), index.recoveredBytes(), recoveryState.getTranslog().recoveredOperations());
                 }
             }
         }

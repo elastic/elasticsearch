@@ -65,6 +65,8 @@ public class NoneIndexShardGateway extends AbstractIndexShardComponent implement
         } finally {
             indexShard.store().decRef();
         }
+        recoveryState.getTranslog().totalOperations(0);
+        recoveryState.getTranslog().totalOperationsOnStart(0);
         indexShard.prepareForTranslogRecovery();
         indexShard.finalizeRecovery();
         indexShard.postRecovery("post recovery from gateway");

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -33,13 +34,15 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
 
     private long recoveryId;
     private ShardId shardId;
+    private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
 
     RecoveryPrepareForTranslogOperationsRequest() {
     }
 
-    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId) {
+    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
+        this.totalTranslogOps = totalTranslogOps;
     }
 
     public long recoveryId() {
@@ -50,11 +53,18 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         return shardId;
     }
 
+    public int totalTranslogOps() {
+        return totalTranslogOps;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            totalTranslogOps = in.readVInt();
+        }
     }
 
     @Override
@@ -62,5 +72,9 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            out.writeVInt(totalTranslogOps);
+        }
+
     }
 }

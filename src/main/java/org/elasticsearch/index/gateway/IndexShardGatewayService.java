@@ -132,7 +132,7 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                                 .append(new ByteSizeValue(index.reusedBytes())).append("]\n");
                         sb.append("    start    : took [").append(TimeValue.timeValueMillis(recoveryState.getStart().time())).append("], check_index [")
                                 .append(timeValueMillis(recoveryState.getStart().checkIndexTime())).append("]\n");
-                        sb.append("    translog : number_of_operations [").append(recoveryState.getTranslog().currentTranslogOperations())
+                        sb.append("    translog : number_of_operations [").append(recoveryState.getTranslog().recoveredOperations())
                                 .append("], took [").append(TimeValue.timeValueMillis(recoveryState.getTranslog().time())).append("]");
                         logger.trace(sb.toString());
                     } else if (logger.isDebugEnabled()) {

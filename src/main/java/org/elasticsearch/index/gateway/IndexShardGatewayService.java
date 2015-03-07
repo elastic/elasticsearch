@@ -112,13 +112,10 @@ public class IndexShardGatewayService extends AbstractIndexShardComponent implem
                         shardGateway.recover(indexShouldExists, recoveryState);
                     }
 
-                    // Check that the gateway have set the shard to POST_RECOVERY. Note that if a shard
-                    // is in POST_RECOVERY, it may have been started as well if:
-                    // 1) master sent a new cluster state indicating shard is initializing
-                    // 2) IndicesClusterStateService#applyInitializingShard will send a shard started event
-                    // 3) Master will mark shard as started and this will be processed locally.
+                    // Check that the gateway didn't leave the shard in init or recovering stage. it is up to the gateway
+                    // to call post recovery.
                     IndexShardState shardState = indexShard.state();
-                    assert shardState == IndexShardState.POST_RECOVERY || shardState == IndexShardState.STARTED : "recovery process didn't call post_recovery. shardState [" + shardState + "]";
+                    assert shardState != IndexShardState.CREATED && shardState != IndexShardState.RECOVERING : "recovery process of " + shardId + " didn't get to post_recovery. shardState [" + shardState + "]";
 
                     if (logger.isTraceEnabled()) {
                         StringBuilder sb = new StringBuilder();

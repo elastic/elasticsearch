@@ -54,11 +54,11 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
         builders.add(client().prepareIndex("test", "scriptTest", "4").setSource("{\"theField\":\"foo 4\"}"));
         builders.add(client().prepareIndex("test", "scriptTest", "5").setSource("{\"theField\":\"bar\"}"));
 
-        indexRandom(true,builders);
+        indexRandom(true, builders);
 
         String query = "{ \"query\" : { \"match_all\": {}} , \"script_fields\" : { \"test1\" : { \"file\" : \"script1\" }, \"test2\" : { \"file\" : \"script2\", \"params\":{\"factor\":3}  }}, size:1}";
         SearchResponse searchResponse = client().prepareSearch().setSource(query).setIndices("test").setTypes("scriptTest").get();
-        assertHitCount(searchResponse,5);
+        assertHitCount(searchResponse, 5);
         assertTrue(searchResponse.getHits().hits().length == 1);
         SearchHit sh = searchResponse.getHits().getAt(0);
         assertThat((Integer)sh.field("test1").getValue(), equalTo(2));
@@ -75,14 +75,35 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
         builders.add(client().prepareIndex("test", "scriptTest", "4").setSource("{\"theField\":\"foo 4\"}"));
         builders.add(client().prepareIndex("test", "scriptTest", "5").setSource("{\"theField\":\"bar\"}"));
 
-        indexRandom(true,builders);
+        indexRandom(true, builders);
 
         String query = "{ \"query\" : { \"match_all\": {}} , \"script_fields\" : { \"test1\" : { \"script\" : \"script1\" }, \"test2\" : { \"script\" : \"script2\", \"params\":{\"factor\":3}  }}, size:1}";
         SearchResponse searchResponse = client().prepareSearch().setSource(query).setIndices("test").setTypes("scriptTest").get();
-        assertHitCount(searchResponse,5);
-        assertTrue(searchResponse.getHits().hits().length == 1);
+        assertHitCount(searchResponse, 5);
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        SearchHit sh = searchResponse.getHits().getAt(0);
+        assertThat((Integer) sh.field("test1").getValue(), equalTo(2));
+        assertThat((Integer) sh.field("test2").getValue(), equalTo(6));
+    }
+
+    @Test
+    public void testOnDiskScriptsSameNameDifferentLang()  throws ExecutionException, InterruptedException {
+
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}"));
+        builders.add(client().prepareIndex("test", "scriptTest", "2").setSource("{\"theField\":\"foo 2\"}"));
+        builders.add(client().prepareIndex("test", "scriptTest", "3").setSource("{\"theField\":\"foo 3\"}"));
+        builders.add(client().prepareIndex("test", "scriptTest", "4").setSource("{\"theField\":\"foo 4\"}"));
+        builders.add(client().prepareIndex("test", "scriptTest", "5").setSource("{\"theField\":\"bar\"}"));
+
+        indexRandom(true, builders);
+
+        String query = "{ \"query\" : { \"match_all\": {}} , \"script_fields\" : { \"test1\" : { \"script_file\" : \"script1\" }, \"test2\" : { \"script_file\" : \"script1\", \"lang\":\"expression\"  }}, size:1}";
+        SearchResponse searchResponse = client().prepareSearch().setSource(query).setIndices("test").setTypes("scriptTest").get();
+        assertHitCount(searchResponse, 5);
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
         SearchHit sh = searchResponse.getHits().getAt(0);
         assertThat((Integer)sh.field("test1").getValue(), equalTo(2));
-        assertThat((Integer)sh.field("test2").getValue(), equalTo(6));
+        assertThat((Double)sh.field("test2").getValue(), equalTo(10d));
     }
 }

@@ -44,7 +44,6 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Injectors;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.CachedStreams;
 import org.elasticsearch.common.lease.Releasables;
@@ -379,7 +378,11 @@ public final class InternalNode implements Node {
         }
 
         stopWatch.stop().start("script");
-        injector.getInstance(ScriptService.class).close();
+        try {
+            injector.getInstance(ScriptService.class).close();
+        } catch(IOException e) {
+            logger.warn("ScriptService close failed", e);
+        }
 
         stopWatch.stop().start("thread_pool");
         // TODO this should really use ThreadPool.terminate()

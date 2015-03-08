@@ -21,7 +21,6 @@ package org.elasticsearch.common.rounding;
 
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.hamcrest.collection.IsMapContaining;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;

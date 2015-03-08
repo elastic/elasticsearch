@@ -101,6 +101,7 @@ import org.elasticsearch.tribe.TribeService;
 import org.elasticsearch.watcher.ResourceWatcherModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
 
@@ -376,7 +377,11 @@ public final class InternalNode implements Node {
         }
 
         stopWatch.stop().start("script");
-        injector.getInstance(ScriptService.class).close();
+        try {
+            injector.getInstance(ScriptService.class).close();
+        } catch(IOException e) {
+            logger.warn("ScriptService close failed", e);
+        }
 
         stopWatch.stop().start("thread_pool");
         injector.getInstance(ThreadPool.class).shutdown();

@@ -42,67 +42,72 @@ public class MetaStateServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testWriteLoadIndex() throws Exception {
-        final NodeEnvironment env = newNodeEnvironment();
-        MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
 
-        IndexMetaData index = IndexMetaData.builder("test1").settings(indexSettings).build();
-        metaStateService.writeIndex("test_write", index, null);
-        assertThat(metaStateService.loadIndexState("test1"), equalTo(index));
+            IndexMetaData index = IndexMetaData.builder("test1").settings(indexSettings).build();
+            metaStateService.writeIndex("test_write", index, null);
+            assertThat(metaStateService.loadIndexState("test1"), equalTo(index));
+        }
     }
 
     @Test
     public void testLoadMissingIndex() throws Exception {
-        final NodeEnvironment env = newNodeEnvironment();
-        MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
-        assertThat(metaStateService.loadIndexState("test1"), nullValue());
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
+            assertThat(metaStateService.loadIndexState("test1"), nullValue());
+        }
     }
 
     @Test
     public void testWriteLoadGlobal() throws Exception {
-        final NodeEnvironment env = newNodeEnvironment();
-        MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
 
-        MetaData metaData = MetaData.builder()
-                .persistentSettings(ImmutableSettings.builder().put("test1", "value1").build())
-                .build();
-        metaStateService.writeGlobalState("test_write", metaData);
-        assertThat(metaStateService.loadGlobalState().persistentSettings(), equalTo(metaData.persistentSettings()));
+            MetaData metaData = MetaData.builder()
+                    .persistentSettings(ImmutableSettings.builder().put("test1", "value1").build())
+                    .build();
+            metaStateService.writeGlobalState("test_write", metaData);
+            assertThat(metaStateService.loadGlobalState().persistentSettings(), equalTo(metaData.persistentSettings()));
+        }
     }
 
     @Test
     public void testWriteGlobalStateWithIndexAndNoIndexIsLoaded() throws Exception {
-        final NodeEnvironment env = newNodeEnvironment();
-        MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
 
-        MetaData metaData = MetaData.builder()
-                .persistentSettings(ImmutableSettings.builder().put("test1", "value1").build())
-                .build();
-        IndexMetaData index = IndexMetaData.builder("test1").settings(indexSettings).build();
-        MetaData metaDataWithIndex = MetaData.builder(metaData).put(index, true).build();
+            MetaData metaData = MetaData.builder()
+                    .persistentSettings(ImmutableSettings.builder().put("test1", "value1").build())
+                    .build();
+            IndexMetaData index = IndexMetaData.builder("test1").settings(indexSettings).build();
+            MetaData metaDataWithIndex = MetaData.builder(metaData).put(index, true).build();
 
-        metaStateService.writeGlobalState("test_write", metaDataWithIndex);
-        assertThat(metaStateService.loadGlobalState().persistentSettings(), equalTo(metaData.persistentSettings()));
-        assertThat(metaStateService.loadGlobalState().hasIndex("test1"), equalTo(false));
+            metaStateService.writeGlobalState("test_write", metaDataWithIndex);
+            assertThat(metaStateService.loadGlobalState().persistentSettings(), equalTo(metaData.persistentSettings()));
+            assertThat(metaStateService.loadGlobalState().hasIndex("test1"), equalTo(false));
+        }
     }
 
     @Test
     public void tesLoadGlobal() throws Exception {
-        final NodeEnvironment env = newNodeEnvironment();
-        MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(randomSettings(), env);
 
-        IndexMetaData index = IndexMetaData.builder("test1").settings(indexSettings).build();
-        MetaData metaData = MetaData.builder()
-                .persistentSettings(ImmutableSettings.builder().put("test1", "value1").build())
-                .put(index, true)
-                .build();
+            IndexMetaData index = IndexMetaData.builder("test1").settings(indexSettings).build();
+            MetaData metaData = MetaData.builder()
+                    .persistentSettings(ImmutableSettings.builder().put("test1", "value1").build())
+                    .put(index, true)
+                    .build();
 
-        metaStateService.writeGlobalState("test_write", metaData);
-        metaStateService.writeIndex("test_write", index, null);
+            metaStateService.writeGlobalState("test_write", metaData);
+            metaStateService.writeIndex("test_write", index, null);
 
-        MetaData loadedState = metaStateService.loadFullState();
-        assertThat(loadedState.persistentSettings(), equalTo(metaData.persistentSettings()));
-        assertThat(loadedState.hasIndex("test1"), equalTo(true));
-        assertThat(loadedState.index("test1"), equalTo(index));
+            MetaData loadedState = metaStateService.loadFullState();
+            assertThat(loadedState.persistentSettings(), equalTo(metaData.persistentSettings()));
+            assertThat(loadedState.hasIndex("test1"), equalTo(true));
+            assertThat(loadedState.index("test1"), equalTo(index));
+        }
     }
 
     private Settings randomSettings() {

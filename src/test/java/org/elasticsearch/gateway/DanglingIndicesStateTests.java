@@ -49,76 +49,79 @@ public class DanglingIndicesStateTests extends ElasticsearchTestCase {
 
     @Test
     public void testCleanupWhenEmpty() throws Exception {
-        final NodeEnvironment env = newNodeEnvironment();
-        MetaStateService metaStateService = new MetaStateService(ImmutableSettings.EMPTY, env);
-        DanglingIndicesState danglingState = new DanglingIndicesState(ImmutableSettings.EMPTY, env, metaStateService, null);
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(ImmutableSettings.EMPTY, env);
+            DanglingIndicesState danglingState = new DanglingIndicesState(ImmutableSettings.EMPTY, env, metaStateService, null);
 
-        assertTrue(danglingState.getDanglingIndices().isEmpty());
-        MetaData metaData = MetaData.builder().build();
-        danglingState.cleanupAllocatedDangledIndices(metaData);
-        assertTrue(danglingState.getDanglingIndices().isEmpty());
+            assertTrue(danglingState.getDanglingIndices().isEmpty());
+            MetaData metaData = MetaData.builder().build();
+            danglingState.cleanupAllocatedDangledIndices(metaData);
+            assertTrue(danglingState.getDanglingIndices().isEmpty());
+        }
     }
 
     @Test
     public void testDanglingProcessing() throws Exception {
-        final NodeEnvironment env = newNodeEnvironment();
-        MetaStateService metaStateService = new MetaStateService(ImmutableSettings.EMPTY, env);
-        DanglingIndicesState danglingState = new DanglingIndicesState(ImmutableSettings.EMPTY, env, metaStateService, null);
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(ImmutableSettings.EMPTY, env);
+            DanglingIndicesState danglingState = new DanglingIndicesState(ImmutableSettings.EMPTY, env, metaStateService, null);
 
-        MetaData metaData = MetaData.builder().build();
+            MetaData metaData = MetaData.builder().build();
 
-        IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(indexSettings).build();
-        metaStateService.writeIndex("test_write", dangledIndex, null);
+            IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(indexSettings).build();
+            metaStateService.writeIndex("test_write", dangledIndex, null);
 
-        // check that several runs when not in the metadata still keep the dangled index around
-        int numberOfChecks = randomIntBetween(1, 10);
-        for (int i = 0; i < numberOfChecks; i++) {
-            Map<String, IndexMetaData> newDanglingIndices = danglingState.findNewDanglingIndices(metaData);
-            assertThat(newDanglingIndices.size(), equalTo(1));
-            assertThat(newDanglingIndices.keySet(), Matchers.hasItems("test1"));
+            // check that several runs when not in the metadata still keep the dangled index around
+            int numberOfChecks = randomIntBetween(1, 10);
+            for (int i = 0; i < numberOfChecks; i++) {
+                Map<String, IndexMetaData> newDanglingIndices = danglingState.findNewDanglingIndices(metaData);
+                assertThat(newDanglingIndices.size(), equalTo(1));
+                assertThat(newDanglingIndices.keySet(), Matchers.hasItems("test1"));
+                assertTrue(danglingState.getDanglingIndices().isEmpty());
+            }
+
+            for (int i = 0; i < numberOfChecks; i++) {
+                danglingState.findNewAndAddDanglingIndices(metaData);
+
+                assertThat(danglingState.getDanglingIndices().size(), equalTo(1));
+                assertThat(danglingState.getDanglingIndices().keySet(), Matchers.hasItems("test1"));
+            }
+
+            // simulate allocation to the metadata
+            metaData = MetaData.builder(metaData).put(dangledIndex, true).build();
+
+            // check that several runs when in the metadata, but not cleaned yet, still keeps dangled
+            for (int i = 0; i < numberOfChecks; i++) {
+                Map<String, IndexMetaData> newDanglingIndices = danglingState.findNewDanglingIndices(metaData);
+                assertTrue(newDanglingIndices.isEmpty());
+
+                assertThat(danglingState.getDanglingIndices().size(), equalTo(1));
+                assertThat(danglingState.getDanglingIndices().keySet(), Matchers.hasItems("test1"));
+            }
+
+            danglingState.cleanupAllocatedDangledIndices(metaData);
             assertTrue(danglingState.getDanglingIndices().isEmpty());
         }
-
-        for (int i = 0; i < numberOfChecks; i++) {
-            danglingState.findNewAndAddDanglingIndices(metaData);
-
-            assertThat(danglingState.getDanglingIndices().size(), equalTo(1));
-            assertThat(danglingState.getDanglingIndices().keySet(), Matchers.hasItems("test1"));
-        }
-
-        // simulate allocation to the metadata
-        metaData = MetaData.builder(metaData).put(dangledIndex, true).build();
-
-        // check that several runs when in the metadata, but not cleaned yet, still keeps dangled
-        for (int i = 0; i < numberOfChecks; i++) {
-            Map<String, IndexMetaData> newDanglingIndices = danglingState.findNewDanglingIndices(metaData);
-            assertTrue(newDanglingIndices.isEmpty());
-
-            assertThat(danglingState.getDanglingIndices().size(), equalTo(1));
-            assertThat(danglingState.getDanglingIndices().keySet(), Matchers.hasItems("test1"));
-        }
-
-        danglingState.cleanupAllocatedDangledIndices(metaData);
-        assertTrue(danglingState.getDanglingIndices().isEmpty());
     }
 
     @Test
     public void testRenameOfIndexState() throws Exception {
-        final NodeEnvironment env = newNodeEnvironment();
-        MetaStateService metaStateService = new MetaStateService(ImmutableSettings.EMPTY, env);
-        DanglingIndicesState danglingState = new DanglingIndicesState(ImmutableSettings.EMPTY, env, metaStateService, null);
+        try (NodeEnvironment env = newNodeEnvironment()) {
+            MetaStateService metaStateService = new MetaStateService(ImmutableSettings.EMPTY, env);
+            DanglingIndicesState danglingState = new DanglingIndicesState(ImmutableSettings.EMPTY, env, metaStateService, null);
 
-        MetaData metaData = MetaData.builder().build();
+            MetaData metaData = MetaData.builder().build();
 
-        IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(indexSettings).build();
-        metaStateService.writeIndex("test_write", dangledIndex, null);
+            IndexMetaData dangledIndex = IndexMetaData.builder("test1").settings(indexSettings).build();
+            metaStateService.writeIndex("test_write", dangledIndex, null);
 
-        for (Path path : env.indexPaths(new Index("test1"))) {
-            Files.move(path, path.getParent().resolve("test1_renamed"));
+            for (Path path : env.indexPaths(new Index("test1"))) {
+                Files.move(path, path.getParent().resolve("test1_renamed"));
+            }
+
+            Map<String, IndexMetaData> newDanglingIndices = danglingState.findNewDanglingIndices(metaData);
+            assertThat(newDanglingIndices.size(), equalTo(1));
+            assertThat(newDanglingIndices.keySet(), Matchers.hasItems("test1_renamed"));
         }
-
-        Map<String, IndexMetaData> newDanglingIndices = danglingState.findNewDanglingIndices(metaData);
-        assertThat(newDanglingIndices.size(), equalTo(1));
-        assertThat(newDanglingIndices.keySet(), Matchers.hasItems("test1_renamed"));
     }
 }

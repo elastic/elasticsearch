@@ -178,6 +178,25 @@ public class TimeZoneRoundingTests extends ElasticsearchTestCase {
         assertThat(roundedValue, equalTo(time("2014-04-30T23:00:00.000Z", DateTimeZone.UTC)));
     }
 
+    /**
+     * test for #10025, strict local to UTC conversion can cause joda exceptions
+     * on DST start
+     */
+    @Test
+    public void testLenientConversionDST() {
+        DateTimeZone tz = DateTimeZone.forID("America/Sao_Paulo");
+        long start = time("2014-10-18T20:50:00.000", tz);
+        long end = time("2014-10-19T01:00:00.000", tz);
+        Rounding tzRounding = new TimeZoneRounding.TimeTimeZoneRoundingFloor(DateTimeUnit.MINUTES_OF_HOUR, tz, 
+                DateTimeZone.UTC);
+        Rounding dayTzRounding = new TimeZoneRounding.DayTimeZoneRoundingFloor(DateTimeUnit.MINUTES_OF_HOUR, tz, 
+                DateTimeZone.UTC);
+        for (long time = start; time < end; time = time + 60000) {
+            assertThat(tzRounding.nextRoundingValue(time), greaterThan(time));
+            assertThat(dayTzRounding.nextRoundingValue(time), greaterThan(time));
+        }
+    }
+
     private long utc(String time) {
         return time(time, DateTimeZone.UTC);
     }

@@ -435,7 +435,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
         stopWatch.stop();
         response.startTime = stopWatch.totalTime().millis();
         logger.trace("{} recovery [phase2] to {}: start took [{}]",
-                request.shardId(), request.targetNode(), request.targetNode(), stopWatch.totalTime());
+                request.shardId(), request.targetNode(), stopWatch.totalTime());
 
 
         logger.trace("{} recovery [phase2] to {}: updating current mapping to master", request.shardId(), request.targetNode());

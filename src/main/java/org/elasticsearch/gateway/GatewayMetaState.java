@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
@@ -32,7 +31,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -46,6 +44,7 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.*;
 
 /**
  *
@@ -58,17 +57,19 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     private final NodeEnvironment nodeEnv;
     private final MetaStateService metaStateService;
     private final DanglingIndicesState danglingIndicesState;
+    private final IndexMetaState indexMetaState;
 
     @Nullable
     private volatile MetaData currentMetaData;
 
     @Inject
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
-                            DanglingIndicesState danglingIndicesState, TransportNodesListGatewayMetaState nodesListGatewayMetaState) throws Exception {
+                            DanglingIndicesState danglingIndicesState, IndexMetaState indexMetaState, TransportNodesListGatewayMetaState nodesListGatewayMetaState) throws Exception {
         super(settings);
         this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
         this.danglingIndicesState = danglingIndicesState;
+        this.indexMetaState = indexMetaState;
         nodesListGatewayMetaState.init(this);
 
         if (DiscoveryNode.dataNode(settings)) {
@@ -97,6 +98,26 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         return metaStateService.loadFullState();
     }
 
+    public static class IndexMetaWriteInfo {
+        IndexMetaData newMetaData;
+        String reason;
+        public IndexMetaData previousMetaData;
+
+        public IndexMetaWriteInfo(IndexMetaData newMetaData, IndexMetaData previousMetaData, String reason) {
+            this.newMetaData = newMetaData;
+            this.reason = reason;
+            this.previousMetaData = previousMetaData;
+        }
+
+        public IndexMetaData getNewMetaData() {
+            return newMetaData;
+        }
+
+        public String getReason() {
+            return reason;
+        }
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         final ClusterState state = event.state();
@@ -121,39 +142,17 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                 }
             }
 
+            Iterable<IndexMetaWriteInfo> writeInfo = new ArrayList<>();
+            if (isDataOnlyNode(event.state())) {
+                writeInfo = indexMetaState.getIndicesToWriteDataOnlyNode(event, currentMetaData);
+            } else if (isMasterEligibleNode(event.state())) {
+                writeInfo = indexMetaState.getIndicesToWriteMasterNode(event, currentMetaData);
+            }
+
             // check and write changes in indices
-            for (IndexMetaData indexMetaData : newMetaData) {
-                String writeReason = null;
-                IndexMetaData currentIndexMetaData;
-                if (currentMetaData == null) {
-                    // a new event..., check from the state stored
-                    try {
-                        currentIndexMetaData = metaStateService.loadIndexState(indexMetaData.index());
-                    } catch (IOException ex) {
-                        throw new ElasticsearchException("failed to load index state", ex);
-                    }
-                } else {
-                    currentIndexMetaData = currentMetaData.index(indexMetaData.index());
-                }
-                boolean shardsAllocatedOnThisNodeInLastClusterState = shardsAllocatedOnLocalNode(event.previousState(), indexMetaData);
-                boolean shardsAllocatedOnThisNodeInNewClusterState = shardsAllocatedOnLocalNode(event.state(), indexMetaData);
-                if (isDataOnlyNode(state) && (shardsAllocatedOnThisNodeInLastClusterState == false) && (shardsAllocatedOnThisNodeInNewClusterState == true)) {
-                    // shard was newly allocated because it was not allocated in last cluster state but is now
-                    // we removed the index state before so now we have to write it again
-                    writeReason = "shard allocated on data only node";
-                } else if (shouldWriteOnNode(state, shardsAllocatedOnThisNodeInNewClusterState) && currentIndexMetaData == null) {
-                    writeReason = "freshly created";
-                } else if (shouldWriteOnNode(state, shardsAllocatedOnThisNodeInNewClusterState) && currentIndexMetaData.version() != indexMetaData.version()) {
-                    writeReason = "version changed from [" + currentIndexMetaData.version() + "] to [" + indexMetaData.version() + "]";
-                }
-
-                // we update the writeReason only if we really need to write it
-                if (writeReason == null) {
-                    continue;
-                }
-
+            for (IndexMetaWriteInfo indexMetaWrite : writeInfo) {
                 try {
-                    metaStateService.writeIndex(writeReason, indexMetaData, currentIndexMetaData);
+                    metaStateService.writeIndex(indexMetaWrite.reason, indexMetaWrite.newMetaData, indexMetaWrite.previousMetaData);
                 } catch (Throwable e) {
                     success = false;
                 }
@@ -167,24 +166,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         }
     }
 
-    protected boolean shardsAllocatedOnLocalNode(ClusterState state, IndexMetaData indexMetaData) {
-        boolean shardsAllocatedOnThisNode = false;
-        IndexRoutingTable indexRoutingTable = state.getRoutingTable().index(indexMetaData.index());
-        if (indexRoutingTable == null) {
-            // nothing allocated ?
-            return false;
-        }
-        // iterate over shards and see if one is on our node
-        for (IntObjectCursor it : indexRoutingTable.shards()) {
-            IndexShardRoutingTable shardRoutingTable = (IndexShardRoutingTable) it.value;
-            for (ShardRouting shardRouting : shardRoutingTable.shards()) {
-                if (shardRouting.currentNodeId() != null && shardRouting.currentNodeId().equals(state.nodes().localNode().getId())) {
-                    shardsAllocatedOnThisNode = true;
-                }
-            }
-        }
-        return shardsAllocatedOnThisNode;
-    }
 
     protected boolean isDataOnlyNode(ClusterState state) {
         return ((isMasterEligibleNode(state) == false) && (state.nodes().localNode().dataNode() == true));

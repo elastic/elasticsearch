@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.indices.recovery;
+package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.cluster.metadata.IndexMetaData;

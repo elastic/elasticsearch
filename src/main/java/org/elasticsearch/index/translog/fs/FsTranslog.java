@@ -466,6 +466,11 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     @Override
     public TranslogStats stats() {
-        return new TranslogStats(estimatedNumberOfOperations(), translogSizeInBytes());
+        FsTranslogFile current1 = this.current;
+        if (current1 == null) {
+            return new TranslogStats(0, 0);
+        }
+
+        return new TranslogStats(current1.estimatedNumberOfOperations(), current1.translogSizeInBytes());
     }
 }

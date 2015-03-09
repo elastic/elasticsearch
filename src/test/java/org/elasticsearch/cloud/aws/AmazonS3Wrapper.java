@@ -193,6 +193,11 @@ public class AmazonS3Wrapper implements AmazonS3 {
     }
 
     @Override
+    public void setObjectAcl(SetObjectAclRequest setObjectAclRequest) throws AmazonClientException, AmazonServiceException {
+        delegate.setObjectAcl(setObjectAclRequest);
+    }
+
+    @Override
     public AccessControlList getBucketAcl(String bucketName) throws AmazonClientException, AmazonServiceException {
         return delegate.getBucketAcl(bucketName);
     }

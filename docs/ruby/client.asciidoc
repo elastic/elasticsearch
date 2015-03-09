@@ -81,7 +81,7 @@ client.search index: 'my-index', body: { query: { match: { title: 'test' } } }
 
 === Transport and API
 
-The `elasticsearch` gem combines two separate Ruybygems:
+The `elasticsearch` gem combines two separate Rubygems:
 
 * https://github.com/elasticsearch/elasticsearch-ruby/tree/master/elasticsearch-transport[`elasticsearch-transport`]
 provides a HTTP Ruby client for connecting to the Elasticsearch cluster,

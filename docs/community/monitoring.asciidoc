@@ -34,3 +34,8 @@
   Send cluster and indices stats and status to Graphite for monitoring and graphing.
   
 * https://scoutapp.com[Scout]: Provides plugins for monitoring Elasticsearch https://scoutapp.com/plugin_urls/1331-elasticsearch-node-status[nodes], https://scoutapp.com/plugin_urls/1321-elasticsearch-cluster-status[clusters], and https://scoutapp.com/plugin_urls/1341-elasticsearch-index-status[indices].
+
+
+* https://itunes.apple.com/us/app/elasticocean/id955278030?ls=1&mt=8[ElasticOcean]:
+  The first and only ElasticSearch & DigitalOcean iOS Real-Time Monitoring tool. Now you can keep an eye on DigitalOcean Droplets or ElasticSearch Instance or both of them on-a-go.
+  

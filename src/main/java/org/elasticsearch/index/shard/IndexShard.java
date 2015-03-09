@@ -222,7 +222,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.codecService = codecService;
         this.shardSuggestService = shardSuggestService;
         this.shardBitsetFilterCache = shardBitsetFilterCache;
-        assert clusterService.lifecycleState() == Lifecycle.State.STARTED; // otherwise localNode is still none;
+        assert clusterService.lifecycleState() == Lifecycle.State.STARTED : "expected lifecycle to be started but was: " + clusterService.lifecycleState() ; // otherwise localNode is still none;
         this.localNode = clusterService.localNode();
         state = IndexShardState.CREATED;
         this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);

@@ -85,12 +85,6 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
         discovery.addListener(initialStateListener);
         discovery.start();
         logger.info(discovery.nodeDescription());
-        try {
-            //NOCOMMIT
-            sleep(1000);
-        } catch (InterruptedException e) {
-
-        }
     }
 
     public void waitForInitialState() {

@@ -357,11 +357,10 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Forces a refresh if the versionMap is using too much RAM (currently > 25% of IndexWriter's RAM buffer).
+     * Forces a refresh if the versionMap is using too much RAM
      */
     private void checkVersionMapRefresh() {
-        // TODO: we force refresh when versionMap is using > 25% of IW's RAM buffer; should we make this separately configurable?
-        if (versionMap.ramBytesUsedForRefresh() > 0.25 * engineConfig.getIndexingBufferSize().bytes() && versionMapRefreshPending.getAndSet(true) == false) {
+        if (versionMap.ramBytesUsedForRefresh() > config().getVersionMapSize().bytes() && versionMapRefreshPending.getAndSet(true) == false) {
             try {
                 if (isClosed.get()) {
                     // no point...

@@ -23,7 +23,6 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -51,6 +50,8 @@ import java.util.concurrent.TimeUnit;
 public final class EngineConfig {
     private final ShardId shardId;
     private volatile ByteSizeValue indexingBufferSize;
+    private volatile ByteSizeValue versionMapSize;
+    private volatile String versionMapSizeSetting;
     private final int indexConcurrency;
     private volatile boolean compoundOnFlush = true;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
@@ -109,10 +110,24 @@ public final class EngineConfig {
      */
     public static final String INDEX_CODEC_SETTING = "index.codec";
 
+    /**
+     * Index setting to enable / disable checksum checks on merge
+     * This setting is realtime updateable.
+     */
+    public static final String INDEX_CHECKSUM_ON_MERGE = "index.checksum_on_merge";
+
+    /**
+     * The maximum size the version map should grow to before issuing a refresh. Can be an absolute value or a percentage of
+     * the current index memory buffer (defaults to 25%)
+     */
+    public static final String INDEX_VERSION_MAP_SIZE = "index.version_map_size";
+
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
     public static final ByteSizeValue DEFAUTL_INDEX_BUFFER_SIZE = new ByteSizeValue(64, ByteSizeUnit.MB);
     public static final ByteSizeValue INACTIVE_SHARD_INDEXING_BUFFER = ByteSizeValue.parseBytesSizeValue("500kb");
+
+    public static final String DEFAULT_VERSION_MAP_SIZE = "25%";
 
     private static final String DEFAULT_CODEC_NAME = "default";
 
@@ -142,6 +157,41 @@ public final class EngineConfig {
         codecName = indexSettings.get(EngineConfig.INDEX_CODEC_SETTING, EngineConfig.DEFAULT_CODEC_NAME);
         indexingBufferSize = indexSettings.getAsBytesSize(INDEX_BUFFER_SIZE_SETTING, DEFAUTL_INDEX_BUFFER_SIZE);
         gcDeletesInMillis = indexSettings.getAsTime(INDEX_GC_DELETES_SETTING, EngineConfig.DEFAULT_GC_DELETES).millis();
+        versionMapSizeSetting = indexSettings.get(INDEX_VERSION_MAP_SIZE, DEFAULT_VERSION_MAP_SIZE);
+        updateVersionMapSize();
+    }
+
+    /** updates {@link #versionMapSize} based on current setting and {@link #indexingBufferSize} */
+    private void updateVersionMapSize() {
+        if (versionMapSizeSetting.endsWith("%")) {
+            double percent = Double.parseDouble(versionMapSizeSetting.substring(0, versionMapSizeSetting.length() - 1));
+            versionMapSize = new ByteSizeValue((long) (((double) indexingBufferSize.bytes() * (percent / 100))));
+        } else {
+            versionMapSize = ByteSizeValue.parseBytesSizeValue(versionMapSizeSetting);
+        }
+    }
+
+    /**
+     * Settings the version map size that should trigger a refresh. See {@link #INDEX_VERSION_MAP_SIZE} for details.
+     */
+    public void setVersionMapSizeSetting(String versionMapSizeSetting) {
+        this.versionMapSizeSetting = versionMapSizeSetting;
+        updateVersionMapSize();
+    }
+
+    /**
+     * current setting for the version map size that should trigger a refresh. See {@link #INDEX_VERSION_MAP_SIZE} for details.
+     */
+    public String getVersionMapSizeSetting() {
+        return versionMapSizeSetting;
+    }
+
+
+    /**
+     * returns the size of the version map that should trigger a refresh
+     */
+    public ByteSizeValue getVersionMapSize() {
+        return versionMapSize;
     }
 
     /**
@@ -149,6 +199,7 @@ public final class EngineConfig {
      */
     public void setIndexingBufferSize(ByteSizeValue indexingBufferSize) {
         this.indexingBufferSize = indexingBufferSize;
+        updateVersionMapSize();
     }
 
     /**

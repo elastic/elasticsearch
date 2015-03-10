@@ -962,7 +962,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
         ByteSizeValue preValue = config.getIndexingBufferSize();
         config.setIndexingBufferSize(shardIndexingBufferSize);
-        if (preValue.bytes() != shardIndexingBufferSize.bytes()) {
+        // update engine if it is already started.
+        if (preValue.bytes() != shardIndexingBufferSize.bytes() && engineUnsafe() != null) {
             // its inactive, make sure we do a refresh / full IW flush in this case, since the memory
             // changes only after a "data" change has happened to the writer
             // the index writer lazily allocates memory and a refresh will clean it all up.
@@ -1049,6 +1050,10 @@ public class IndexShard extends AbstractIndexShardComponent {
                     logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_CHECKSUM_ON_MERGE, config.isChecksumOnMerge(), checksumOnMerge);
                     config.setChecksumOnMerge(checksumOnMerge);
                     change = true;
+                }
+                final String versionMapSize = settings.get(EngineConfig.INDEX_VERSION_MAP_SIZE, config.getVersionMapSizeSetting());
+                if (config.getVersionMapSizeSetting().equals(versionMapSize) == false) {
+                    config.setVersionMapSizeSetting(versionMapSize);
                 }
             }
             if (change) {
@@ -1198,11 +1203,15 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public Engine engine() {
-        Engine engine = this.currentEngineReference.get();
+        Engine engine = engineUnsafe();
         if (engine == null) {
             throw new EngineClosedException(shardId);
         }
         return engine;
+    }
+
+    protected Engine engineUnsafe() {
+        return this.currentEngineReference.get();
     }
 
     class ShardEngineFailListener implements Engine.FailedEngineListener {

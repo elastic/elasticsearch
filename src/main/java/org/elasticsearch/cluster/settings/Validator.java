@@ -205,6 +205,44 @@ public interface Validator {
         }
     };
 
+    public static final Validator PERCENTAGE = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            try {
+                if (value == null) {
+                    return "the value of " + setting + " can not be null";
+                }
+                if (!value.endsWith("%")) {
+                    return "the value of " + setting + " must end with %";
+                }
+                final double asDouble = Double.parseDouble(value.substring(0, value.length() - 1));
+                if (asDouble < 0.0 || asDouble > 100.0) {
+                    return "the value of the setting " + setting + " must be a percentage between 0% and 100%";
+                }
+            } catch (NumberFormatException ex) {
+                return ex.getMessage();
+            }
+            return null;
+        }
+    };
+
+
+    public static final Validator BYTES_SIZE_OR_PERCENTAGE = new Validator() {
+        @Override
+        public String validate(String setting, String value) {
+            String byteSize = BYTES_SIZE.validate(setting, value);
+            if (byteSize != null) {
+                String percentage = PERCENTAGE.validate(setting, value);
+                if (percentage == null) {
+                    return null;
+                }
+                return percentage + " or be a valid bytes size value, like [16mb]";
+            }
+            return null;
+        }
+    };
+
+
     public static final Validator MEMORY_SIZE = new Validator() {
         @Override
         public String validate(String setting, String value) {

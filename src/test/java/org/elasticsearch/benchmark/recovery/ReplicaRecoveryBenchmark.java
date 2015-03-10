@@ -161,6 +161,7 @@ public class ReplicaRecoveryBenchmark {
 
         long totalRecoveryTime = 0;
         long startTime = System.currentTimeMillis();
+        long[] recoveryTimes = new long[3];
         for (int iteration = 0; iteration < 3; iteration++) {
             logger.info("--> removing replicas");
             client1.admin().indices().prepareUpdateSettings(INDEX_NAME).setSettings(IndexMetaData.SETTING_NUMBER_OF_REPLICAS + ": 0").get();
@@ -170,7 +171,9 @@ public class ReplicaRecoveryBenchmark {
             client1.admin().cluster().prepareHealth(INDEX_NAME).setWaitForGreenStatus().setTimeout("15m").get();
             long recoveryTime = System.currentTimeMillis() - recoveryStart;
             totalRecoveryTime += recoveryTime;
+            recoveryTimes[iteration] = recoveryTime;
             logger.info("--> recovery done in [{}]", new TimeValue(recoveryTime));
+
             // sleep some to let things clean up
             Thread.sleep(10000);
         }
@@ -185,7 +188,9 @@ public class ReplicaRecoveryBenchmark {
 
         backgroundLogger.join();
 
-        logger.info("average doc/s [{}], average relocation time [{}]", (endDocIndexed - startDocIndexed) * 1000.0 / totalTime, new TimeValue(totalRecoveryTime / 3));
+        logger.info("average doc/s [{}], average relocation time [{}], taking [{}], [{}], [{}]", (endDocIndexed - startDocIndexed) * 1000.0 / totalTime, new TimeValue(totalRecoveryTime / 3),
+                TimeValue.timeValueMillis(recoveryTimes[0]), TimeValue.timeValueMillis(recoveryTimes[1]), TimeValue.timeValueMillis(recoveryTimes[2])
+        );
 
         client1.close();
         node1.close();

@@ -60,14 +60,9 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
 
     private Boolean allowLeadingWildcard;
 
-    private Boolean lowercaseExpandedTerms;
-
     private Boolean enablePositionIncrements;
 
     private Boolean analyzeWildcard;
-
-    private Locale locale;
-
 
     private float boost = -1;
 
@@ -221,15 +216,6 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
     }
 
     /**
-     * Whether terms of wildcard, prefix, fuzzy and range queries are to be automatically
-     * lower-cased or not.  Default is <tt>true</tt>.
-     */
-    public QueryStringQueryBuilder lowercaseExpandedTerms(boolean lowercaseExpandedTerms) {
-        this.lowercaseExpandedTerms = lowercaseExpandedTerms;
-        return this;
-    }
-
-    /**
      * Set to <tt>true</tt> to enable position increments in result query. Defaults to
      * <tt>true</tt>.
      * <p/>
@@ -329,11 +315,6 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
         return this;
     }
 
-    public QueryStringQueryBuilder locale(Locale locale) {
-        this.locale = locale;
-        return this;
-    }
-
     /**
      * In case of date field, we can adjust the from/to fields using a timezone
      */
@@ -383,9 +364,6 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
         if (allowLeadingWildcard != null) {
             builder.field("allow_leading_wildcard", allowLeadingWildcard);
         }
-        if (lowercaseExpandedTerms != null) {
-            builder.field("lowercase_expanded_terms", lowercaseExpandedTerms);
-        }
         if (enablePositionIncrements != null) {
             builder.field("enable_position_increments", enablePositionIncrements);
         }
@@ -424,9 +402,6 @@ public class QueryStringQueryBuilder extends BaseQueryBuilder implements Boostab
         }
         if (queryName != null) {
             builder.field("_name", queryName);
-        }
-        if (locale != null) {
-            builder.field("locale", locale.toString());
         }
         if (timeZone != null) {
             builder.field("time_zone", timeZone);

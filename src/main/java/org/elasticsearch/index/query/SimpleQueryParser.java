@@ -27,7 +27,6 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -77,9 +76,6 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      */
     @Override
     public Query newFuzzyQuery(String text, int fuzziness) {
-        if (settings.lowercaseExpandedTerms()) {
-            text = text.toLowerCase(settings.locale());
-        }
         BooleanQuery bq = new BooleanQuery(true);
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
@@ -118,9 +114,6 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      */
     @Override
     public Query newPrefixQuery(String text) {
-        if (settings.lowercaseExpandedTerms()) {
-            text = text.toLowerCase(settings.locale());
-        }
         BooleanQuery bq = new BooleanQuery(true);
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
@@ -208,29 +201,11 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      * their default values
      */
     public static class Settings {
-        private Locale locale = Locale.ROOT;
-        private boolean lowercaseExpandedTerms = true;
         private boolean lenient = false;
         private boolean analyzeWildcard = false;
 
         public Settings() {
 
-        }
-
-        public void locale(Locale locale) {
-            this.locale = locale;
-        }
-
-        public Locale locale() {
-            return this.locale;
-        }
-
-        public void lowercaseExpandedTerms(boolean lowercaseExpandedTerms) {
-            this.lowercaseExpandedTerms = lowercaseExpandedTerms;
-        }
-
-        public boolean lowercaseExpandedTerms() {
-            return this.lowercaseExpandedTerms;
         }
 
         public void lenient(boolean lenient) {

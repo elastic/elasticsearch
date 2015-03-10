@@ -38,10 +38,8 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
     private String queryName;
     private String minimumShouldMatch;
     private int flags = -1;
-    private Boolean lowercaseExpandedTerms;
     private Boolean lenient;
     private Boolean analyzeWildcard;
-    private Locale locale;
 
     /**
      * Operators for the default_operator
@@ -115,16 +113,6 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
         return this;
     }
 
-    public SimpleQueryStringBuilder lowercaseExpandedTerms(boolean lowercaseExpandedTerms) {
-        this.lowercaseExpandedTerms = lowercaseExpandedTerms;
-        return this;
-    }
-
-    public SimpleQueryStringBuilder locale(Locale locale) {
-        this.locale = locale;
-        return this;
-    }
-
     public SimpleQueryStringBuilder lenient(boolean lenient) {
         this.lenient = lenient;
         return this;
@@ -172,20 +160,12 @@ public class SimpleQueryStringBuilder extends BaseQueryBuilder {
             builder.field("default_operator", operator.name().toLowerCase(Locale.ROOT));
         }
 
-        if (lowercaseExpandedTerms != null) {
-            builder.field("lowercase_expanded_terms", lowercaseExpandedTerms);
-        }
-
         if (lenient != null) {
             builder.field("lenient", lenient);
         }
 
         if (analyzeWildcard != null) {
             builder.field("analyze_wildcard", analyzeWildcard);
-        }
-
-        if (locale != null) {
-            builder.field("locale", locale.toString());
         }
 
         if (queryName != null) {

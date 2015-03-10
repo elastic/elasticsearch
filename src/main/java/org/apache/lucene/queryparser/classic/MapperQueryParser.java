@@ -125,12 +125,10 @@ public class MapperQueryParser extends QueryParser {
         setAutoGeneratePhraseQueries(settings.autoGeneratePhraseQueries());
         setMaxDeterminizedStates(settings.maxDeterminizedStates());
         setAllowLeadingWildcard(settings.allowLeadingWildcard());
-        setLowercaseExpandedTerms(settings.lowercaseExpandedTerms());
         setPhraseSlop(settings.phraseSlop());
         setDefaultOperator(settings.defaultOperator());
         setFuzzyMinSim(settings.fuzzyMinSim());
         setFuzzyPrefixLength(settings.fuzzyPrefixLength());
-        setLocale(settings.locale());
         if (settings.timeZone() != null) {
             setTimeZone(settings.timeZone().toTimeZone());
         }
@@ -371,11 +369,6 @@ public class MapperQueryParser extends QueryParser {
             currentMapper = fieldMappers.fieldMappers().mapper();
             if (currentMapper != null) {
 
-                if (lowercaseExpandedTerms && !currentMapper.isNumeric()) {
-                    part1 = part1 == null ? null : part1.toLowerCase(locale);
-                    part2 = part2 == null ? null : part2.toLowerCase(locale);
-                }
-
                 try {
                     return currentMapper.rangeQuery(part1, part2, startInclusive, endInclusive, parseContext);
                 } catch (RuntimeException e) {
@@ -390,9 +383,6 @@ public class MapperQueryParser extends QueryParser {
     }
 
     protected Query getFuzzyQuery(String field, String termStr, String minSimilarity) throws ParseException {
-        if (lowercaseExpandedTerms) {
-            termStr = termStr.toLowerCase(locale);
-        }
         Collection<String> fields = extractMultiFields(field);
         if (fields != null) {
             if (fields.size() == 1) {
@@ -459,9 +449,6 @@ public class MapperQueryParser extends QueryParser {
 
     @Override
     protected Query getPrefixQuery(String field, String termStr) throws ParseException {
-        if (lowercaseExpandedTerms) {
-            termStr = termStr.toLowerCase(locale);
-        }
         Collection<String> fields = extractMultiFields(field);
         if (fields != null) {
             if (fields.size() == 1) {
@@ -602,9 +589,6 @@ public class MapperQueryParser extends QueryParser {
                 return fieldQueryExtensions.get(ExistsFieldQueryExtension.NAME).query(parseContext, actualField);
             }
         }
-        if (lowercaseExpandedTerms) {
-            termStr = termStr.toLowerCase(locale);
-        }
         Collection<String> fields = extractMultiFields(field);
         if (fields != null) {
             if (fields.size() == 1) {
@@ -738,9 +722,6 @@ public class MapperQueryParser extends QueryParser {
 
     @Override
     protected Query getRegexpQuery(String field, String termStr) throws ParseException {
-        if (lowercaseExpandedTerms) {
-            termStr = termStr.toLowerCase(locale);
-        }
         Collection<String> fields = extractMultiFields(field);
         if (fields != null) {
             if (fields.size() == 1) {

@@ -20,7 +20,6 @@
 package org.apache.lucene.queryparser.classic;
 
 import com.carrotsearch.hppc.ObjectFloatOpenHashMap;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
@@ -29,7 +28,6 @@ import org.joda.time.DateTimeZone;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
 
 /**
  *
@@ -46,7 +44,6 @@ public class QueryParserSettings {
     private MapperQueryParser.Operator defaultOperator = QueryParser.Operator.OR;
     private boolean autoGeneratePhraseQueries = false;
     private boolean allowLeadingWildcard = DEFAULT_ALLOW_LEADING_WILDCARD;
-    private boolean lowercaseExpandedTerms = true;
     private boolean enablePositionIncrements = true;
     private int phraseSlop = 0;
     private float fuzzyMinSim = FuzzyQuery.defaultMinSimilarity;
@@ -64,7 +61,6 @@ public class QueryParserSettings {
     private MultiTermQuery.RewriteMethod rewriteMethod = MultiTermQuery.CONSTANT_SCORE_FILTER_REWRITE;
     private String minimumShouldMatch;
     private boolean lenient;
-    private Locale locale;
     private DateTimeZone timeZone;
 
     List<String> fields = null;
@@ -132,14 +128,6 @@ public class QueryParserSettings {
 
     public void allowLeadingWildcard(boolean allowLeadingWildcard) {
         this.allowLeadingWildcard = allowLeadingWildcard;
-    }
-
-    public boolean lowercaseExpandedTerms() {
-        return lowercaseExpandedTerms;
-    }
-
-    public void lowercaseExpandedTerms(boolean lowercaseExpandedTerms) {
-        this.lowercaseExpandedTerms = lowercaseExpandedTerms;
     }
 
     public boolean enablePositionIncrements() {
@@ -310,14 +298,6 @@ public class QueryParserSettings {
         this.useDisMax = useDisMax;
     }
 
-    public void locale(Locale locale) {
-        this.locale = locale;
-    }
-
-    public Locale locale() {
-        return this.locale;
-    }
-
     public void timeZone(DateTimeZone timeZone) {
         this.timeZone = timeZone;
     }
@@ -345,7 +325,6 @@ public class QueryParserSettings {
         if (fuzzyMaxExpansions != that.fuzzyMaxExpansions) return false;
         if (fuzzyRewriteMethod != null ? !fuzzyRewriteMethod.equals(that.fuzzyRewriteMethod) : that.fuzzyRewriteMethod != null)
             return false;
-        if (lowercaseExpandedTerms != that.lowercaseExpandedTerms) return false;
         if (phraseSlop != that.phraseSlop) return false;
         if (defaultAnalyzer != null ? !defaultAnalyzer.equals(that.defaultAnalyzer) : that.defaultAnalyzer != null)
             return false;
@@ -365,9 +344,6 @@ public class QueryParserSettings {
         if (quoteFieldSuffix != null ? !quoteFieldSuffix.equals(that.quoteFieldSuffix) : that.quoteFieldSuffix != null)
             return false;
         if (lenient != that.lenient) {
-            return false;
-        }
-        if (locale != null ? !locale.equals(that.locale) : that.locale != null) {
             return false;
         }
         if (timeZone != null ? !timeZone.equals(that.timeZone) : that.timeZone != null) {
@@ -392,7 +368,6 @@ public class QueryParserSettings {
         result = 31 * result + (autoGeneratePhraseQueries ? 1 : 0);
         result = 31 * result + maxDeterminizedStates;
         result = 31 * result + (allowLeadingWildcard ? 1 : 0);
-        result = 31 * result + (lowercaseExpandedTerms ? 1 : 0);
         result = 31 * result + (enablePositionIncrements ? 1 : 0);
         result = 31 * result + phraseSlop;
         result = 31 * result + (fuzzyMinSim != +0.0f ? Float.floatToIntBits(fuzzyMinSim) : 0);
@@ -409,7 +384,6 @@ public class QueryParserSettings {
         result = 31 * result + (boosts != null ? boosts.hashCode() : 0);
         result = 31 * result + (tieBreaker != +0.0f ? Float.floatToIntBits(tieBreaker) : 0);
         result = 31 * result + (useDisMax ? 1 : 0);
-        result = 31 * result + (locale != null ? locale.hashCode() : 0);
         result = 31 * result + (timeZone != null ? timeZone.hashCode() : 0);
         return result;
     }

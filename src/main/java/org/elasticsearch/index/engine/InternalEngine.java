@@ -26,7 +26,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SearcherFactory;
 import org.apache.lucene.search.SearcherManager;
-import org.apache.lucene.store.*;
+import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -370,11 +371,10 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Forces a refresh if the versionMap is using too much RAM (currently > 25% of IndexWriter's RAM buffer).
+     * Forces a refresh if the versionMap is using too much RAM
      */
     private void checkVersionMapRefresh() {
-        // TODO: we force refresh when versionMap is using > 25% of IW's RAM buffer; should we make this separately configurable?
-        if (versionMap.ramBytesUsedForRefresh() > 0.25 * engineConfig.getIndexingBufferSize().bytes() && versionMapRefreshPending.getAndSet(true) == false) {
+        if (versionMap.ramBytesUsedForRefresh() > config().getVersionMapSize().bytes() && versionMapRefreshPending.getAndSet(true) == false) {
             try {
                 if (isClosed.get()) {
                     // no point...

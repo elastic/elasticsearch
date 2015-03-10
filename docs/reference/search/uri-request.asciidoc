@@ -98,9 +98,6 @@ Defaults to no terminate_after.
 <<search-request-search-type,_Search Type_>> for
 more details on the different types of search that can be performed.
 
-|`lowercase_expanded_terms` |Should terms be automatically lowercased or
-not. Defaults to `true`.
-
 |`analyze_wildcard` |Should wildcard and prefix queries be analyzed or
 not. Defaults to `false`.
 |=======================================================================

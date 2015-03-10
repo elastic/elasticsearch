@@ -52,7 +52,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -516,27 +515,6 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 1l);
     }
 
-    @Test
-    public void testLowercaseExpandedTerms() {
-        createIndex("test");
-
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
-        refresh();
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("VALUE_3~1").lowercaseExpandedTerms(true)).get();
-        assertHitCount(searchResponse, 1l);
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("VALUE_3~1").lowercaseExpandedTerms(false)).get();
-        assertHitCount(searchResponse, 0l);
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("ValUE_*").lowercaseExpandedTerms(true)).get();
-        assertHitCount(searchResponse, 1l);
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("vAl*E_1")).get();
-        assertHitCount(searchResponse, 1l);
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("[VALUE_1 TO VALUE_3]")).get();
-        assertHitCount(searchResponse, 1l);
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("[VALUE_1 TO VALUE_3]").lowercaseExpandedTerms(false)).get();
-        assertHitCount(searchResponse, 0l);
-    }
-
     @Test //https://github.com/elasticsearch/elasticsearch/issues/3540
     public void testDateRangeInQueryString() {
         //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
@@ -554,11 +532,11 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client().prepareSearch().setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).get();
         assertHitCount(searchResponse, 1l);
 
-        searchResponse = client().prepareSearch().setQuery(queryStringQuery("future:[now/d TO now+2M/d]").lowercaseExpandedTerms(false)).get();
+        searchResponse = client().prepareSearch().setQuery(queryStringQuery("future:[now/d TO now+2M/d]")).get();
         assertHitCount(searchResponse, 1l);
 
         try {
-            client().prepareSearch().setQuery(queryStringQuery("future:[now/D TO now+2M/d]").lowercaseExpandedTerms(false)).get();
+            client().prepareSearch().setQuery(queryStringQuery("future:[now/D TO now+2M/d]")).get();
             fail("expected SearchPhaseExecutionException (total failure)");
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));

@@ -161,27 +161,6 @@ public class CountQueryTests extends ElasticsearchIntegrationTest {
         assertHitCount(countResponse, 1l);
     }
 
-    @Test
-    public void testLowercaseExpandedTerms() {
-        createIndex("test");
-
-        client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
-        refresh();
-
-        CountResponse countResponse = client().prepareCount().setQuery(queryStringQuery("VALUE_3~1").lowercaseExpandedTerms(true)).get();
-        assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount().setQuery(queryStringQuery("VALUE_3~1").lowercaseExpandedTerms(false)).get();
-        assertHitCount(countResponse, 0l);
-        countResponse = client().prepareCount().setQuery(queryStringQuery("ValUE_*").lowercaseExpandedTerms(true)).get();
-        assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount().setQuery(queryStringQuery("vAl*E_1")).get();
-        assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount().setQuery(queryStringQuery("[VALUE_1 TO VALUE_3]")).get();
-        assertHitCount(countResponse, 1l);
-        countResponse = client().prepareCount().setQuery(queryStringQuery("[VALUE_1 TO VALUE_3]").lowercaseExpandedTerms(false)).get();
-        assertHitCount(countResponse, 0l);
-    }
-
     @Test //https://github.com/elasticsearch/elasticsearch/issues/3540
     public void testDateRangeInQueryString() {
         //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
@@ -202,10 +181,10 @@ public class CountQueryTests extends ElasticsearchIntegrationTest {
         CountResponse countResponse = client().prepareCount().setQuery(queryStringQuery("past:[now-2M/d TO now/d]")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(queryStringQuery("future:[now/d TO now+2M/d]").lowercaseExpandedTerms(false)).get();
+        countResponse = client().prepareCount().setQuery(queryStringQuery("future:[now/d TO now+2M/d]")).get();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount("test").setQuery(queryStringQuery("future:[now/D TO now+2M/d]").lowercaseExpandedTerms(false)).get();
+        countResponse = client().prepareCount("test").setQuery(queryStringQuery("future:[now/D TO now+2M/d]")).get();
         //D is an unsupported unit in date math
         assertThat(countResponse.getSuccessfulShards(), equalTo(0));
         assertThat(countResponse.getFailedShards(), equalTo(test.numPrimaries));

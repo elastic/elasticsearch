@@ -100,7 +100,7 @@ public class SimpleCountTests extends ElasticsearchIntegrationTest {
         countResponse = client().prepareCount().setQuery(QueryBuilders.prefixQuery("_id", "XXX")).execute().actionGet();
         assertHitCount(countResponse, 1l);
 
-        countResponse = client().prepareCount().setQuery(QueryBuilders.queryStringQuery("_id:XXX*").lowercaseExpandedTerms(false)).execute().actionGet();
+        countResponse = client().prepareCount().setQuery(QueryBuilders.queryStringQuery("_id:XXX*")).execute().actionGet();
         assertHitCount(countResponse, 1l);
     }
 

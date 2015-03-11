@@ -57,7 +57,7 @@ public class LdapSessionFactoryTests extends LdapTest {
     @Network
     public void testConnectTimeout() {
         // Local sockets connect too fast...
-        String ldapUrl = "ldap://elasticsearch.com:389";
+        String ldapUrl = "ldap://54.200.235.244:389";
         String groupSearchBase = "o=sevenSeas";
         String[] userTemplates = new String[] {
                 "cn={0},ou=people,o=sevenSeas",

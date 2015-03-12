@@ -46,6 +46,8 @@ import java.util.Locale;
  *     }
  * </pre>
  */
+
+
 public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
     public static String[] NAMES = { "field_value_factor", "fieldValueFactor" };
 
@@ -60,7 +62,15 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
+            }
+             /*
+             Error here is thrown, as field_value_factor should not accept array params
+             Bug #2
+             */
+            else if(token == XContentParser.Token.START_ARRAY) {
+                throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not accept arrays");
+            }
+            else if (token.isValue()) {
                 if ("field".equals(currentFieldName)) {
                     field = parser.text();
                 } else if ("factor".equals(currentFieldName)) {
@@ -76,6 +86,7 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
         if (field == null) {
             throw new QueryParsingException(parseContext.index(), "[" + NAMES[0] + "] required field 'field' missing");
         }
+
 
         SearchContext searchContext = SearchContext.current();
         FieldMapper mapper = searchContext.mapperService().smartNameFieldMapper(field);

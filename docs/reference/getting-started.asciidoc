@@ -456,7 +456,7 @@ Updates can also be performed by using simple scripts. This example uses a scrip
 --------------------------------------------------
 curl -XPOST 'localhost:9200/customer/external/1/_update?pretty' -d '
 {
-  "script" : "ctx._source.age += 5"
+  "script" : "ctx._source.doc.age += 5"
 }'
 --------------------------------------------------
 

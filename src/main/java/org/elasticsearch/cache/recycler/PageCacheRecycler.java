@@ -67,15 +67,6 @@ public class PageCacheRecycler extends AbstractComponent {
         }
     }
 
-    // return the maximum number of pages that may be cached depending on
-    //  - limit: the total amount of memory available
-    //  - pageSize: the size of a single page
-    //  - weight: the weight for this data type
-    //  - totalWeight: the sum of all weights
-    private static int maxCount(long limit, long pageSize, double weight, double totalWeight) {
-        return (int) (weight / totalWeight * limit / pageSize);
-    }
-
     @Inject
     public PageCacheRecycler(Settings settings, ThreadPool threadPool) {
         super(settings);
@@ -104,8 +95,10 @@ public class PageCacheRecycler extends AbstractComponent {
         final double objectsWeight = componentSettings.getAsDouble(WEIGHT + ".objects", 0.1d);
 
         final double totalWeight = bytesWeight + intsWeight + longsWeight + objectsWeight;
+        final int maxPageCount = (int) Math.min(Integer.MAX_VALUE, limit / BigArrays.PAGE_SIZE_IN_BYTES);
 
-        bytePage = build(type, maxCount(limit, BigArrays.BYTE_PAGE_SIZE, bytesWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<byte[]>() {
+        final int maxBytePageCount = (int) (bytesWeight * maxPageCount / totalWeight);
+        bytePage = build(type, maxBytePageCount, searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<byte[]>() {
             @Override
             public byte[] newInstance(int sizing) {
                 return new byte[BigArrays.BYTE_PAGE_SIZE];
@@ -115,7 +108,9 @@ public class PageCacheRecycler extends AbstractComponent {
                 // nothing to do
             }
         });
-        intPage = build(type, maxCount(limit, BigArrays.INT_PAGE_SIZE, intsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<int[]>() {
+
+        final int maxIntPageCount = (int) (intsWeight * maxPageCount / totalWeight);
+        intPage = build(type, maxIntPageCount, searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<int[]>() {
             @Override
             public int[] newInstance(int sizing) {
                 return new int[BigArrays.INT_PAGE_SIZE];
@@ -125,17 +120,21 @@ public class PageCacheRecycler extends AbstractComponent {
                 // nothing to do
             }
         });
-        longPage = build(type, maxCount(limit, BigArrays.LONG_PAGE_SIZE, longsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<long[]>() {
+
+        final int maxLongPageCount = (int) (longsWeight * maxPageCount / totalWeight);
+        longPage = build(type, maxLongPageCount, searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<long[]>() {
             @Override
             public long[] newInstance(int sizing) {
                 return new long[BigArrays.LONG_PAGE_SIZE];
             }
             @Override
             public void recycle(long[] value) {
-                // nothing to do               
+                // nothing to do
             }
         });
-        objectPage = build(type, maxCount(limit, BigArrays.OBJECT_PAGE_SIZE, objectsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<Object[]>() {
+
+        final int maxObjectPageCount = (int) (objectsWeight * maxPageCount / totalWeight);
+        objectPage = build(type, maxObjectPageCount, searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<Object[]>() {
             @Override
             public Object[] newInstance(int sizing) {
                 return new Object[BigArrays.OBJECT_PAGE_SIZE];
@@ -145,6 +144,8 @@ public class PageCacheRecycler extends AbstractComponent {
                 Arrays.fill(value, null); // we need to remove the strong refs on the objects stored in the array
             }
         });
+
+        assert BigArrays.PAGE_SIZE_IN_BYTES * (maxBytePageCount + maxIntPageCount + maxLongPageCount + maxObjectPageCount) <= limit;
     }
 
     public Recycler.V<byte[]> bytePage(boolean clear) {

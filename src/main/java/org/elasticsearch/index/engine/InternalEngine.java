@@ -1098,7 +1098,7 @@ public class InternalEngine extends Engine {
                 } else {
                     logger.warn("corrupt file detected source: [merge] but [{}] is set to [{}]", e, EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, engineConfig.isFailEngineOnCorruption());
                 }
-            } else if (engineConfig.isFailOnMergeFailure()) {
+            } else {
                 failEngine("merge exception", e);
             }
         }

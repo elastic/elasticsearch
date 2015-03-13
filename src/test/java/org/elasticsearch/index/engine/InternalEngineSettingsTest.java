@@ -45,14 +45,12 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
         for (int i = 0; i < iters; i++) {
             boolean compoundOnFlush = randomBoolean();
             boolean failOnCorruption = randomBoolean();
-            boolean failOnMerge = randomBoolean();
             long gcDeletes = Math.max(0, randomLong());
 
             Settings build = ImmutableSettings.builder()
                     .put(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, failOnCorruption)
                     .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, compoundOnFlush)
                     .put(EngineConfig.INDEX_GC_DELETES_SETTING, gcDeletes)
-                    .put(EngineConfig.INDEX_FAIL_ON_MERGE_FAILURE_SETTING, failOnMerge)
                     .build();
 
             client().admin().indices().prepareUpdateSettings("foo").setSettings(build).get();
@@ -64,8 +62,6 @@ public class InternalEngineSettingsTest extends ElasticsearchSingleNodeTest {
             assertEquals(engine.config().getGcDeletesInMillis(), gcDeletes);
             assertEquals(engine.getGcDeletesInMillis(), gcDeletes);
             assertEquals(engine.config().isFailEngineOnCorruption(), failOnCorruption);
-            assertEquals(engine.config().isFailOnMergeFailure(), failOnMerge); // only on the holder
-
         }
 
         Settings settings = ImmutableSettings.builder()

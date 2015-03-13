@@ -213,11 +213,11 @@ public interface Validator {
                     return "the value of " + setting + " can not be null";
                 }
                 if (!value.endsWith("%")) {
-                    return "the value of " + setting + " must end with %";
+                    return "the value [" + value + "] for " + setting + " must end with %";
                 }
                 final double asDouble = Double.parseDouble(value.substring(0, value.length() - 1));
                 if (asDouble < 0.0 || asDouble > 100.0) {
-                    return "the value of the setting " + setting + " must be a percentage between 0% and 100%";
+                    return "the value [" + value + "] for " + setting + " must be a percentage between 0% and 100%";
                 }
             } catch (NumberFormatException ex) {
                 return ex.getMessage();

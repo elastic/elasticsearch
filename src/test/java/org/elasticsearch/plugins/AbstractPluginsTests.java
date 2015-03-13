@@ -306,7 +306,7 @@ public abstract class AbstractPluginsTests extends ElasticsearchIntegrationTest 
         assertNotNull(file);
         assertNotNull(expectedContent);
         try {
-            assertThat(Streams.copyToString(Files.newBufferedReader(file)), equalTo(expectedContent));
+            assertThat(Streams.copyToString(Files.newBufferedReader(file, Charsets.UTF_8)), equalTo(expectedContent));
         } catch (IOException e) {
             fail("Exception when checking file content: " + e.getMessage());
         }

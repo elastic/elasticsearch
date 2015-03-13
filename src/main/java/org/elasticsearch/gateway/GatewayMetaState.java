@@ -37,6 +37,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.env.NodeEnvironment;
 
 import java.io.IOException;
@@ -68,6 +69,9 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         this.danglingIndicesState = danglingIndicesState;
         nodesListGatewayMetaState.init(this);
 
+        if (DiscoveryNode.dataNode(settings)) {
+            ensureNoPre019ShardState(nodeEnv);
+        }
 
         if (DiscoveryNode.masterNode(settings) || DiscoveryNode.dataNode(settings)) {
             nodeEnv.ensureAtomicMoveSupported();
@@ -228,6 +232,23 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         if (hasCustomPre20HashFunction|| pre20UseType != null) {
             logger.warn("Settings [{}] and [{}] are deprecated. Index settings from your old indices have been updated to record the fact that they "
                     + "used some custom routing logic, you can now remove these settings from your `elasticsearch.yml` file", DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, DEPRECATED_SETTING_ROUTING_USE_TYPE);
+        }
+    }
+
+
+    // shard state BWC
+    private void ensureNoPre019ShardState(NodeEnvironment nodeEnv) throws Exception {
+        for (Path dataLocation : nodeEnv.nodeDataPaths()) {
+            final Path stateLocation = dataLocation.resolve(MetaDataStateFormat.STATE_DIR_NAME);
+            if (Files.exists(stateLocation)) {
+                try (DirectoryStream<Path> stream = Files.newDirectoryStream(stateLocation, "shards-*")) {
+                    for (Path stateFile : stream) {
+                        throw new ElasticsearchIllegalStateException("Detected pre 0.19 shard state file please upgrade to a version before "
+                                + Version.CURRENT.minimumCompatibilityVersion()
+                                + " first to upgrade state structures - shard state found: [" + stateFile.getParent().toAbsolutePath());
+                    }
+                }
+            }
         }
     }
 }

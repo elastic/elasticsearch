@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Explanation;
@@ -31,16 +32,14 @@ import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
+import org.elasticsearch.common.lucene.index.FieldSubsetReader;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -65,6 +64,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private Stage currentState = Stage.NA;
 
+    public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher, Set<String> fields) throws IOException {
+        super(FieldSubsetReader.wrap((DirectoryReader) searcher.searcher().getIndexReader(), fields));
+        in = searcher.searcher();
+        this.searchContext = searchContext;
+        setSimilarity(searcher.searcher().getSimilarity());
+    }
+
     public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
         super(searcher.reader());
         in = searcher.searcher();
@@ -82,7 +88,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     /**
      * Adds a query level collector that runs at {@link Stage#MAIN_QUERY}. Note, supports
-     * {@link org.elasticsearch.common.lucene.search.XCollector} allowing for a callback
+     * {@link Collector} allowing for a callback
      * when collection is done.
      */
     public Map<Class<?>, Collector> queryCollectors() {

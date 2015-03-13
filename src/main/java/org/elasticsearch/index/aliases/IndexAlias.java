@@ -34,10 +34,13 @@ public class IndexAlias {
 
     private Filter parsedFilter;
 
-    public IndexAlias(String alias, @Nullable CompressedString filter, @Nullable Filter parsedFilter) {
+    private String[] fields;
+
+    public IndexAlias(String alias, @Nullable CompressedString filter, @Nullable Filter parsedFilter, @Nullable String[] fields) {
         this.alias = alias;
         this.filter = filter;
         this.parsedFilter = parsedFilter;
+        this.fields = fields;
     }
 
     public String alias() {
@@ -54,5 +57,7 @@ public class IndexAlias {
         return parsedFilter;
     }
 
-
+    public String[] getFields() {
+        return fields;
+    }
 }

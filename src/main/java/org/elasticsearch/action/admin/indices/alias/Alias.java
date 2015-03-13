@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,6 +30,8 @@ import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.query.FilterBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -46,6 +49,9 @@ public class Alias implements Streamable {
 
     @Nullable
     private String searchRouting;
+
+    @Nullable
+    private String[] fields;
 
     private Alias() {
 
@@ -153,6 +159,14 @@ public class Alias implements Streamable {
         return this;
     }
 
+    public String[] getFields() {
+        return fields;
+    }
+
+    public void setFields(String[] fields) {
+        this.fields = fields;
+    }
+
     /**
      * Allows to read an alias from the provided input stream
      */
@@ -168,6 +182,7 @@ public class Alias implements Streamable {
         filter = in.readOptionalString();
         indexRouting = in.readOptionalString();
         searchRouting = in.readOptionalString();
+        fields = in.readStringArray();
     }
 
     @Override
@@ -176,6 +191,7 @@ public class Alias implements Streamable {
         out.writeOptionalString(filter);
         out.writeOptionalString(indexRouting);
         out.writeOptionalString(searchRouting);
+        out.writeStringArray(fields);
     }
 
     /**
@@ -205,6 +221,16 @@ public class Alias implements Streamable {
                 } else if ("search_routing".equals(currentFieldName) || "searchRouting".equals(currentFieldName) || "search-routing".equals(currentFieldName)) {
                     alias.searchRouting(parser.text());
                 }
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                List<String> fields = new ArrayList<>();
+                while(parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    if(parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                        fields.add(parser.text());
+                    } else {
+                        throw new ElasticsearchParseException("Numeric value expected");
+                    }
+                }
+                alias.setFields(fields.toArray(new String[0]));
             }
         }
         return alias;

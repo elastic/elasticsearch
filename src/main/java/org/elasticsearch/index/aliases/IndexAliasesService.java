@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.aliases;
 
+import com.google.common.collect.Sets;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
@@ -39,8 +40,7 @@ import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.Map;
+import java.util.*;
 
 /**
  *
@@ -64,12 +64,12 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
         return aliases.get(alias);
     }
 
-    public IndexAlias create(String alias, @Nullable CompressedString filter) {
-        return new IndexAlias(alias, filter, parse(alias, filter));
+    public IndexAlias create(String alias, @Nullable CompressedString filter, String[] fields) {
+        return new IndexAlias(alias, filter, parse(alias, filter), fields);
     }
 
     public void add(String alias, @Nullable CompressedString filter) {
-        add(new IndexAlias(alias, filter, parse(alias, filter)));
+        add(new IndexAlias(alias, filter, parse(alias, filter), null));
     }
 
     public void addAll(Map<String, IndexAlias> aliases) {
@@ -116,6 +116,32 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
                 return combined.clauses().get(0).getFilter();
             }
             return combined;
+        }
+    }
+
+    public Set<String> aliasFields(String... aliases) {
+        if (aliases == null || aliases.length == 0) {
+            return null;
+        }
+        if (aliases.length == 1) {
+            IndexAlias indexAlias = alias(aliases[0]);
+            if (indexAlias == null) {
+                // This shouldn't happen unless alias disappeared after filteringAliases was called.
+                throw new InvalidAliasNameException(index, aliases[0], "Unknown alias name was passed to alias view");
+            }
+            return Sets.newHashSet(indexAlias.getFields());
+        } else {
+            // we need to bench here a bit, to see maybe it makes sense to use OrFilter
+            Set<String> fields = new HashSet<>();
+            for (String alias : aliases) {
+                IndexAlias indexAlias = alias(alias);
+                if (indexAlias == null) {
+                    // This shouldn't happen unless alias disappeared after filteringAliases was called.
+                    throw new InvalidAliasNameException(index, aliases[0], "Unknown alias name was passed to alias view");
+                }
+                Collections.addAll(fields, indexAlias.getFields());
+            }
+            return fields;
         }
     }
 

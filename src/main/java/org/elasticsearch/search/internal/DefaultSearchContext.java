@@ -21,12 +21,7 @@ package org.elasticsearch.search.internal;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.SearchType;
@@ -38,6 +33,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
@@ -49,8 +45,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -71,9 +65,11 @@ import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 /**
  *
@@ -197,8 +193,16 @@ public class DefaultSearchContext extends SearchContext {
         this.indexShard = indexShard;
         this.indexService = indexService;
 
-        this.searcher = new ContextIndexSearcher(this, engineSearcher);
-
+        Set<String> fields = indexService.aliasesService().aliasFields(request.filteringAliases());
+        if (fields != null) {
+            try {
+                this.searcher = new ContextIndexSearcher(this, engineSearcher, fields);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            this.searcher = new ContextIndexSearcher(this, engineSearcher);
+        }
         // initialize the filtering alias based on the provided filters
         aliasFilter = indexService.aliasesService().aliasFilter(request.filteringAliases());
         this.timeEstimateCounter = timeEstimateCounter;

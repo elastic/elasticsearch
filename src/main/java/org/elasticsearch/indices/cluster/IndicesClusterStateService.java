@@ -482,19 +482,20 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             AliasMetaData aliasMd = cursor.value;
             String alias = aliasMd.alias();
             CompressedString filter = aliasMd.filter();
+            String[] fields = aliasMd.getFields();
             try {
                 if (!indexAliasesService.hasAlias(alias)) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] adding alias [{}], filter [{}]", index, alias, filter);
                     }
-                    newAliases.put(alias, indexAliasesService.create(alias, filter));
+                    newAliases.put(alias, indexAliasesService.create(alias, filter, fields));
                 } else {
                     if ((filter == null && indexAliasesService.alias(alias).filter() != null) ||
                             (filter != null && !filter.equals(indexAliasesService.alias(alias).filter()))) {
                         if (logger.isDebugEnabled()) {
                             logger.debug("[{}] updating alias [{}], filter [{}]", index, alias, filter);
                         }
-                        newAliases.put(alias, indexAliasesService.create(alias, filter));
+                        newAliases.put(alias, indexAliasesService.create(alias, filter, fields));
                     }
                 }
             } catch (Throwable e) {

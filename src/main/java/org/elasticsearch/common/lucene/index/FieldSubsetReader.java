@@ -17,34 +17,21 @@ package org.elasticsearch.common.lucene.index;
  * limitations under the License.
  */
 
+import org.apache.lucene.index.*;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.FilterIterator;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Set;
-
-import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.index.FilterLeafReader;
-import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.index.StoredFieldVisitor;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FilterIterator;
 
 /**
  * A {@link FilterLeafReader} that exposes only a subset
  * of fields from the underlying wrapped reader.
  */
 // based on lucene/test-framework's FieldFilterLeafReader.
-final class FieldSubsetReader extends FilterLeafReader {
+public final class FieldSubsetReader extends FilterLeafReader {
     
     /**
      * Wraps a provided DirectoryReader. Note that for convenience, the returned reader

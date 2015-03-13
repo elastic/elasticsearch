@@ -39,6 +39,7 @@ import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -94,15 +95,16 @@ public abstract class TransportSearchHelper {
             throw new ElasticsearchIllegalArgumentException("Failed to decode scrollId", e);
         }
         String[] elements = Strings.splitStringToArray(spare.get(), ';');
+        System.out.println(Arrays.toString(elements));
         if (elements.length < 2) {
-            throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "]");
+            throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "], type and size parameters not provided");
         }
 
         int index = 0;
         String type = elements[index++];
         int contextSize = Integer.parseInt(elements[index++]);
         if (elements.length < contextSize + 2) {
-            throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "]");
+            throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "], size is less than number of actual shards");
         }
 
         @SuppressWarnings({"unchecked"}) Tuple<String, Long>[] context = new Tuple[contextSize];
@@ -110,7 +112,7 @@ public abstract class TransportSearchHelper {
             String element = elements[index++];
             int sep = element.indexOf(':');
             if (sep == -1) {
-                throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "]");
+                throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "], shard number is either missing or incorrectly separated from the ID");
             }
             context[i] = new Tuple<>(element.substring(sep + 1), Long.parseLong(element.substring(0, sep)));
         }

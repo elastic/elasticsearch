@@ -35,7 +35,6 @@ import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -65,11 +64,6 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         scriptsFile = new File(genericConfigFolder, "scripts");
         assertThat(scriptsFile.mkdir(), equalTo(true));
 
-        logger.info("--> setup two test files one with extension and another without");
-        File testFileNoExt = new File(scriptsFile, "test_no_ext");
-        File testFileWithExt = new File(scriptsFile, "test_script.tst");
-        Streams.copy("test_file_no_ext".getBytes("UTF-8"), testFileNoExt);
-        Streams.copy("test_file".getBytes("UTF-8"), testFileWithExt);
         scriptService = new ScriptService(settings, environment,
                 ImmutableSet.of(new TestEngineService(), new GroovyScriptEngineService(settings), new ExpressionScriptEngineService(settings)),
                 resourceWatcherService, new NodeSettingsService(settings));
@@ -77,7 +71,6 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testScriptsWithoutExtensions() throws IOException {
-
         logger.info("--> setup two test files one with extension and another without");
         File testFileNoExt = new File(scriptsFile, "test_no_ext");
         File testFileWithExt = new File(scriptsFile, "test_script.tst");

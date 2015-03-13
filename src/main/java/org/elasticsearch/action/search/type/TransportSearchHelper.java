@@ -86,6 +86,11 @@ public abstract class TransportSearchHelper {
         return Base64.encodeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length, Base64.URL_SAFE);
     }
 
+    /*
+    Feature no. 1 implemented here
+    Nicer exceptions are provided
+
+     */
     public static ParsedScrollId parseScrollId(String scrollId) {
         CharsRefBuilder spare = new CharsRefBuilder();
         try {
@@ -95,7 +100,6 @@ public abstract class TransportSearchHelper {
             throw new ElasticsearchIllegalArgumentException("Failed to decode scrollId", e);
         }
         String[] elements = Strings.splitStringToArray(spare.get(), ';');
-        System.out.println(Arrays.toString(elements));
         if (elements.length < 2) {
             throw new ElasticsearchIllegalArgumentException("Malformed scrollId [" + scrollId + "], type and size parameters not provided");
         }

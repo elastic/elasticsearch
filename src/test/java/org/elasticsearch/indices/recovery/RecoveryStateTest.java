@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.indices.recovery;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -331,6 +332,7 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
         assertThat(state.getStage(), equalTo(Stage.DONE));
     }
 
+    @Repeat(iterations = 300)
     public void testTranslog() throws Throwable {
         final Translog translog = new Translog();
         AtomicBoolean stop = new AtomicBoolean();
@@ -345,11 +347,14 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
         translog.start();
         assertThat(translog.recoveredOperations(), equalTo(0));
         assertThat(translog.totalOperations(), equalTo(Translog.UNKNOWN));
+        assertThat(translog.totalOperationsOnStart(), equalTo(Translog.UNKNOWN));
         streamer.start();
         // force one
         streamer.serializeDeserialize();
         int ops = 0;
         int totalOps = 0;
+        int totalOpsOnStart = randomIntBetween(10, 200);
+        translog.totalOperationsOnStart(totalOpsOnStart);
         for (int i = scaledRandomIntBetween(10, 200); i > 0; i--) {
             final int iterationOps = randomIntBetween(1, 10);
             totalOps += iterationOps;
@@ -365,7 +370,8 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
             assertThat(streamer.lastRead().recoveredOperations(), greaterThanOrEqualTo(0));
             assertThat(streamer.lastRead().recoveredOperations(), lessThanOrEqualTo(ops));
             assertThat(streamer.lastRead().totalOperations(), lessThanOrEqualTo(totalOps));
-            assertThat(streamer.lastRead().recoveredPercent(), greaterThanOrEqualTo(0.f));
+            assertThat(streamer.lastRead().totalOperationsOnStart(), lessThanOrEqualTo(totalOpsOnStart));
+            assertThat(streamer.lastRead().recoveredPercent(), either(greaterThanOrEqualTo(0.f)).or(equalTo(-1.f)));
         }
 
         boolean stopped = false;
@@ -377,13 +383,19 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
         if (randomBoolean()) {
             translog.reset();
             ops = 0;
+            totalOps = Translog.UNKNOWN;
+            totalOpsOnStart = Translog.UNKNOWN;
             assertThat(translog.recoveredOperations(), equalTo(0));
+            assertThat(translog.totalOperationsOnStart(), equalTo(Translog.UNKNOWN));
+            assertThat(translog.totalOperations(), equalTo(Translog.UNKNOWN));
         }
 
         stop.set(true);
         streamer.join();
         final Translog lastRead = streamer.lastRead();
         assertThat(lastRead.recoveredOperations(), equalTo(ops));
+        assertThat(lastRead.totalOperations(), equalTo(totalOps));
+        assertThat(lastRead.totalOperationsOnStart(), equalTo(totalOpsOnStart));
         assertThat(lastRead.startTime(), equalTo(translog.startTime()));
         assertThat(lastRead.stopTime(), equalTo(translog.stopTime()));
 

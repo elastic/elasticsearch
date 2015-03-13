@@ -116,6 +116,7 @@ public class IndexShardSnapshotAndRestoreService extends AbstractIndexShardCompo
         }
         try {
             recoveryState.getTranslog().totalOperations(0);
+            recoveryState.getTranslog().totalOperationsOnStart(0);
             indexShard.prepareForIndexRecovery();
             IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(restoreSource.snapshotId().getRepository());
             ShardId snapshotShardId = shardId;

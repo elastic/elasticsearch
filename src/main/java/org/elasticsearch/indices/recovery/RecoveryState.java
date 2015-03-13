@@ -367,6 +367,7 @@ public class RecoveryState implements ToXContent, Streamable {
         static final XContentBuilderString TARGET = new XContentBuilderString("target");
         static final XContentBuilderString INDEX = new XContentBuilderString("index");
         static final XContentBuilderString TRANSLOG = new XContentBuilderString("translog");
+        static final XContentBuilderString TOTAL_ON_START = new XContentBuilderString("total_on_start");
         static final XContentBuilderString START = new XContentBuilderString("start");
         static final XContentBuilderString RECOVERED = new XContentBuilderString("recovered");
         static final XContentBuilderString RECOVERED_IN_BYTES = new XContentBuilderString("recovered_in_bytes");
@@ -496,11 +497,13 @@ public class RecoveryState implements ToXContent, Streamable {
 
         private int recovered;
         private int total = UNKNOWN;
+        private int totalOnStart = UNKNOWN;
 
         public synchronized void reset() {
             super.reset();
             recovered = 0;
             total = UNKNOWN;
+            totalOnStart = UNKNOWN;
         }
 
         public synchronized void incrementRecoveredOperations() {
@@ -528,6 +531,20 @@ public class RecoveryState implements ToXContent, Streamable {
             assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
         }
 
+        /**
+         * returns the total number of translog operations to recovered, on the start of the recovery. Unlike {@link #totalOperations}
+         * this does change during recovery.
+         * <p/>
+         * A value of -1 ({@link RecoveryState.Translog#UNKNOWN} is return if this is unknown (typically a gateway recovery)
+         */
+        public synchronized int totalOperationsOnStart() {
+            return this.totalOnStart;
+        }
+
+        public synchronized void totalOperationsOnStart(int total) {
+            this.totalOnStart = total;
+        }
+
         public synchronized float recoveredPercent() {
             if (total == UNKNOWN) {
                 return -1.f;
@@ -544,12 +561,14 @@ public class RecoveryState implements ToXContent, Streamable {
                 super.readFrom(in);
                 recovered = in.readVInt();
                 total = in.readVInt();
+                totalOnStart = in.readVInt();
             } else {
                 startTime = in.readVLong();
                 long time = in.readVLong();
                 stopTime = startTime + time;
                 recovered = in.readVInt();
                 total = UNKNOWN;
+                totalOnStart = UNKNOWN;
             }
         }
 
@@ -559,6 +578,7 @@ public class RecoveryState implements ToXContent, Streamable {
                 super.writeTo(out);
                 out.writeVInt(recovered);
                 out.writeVInt(total);
+                out.writeVInt(totalOnStart);
             } else {
                 out.writeVLong(startTime);
                 out.writeVLong(time());
@@ -571,6 +591,7 @@ public class RecoveryState implements ToXContent, Streamable {
             builder.field(Fields.RECOVERED, recovered);
             builder.field(Fields.TOTAL, total);
             builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredPercent()));
+            builder.field(Fields.TOTAL_ON_START, totalOnStart);
             builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time());
             return builder;
         }

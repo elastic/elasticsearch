@@ -377,6 +377,7 @@ public class RecoveryTarget extends AbstractComponent {
                     index.addFileDetail(request.phase1FileNames.get(i), request.phase1FileSizes.get(i), false);
                 }
                 recoveryStatus.state().getTranslog().totalOperations(request.totalTranslogOps);
+                recoveryStatus.state().getTranslog().totalOperationsOnStart(request.totalTranslogOps);
                 // recoveryBytesCount / recoveryFileCount will be set as we go...
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
             }

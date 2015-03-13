@@ -229,6 +229,7 @@ public class LocalIndexShardGateway extends AbstractIndexShardComponent implemen
                 // no translog to recovery from, start and bail
                 // no translog files, bail
                 recoveryState.getTranslog().totalOperations(0);
+                recoveryState.getTranslog().totalOperationsOnStart(0);
                 indexShard.finalizeRecovery();
                 indexShard.postRecovery("post recovery from gateway, no translog");
                 // no index, just start the shard and bail

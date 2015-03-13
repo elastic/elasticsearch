@@ -98,10 +98,10 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testScriptsSameNameDifferentLanguage() throws IOException {
-        File testFileNoExt = new File(scriptsFile, "script.groovy");
-        File testFileWithExt = new File(scriptsFile, "script.expression");
-        Streams.copy("10".getBytes("UTF-8"), testFileNoExt);
-        Streams.copy("20".getBytes("UTF-8"), testFileWithExt);
+        File groovyScriptFile = new File(scriptsFile, "script.groovy");
+        File expScriptFile = new File(scriptsFile, "script.expression");
+        Streams.copy("10".getBytes("UTF-8"), groovyScriptFile);
+        Streams.copy("20".getBytes("UTF-8"), expScriptFile);
         resourceWatcherService.notifyNow();
 
         CompiledScript groovyScript = scriptService.compile(GroovyScriptEngineService.NAME, "script", ScriptService.ScriptType.FILE);
@@ -119,8 +119,8 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
     @Test
     public void testFileScriptCompiledOnceMultipleLangAcronyms() throws IOException {
-        File testFileWithExt = new File(scriptsFile, "test_script.tst");
-        Streams.copy("test_file".getBytes("UTF-8"), testFileWithExt);
+        File scriptFile = new File(scriptsFile, "test_script.tst");
+        Streams.copy("test_file".getBytes("UTF-8"), scriptFile);
         resourceWatcherService.notifyNow();
 
         CompiledScript compiledScript1 = scriptService.compile("test", "test_script", ScriptService.ScriptType.FILE);
@@ -180,5 +180,4 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
             // Nothing to do here
         }
     }
-
 }

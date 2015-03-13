@@ -95,7 +95,7 @@ public class SimpleExistsTests extends ElasticsearchIntegrationTest {
         existsResponse = client().prepareExists().setQuery(QueryBuilders.prefixQuery("_id", "XXX")).execute().actionGet();
         assertExists(existsResponse, true);
 
-        existsResponse = client().prepareExists().setQuery(QueryBuilders.queryStringQuery("_id:XXX*")).execute().actionGet();
+        existsResponse = client().prepareExists().setQuery(QueryBuilders.queryStringQuery("_id:XXX*").lowercaseExpandedTerms(false)).execute().actionGet();
         assertExists(existsResponse, true);
     }
 
@@ -110,7 +110,7 @@ public class SimpleExistsTests extends ElasticsearchIntegrationTest {
         ExistsResponse existsResponse = client().prepareExists("test").setQuery(QueryBuilders.rangeQuery("field").gte(6).lte(8)).execute().actionGet();
         assertExists(existsResponse, false);
 
-        existsResponse = client().prepareExists("test").setQuery(QueryBuilders.queryStringQuery("_id:XXY*")).execute().actionGet();
+        existsResponse = client().prepareExists("test").setQuery(QueryBuilders.queryStringQuery("_id:XXY*").lowercaseExpandedTerms(false)).execute().actionGet();
         assertExists(existsResponse, false);
     }
 

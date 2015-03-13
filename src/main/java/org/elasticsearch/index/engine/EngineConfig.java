@@ -50,7 +50,6 @@ import java.util.concurrent.TimeUnit;
  */
 public final class EngineConfig {
     private final ShardId shardId;
-    private volatile boolean failOnMergeFailure = true;
     private volatile boolean failEngineOnCorruption = true;
     private volatile ByteSizeValue indexingBufferSize;
     private final int indexConcurrency;
@@ -98,12 +97,6 @@ public final class EngineConfig {
      * This setting is realtime updateable
      */
     public static final String INDEX_GC_DELETES_SETTING = "index.gc_deletes";
-
-    /**
-     * Index setting to enable / disable engine failures on merge exceptions. Default is <code>true</code> / <tt>enabled</tt>.
-     * This setting is realtime updateable.
-     */
-    public static final String INDEX_FAIL_ON_MERGE_FAILURE_SETTING = "index.fail_on_merge_failure";
 
     /**
      * Index setting to enable / disable engine failures on detected index corruptions. Default is <code>true</code> / <tt>enabled</tt>.
@@ -156,7 +149,6 @@ public final class EngineConfig {
         codecName = indexSettings.get(EngineConfig.INDEX_CODEC_SETTING, EngineConfig.DEFAULT_CODEC_NAME);
         indexingBufferSize = indexSettings.getAsBytesSize(INDEX_BUFFER_SIZE_SETTING, DEFAUTL_INDEX_BUFFER_SIZE);
         failEngineOnCorruption = indexSettings.getAsBoolean(INDEX_FAIL_ON_CORRUPTION_SETTING, true);
-        failOnMergeFailure = indexSettings.getAsBoolean(INDEX_FAIL_ON_MERGE_FAILURE_SETTING, true);
         gcDeletesInMillis = indexSettings.getAsTime(INDEX_GC_DELETES_SETTING, EngineConfig.DEFAULT_GC_DELETES).millis();
     }
 
@@ -174,13 +166,6 @@ public final class EngineConfig {
      */
     public void setEnableGcDeletes(boolean enableGcDeletes) {
         this.enableGcDeletes = enableGcDeletes;
-    }
-
-    /**
-     * Returns <code>true</code> iff the engine should be failed if a merge error is hit. Defaults to <code>true</code>
-     */
-    public boolean isFailOnMergeFailure() {
-        return failOnMergeFailure;
     }
 
     /**
@@ -376,12 +361,5 @@ public final class EngineConfig {
      */
     public void setFailEngineOnCorruption(boolean failEngineOnCorruption) {
         this.failEngineOnCorruption = failEngineOnCorruption;
-    }
-
-    /**
-     * Sets if the engine should be failed if a merge error is hit. Defaults to <code>true</code>
-     */
-    public void setFailOnMergeFailure(boolean failOnMergeFailure) {
-        this.failOnMergeFailure = failOnMergeFailure;
     }
 }

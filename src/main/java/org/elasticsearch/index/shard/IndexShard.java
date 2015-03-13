@@ -1036,12 +1036,6 @@ public class IndexShard extends AbstractIndexShardComponent {
                     config.setFailEngineOnCorruption(failEngineOnCorruption);
                     change = true;
                 }
-                final boolean failOnMergeFailure = settings.getAsBoolean(EngineConfig.INDEX_FAIL_ON_MERGE_FAILURE_SETTING, config.isFailOnMergeFailure());
-                if (failOnMergeFailure != config.isFailOnMergeFailure()) {
-                    logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_FAIL_ON_MERGE_FAILURE_SETTING, config.isFailOnMergeFailure(), failOnMergeFailure);
-                    config.setFailOnMergeFailure(failOnMergeFailure);
-                    change = true;
-                }
             }
             if (change) {
                 refresh("apply settings");

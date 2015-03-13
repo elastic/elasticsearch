@@ -28,12 +28,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -51,6 +53,8 @@ import java.util.Map;
  * <li>'{@code ~}N' at the end of terms specifies fuzzy query: <tt>term~1</tt>
  * <li>'{@code ~}N' at the end of phrases specifies near/slop query: <tt>"term1 term2"~5</tt>
  * </ul>
+ * <p/>
+ * See: {@link XSimpleQueryParser} for more information.
  * <p/>
  * This query supports these options:
  * <p/>
@@ -169,6 +173,12 @@ public class SimpleQueryStringParser implements QueryParser {
                             flags = SimpleQueryStringFlag.ALL.value();
                         }
                     }
+                } else if ("locale".equals(currentFieldName)) {
+                    String localeStr = parser.text();
+                    Locale locale = LocaleUtils.parse(localeStr);
+                    sqsSettings.locale(locale);
+                } else if ("lowercase_expanded_terms".equals(currentFieldName)) {
+                    sqsSettings.lowercaseExpandedTerms(parser.booleanValue());
                 } else if ("lenient".equals(currentFieldName)) {
                     sqsSettings.lenient(parser.booleanValue());
                 } else if ("analyze_wildcard".equals(currentFieldName)) {

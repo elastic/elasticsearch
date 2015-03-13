@@ -131,7 +131,9 @@ public class ConcurrentMergeSchedulerProvider extends MergeSchedulerProvider {
         protected void handleMergeException(Throwable exc) {
             logger.warn("failed to merge", exc);
             provider.failedMerge(new MergePolicy.MergeException(exc, dir));
-            super.handleMergeException(exc);
+            // NOTE: do not call super.handleMergeException here, which would just re-throw the exception
+            // and let Java's thread exc handler see it / log it to stderr, but we already 1) logged it
+            // and 2) handled the exception by failing the engine
         }
 
         @Override

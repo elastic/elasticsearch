@@ -20,10 +20,12 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.aliases.IndexAliasesService;
 import org.elasticsearch.index.cache.IndexCache;
@@ -81,28 +83,28 @@ public final class ShadowIndexShard extends IndexShard {
                             IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache,
                             ShardBitsetFilterCache shardBitsetFilterCache, @Nullable IndicesWarmer warmer,
                             SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService,
-                            MergePolicyProvider mergePolicyProvider, EngineFactory factory, ClusterService clusterService) {
+                            MergePolicyProvider mergePolicyProvider, EngineFactory factory, ClusterService clusterService, NodeEnvironment nodeEnv) {
         super(shardId, indexSettings, indexSettingsService, indicesLifecycle, store, mergeScheduler,
                 translog, threadPool, mapperService, queryParserService, indexCache, indexAliasesService,
                 indexingService, getService, searchService, shardWarmerService, shardFilterCache,
                 shardFieldData, percolatorQueriesRegistry, shardPercolateService, codecService,
                 termVectorsService, indexFieldDataService, indexService, shardSuggestService,
                 shardQueryCache, shardBitsetFilterCache, warmer, deletionPolicy, similarityService,
-                mergePolicyProvider, factory, clusterService);
+                mergePolicyProvider, factory, clusterService, nodeEnv);
     }
 
     /**
      * In addition to the regular accounting done in
-     * {@link IndexShard#routingEntry(org.elasticsearch.cluster.routing.ShardRouting)},
+     * {@link IndexShard#updateRoutingEntry(org.elasticsearch.cluster.routing.ShardRouting, boolean)},
      * if this shadow replica needs to be promoted to a primary, the shard is
      * failed in order to allow a new primary to be re-allocated.
      */
     @Override
-    public IndexShard routingEntry(ShardRouting newRouting) {
+    public void updateRoutingEntry(ShardRouting newRouting, boolean persistState) {
         if (newRouting.primary() == true) {// becoming a primary
             throw new ElasticsearchIllegalStateException("can't promote shard to primary");
         }
-        return super.routingEntry(newRouting);
+        super.updateRoutingEntry(newRouting, persistState);
     }
 
     @Override

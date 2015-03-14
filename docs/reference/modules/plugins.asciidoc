@@ -292,6 +292,7 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/karmi/elasticsearch-paramedic[Paramedic Plugin] (by Karel Minařík)
 * https://github.com/polyfractal/elasticsearch-segmentspy[SegmentSpy Plugin] (by Zachary Tong)
 * https://github.com/xyu/elasticsearch-whatson[Whatson Plugin] (by Xiao Yu)
+* https://github.com/lmenezes/elasticsearch-kopf[kopf Plugin] (by lmenezes)
 
 [float]
 [[repository-plugins]]

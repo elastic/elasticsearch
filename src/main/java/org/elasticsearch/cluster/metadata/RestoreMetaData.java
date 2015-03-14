@@ -22,6 +22,9 @@ package org.elasticsearch.cluster.metadata;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.cluster.factory.ClusterStatePartFactory;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -35,7 +38,7 @@ import java.util.Map;
 /**
  * Meta data about restore processes that are currently executing
  */
-public class RestoreMetaData implements MetaData.Custom {
+public class RestoreMetaData {
 
     public static final String TYPE = "restore";
 
@@ -397,21 +400,17 @@ public class RestoreMetaData implements MetaData.Custom {
     /**
      * Restore metadata factory
      */
-    public static class Factory extends MetaData.Custom.Factory<RestoreMetaData> {
+    public static class Factory extends ClusterStatePartFactory<RestoreMetaData> {
 
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public String type() {
-            return TYPE;
+        protected Factory() {
+            super(TYPE);
         }
 
         /**
          * {@inheritDoc}
          */
         @Override
-        public RestoreMetaData readFrom(StreamInput in) throws IOException {
+        public RestoreMetaData readFrom(StreamInput in, String partName, @Nullable DiscoveryNode localNode) throws IOException {
             Entry[] entries = new Entry[in.readVInt()];
             for (int i = 0; i < entries.length; i++) {
                 SnapshotId snapshotId = SnapshotId.readSnapshotId(in);
@@ -452,14 +451,6 @@ public class RestoreMetaData implements MetaData.Custom {
                     shardEntry.getValue().writeTo(out);
                 }
             }
-        }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public RestoreMetaData fromXContent(XContentParser parser) throws IOException {
-            throw new UnsupportedOperationException();
         }
 
         /**

@@ -22,10 +22,15 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.IntSet;
 import com.google.common.collect.*;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.factory.ClusterStatePartFactory;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexMissingException;
@@ -45,6 +50,44 @@ import static com.google.common.collect.Maps.newHashMap;
  * @see IndexRoutingTable
  */
 public class RoutingTable implements Iterable<IndexRoutingTable> {
+
+    public static final String TYPE = "routing_table";
+
+    public static final ClusterStatePartFactory<RoutingTable> FACTORY = new ClusterStatePartFactory<RoutingTable>(TYPE) {
+
+        @Override
+        public RoutingTable readFrom(StreamInput in, String partName, @Nullable DiscoveryNode localNode) throws IOException {
+            return Builder.readFrom(in);
+        }
+
+        @Override
+        public void writeTo(RoutingTable part, StreamOutput out) throws IOException {
+            Builder.writeTo(part, out);
+        }
+
+        @Override
+        public void toXContent(RoutingTable routingTable, XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.startObject("indices");
+            for (IndexRoutingTable indexRoutingTable : routingTable) {
+                builder.startObject(indexRoutingTable.index(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject("shards");
+                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
+                    builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
+                    for (ShardRouting shardRouting : indexShardRoutingTable) {
+                        shardRouting.toXContent(builder, params);
+                    }
+                    builder.endArray();
+                }
+                builder.endObject();
+                builder.endObject();
+            }
+            builder.endObject();
+            builder.endObject();
+        }
+    };
+
+
 
     public static final RoutingTable EMPTY_ROUTING_TABLE = builder().build();
 

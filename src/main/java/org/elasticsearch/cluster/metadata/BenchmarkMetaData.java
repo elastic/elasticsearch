@@ -20,6 +20,9 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.cluster.factory.ClusterStatePartFactory;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -31,7 +34,7 @@ import java.io.IOException;
 /**
  * Meta data about benchmarks that are currently executing
  */
-public class BenchmarkMetaData implements MetaData.Custom {
+public class BenchmarkMetaData {
     public static final String TYPE = "benchmark";
 
     public static final Factory FACTORY = new Factory();
@@ -155,15 +158,14 @@ public class BenchmarkMetaData implements MetaData.Custom {
     }
 
 
-    public static class Factory extends MetaData.Custom.Factory<BenchmarkMetaData> {
+    public static class Factory extends ClusterStatePartFactory<BenchmarkMetaData> {
 
-        @Override
-        public String type() {
-            return TYPE;
+        protected Factory() {
+            super(TYPE);
         }
 
         @Override
-        public BenchmarkMetaData readFrom(StreamInput in) throws IOException {
+        public BenchmarkMetaData readFrom(StreamInput in, String partName, @Nullable DiscoveryNode localNode) throws IOException {
             Entry[] entries = new Entry[in.readVInt()];
             for (int i = 0; i < entries.length; i++) {
                 String benchmarkId = in.readString();
@@ -182,11 +184,6 @@ public class BenchmarkMetaData implements MetaData.Custom {
                 out.writeByte(entry.state().id());
                 out.writeStringArray(entry.nodes());
             }
-        }
-
-        @Override
-        public BenchmarkMetaData fromXContent(XContentParser parser) throws IOException {
-            throw new UnsupportedOperationException();
         }
 
         @Override

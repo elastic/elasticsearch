@@ -30,6 +30,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.factory.ClusterStatePartFactory;
 import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.cluster.metadata.RestoreMetaData.ShardRestoreStatus;
 import org.elasticsearch.cluster.routing.*;
@@ -353,37 +354,33 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
                 private void restoreGlobalStateIfRequested(MetaData.Builder mdBuilder) {
                     if (request.includeGlobalState()) {
-                        if (metaData.persistentSettings() != null) {
-                            boolean changed = false;
-                            ImmutableSettings.Builder persistentSettings = ImmutableSettings.settingsBuilder().put();
-                            for (Map.Entry<String, String> entry : metaData.persistentSettings().getAsMap().entrySet()) {
-                                if (dynamicSettings.isDynamicOrLoggingSetting(entry.getKey())) {
-                                    String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue());
-                                    if (error == null) {
-                                        persistentSettings.put(entry.getKey(), entry.getValue());
-                                        changed = true;
-                                    } else {
-                                        logger.warn("ignoring persistent setting [{}], [{}]", entry.getKey(), error);
+                        for (ObjectObjectCursor<String, Object> cursor : metaData.parts()) {
+                            if (MetaData.FACTORY.lookupFactory(cursor.key).context().contains(ClusterStatePartFactory.XContentContext.SNAPSHOT)) {
+                                if (cursor.key.equals(IndexTemplateMetaData.TYPE)) {
+                                    // Merge templates instead of replacing them
+                                    for (ObjectCursor<IndexTemplateMetaData> cursor2 : metaData.templates().values()) {
+                                        mdBuilder.put(cursor2.value);
+                                    }
+                                } else if (cursor.key.equals(MetaData.PERSISTENT_SETTINGS_TYPE)) {
+                                    boolean changed = false;
+                                    ImmutableSettings.Builder persistentSettings = ImmutableSettings.settingsBuilder().put();
+                                    for (Map.Entry<String, String> entry : metaData.persistentSettings().getAsMap().entrySet()) {
+                                        if (dynamicSettings.isDynamicOrLoggingSetting(entry.getKey())) {
+                                            String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue());
+                                            if (error == null) {
+                                                persistentSettings.put(entry.getKey(), entry.getValue());
+                                                changed = true;
+                                            } else {
+                                                logger.warn("ignoring persistent setting [{}], [{}]", entry.getKey(), error);
+                                                }
+                                            } else {
+                                                logger.warn("ignoring persistent setting [{}], not dynamically updateable", entry.getKey());
+                                        }
+                                    }
+                                    if (changed) {
+                                        mdBuilder.persistentSettings(persistentSettings.build());
                                     }
                                 } else {
-                                    logger.warn("ignoring persistent setting [{}], not dynamically updateable", entry.getKey());
-                                }
-                            }
-                            if (changed) {
-                                mdBuilder.persistentSettings(persistentSettings.build());
-                            }
-                        }
-                        if (metaData.templates() != null) {
-                            // TODO: Should all existing templates be deleted first?
-                            for (ObjectCursor<IndexTemplateMetaData> cursor : metaData.templates().values()) {
-                                mdBuilder.put(cursor.value);
-                            }
-                        }
-                        if (metaData.customs() != null) {
-                            for (ObjectObjectCursor<String, MetaData.Custom> cursor : metaData.customs()) {
-                                if (!RepositoriesMetaData.TYPE.equals(cursor.key)) {
-                                    // Don't restore repositories while we are working with them
-                                    // TODO: Should we restore them at the end?
                                     mdBuilder.putCustom(cursor.key, cursor.value);
                                 }
                             }

@@ -23,18 +23,19 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.cluster.ClusterState.Metrics;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.AcknowledgedRestListener;
 
 import java.io.IOException;
-import java.util.EnumSet;
 
 /**
  */
@@ -42,7 +43,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
 
     private final SettingsFilter settingsFilter;
 
-    private static String DEFAULT_METRICS = Strings.arrayToCommaDelimitedString(EnumSet.complementOf(EnumSet.of(ClusterState.Metric.METADATA)).toArray());
+    private static String DEFAULT_METRICS = "-" + Metrics.METADATA; // Returns everything except metadata
 
     @Inject
     public RestClusterRerouteAction(Settings settings, RestController controller, Client client, SettingsFilter settingsFilter) {

@@ -19,16 +19,10 @@
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
-import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.cluster.factory.*;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -38,22 +32,15 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.Locale;
-import java.util.Map;
 
 /**
  *
@@ -77,44 +64,33 @@ public class ClusterState implements ToXContent {
         }
     }
 
-    public interface Custom {
-
-        interface Factory<T extends Custom> {
-
-            String type();
-
-            T readFrom(StreamInput in) throws IOException;
-
-            void writeTo(T customState, StreamOutput out) throws IOException;
-
-            void toXContent(T customState, XContentBuilder builder, ToXContent.Params params);
+    public static final CompositeClusterStatePartFactory<ClusterState, Object> FACTORY = new CompositeClusterStatePartFactory<ClusterState, Object>("cluster") {
+        @Override
+        public ClusterState fromParts(ImmutableOpenMap<String, Object> parts) {
+            return new ClusterState(parts);
         }
-    }
 
-    private final static Map<String, Custom.Factory> customFactories = new HashMap<>();
-
-    /**
-     * Register a custom index meta data factory. Make sure to call it from a static block.
-     */
-    public static void registerFactory(String type, Custom.Factory factory) {
-        customFactories.put(type, factory);
-    }
-
-    @Nullable
-    public static <T extends Custom> Custom.Factory<T> lookupFactory(String type) {
-        return customFactories.get(type);
-    }
-
-    public static <T extends Custom> Custom.Factory<T> lookupFactorySafe(String type) throws ElasticsearchIllegalArgumentException {
-        Custom.Factory<T> factory = customFactories.get(type);
-        if (factory == null) {
-            throw new ElasticsearchIllegalArgumentException("No custom state factory registered for type [" + type + "]");
+        @Override
+        public ImmutableOpenMap<String, Object> toParts(ClusterState parts) {
+            return parts.parts;
         }
-        return factory;
-    }
+    };
 
+    public final static String VERSION_TYPE = "version";
+    public final static String CLUSTER_NAME_TYPE = "cluster_name";
+
+    static {
+        FACTORY.registerFactory(new LongClusterStatePartFactory(VERSION_TYPE));
+        FACTORY.registerFactory(new ClusterNameClusterStatePartFactory(CLUSTER_NAME_TYPE));
+        FACTORY.registerFactory(DiscoveryNodes.FACTORY);
+        FACTORY.registerFactory(ClusterBlocks.FACTORY);
+        FACTORY.registerFactory(RoutingTable.FACTORY);
+        FACTORY.registerFactory(MetaData.FACTORY);
+    }
 
     public static final long UNKNOWN_VERSION = -1;
+
+    protected final ImmutableOpenMap<String, Object> parts;
 
     private final long version;
 
@@ -126,8 +102,6 @@ public class ClusterState implements ToXContent {
 
     private final ClusterBlocks blocks;
 
-    private final ImmutableOpenMap<String, Custom> customs;
-
     private final ClusterName clusterName;
 
     // built on demand
@@ -135,19 +109,19 @@ public class ClusterState implements ToXContent {
 
     private volatile ClusterStateStatus status;
 
-    public ClusterState(long version, ClusterState state) {
-        this(state.clusterName, version, state.metaData(), state.routingTable(), state.nodes(), state.blocks(), state.customs());
+    public ClusterState(ImmutableOpenMap<String, Object> parts) {
+        this.parts = parts;
+        this.version = get(VERSION_TYPE);
+        this.clusterName = get(CLUSTER_NAME_TYPE);
+        this.routingTable = get(RoutingTable.TYPE);
+        this.metaData = get(MetaData.TYPE);
+        this.nodes = get(DiscoveryNodes.TYPE);
+        this.blocks = get(ClusterBlocks.TYPE);
+        this.status = ClusterStateStatus.UNKNOWN;
     }
 
-    public ClusterState(ClusterName clusterName, long version, MetaData metaData, RoutingTable routingTable, DiscoveryNodes nodes, ClusterBlocks blocks, ImmutableOpenMap<String, Custom> customs) {
-        this.version = version;
-        this.clusterName = clusterName;
-        this.metaData = metaData;
-        this.routingTable = routingTable;
-        this.nodes = nodes;
-        this.blocks = blocks;
-        this.customs = customs;
-        this.status = ClusterStateStatus.UNKNOWN;
+    public <T> T get(String type) {
+        return (T) parts.get(type);
     }
 
     public ClusterStateStatus status() {
@@ -207,12 +181,12 @@ public class ClusterState implements ToXContent {
         return blocks;
     }
 
-    public ImmutableOpenMap<String, Custom> customs() {
-        return this.customs;
+    public ImmutableOpenMap<String, Object> customs() {
+        return this.parts;
     }
 
-    public ImmutableOpenMap<String, Custom> getCustoms() {
-        return this.customs;
+    public ImmutableOpenMap<String, Object> getCustoms() {
+        return this.parts;
     }
 
     public ClusterName getClusterName() {
@@ -254,218 +228,66 @@ public class ClusterState implements ToXContent {
         }
     }
 
-    public enum Metric {
-        VERSION("version"),
-        MASTER_NODE("master_node"),
-        BLOCKS("blocks"),
-        NODES("nodes"),
-        METADATA("metadata"),
-        ROUTING_TABLE("routing_table"),
-        CUSTOMS("customs");
+    public static class Metrics {
 
-        private static Map<String, Metric> valueToEnum;
+        public static final String VERSION = "version";
+        public static final String MASTER_NODE = "master_node";
+        public static final String NODES = DiscoveryNodes.TYPE;
+        public static final String ROUTING_TABLE = RoutingTable.TYPE;
+        public static final String METADATA = MetaData.TYPE;
+        public static final String BLOCKS = ClusterBlocks.TYPE;
 
-        static {
-            valueToEnum = new HashMap<>();
-            for (Metric metric : Metric.values()) {
-                valueToEnum.put(metric.value, metric);
-            }
-        }
 
-        private final String value;
+        private final ImmutableSet<String> includes;
+        private final ImmutableSet<String> excludes;
 
-        private Metric(String value) {
-            this.value = value;
-        }
-
-        public static EnumSet<Metric> parseString(String param, boolean ignoreUnknown) {
-            String[] metrics = Strings.splitStringByCommaToArray(param);
-            EnumSet<Metric> result = EnumSet.noneOf(Metric.class);
-            for (String metric : metrics) {
-                if ("_all".equals(metric)) {
-                    result = EnumSet.allOf(Metric.class);
-                    break;
-                }
-                Metric m = valueToEnum.get(metric);
-                if (m == null) {
-                    if (!ignoreUnknown) {
-                        throw new ElasticsearchIllegalArgumentException("Unknown metric [" + metric + "]");
+        public Metrics(String params) {
+            if (params.equals("_all")) {
+                this.includes = ImmutableSet.of();
+                this.excludes = ImmutableSet.of();
+            } else {
+                ImmutableSet.Builder<String> includes = ImmutableSet.builder();
+                ImmutableSet.Builder<String> excludes = ImmutableSet.builder();
+                String[] metrics = Strings.splitStringByCommaToArray(params);
+                for (String metric : metrics) {
+                    if (metric.startsWith("+")) {
+                        includes.add(metric.substring(1));
+                    } else if (metric.startsWith("-")) {
+                        excludes.add(metric.substring(1));
+                    } else {
+                        includes.add(metric);
                     }
-                } else {
-                    result.add(m);
                 }
+                this.includes = includes.build();
+                this.excludes = excludes.build();
             }
-            return result;
         }
 
-        @Override
-        public String toString() {
-            return value;
+        public boolean matches(String metric) {
+            if (includes.isEmpty()) {
+                return !excludes.contains(metric);
+            }
+            return includes.contains(metric) && !excludes.contains(metric);
         }
     }
 
-
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        EnumSet<Metric> metrics = Metric.parseString(params.param("metric", "_all"), true);
+        Metrics metrics = new Metrics(params.param("metric", "_all"));
 
-        if (metrics.contains(Metric.VERSION)) {
-            builder.field("version", version);
+        for(ObjectObjectCursor<String, Object> partIter : parts) {
+            if (metrics.matches(partIter.key)) {
+                builder.field(partIter.key);
+                FACTORY.lookupFactorySafe(partIter.key).toXContent(partIter.value, builder, params);
+            }
         }
 
-        if (metrics.contains(Metric.MASTER_NODE)) {
+        if (metrics.matches(Metrics.MASTER_NODE)) {
             builder.field("master_node", nodes().masterNodeId());
         }
 
-        if (metrics.contains(Metric.BLOCKS)) {
-            builder.startObject("blocks");
-
-            if (!blocks().global().isEmpty()) {
-                builder.startObject("global");
-                for (ClusterBlock block : blocks().global()) {
-                    block.toXContent(builder, params);
-                }
-                builder.endObject();
-            }
-
-            if (!blocks().indices().isEmpty()) {
-                builder.startObject("indices");
-                for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : blocks().indices().entrySet()) {
-                    builder.startObject(entry.getKey());
-                    for (ClusterBlock block : entry.getValue()) {
-                        block.toXContent(builder, params);
-                    }
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-
-            builder.endObject();
-        }
-
-        // nodes
-        if (metrics.contains(Metric.NODES)) {
-            builder.startObject("nodes");
-            for (DiscoveryNode node : nodes()) {
-                builder.startObject(node.id(), XContentBuilder.FieldCaseConversion.NONE);
-                builder.field("name", node.name());
-                builder.field("transport_address", node.address().toString());
-
-                builder.startObject("attributes");
-                for (Map.Entry<String, String> attr : node.attributes().entrySet()) {
-                    builder.field(attr.getKey(), attr.getValue());
-                }
-                builder.endObject();
-
-                builder.endObject();
-            }
-            builder.endObject();
-        }
-
-        // meta data
-        if (metrics.contains(Metric.METADATA)) {
-            builder.startObject("metadata");
-
-            builder.startObject("templates");
-            for (ObjectCursor<IndexTemplateMetaData> cursor : metaData().templates().values()) {
-                IndexTemplateMetaData templateMetaData = cursor.value;
-                builder.startObject(templateMetaData.name(), XContentBuilder.FieldCaseConversion.NONE);
-
-                builder.field("template", templateMetaData.template());
-                builder.field("order", templateMetaData.order());
-
-                builder.startObject("settings");
-                Settings settings = templateMetaData.settings();
-                settings.toXContent(builder, params);
-                builder.endObject();
-
-                builder.startObject("mappings");
-                for (ObjectObjectCursor<String, CompressedString> cursor1 : templateMetaData.mappings()) {
-                    byte[] mappingSource = cursor1.value.uncompressed();
-                    XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
-                    Map<String, Object> mapping = parser.map();
-                    if (mapping.size() == 1 && mapping.containsKey(cursor1.key)) {
-                        // the type name is the root value, reduce it
-                        mapping = (Map<String, Object>) mapping.get(cursor1.key);
-                    }
-                    builder.field(cursor1.key);
-                    builder.map(mapping);
-                }
-                builder.endObject();
-
-
-                builder.endObject();
-            }
-            builder.endObject();
-
-            builder.startObject("indices");
-            for (IndexMetaData indexMetaData : metaData()) {
-                builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
-
-                builder.field("state", indexMetaData.state().toString().toLowerCase(Locale.ENGLISH));
-
-                builder.startObject("settings");
-                Settings settings = indexMetaData.settings();
-                settings.toXContent(builder, params);
-                builder.endObject();
-
-                builder.startObject("mappings");
-                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
-                    byte[] mappingSource = cursor.value.source().uncompressed();
-                    XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
-                    Map<String, Object> mapping = parser.map();
-                    if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
-                        // the type name is the root value, reduce it
-                        mapping = (Map<String, Object>) mapping.get(cursor.key);
-                    }
-                    builder.field(cursor.key);
-                    builder.map(mapping);
-                }
-                builder.endObject();
-
-                builder.startArray("aliases");
-                for (ObjectCursor<String> cursor : indexMetaData.aliases().keys()) {
-                    builder.value(cursor.value);
-                }
-                builder.endArray();
-
-                builder.endObject();
-            }
-            builder.endObject();
-
-            for (ObjectObjectCursor<String, MetaData.Custom> cursor : metaData.customs()) {
-                builder.startObject(cursor.key);
-                MetaData.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
-                builder.endObject();
-            }
-
-            builder.endObject();
-        }
-
-        // routing table
-        if (metrics.contains(Metric.ROUTING_TABLE)) {
-            builder.startObject("routing_table");
-            builder.startObject("indices");
-            for (IndexRoutingTable indexRoutingTable : routingTable()) {
-                builder.startObject(indexRoutingTable.index(), XContentBuilder.FieldCaseConversion.NONE);
-                builder.startObject("shards");
-                for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                    builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
-                    for (ShardRouting shardRouting : indexShardRoutingTable) {
-                        shardRouting.toXContent(builder, params);
-                    }
-                    builder.endArray();
-                }
-                builder.endObject();
-                builder.endObject();
-            }
-            builder.endObject();
-            builder.endObject();
-        }
-
         // routing nodes
-        if (metrics.contains(Metric.ROUTING_TABLE)) {
+        if (metrics.matches(Metrics.ROUTING_TABLE)) {
             builder.startObject("routing_nodes");
             builder.startArray("unassigned");
             for (ShardRouting shardRouting : readOnlyRoutingNodes().unassigned()) {
@@ -485,13 +307,6 @@ public class ClusterState implements ToXContent {
 
             builder.endObject();
         }
-        if (metrics.contains(Metric.CUSTOMS)) {
-            for (ObjectObjectCursor<String, Custom> cursor : customs) {
-                builder.startObject(cursor.key);
-                lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
-                builder.endObject();
-            }
-        }
 
         return builder;
     }
@@ -506,28 +321,26 @@ public class ClusterState implements ToXContent {
 
     public static class Builder {
 
-        private final ClusterName clusterName;
-        private long version = 0;
-        private MetaData metaData = MetaData.EMPTY_META_DATA;
-        private RoutingTable routingTable = RoutingTable.EMPTY_ROUTING_TABLE;
-        private DiscoveryNodes nodes = DiscoveryNodes.EMPTY_NODES;
-        private ClusterBlocks blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
-        private final ImmutableOpenMap.Builder<String, Custom> customs;
-
+        private final ImmutableOpenMap.Builder<String, Object> parts;
 
         public Builder(ClusterState state) {
-            this.clusterName = state.clusterName;
-            this.version = state.version();
-            this.nodes = state.nodes();
-            this.routingTable = state.routingTable();
-            this.metaData = state.metaData();
-            this.blocks = state.blocks();
-            this.customs = ImmutableOpenMap.builder(state.customs());
+            this.parts = ImmutableOpenMap.builder(state.parts);
+            putPart(VERSION_TYPE, state.getVersion());
+            putPart(CLUSTER_NAME_TYPE, state.getClusterName());
+            putPart(MetaData.TYPE, state.metaData());
+            putPart(RoutingTable.TYPE, state.routingTable());
+            putPart(DiscoveryNodes.TYPE, state.nodes());
+            putPart(ClusterBlocks.TYPE, state.blocks());
         }
 
         public Builder(ClusterName clusterName) {
-            customs = ImmutableOpenMap.builder();
-            this.clusterName = clusterName;
+            parts = ImmutableOpenMap.builder();
+            putPart(VERSION_TYPE, 0L);
+            putPart(CLUSTER_NAME_TYPE, clusterName);
+            putPart(MetaData.TYPE, MetaData.EMPTY_META_DATA);
+            putPart(RoutingTable.TYPE, RoutingTable.EMPTY_ROUTING_TABLE);
+            putPart(DiscoveryNodes.TYPE, DiscoveryNodes.EMPTY_NODES);
+            putPart(ClusterBlocks.TYPE, ClusterBlocks.EMPTY_CLUSTER_BLOCK);
         }
 
         public Builder nodes(DiscoveryNodes.Builder nodesBuilder) {
@@ -535,7 +348,7 @@ public class ClusterState implements ToXContent {
         }
 
         public Builder nodes(DiscoveryNodes nodes) {
-            this.nodes = nodes;
+            putPart(DiscoveryNodes.TYPE, nodes);
             return this;
         }
 
@@ -544,12 +357,12 @@ public class ClusterState implements ToXContent {
         }
 
         public Builder routingResult(RoutingAllocation.Result routingResult) {
-            this.routingTable = routingResult.routingTable();
+            putPart(RoutingTable.TYPE, routingResult.routingTable());
             return this;
         }
 
         public Builder routingTable(RoutingTable routingTable) {
-            this.routingTable = routingTable;
+            putPart(RoutingTable.TYPE, routingTable);
             return this;
         }
 
@@ -558,7 +371,7 @@ public class ClusterState implements ToXContent {
         }
 
         public Builder metaData(MetaData metaData) {
-            this.metaData = metaData;
+            putPart(MetaData.TYPE, metaData);
             return this;
         }
 
@@ -567,31 +380,31 @@ public class ClusterState implements ToXContent {
         }
 
         public Builder blocks(ClusterBlocks blocks) {
-            this.blocks = blocks;
+            putPart(ClusterBlocks.TYPE, blocks);
             return this;
         }
 
         public Builder version(long version) {
-            this.version = version;
+            putPart(VERSION_TYPE, version);
             return this;
         }
 
-        public Custom getCustom(String type) {
-            return customs.get(type);
+        public <T> T getPart(String type) {
+            return (T)parts.get(type);
         }
 
-        public Builder putCustom(String type, Custom custom) {
-            customs.put(type, custom);
+        public Builder putPart(String type, Object part) {
+            parts.put(type, part);
             return this;
         }
 
-        public Builder removeCustom(String type) {
-            customs.remove(type);
+        public Builder removePart(String type) {
+            parts.remove(type);
             return this;
         }
 
         public ClusterState build() {
-            return new ClusterState(clusterName, version, metaData, routingTable, nodes, blocks, customs.build());
+            return new ClusterState(parts.build());
         }
 
         public static byte[] toBytes(ClusterState state) throws IOException {
@@ -609,17 +422,7 @@ public class ClusterState implements ToXContent {
         }
 
         public static void writeTo(ClusterState state, StreamOutput out) throws IOException {
-            state.clusterName.writeTo(out);
-            out.writeLong(state.version());
-            MetaData.Builder.writeTo(state.metaData(), out);
-            RoutingTable.Builder.writeTo(state.routingTable(), out);
-            DiscoveryNodes.Builder.writeTo(state.nodes(), out);
-            ClusterBlocks.Builder.writeClusterBlocks(state.blocks(), out);
-            out.writeVInt(state.customs().size());
-            for (ObjectObjectCursor<String, Custom> cursor : state.customs()) {
-                out.writeString(cursor.key);
-                lookupFactorySafe(cursor.key).writeTo(cursor.value, out);
-            }
+            FACTORY.writeTo(state, out);
         }
 
         /**
@@ -627,20 +430,7 @@ public class ClusterState implements ToXContent {
          * @param localNode          used to set the local node in the cluster state. can be null.
          */
         public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
-            ClusterName clusterName = ClusterName.readClusterName(in);
-            Builder builder = new Builder(clusterName);
-            builder.version = in.readLong();
-            builder.metaData = MetaData.Builder.readFrom(in);
-            builder.routingTable = RoutingTable.Builder.readFrom(in);
-            builder.nodes = DiscoveryNodes.Builder.readFrom(in, localNode);
-            builder.blocks = ClusterBlocks.Builder.readClusterBlocks(in);
-            int customSize = in.readVInt();
-            for (int i = 0; i < customSize; i++) {
-                String type = in.readString();
-                Custom customIndexMetaData = lookupFactorySafe(type).readFrom(in);
-                builder.putCustom(type, customIndexMetaData);
-            }
-            return builder.build();
+            return FACTORY.readFrom(in, "cluster", localNode);
         }
     }
 }

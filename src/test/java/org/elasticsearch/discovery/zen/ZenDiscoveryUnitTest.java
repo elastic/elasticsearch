@@ -54,13 +54,15 @@ public class ZenDiscoveryUnitTest extends ElasticsearchTestCase {
         currentState.version(2);
         newState.version(1);
         assertTrue("should ignore, because new state's version is lower to current state's version", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
-        currentState.version(1);
-        newState.version(1);
+        currentState = ClusterState.builder(clusterName).version(1);
+        newState = ClusterState.builder(clusterName).version(1);
         assertFalse("should not ignore, because new state's version is equal to current state's version", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
-        currentState.version(1);
-        newState.version(2);
+        currentState = ClusterState.builder(clusterName).version(1);
+        newState = ClusterState.builder(clusterName).version(2);
         assertFalse("should not ignore, because new state's version is higher to current state's version", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
 
+        currentState = ClusterState.builder(clusterName);
+        newState = ClusterState.builder(clusterName);
         currentNodes = DiscoveryNodes.builder();
         currentNodes.masterNodeId("b");
         // version isn't taken into account, so randomize it to ensure this.
@@ -79,6 +81,8 @@ public class ZenDiscoveryUnitTest extends ElasticsearchTestCase {
             assertThat(e.getMessage(), containsString("cluster state from a different master then the current one, rejecting"));
         }
 
+        currentState = ClusterState.builder(clusterName);
+        newState = ClusterState.builder(clusterName);
         currentNodes = DiscoveryNodes.builder();
         currentNodes.masterNodeId(null);
         currentState.nodes(currentNodes);

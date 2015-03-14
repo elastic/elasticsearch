@@ -21,6 +21,9 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.cluster.factory.ClusterStatePartFactory;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -39,7 +42,7 @@ import java.util.Map;
 /**
  * Contains metadata about registered snapshot repositories
  */
-public class RepositoriesMetaData implements MetaData.Custom {
+public class RepositoriesMetaData {
 
     public static final String TYPE = "repositories";
 
@@ -83,21 +86,17 @@ public class RepositoriesMetaData implements MetaData.Custom {
     /**
      * Repository metadata factory
      */
-    public static class Factory extends MetaData.Custom.Factory<RepositoriesMetaData> {
+    public static class Factory extends ClusterStatePartFactory<RepositoriesMetaData> {
 
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public String type() {
-            return TYPE;
+        protected Factory() {
+            super(TYPE, ClusterStatePartFactory.API_PERSISTENCE);
         }
 
         /**
          * {@inheritDoc}
          */
         @Override
-        public RepositoriesMetaData readFrom(StreamInput in) throws IOException {
+        public RepositoriesMetaData readFrom(StreamInput in, String partName, @Nullable DiscoveryNode localNode) throws IOException {
             RepositoryMetaData[] repository = new RepositoryMetaData[in.readVInt()];
             for (int i = 0; i < repository.length; i++) {
                 repository[i] = RepositoryMetaData.readFrom(in);
@@ -120,7 +119,7 @@ public class RepositoriesMetaData implements MetaData.Custom {
          * {@inheritDoc}
          */
         @Override
-        public RepositoriesMetaData fromXContent(XContentParser parser) throws IOException {
+        public RepositoriesMetaData fromXContent(XContentParser parser, String partName, @Nullable DiscoveryNode localNode) throws IOException {
             XContentParser.Token token;
             List<RepositoryMetaData> repository = new ArrayList<>();
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -167,14 +166,11 @@ public class RepositoriesMetaData implements MetaData.Custom {
          */
         @Override
         public void toXContent(RepositoriesMetaData customIndexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.startObject();
             for (RepositoryMetaData repository : customIndexMetaData.repositories()) {
                 toXContent(repository, builder, params);
             }
-        }
-
-        @Override
-        public EnumSet<MetaData.XContentContext> context() {
-            return MetaData.API_AND_GATEWAY;
+            builder.endObject();
         }
 
         /**

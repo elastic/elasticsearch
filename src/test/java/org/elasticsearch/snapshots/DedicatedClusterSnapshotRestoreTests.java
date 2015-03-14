@@ -39,7 +39,9 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.factory.ClusterStatePartFactory;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -713,7 +715,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         ));
     }
 
-    public static abstract class TestCustomMetaData implements MetaData.Custom {
+    public static abstract class TestCustomMetaData {
         private final String data;
 
         protected TestCustomMetaData(String data) {
@@ -741,12 +743,20 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
             return data.hashCode();
         }
 
-        public static abstract class TestCustomMetaDataFactory<T extends TestCustomMetaData> extends MetaData.Custom.Factory<T> {
+        public static abstract class TestCustomMetaDataFactory<T extends TestCustomMetaData> extends ClusterStatePartFactory<T> {
 
             protected abstract TestCustomMetaData newTestCustomMetaData(String data);
 
+            protected TestCustomMetaDataFactory(String type) {
+                super(type);
+            }
+
+            protected TestCustomMetaDataFactory(String type, EnumSet<XContentContext> context) {
+                super(type, context);
+            }
+
             @Override
-            public T readFrom(StreamInput in) throws IOException {
+            public T readFrom(StreamInput in, String partName, @Nullable DiscoveryNode localNode) throws IOException {
                 return (T) newTestCustomMetaData(in.readString());
             }
 
@@ -756,7 +766,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
             }
 
             @Override
-            public T fromXContent(XContentParser parser) throws IOException {
+            public T fromXContent(XContentParser parser, String partName, @Nullable DiscoveryNode localNode) throws IOException {
                 XContentParser.Token token;
                 String data = null;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -782,17 +792,19 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
             @Override
             public void toXContent(T metadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
+                builder.startObject();
                 builder.field("data", metadata.getData());
+                builder.endObject();
             }
         }
     }
 
     static {
-        MetaData.registerFactory(SnapshottableMetadata.TYPE, SnapshottableMetadata.FACTORY);
-        MetaData.registerFactory(NonSnapshottableMetadata.TYPE, NonSnapshottableMetadata.FACTORY);
-        MetaData.registerFactory(SnapshottableGatewayMetadata.TYPE, SnapshottableGatewayMetadata.FACTORY);
-        MetaData.registerFactory(NonSnapshottableGatewayMetadata.TYPE, NonSnapshottableGatewayMetadata.FACTORY);
-        MetaData.registerFactory(SnapshotableGatewayNoApiMetadata.TYPE, SnapshotableGatewayNoApiMetadata.FACTORY);
+        MetaData.FACTORY.registerFactory(SnapshottableMetadata.FACTORY);
+        MetaData.FACTORY.registerFactory(NonSnapshottableMetadata.FACTORY);
+        MetaData.FACTORY.registerFactory(SnapshottableGatewayMetadata.FACTORY);
+        MetaData.FACTORY.registerFactory(NonSnapshottableGatewayMetadata.FACTORY);
+        MetaData.FACTORY.registerFactory(SnapshotableGatewayNoApiMetadata.FACTORY);
     }
 
     public static class SnapshottableMetadata extends TestCustomMetaData {
@@ -806,9 +818,8 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         private static class Factory extends TestCustomMetaDataFactory<SnapshottableMetadata> {
 
-            @Override
-            public String type() {
-                return TYPE;
+            public Factory() {
+                super(TYPE, ClusterStatePartFactory.API_SNAPSHOT);
             }
 
             @Override
@@ -816,10 +827,6 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
                 return new SnapshottableMetadata(data);
             }
 
-            @Override
-            public EnumSet<MetaData.XContentContext> context() {
-                return MetaData.API_AND_SNAPSHOT;
-            }
         }
     }
 
@@ -834,9 +841,8 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         private static class Factory extends TestCustomMetaDataFactory<NonSnapshottableMetadata> {
 
-            @Override
-            public String type() {
-                return TYPE;
+            public Factory() {
+                super(TYPE);
             }
 
             @Override
@@ -857,19 +863,13 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         private static class Factory extends TestCustomMetaDataFactory<SnapshottableGatewayMetadata> {
 
-            @Override
-            public String type() {
-                return TYPE;
+            public Factory() {
+                super(TYPE, ClusterStatePartFactory.API_PERSISTENCE_SNAPSHOT);
             }
 
             @Override
             protected TestCustomMetaData newTestCustomMetaData(String data) {
                 return new SnapshottableGatewayMetadata(data);
-            }
-
-            @Override
-            public EnumSet<MetaData.XContentContext> context() {
-                return EnumSet.of(MetaData.XContentContext.API, MetaData.XContentContext.SNAPSHOT, MetaData.XContentContext.GATEWAY);
             }
         }
     }
@@ -885,21 +885,14 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         private static class Factory extends TestCustomMetaDataFactory<NonSnapshottableGatewayMetadata> {
 
-            @Override
-            public String type() {
-                return TYPE;
+            public Factory() {
+                super(TYPE, ClusterStatePartFactory.API_PERSISTENCE);
             }
 
             @Override
             protected NonSnapshottableGatewayMetadata newTestCustomMetaData(String data) {
                 return new NonSnapshottableGatewayMetadata(data);
             }
-
-            @Override
-            public EnumSet<MetaData.XContentContext> context() {
-                return MetaData.API_AND_GATEWAY;
-            }
-
         }
     }
 
@@ -914,19 +907,13 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         private static class Factory extends TestCustomMetaDataFactory<SnapshotableGatewayNoApiMetadata> {
 
-            @Override
-            public String type() {
-                return TYPE;
+            public Factory() {
+                super(TYPE, ClusterStatePartFactory.PERSISTENCE_SNAPSHOT);
             }
 
             @Override
             protected SnapshotableGatewayNoApiMetadata newTestCustomMetaData(String data) {
                 return new SnapshotableGatewayNoApiMetadata(data);
-            }
-
-            @Override
-            public EnumSet<MetaData.XContentContext> context() {
-                return EnumSet.of(MetaData.XContentContext.GATEWAY, MetaData.XContentContext.SNAPSHOT);
             }
 
         }

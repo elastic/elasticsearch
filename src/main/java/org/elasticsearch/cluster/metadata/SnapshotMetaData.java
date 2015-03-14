@@ -22,12 +22,14 @@ package org.elasticsearch.cluster.metadata;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.cluster.factory.ClusterStatePartFactory;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -38,7 +40,7 @@ import static com.google.common.collect.Maps.newHashMap;
 /**
  * Meta data about snapshots that are currently executing
  */
-public class SnapshotMetaData implements MetaData.Custom {
+public class SnapshotMetaData {
     public static final String TYPE = "snapshots";
 
     public static final Factory FACTORY = new Factory();
@@ -331,15 +333,14 @@ public class SnapshotMetaData implements MetaData.Custom {
     }
 
 
-    public static class Factory extends MetaData.Custom.Factory<SnapshotMetaData> {
+    public static class Factory extends ClusterStatePartFactory<SnapshotMetaData> {
 
-        @Override
-        public String type() {
-            return TYPE;  //To change body of implemented methods use File | Settings | File Templates.
+        protected Factory() {
+            super(TYPE);
         }
 
         @Override
-        public SnapshotMetaData readFrom(StreamInput in) throws IOException {
+        public SnapshotMetaData readFrom(StreamInput in, String partName, @Nullable DiscoveryNode localNode) throws IOException {
             Entry[] entries = new Entry[in.readVInt()];
             for (int i = 0; i < entries.length; i++) {
                 SnapshotId snapshotId = SnapshotId.readSnapshotId(in);
@@ -383,11 +384,6 @@ public class SnapshotMetaData implements MetaData.Custom {
                     out.writeByte(shardEntry.getValue().state().value());
                 }
             }
-        }
-
-        @Override
-        public SnapshotMetaData fromXContent(XContentParser parser) throws IOException {
-            throw new UnsupportedOperationException();
         }
 
         static final class Fields {

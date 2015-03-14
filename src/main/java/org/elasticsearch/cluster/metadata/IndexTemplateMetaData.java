@@ -22,6 +22,10 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.Sets;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.factory.ClusterStatePartFactory;
+import org.elasticsearch.cluster.factory.ClusterStatePartFactory.XContentContext;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedString;
@@ -31,6 +35,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -43,6 +48,112 @@ import java.util.Set;
  *
  */
 public class IndexTemplateMetaData {
+
+    public static final String TYPE = "index_template";
+
+    public static final ClusterStatePartFactory<IndexTemplateMetaData> FACTORY = new ClusterStatePartFactory<IndexTemplateMetaData>(TYPE, ClusterStatePartFactory.API_PERSISTENCE_SNAPSHOT) {
+
+        @Override
+        public IndexTemplateMetaData readFrom(StreamInput in, String partName, @Nullable DiscoveryNode localNode) throws IOException {
+            Builder builder = new Builder(partName);
+            builder.order(in.readInt());
+            builder.template(in.readString());
+            builder.settings(ImmutableSettings.readSettingsFromStream(in));
+            int mappingsSize = in.readVInt();
+            for (int i = 0; i < mappingsSize; i++) {
+                builder.putMapping(in.readString(), CompressedString.readCompressedString(in));
+            }
+            int aliasesSize = in.readVInt();
+            for (int i = 0; i < aliasesSize; i++) {
+                AliasMetaData aliasMd = AliasMetaData.Builder.readFrom(in);
+                builder.putAlias(aliasMd);
+            }
+            int customSize = in.readVInt();
+            for (int i = 0; i < customSize; i++) {
+                String type = in.readString();
+                IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupFactorySafe(type).readFrom(in);
+                builder.putCustom(type, customIndexMetaData);
+            }
+            return builder.build();
+        }
+
+        @Override
+        public void writeTo(IndexTemplateMetaData indexTemplateMetaData, StreamOutput out) throws IOException {
+            out.writeInt(indexTemplateMetaData.order());
+            out.writeString(indexTemplateMetaData.template());
+            ImmutableSettings.writeSettingsToStream(indexTemplateMetaData.settings(), out);
+            out.writeVInt(indexTemplateMetaData.mappings().size());
+            for (ObjectObjectCursor<String, CompressedString> cursor : indexTemplateMetaData.mappings()) {
+                out.writeString(cursor.key);
+                cursor.value.writeTo(out);
+            }
+            out.writeVInt(indexTemplateMetaData.aliases().size());
+            for (ObjectCursor<AliasMetaData> cursor : indexTemplateMetaData.aliases().values()) {
+                AliasMetaData.Builder.writeTo(cursor.value, out);
+            }
+            out.writeVInt(indexTemplateMetaData.customs().size());
+            for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : indexTemplateMetaData.customs()) {
+                out.writeString(cursor.key);
+                IndexMetaData.lookupFactorySafe(cursor.key).writeTo(cursor.value, out);
+            }
+        }
+
+        @Override
+        public void toXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+
+            builder.field("order", indexTemplateMetaData.order());
+            builder.field("template", indexTemplateMetaData.template());
+
+            builder.startObject("settings");
+            indexTemplateMetaData.settings().toXContent(builder, params);
+            builder.endObject();
+
+            if (params.paramAsBoolean("reduce_mappings", false)) {
+                builder.startObject("mappings");
+                for (ObjectObjectCursor<String, CompressedString> cursor : indexTemplateMetaData.mappings()) {
+                    byte[] mappingSource = cursor.value.uncompressed();
+                    XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
+                    Map<String, Object> mapping = parser.map();
+                    if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
+                        // the type name is the root value, reduce it
+                        mapping = (Map<String, Object>) mapping.get(cursor.key);
+                    }
+                    builder.field(cursor.key);
+                    builder.map(mapping);
+                }
+                builder.endObject();
+            } else {
+                builder.startArray("mappings");
+                for (ObjectObjectCursor<String, CompressedString> cursor : indexTemplateMetaData.mappings()) {
+                    byte[] data = cursor.value.uncompressed();
+                    XContentParser parser = XContentFactory.xContent(data).createParser(data);
+                    Map<String, Object> mapping = parser.mapOrderedAndClose();
+                    builder.map(mapping);
+                }
+                builder.endArray();
+            }
+
+            for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : indexTemplateMetaData.customs()) {
+                builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
+                IndexMetaData.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
+                builder.endObject();
+            }
+
+            builder.startObject("aliases");
+            for (ObjectCursor<AliasMetaData> cursor : indexTemplateMetaData.aliases().values()) {
+                AliasMetaData.Builder.toXContent(cursor.value, builder, params);
+            }
+            builder.endObject();
+
+            builder.endObject();
+        }
+
+        @Override
+        public IndexTemplateMetaData fromXContent(XContentParser parser, String partName, @Nullable DiscoveryNode localNode) throws IOException {
+            return Builder.fromXContent(parser, partName);
+        }
+    };
 
     private final String name;
 
@@ -269,53 +380,8 @@ public class IndexTemplateMetaData {
 
         @SuppressWarnings("unchecked")
         public static void toXContent(IndexTemplateMetaData indexTemplateMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject(indexTemplateMetaData.name(), XContentBuilder.FieldCaseConversion.NONE);
-
-            builder.field("order", indexTemplateMetaData.order());
-            builder.field("template", indexTemplateMetaData.template());
-
-            builder.startObject("settings");
-            indexTemplateMetaData.settings().toXContent(builder, params);
-            builder.endObject();
-
-            if (params.paramAsBoolean("reduce_mappings", false)) {
-                builder.startObject("mappings");
-                for (ObjectObjectCursor<String, CompressedString> cursor : indexTemplateMetaData.mappings()) {
-                    byte[] mappingSource = cursor.value.uncompressed();
-                    XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
-                    Map<String, Object> mapping = parser.map();
-                    if (mapping.size() == 1 && mapping.containsKey(cursor.key)) {
-                        // the type name is the root value, reduce it
-                        mapping = (Map<String, Object>) mapping.get(cursor.key);
-                    }
-                    builder.field(cursor.key);
-                    builder.map(mapping);
-                }
-                builder.endObject();
-            } else {
-                builder.startArray("mappings");
-                for (ObjectObjectCursor<String, CompressedString> cursor : indexTemplateMetaData.mappings()) {
-                    byte[] data = cursor.value.uncompressed();
-                    XContentParser parser = XContentFactory.xContent(data).createParser(data);
-                    Map<String, Object> mapping = parser.mapOrderedAndClose();
-                    builder.map(mapping);
-                }
-                builder.endArray();
-            }
-
-            for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : indexTemplateMetaData.customs()) {
-                builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
-                IndexMetaData.lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
-                builder.endObject();
-            }
-
-            builder.startObject("aliases");
-            for (ObjectCursor<AliasMetaData> cursor : indexTemplateMetaData.aliases().values()) {
-                AliasMetaData.Builder.toXContent(cursor.value, builder, params);
-            }
-            builder.endObject();
-
-            builder.endObject();
+            builder.field(indexTemplateMetaData.name(), XContentBuilder.FieldCaseConversion.NONE);
+            FACTORY.toXContent(indexTemplateMetaData, builder, params);
         }
 
         public static IndexTemplateMetaData fromXContent(XContentParser parser, String templateName) throws IOException {
@@ -407,47 +473,12 @@ public class IndexTemplateMetaData {
         }
 
         public static IndexTemplateMetaData readFrom(StreamInput in) throws IOException {
-            Builder builder = new Builder(in.readString());
-            builder.order(in.readInt());
-            builder.template(in.readString());
-            builder.settings(ImmutableSettings.readSettingsFromStream(in));
-            int mappingsSize = in.readVInt();
-            for (int i = 0; i < mappingsSize; i++) {
-                builder.putMapping(in.readString(), CompressedString.readCompressedString(in));
-            }
-            int aliasesSize = in.readVInt();
-            for (int i = 0; i < aliasesSize; i++) {
-                AliasMetaData aliasMd = AliasMetaData.Builder.readFrom(in);
-                builder.putAlias(aliasMd);
-            }
-            int customSize = in.readVInt();
-            for (int i = 0; i < customSize; i++) {
-                String type = in.readString();
-                IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupFactorySafe(type).readFrom(in);
-                builder.putCustom(type, customIndexMetaData);
-            }
-            return builder.build();
+            return FACTORY.readFrom(in, in.readString(), null);
         }
 
         public static void writeTo(IndexTemplateMetaData indexTemplateMetaData, StreamOutput out) throws IOException {
             out.writeString(indexTemplateMetaData.name());
-            out.writeInt(indexTemplateMetaData.order());
-            out.writeString(indexTemplateMetaData.template());
-            ImmutableSettings.writeSettingsToStream(indexTemplateMetaData.settings(), out);
-            out.writeVInt(indexTemplateMetaData.mappings().size());
-            for (ObjectObjectCursor<String, CompressedString> cursor : indexTemplateMetaData.mappings()) {
-                out.writeString(cursor.key);
-                cursor.value.writeTo(out);
-            }
-            out.writeVInt(indexTemplateMetaData.aliases().size());
-            for (ObjectCursor<AliasMetaData> cursor : indexTemplateMetaData.aliases().values()) {
-                AliasMetaData.Builder.writeTo(cursor.value, out);
-            }
-            out.writeVInt(indexTemplateMetaData.customs().size());
-            for (ObjectObjectCursor<String, IndexMetaData.Custom> cursor : indexTemplateMetaData.customs()) {
-                out.writeString(cursor.key);
-                IndexMetaData.lookupFactorySafe(cursor.key).writeTo(cursor.value, out);
-            }
+            FACTORY.writeTo(indexTemplateMetaData, out);
         }
     }
 

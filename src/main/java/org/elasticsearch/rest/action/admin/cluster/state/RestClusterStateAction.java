@@ -25,6 +25,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterState.Metrics;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -69,12 +70,12 @@ public class RestClusterStateAction extends BaseRestHandler {
         }
 
         if (request.hasParam("metric")) {
-            EnumSet<ClusterState.Metric> metrics = ClusterState.Metric.parseString(request.param("metric"), true);
+            Metrics metrics = new Metrics(request.param("metric"));
             // do not ask for what we do not need.
-            clusterStateRequest.nodes(metrics.contains(ClusterState.Metric.NODES) || metrics.contains(ClusterState.Metric.MASTER_NODE));
-            clusterStateRequest.routingTable(metrics.contains(ClusterState.Metric.ROUTING_TABLE));
-            clusterStateRequest.metaData(metrics.contains(ClusterState.Metric.METADATA));
-            clusterStateRequest.blocks(metrics.contains(ClusterState.Metric.BLOCKS));
+            clusterStateRequest.nodes(metrics.matches(Metrics.NODES) || metrics.matches(Metrics.MASTER_NODE));
+            clusterStateRequest.routingTable(metrics.matches(Metrics.ROUTING_TABLE));
+            clusterStateRequest.metaData(metrics.matches(Metrics.METADATA));
+            clusterStateRequest.blocks(metrics.matches(Metrics.BLOCKS));
         }
         settingsFilter.addFilterSettingParams(request);
 

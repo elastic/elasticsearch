@@ -23,10 +23,15 @@ import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import org.elasticsearch.cluster.factory.ClusterStatePartFactory;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -37,6 +42,48 @@ import java.util.Set;
  * Represents current cluster level blocks to block dirty operations done against the cluster.
  */
 public class ClusterBlocks {
+
+    public static final String TYPE = "blocks";
+
+    public static final ClusterStatePartFactory<ClusterBlocks> FACTORY = new ClusterStatePartFactory<ClusterBlocks>(TYPE) {
+
+        @Override
+        public ClusterBlocks readFrom(StreamInput in, String partName, @Nullable DiscoveryNode localNode) throws IOException {
+            return Builder.readClusterBlocks(in);
+        }
+
+        @Override
+        public void writeTo(ClusterBlocks part, StreamOutput out) throws IOException {
+            Builder.writeClusterBlocks(part, out);
+        }
+
+        @Override
+        public void toXContent(ClusterBlocks clusterBlocks, XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (!clusterBlocks.global().isEmpty()) {
+                builder.startObject("global");
+                for (ClusterBlock block : clusterBlocks.global()) {
+                    block.toXContent(builder, params);
+                }
+                builder.endObject();
+            }
+
+            if (!clusterBlocks.indices().isEmpty()) {
+                builder.startObject("indices");
+                for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : clusterBlocks.indices().entrySet()) {
+                    builder.startObject(entry.getKey());
+                    for (ClusterBlock block : entry.getValue()) {
+                        block.toXContent(builder, params);
+                    }
+                    builder.endObject();
+                }
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+    };
+
+
 
     public static final ClusterBlocks EMPTY_CLUSTER_BLOCK = new ClusterBlocks(ImmutableSet.<ClusterBlock>of(), ImmutableMap.<String, ImmutableSet<ClusterBlock>>of());
 

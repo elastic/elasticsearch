@@ -26,6 +26,9 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.UnmodifiableIterator;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterState.Builder;
+import org.elasticsearch.cluster.factory.ClusterStatePartFactory;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -33,6 +36,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.xcontent.ToXContent.Params;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,6 +51,40 @@ import static com.google.common.collect.Lists.newArrayList;
  * access, modify merge / diff discovery nodes.
  */
 public class DiscoveryNodes implements Iterable<DiscoveryNode> {
+
+    public static final String TYPE = "nodes";
+
+    public static final ClusterStatePartFactory<DiscoveryNodes> FACTORY = new ClusterStatePartFactory<DiscoveryNodes>(TYPE) {
+
+        @Override
+        public DiscoveryNodes readFrom(StreamInput in, String partName, @Nullable DiscoveryNode localNode) throws IOException {
+            return Builder.readFrom(in, localNode);
+        }
+
+        @Override
+        public void writeTo(DiscoveryNodes part, StreamOutput out) throws IOException {
+            Builder.writeTo(part, out);
+        }
+
+        @Override
+        public void toXContent(DiscoveryNodes discoveryNodes, XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            for (DiscoveryNode node : discoveryNodes) {
+                builder.startObject(node.id(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.field("name", node.name());
+                builder.field("transport_address", node.address().toString());
+
+                builder.startObject("attributes");
+                for (Map.Entry<String, String> attr : node.attributes().entrySet()) {
+                    builder.field(attr.getKey(), attr.getValue());
+                }
+                builder.endObject();
+
+                builder.endObject();
+            }
+            builder.endObject();
+        }
+    };
 
     public static final DiscoveryNodes EMPTY_NODES = builder().build();
 

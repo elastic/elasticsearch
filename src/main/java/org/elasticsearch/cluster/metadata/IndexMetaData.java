@@ -27,6 +27,8 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.factory.ClusterStatePartFactory;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.HashFunction;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
@@ -63,6 +65,104 @@ import static org.elasticsearch.common.settings.ImmutableSettings.*;
  */
 public class IndexMetaData {
 
+    public static final String TYPE = "index";
+
+    public static final ClusterStatePartFactory<IndexMetaData> FACTORY = new ClusterStatePartFactory<IndexMetaData>(TYPE) {
+
+        @Override
+        public IndexMetaData readFrom(StreamInput in, String partName, @Nullable DiscoveryNode localNode) throws IOException {
+            Builder builder = new Builder(partName);
+            builder.version(in.readLong());
+            builder.state(State.fromId(in.readByte()));
+            builder.settings(readSettingsFromStream(in));
+            int mappingsSize = in.readVInt();
+            for (int i = 0; i < mappingsSize; i++) {
+                MappingMetaData mappingMd = MappingMetaData.readFrom(in);
+                builder.putMapping(mappingMd);
+            }
+            int aliasesSize = in.readVInt();
+            for (int i = 0; i < aliasesSize; i++) {
+                AliasMetaData aliasMd = AliasMetaData.Builder.readFrom(in);
+                builder.putAlias(aliasMd);
+            }
+            int customSize = in.readVInt();
+            for (int i = 0; i < customSize; i++) {
+                String type = in.readString();
+                Custom customIndexMetaData = lookupFactorySafe(type).readFrom(in);
+                builder.putCustom(type, customIndexMetaData);
+            }
+            return builder.build();
+        }
+
+        @Override
+        public void writeTo(IndexMetaData indexMetaData, StreamOutput out) throws IOException {
+            out.writeLong(indexMetaData.version());
+            out.writeByte(indexMetaData.state().id());
+            writeSettingsToStream(indexMetaData.settings(), out);
+            out.writeVInt(indexMetaData.mappings().size());
+            for (ObjectCursor<MappingMetaData> cursor : indexMetaData.mappings().values()) {
+                MappingMetaData.writeTo(cursor.value, out);
+            }
+            out.writeVInt(indexMetaData.aliases().size());
+            for (ObjectCursor<AliasMetaData> cursor : indexMetaData.aliases().values()) {
+                AliasMetaData.Builder.writeTo(cursor.value, out);
+            }
+            out.writeVInt(indexMetaData.customs().size());
+            for (ObjectObjectCursor<String, Custom> cursor : indexMetaData.customs()) {
+                out.writeString(cursor.key);
+                lookupFactorySafe(cursor.key).writeTo(cursor.value, out);
+            }
+        }
+
+        @Override
+        public void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("version", indexMetaData.version());
+            builder.field("state", indexMetaData.state().toString().toLowerCase(Locale.ENGLISH));
+
+            boolean binary = params.paramAsBoolean("binary", false);
+
+            builder.startObject("settings");
+            for (Map.Entry<String, String> entry : indexMetaData.settings().getAsMap().entrySet()) {
+                builder.field(entry.getKey(), entry.getValue());
+            }
+            builder.endObject();
+
+            builder.startArray("mappings");
+            for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
+                if (binary) {
+                    builder.value(cursor.value.source().compressed());
+                } else {
+                    byte[] data = cursor.value.source().uncompressed();
+                    XContentParser parser = XContentFactory.xContent(data).createParser(data);
+                    Map<String, Object> mapping = parser.mapOrdered();
+                    parser.close();
+                    builder.map(mapping);
+                }
+            }
+            builder.endArray();
+
+            for (ObjectObjectCursor<String, Custom> cursor : indexMetaData.customs()) {
+                builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
+                lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
+                builder.endObject();
+            }
+
+            builder.startObject("aliases");
+            for (ObjectCursor<AliasMetaData> cursor : indexMetaData.aliases().values()) {
+                AliasMetaData.Builder.toXContent(cursor.value, builder, params);
+            }
+            builder.endObject();
+
+
+            builder.endObject();
+        }
+
+        @Override
+        public IndexMetaData fromXContent(XContentParser parser, String partName, @Nullable DiscoveryNode localNode) throws IOException {
+            return Builder.fromXContent(parser);
+        }
+    };
 
     public interface Custom {
 
@@ -633,47 +733,8 @@ public class IndexMetaData {
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
-
-            builder.field("version", indexMetaData.version());
-            builder.field("state", indexMetaData.state().toString().toLowerCase(Locale.ENGLISH));
-
-            boolean binary = params.paramAsBoolean("binary", false);
-
-            builder.startObject("settings");
-            for (Map.Entry<String, String> entry : indexMetaData.settings().getAsMap().entrySet()) {
-                builder.field(entry.getKey(), entry.getValue());
-            }
-            builder.endObject();
-
-            builder.startArray("mappings");
-            for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
-                if (binary) {
-                    builder.value(cursor.value.source().compressed());
-                } else {
-                    byte[] data = cursor.value.source().uncompressed();
-                    XContentParser parser = XContentFactory.xContent(data).createParser(data);
-                    Map<String, Object> mapping = parser.mapOrdered();
-                    parser.close();
-                    builder.map(mapping);
-                }
-            }
-            builder.endArray();
-
-            for (ObjectObjectCursor<String, Custom> cursor : indexMetaData.customs()) {
-                builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
-                lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
-                builder.endObject();
-            }
-
-            builder.startObject("aliases");
-            for (ObjectCursor<AliasMetaData> cursor : indexMetaData.aliases().values()) {
-                AliasMetaData.Builder.toXContent(cursor.value, builder, params);
-            }
-            builder.endObject();
-
-
-            builder.endObject();
+            builder.field(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
+            FACTORY.toXContent(indexMetaData, builder, params);
         }
 
         public static IndexMetaData fromXContent(XContentParser parser) throws IOException {
@@ -743,47 +804,12 @@ public class IndexMetaData {
         }
 
         public static IndexMetaData readFrom(StreamInput in) throws IOException {
-            Builder builder = new Builder(in.readString());
-            builder.version(in.readLong());
-            builder.state(State.fromId(in.readByte()));
-            builder.settings(readSettingsFromStream(in));
-            int mappingsSize = in.readVInt();
-            for (int i = 0; i < mappingsSize; i++) {
-                MappingMetaData mappingMd = MappingMetaData.readFrom(in);
-                builder.putMapping(mappingMd);
-            }
-            int aliasesSize = in.readVInt();
-            for (int i = 0; i < aliasesSize; i++) {
-                AliasMetaData aliasMd = AliasMetaData.Builder.readFrom(in);
-                builder.putAlias(aliasMd);
-            }
-            int customSize = in.readVInt();
-            for (int i = 0; i < customSize; i++) {
-                String type = in.readString();
-                Custom customIndexMetaData = lookupFactorySafe(type).readFrom(in);
-                builder.putCustom(type, customIndexMetaData);
-            }
-            return builder.build();
+            return FACTORY.readFrom(in, in.readString(), null);
         }
 
         public static void writeTo(IndexMetaData indexMetaData, StreamOutput out) throws IOException {
             out.writeString(indexMetaData.index());
-            out.writeLong(indexMetaData.version());
-            out.writeByte(indexMetaData.state().id());
-            writeSettingsToStream(indexMetaData.settings(), out);
-            out.writeVInt(indexMetaData.mappings().size());
-            for (ObjectCursor<MappingMetaData> cursor : indexMetaData.mappings().values()) {
-                MappingMetaData.writeTo(cursor.value, out);
-            }
-            out.writeVInt(indexMetaData.aliases().size());
-            for (ObjectCursor<AliasMetaData> cursor : indexMetaData.aliases().values()) {
-                AliasMetaData.Builder.writeTo(cursor.value, out);
-            }
-            out.writeVInt(indexMetaData.customs().size());
-            for (ObjectObjectCursor<String, Custom> cursor : indexMetaData.customs()) {
-                out.writeString(cursor.key);
-                lookupFactorySafe(cursor.key).writeTo(cursor.value, out);
-            }
+            FACTORY.writeTo(indexMetaData, out);
         }
     }
 

@@ -1029,13 +1029,6 @@ public class IndexShard extends AbstractIndexShardComponent {
                     config.setCompoundOnFlush(compoundOnFlush);
                     change = true;
                 }
-
-                final boolean failEngineOnCorruption = settings.getAsBoolean(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, config.isFailEngineOnCorruption());
-                if (failEngineOnCorruption != config.isFailEngineOnCorruption()) {
-                    logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, config.isFailEngineOnCorruption(), failEngineOnCorruption);
-                    config.setFailEngineOnCorruption(failEngineOnCorruption);
-                    change = true;
-                }
             }
             if (change) {
                 refresh("apply settings");

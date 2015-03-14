@@ -1093,11 +1093,7 @@ public class InternalEngine extends Engine {
         @Override
         public void onFailedMerge(MergePolicy.MergeException e) {
             if (Lucene.isCorruptionException(e)) {
-                if (engineConfig.isFailEngineOnCorruption()) {
-                    failEngine("corrupt file detected source: [merge]", e);
-                } else {
-                    logger.warn("corrupt file detected source: [merge] but [{}] is set to [{}]", e, EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, engineConfig.isFailEngineOnCorruption());
-                }
+                failEngine("corrupt file detected source: [merge]", e);
             } else {
                 failEngine("merge exception", e);
             }

@@ -147,7 +147,6 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         defaultSettings = ImmutableSettings.builder()
                 .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
                 .put(EngineConfig.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
-                .put(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, randomBoolean())
                 .put(EngineConfig.INDEX_CODEC_SETTING, codecName)
                 .put(EngineConfig.INDEX_CONCURRENCY_SETTING, indexConcurrency)
                 .build(); // TODO randomize more settings
@@ -681,7 +680,6 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, false);
         engine.create(new Engine.Create(null, newUid("1"), doc));
         engine.flush();
-        final boolean failEngine = defaultSettings.getAsBoolean(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, false);
         final int failInPhase = randomIntBetween(1, 3);
         try {
             engine.recover(new Engine.RecoveryHandler() {
@@ -724,9 +722,9 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 2));
             MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(2));
             searchResult.close();
-            assertThat(failEngine, is(false));
+            fail("engine should have failed");
         } catch (EngineClosedException ex) {
-            assertThat(failEngine, is(true));
+            // expected
         }
     }
 
@@ -1466,7 +1464,6 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                     assertEquals(store.refCount(), refCount);
                     continue;
                 }
-                holder.config().setFailEngineOnCorruption(true);
                 assertEquals(store.refCount(), refCount + 1);
                 final int numStarts = scaledRandomIntBetween(1, 5);
                 for (int j = 0; j < numStarts; j++) {
@@ -1474,7 +1471,6 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
                         assertEquals(store.refCount(), refCount + 1);
                         holder.close();
                         holder = createEngine(store, translog);
-                        holder.config().setFailEngineOnCorruption(true);
                         assertEquals(store.refCount(), refCount + 1);
                     } catch (EngineCreationFailureException ex) {
                         // all is fine
@@ -1502,7 +1498,6 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
 
         IndexDynamicSettingsModule settings = new IndexDynamicSettingsModule();
-        assertTrue(settings.containsSetting(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING));
         assertTrue(settings.containsSetting(EngineConfig.INDEX_COMPOUND_ON_FLUSH));
         assertTrue(settings.containsSetting(EngineConfig.INDEX_GC_DELETES_SETTING));
     }

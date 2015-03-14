@@ -67,6 +67,8 @@ settings API:
 `index.fail_on_merge_failure`::
     experimental[] Default to `true`.
 
+deprecated[1.5.0, As of 2.0 `index.fail_on_merge_failure` is removed and the engine will always fail on an unexpected merge exception.]
+
 `index.translog.flush_threshold_ops`::
     When to flush based on operations.
 

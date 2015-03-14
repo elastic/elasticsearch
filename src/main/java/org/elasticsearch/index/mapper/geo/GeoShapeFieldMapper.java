@@ -292,6 +292,10 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
         if (includeDefaults || defaultStrategy.getDistErrPct() != Defaults.DISTANCE_ERROR_PCT) {
             builder.field(Names.DISTANCE_ERROR_PCT, defaultStrategy.getDistErrPct());
         }
+
+        if (includeDefaults || orientation() != Defaults.ORIENTATION) {
+            builder.field(Names.ORIENTATION, orientation());
+        }
     }
 
     @Override

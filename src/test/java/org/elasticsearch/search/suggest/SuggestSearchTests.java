@@ -789,8 +789,8 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
                 .put("index.analysis.filter.shingler.min_shingle_size", 2)
                 .put("index.analysis.filter.shingler.max_shingle_size", 5)
                 .put("index.analysis.filter.shingler.output_unigrams", true));
-        
-        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type2")
                 .startObject("properties")
                     .startObject("name")
                         .field("type", "multi_field")
@@ -804,7 +804,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
                     .endObject()
                 .endObject()
                 .endObject().endObject();
-        assertAcked(builder.addMapping("type1", mapping));
+        assertAcked(builder.addMapping("type2", mapping));
         ensureGreen();
 
         index("test", "type2", "1", "foo", "bar");

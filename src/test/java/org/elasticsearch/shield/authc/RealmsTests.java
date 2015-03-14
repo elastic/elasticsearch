@@ -10,6 +10,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.ShieldSettingsException;
+import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -20,6 +21,7 @@ import org.junit.Test;
 import java.util.*;
 
 import static org.hamcrest.Matchers.*;
+import static org.mockito.Mockito.mock;
 
 /**
  *
@@ -27,6 +29,7 @@ import static org.hamcrest.Matchers.*;
 public class RealmsTests extends ElasticsearchTestCase {
 
     private Map<String, Realm.Factory> factories;
+    private ShieldSettingsFilter settingsFilter;
 
     @Before
     public void init() throws Exception {
@@ -36,6 +39,7 @@ public class RealmsTests extends ElasticsearchTestCase {
             DummyRealm.Factory factory = new DummyRealm.Factory("type_" + i, rarely());
             factories.put("type_" + i, factory);
         }
+        settingsFilter = mock(ShieldSettingsFilter.class);
     }
 
     @Test
@@ -54,7 +58,7 @@ public class RealmsTests extends ElasticsearchTestCase {
         }
         Settings settings = builder.build();
         Environment env = new Environment(settings);
-        Realms realms = new Realms(settings, env, factories);
+        Realms realms = new Realms(settings, env, factories, settingsFilter);
         realms.start();
         int i = 0;
         for (Realm realm : realms) {
@@ -75,12 +79,12 @@ public class RealmsTests extends ElasticsearchTestCase {
                 .put("shield.authc.realms.realm_2.order", 1)
                 .build();
         Environment env = new Environment(settings);
-        new Realms(settings, env, factories).start();
+        new Realms(settings, env, factories, settingsFilter).start();
     }
 
     @Test
     public void testWithEmptySettings() throws Exception {
-        Realms realms = new Realms(ImmutableSettings.EMPTY, new Environment(ImmutableSettings.EMPTY), factories);
+        Realms realms = new Realms(ImmutableSettings.EMPTY, new Environment(ImmutableSettings.EMPTY), factories, settingsFilter);
         realms.start();
         Iterator<Realm> iter = realms.iterator();
         assertThat(iter.hasNext(), is(true));
@@ -112,7 +116,7 @@ public class RealmsTests extends ElasticsearchTestCase {
         }
         Settings settings = builder.build();
         Environment env = new Environment(settings);
-        Realms realms = new Realms(settings, env, factories);
+        Realms realms = new Realms(settings, env, factories, mock(ShieldSettingsFilter.class));
         realms.start();
         Iterator<Realm> iterator = realms.iterator();
 

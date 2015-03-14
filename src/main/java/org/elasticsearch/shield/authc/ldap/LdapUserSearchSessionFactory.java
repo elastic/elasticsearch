@@ -7,11 +7,11 @@ package org.elasticsearch.shield.authc.ldap;
 
 import com.unboundid.ldap.sdk.*;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.primitives.Ints;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.ShieldSettingsException;
+import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession;
@@ -21,7 +21,6 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 
 import javax.net.SocketFactory;
-
 import java.util.Locale;
 
 import static com.unboundid.ldap.sdk.Filter.createEqualityFilter;
@@ -54,6 +53,14 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
         serverSet = serverSet(settings, sslService);
         connectionPool = connectionPool(config.settings(), serverSet, timeout);
         groupResolver = groupResolver(settings);
+
+
+    }
+
+    static void filterOutSensitiveSettings(String realmName, ShieldSettingsFilter filter) {
+        filter.filterOut("shield.authc.realms." + realmName + ".bind_dn");
+        filter.filterOut("shield.authc.realms." + realmName + ".bind_password");
+        filter.filterOut("shield.authc.realms." + realmName + ".hostname_verification");
     }
 
     static LDAPConnectionPool connectionPool(Settings settings, ServerSet serverSet, TimeValue timeout) {

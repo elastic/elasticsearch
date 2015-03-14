@@ -8,12 +8,17 @@ package org.elasticsearch.shield.ssl;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsException;
+import org.elasticsearch.shield.ShieldSettingsFilter;
 
 public class ServerSSLService extends AbstractSSLService {
 
     @Inject
-    public ServerSSLService(Settings settings) {
+    public ServerSSLService(Settings settings, ShieldSettingsFilter settingsFilter) {
         super(settings);
+
+        // we need to filter out all this sensitive information from all rest
+        // responses
+        settingsFilter.filterOut("shield.ssl.*");
     }
 
     @Override

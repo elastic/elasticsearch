@@ -16,7 +16,6 @@ import org.elasticsearch.test.ShieldIntegrationTest;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -29,18 +28,11 @@ import static org.hamcrest.Matchers.*;
  */
 public abstract class AbstractPrivilegeTests extends ShieldIntegrationTest {
 
-    private CloseableHttpClient httpClient;
-
-    @Before
-    public void createHttpClient() {
-        httpClient = HttpClients.createDefault();
-    }
+    private CloseableHttpClient httpClient = HttpClients.createDefault();
 
     @After
-    public void closeHttpClient() throws IOException {
-        if (httpClient != null) {
-            httpClient.close();
-        }
+    public void cleanup() throws IOException {
+        httpClient.close();
     }
 
     protected void assertAccessIsAllowed(String user, String method, String uri, String body, Map<String, String> params) throws IOException {

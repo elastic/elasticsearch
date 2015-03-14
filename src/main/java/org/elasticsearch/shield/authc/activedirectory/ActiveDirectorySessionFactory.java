@@ -11,16 +11,17 @@ import org.elasticsearch.common.primitives.Ints;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.RealmConfig;
-import org.elasticsearch.shield.authc.support.SecuredString;
+import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
-import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
+import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 
 import javax.net.SocketFactory;
 
-import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.*;
+import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.createFilter;
+import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.search;
 
 /**
  * This Class creates LdapSessions authenticating via the custom Active Directory protocol.  (that being

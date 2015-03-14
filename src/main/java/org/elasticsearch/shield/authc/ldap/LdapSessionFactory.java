@@ -9,10 +9,10 @@ import com.unboundid.ldap.sdk.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.RealmConfig;
-import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession;
 import org.elasticsearch.shield.authc.ldap.support.LdapSession.GroupsResolver;
 import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
+import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 
 import javax.net.SocketFactory;

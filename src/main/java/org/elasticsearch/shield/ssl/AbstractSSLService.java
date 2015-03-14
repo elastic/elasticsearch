@@ -33,8 +33,12 @@ import java.util.List;
  */
 public abstract class AbstractSSLService extends AbstractComponent {
 
+    public static final String CIPHERS_SETTING = "ciphers";
+    public static final String SUPPORTED_PROTOCOLS_SETTING = "supported_protocols";
+
+    public static final String[] DEFAULT_SUPPORTED_PROTOCOLS = new String[] { "TLSv1", "TLSv1.1", "TLSv1.2" };
+
     static final String[] DEFAULT_CIPHERS = new String[] { "TLS_RSA_WITH_AES_128_CBC_SHA256", "TLS_RSA_WITH_AES_128_CBC_SHA", "TLS_DHE_RSA_WITH_AES_128_CBC_SHA", "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA" };
-    static final String[] DEFAULT_SUPPORTED_PROTOCOLS = new String[] { "TLSv1", "TLSv1.1", "TLSv1.2" };
     static final TimeValue DEFAULT_SESSION_CACHE_TIMEOUT = TimeValue.timeValueHours(24);
     static final int DEFAULT_SESSION_CACHE_SIZE = 1000;
     static final String DEFAULT_PROTOCOL = "TLS";
@@ -53,11 +57,11 @@ public abstract class AbstractSSLService extends AbstractComponent {
     }
 
     public String[] supportedProtocols() {
-        return componentSettings.getAsArray("supported_protocols", DEFAULT_SUPPORTED_PROTOCOLS);
+        return componentSettings.getAsArray(SUPPORTED_PROTOCOLS_SETTING, DEFAULT_SUPPORTED_PROTOCOLS);
     }
 
     public String[] ciphers() {
-        return componentSettings.getAsArray("ciphers", DEFAULT_CIPHERS);
+        return componentSettings.getAsArray(CIPHERS_SETTING, DEFAULT_CIPHERS);
     }
 
     public SSLEngine createSSLEngine() {
@@ -69,8 +73,8 @@ public abstract class AbstractSSLService extends AbstractComponent {
     }
 
     public SSLEngine createSSLEngine(Settings settings, String host, int port) {
-        String[] ciphers = settings.getAsArray("ciphers", ciphers());
-        String[] supportedProtocols = settings.getAsArray("supported_protocols", supportedProtocols());
+        String[] ciphers = settings.getAsArray(CIPHERS_SETTING, ciphers());
+        String[] supportedProtocols = settings.getAsArray(SUPPORTED_PROTOCOLS_SETTING, supportedProtocols());
         return createSSLEngine(sslContext(settings), ciphers, supportedProtocols, host, port);
     }
 
@@ -90,6 +94,26 @@ public abstract class AbstractSSLService extends AbstractComponent {
                 throw new ElasticsearchSSLException("failed to load SSLContext", e);
             }
         }
+    }
+
+    /**
+     * @return The list of sensitive settings. (these settings shouldnot be exposed via rest API for example)
+     */
+    public static String[] sensitiveSettings() {
+        return new String[] {
+                CIPHERS_SETTING,
+                SUPPORTED_PROTOCOLS_SETTING,
+                "protocol",
+                "session.cache_size",
+                "session.cache_timeout",
+                "keystore.path",
+                "keystore.password",
+                "keystore.algorithm",
+                "keystore.key_password",
+                "truststore.path",
+                "truststore.password",
+                "truststore.algorithm"
+        };
     }
 
     protected abstract SSLSettings sslSettings(Settings customSettings);
@@ -219,7 +243,7 @@ public abstract class AbstractSSLService extends AbstractComponent {
 
     }
 
-    static class SSLSettings {
+    public static class SSLSettings {
 
         private static final ESLogger logger = Loggers.getLogger(SSLSettings.class);
 

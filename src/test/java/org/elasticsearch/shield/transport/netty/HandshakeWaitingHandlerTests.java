@@ -15,7 +15,10 @@ import org.elasticsearch.common.netty.channel.*;
 import org.elasticsearch.common.netty.channel.socket.nio.NioClientSocketChannelFactory;
 import org.elasticsearch.common.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.elasticsearch.common.netty.handler.ssl.SslHandler;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.shield.ShieldException;
+import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
@@ -62,10 +65,13 @@ public class HandshakeWaitingHandlerTests extends ElasticsearchTestCase {
         randomPort = randomIntBetween(49000, 65500);
         iterations = randomIntBetween(10, 100);
 
-        ServerSSLService sslService = new ServerSSLService(settingsBuilder()
+        Settings settings = settingsBuilder()
                 .put("shield.ssl.keystore.path", Paths.get(HandshakeWaitingHandlerTests.class.getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.jks").toURI()))
                 .put("shield.ssl.keystore.password", "testnode")
-                .build());
+                .build();
+
+        ShieldSettingsFilter settingsFilter = new ShieldSettingsFilter(settings, new SettingsFilter(settings));
+        ServerSSLService sslService = new ServerSSLService(settings, settingsFilter);
 
         sslContext = sslService.sslContext();
 

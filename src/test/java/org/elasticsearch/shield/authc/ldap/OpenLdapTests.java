@@ -23,7 +23,8 @@ import org.junit.Test;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
 
 @Network
 public class OpenLdapTests extends ElasticsearchTestCase {

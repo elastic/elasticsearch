@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldSettingsException;
+import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 
 import java.util.*;
@@ -26,14 +27,16 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
 
     private final Environment env;
     private final Map<String, Realm.Factory> factories;
+    private final ShieldSettingsFilter settingsFilter;
 
     private List<Realm> realms = Collections.emptyList();
 
     @Inject
-    public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories) {
+    public Realms(Settings settings, Environment env, Map<String, Realm.Factory> factories, ShieldSettingsFilter settingsFilter) {
         super(settings);
         this.env = env;
         this.factories = factories;
+        this.settingsFilter = settingsFilter;
     }
 
     @Override
@@ -79,6 +82,7 @@ public class Realms extends AbstractLifecycleComponent<Realms> implements Iterab
             if (factory == null) {
                 throw new ShieldSettingsException("unknown realm type [" + type + "] set for realm [" + name + "]");
             }
+            factory.filterOutSensitiveSettings(name, settingsFilter);
             RealmConfig config = new RealmConfig(name, realmSettings, settings, env);
             if (!config.enabled()) {
                 if (logger.isDebugEnabled()) {

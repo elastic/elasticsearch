@@ -12,9 +12,9 @@ import org.elasticsearch.shield.action.ShieldActionModule;
 import org.elasticsearch.shield.audit.AuditTrailModule;
 import org.elasticsearch.shield.authc.AuthenticationModule;
 import org.elasticsearch.shield.authz.AuthorizationModule;
-import org.elasticsearch.shield.signature.SignatureModule;
-import org.elasticsearch.shield.rest.ShieldRestModule;
 import org.elasticsearch.shield.license.LicenseModule;
+import org.elasticsearch.shield.rest.ShieldRestModule;
+import org.elasticsearch.shield.signature.SignatureModule;
 import org.elasticsearch.shield.ssl.SSLModule;
 import org.elasticsearch.shield.support.AbstractShieldModule;
 import org.elasticsearch.shield.transport.ShieldTransportModule;
@@ -54,5 +54,8 @@ public class ShieldModule extends AbstractShieldModule.Spawn {
 
     @Override
     protected void configure(boolean clientMode) {
+        if (!clientMode) {
+            bind(ShieldSettingsFilter.class).asEagerSingleton();
+        }
     }
 }

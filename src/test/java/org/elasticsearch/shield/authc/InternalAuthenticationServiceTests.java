@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.audit.AuditTrail;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -61,7 +62,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         when(firstRealm.type()).thenReturn("first");
         secondRealm = mock(Realm.class);
         when(secondRealm.type()).thenReturn("second");
-        realms = new Realms(ImmutableSettings.EMPTY, new Environment(ImmutableSettings.EMPTY), Collections.<String, Realm.Factory>emptyMap()) {
+        realms = new Realms(ImmutableSettings.EMPTY, new Environment(ImmutableSettings.EMPTY), Collections.<String, Realm.Factory>emptyMap(), mock(ShieldSettingsFilter.class)) {
             @Override
             protected List<Realm> initRealms() {
                 return ImmutableList.of(firstRealm, secondRealm);

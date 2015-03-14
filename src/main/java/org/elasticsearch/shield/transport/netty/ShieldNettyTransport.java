@@ -14,6 +14,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.ssl.ClientSSLService;
 import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.shield.transport.filter.IPFilter;
@@ -34,17 +35,20 @@ public class ShieldNettyTransport extends NettyTransport {
 
     private final ServerSSLService serverSslService;
     private final ClientSSLService clientSSLService;
+    private final ShieldSettingsFilter settingsFilter;
     private final @Nullable IPFilter authenticator;
     private final boolean ssl;
 
     @Inject
     public ShieldNettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version,
-                                @Nullable IPFilter authenticator, @Nullable ServerSSLService serverSSLService, ClientSSLService clientSSLService) {
+                                @Nullable IPFilter authenticator, @Nullable ServerSSLService serverSSLService, ClientSSLService clientSSLService,
+                                ShieldSettingsFilter settingsFilter) {
         super(settings, threadPool, networkService, bigArrays, version);
         this.authenticator = authenticator;
         this.ssl = settings.getAsBoolean("shield.transport.ssl", false);
         this.serverSslService = serverSSLService;
         this.clientSSLService = clientSSLService;
+        this.settingsFilter = settingsFilter;
     }
 
     @Override
@@ -64,6 +68,7 @@ public class ShieldNettyTransport extends NettyTransport {
         public SslServerChannelPipelineFactory(NettyTransport nettyTransport, String name, Settings settings, Settings profileSettings) {
             super(nettyTransport, name, settings);
             this.profileSettings = profileSettings;
+            settingsFilter.filterOut("transport.profiles." + name + ".shield.*");
         }
 
         @Override

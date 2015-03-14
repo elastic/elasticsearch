@@ -50,7 +50,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
             super(in, new FilterDirectoryReader.SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
-                    return new FieldSubsetReader(reader, fields, false);
+                    return new FieldSubsetReader(reader, fields);
                 }
             });
             this.fields = fields;
@@ -65,13 +65,11 @@ public final class FieldSubsetReader extends FilterLeafReader {
     // TODO: do we need negation option?
     // nocommit: special handling for _source and _field_names.
     private final Set<String> fields;
-    private final boolean negate;
     private final FieldInfos fieldInfos;
     
-    public FieldSubsetReader(LeafReader in, Set<String> fields, boolean negate) {
+    public FieldSubsetReader(LeafReader in, Set<String> fields) {
         super(in);
         this.fields = fields;
-        this.negate = negate;
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
             if (hasField(fi.name)) {
@@ -82,7 +80,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
     }
     
     boolean hasField(String field) {
-        return negate ^ fields.contains(field);
+        return fields.contains(field);
     }
     
     @Override
@@ -185,12 +183,10 @@ public final class FieldSubsetReader extends FilterLeafReader {
         return hasField(field) ? super.getDocsWithField(field) : null;
     }
     
-    // nocommit: fix this
     @Override
     public String toString() {
-        final StringBuilder sb = new StringBuilder("FieldFilterLeafReader(reader=");
+        final StringBuilder sb = new StringBuilder("FieldSubsetReader(reader=");
         sb.append(in).append(", fields=");
-        if (negate) sb.append('!');
         return sb.append(fields).append(')').toString();
     }
     

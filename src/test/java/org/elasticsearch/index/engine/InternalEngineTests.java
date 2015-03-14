@@ -1505,7 +1505,6 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertTrue(settings.containsSetting(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING));
         assertTrue(settings.containsSetting(EngineConfig.INDEX_COMPOUND_ON_FLUSH));
         assertTrue(settings.containsSetting(EngineConfig.INDEX_GC_DELETES_SETTING));
-        assertTrue(settings.containsSetting(EngineConfig.INDEX_FAIL_ON_MERGE_FAILURE_SETTING));
     }
 
     @Test

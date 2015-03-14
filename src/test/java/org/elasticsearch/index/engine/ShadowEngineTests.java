@@ -121,7 +121,6 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
         defaultSettings = ImmutableSettings.builder()
                 .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
                 .put(EngineConfig.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
-                .put(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, randomBoolean())
                 .put(EngineConfig.INDEX_CODEC_SETTING, codecName)
                 .put(EngineConfig.INDEX_CONCURRENCY_SETTING, indexConcurrency)
                 .build(); // TODO randomize more settings
@@ -893,7 +892,6 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
                     assertEquals(store.refCount(), refCount);
                     continue;
                 }
-                holder.config().setFailEngineOnCorruption(true);
                 assertEquals(store.refCount(), refCount+1);
                 final int numStarts = scaledRandomIntBetween(1, 5);
                 for (int j = 0; j < numStarts; j++) {
@@ -901,7 +899,6 @@ public class ShadowEngineTests extends ElasticsearchLuceneTestCase {
                         assertEquals(store.refCount(), refCount + 1);
                         holder.close();
                         holder = createShadowEngine(store, translog);
-                        holder.config().setFailEngineOnCorruption(true);
                         assertEquals(store.refCount(), refCount + 1);
                     } catch (EngineCreationFailureException ex) {
                         // all is fine

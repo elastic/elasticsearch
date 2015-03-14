@@ -50,7 +50,6 @@ import java.util.concurrent.TimeUnit;
  */
 public final class EngineConfig {
     private final ShardId shardId;
-    private volatile boolean failEngineOnCorruption = true;
     private volatile ByteSizeValue indexingBufferSize;
     private final int indexConcurrency;
     private volatile boolean compoundOnFlush = true;
@@ -99,12 +98,6 @@ public final class EngineConfig {
     public static final String INDEX_GC_DELETES_SETTING = "index.gc_deletes";
 
     /**
-     * Index setting to enable / disable engine failures on detected index corruptions. Default is <code>true</code> / <tt>enabled</tt>.
-     * This setting is realtime updateable.
-     */
-    public static final String INDEX_FAIL_ON_CORRUPTION_SETTING = "index.fail_on_corruption";
-
-    /**
      * Index setting to control the initial index buffer size.
      * This setting is <b>not</b> realtime updateable.
      */
@@ -148,7 +141,6 @@ public final class EngineConfig {
         this.indexConcurrency = indexSettings.getAsInt(EngineConfig.INDEX_CONCURRENCY_SETTING, Math.max(IndexWriterConfig.DEFAULT_MAX_THREAD_STATES, (int) (EsExecutors.boundedNumberOfProcessors(indexSettings) * 0.65)));
         codecName = indexSettings.get(EngineConfig.INDEX_CODEC_SETTING, EngineConfig.DEFAULT_CODEC_NAME);
         indexingBufferSize = indexSettings.getAsBytesSize(INDEX_BUFFER_SIZE_SETTING, DEFAUTL_INDEX_BUFFER_SIZE);
-        failEngineOnCorruption = indexSettings.getAsBoolean(INDEX_FAIL_ON_CORRUPTION_SETTING, true);
         gcDeletesInMillis = indexSettings.getAsTime(INDEX_GC_DELETES_SETTING, EngineConfig.DEFAULT_GC_DELETES).millis();
     }
 
@@ -166,13 +158,6 @@ public final class EngineConfig {
      */
     public void setEnableGcDeletes(boolean enableGcDeletes) {
         this.enableGcDeletes = enableGcDeletes;
-    }
-
-    /**
-     * Returns <code>true</code> if the engine should be failed in the case of a corrupted index. Defaults to <code>true</code>
-     */
-    public boolean isFailEngineOnCorruption() {
-        return failEngineOnCorruption;
     }
 
     /**
@@ -354,12 +339,5 @@ public final class EngineConfig {
      */
     public void setCompoundOnFlush(boolean compoundOnFlush) {
         this.compoundOnFlush = compoundOnFlush;
-    }
-
-    /**
-     * Sets if the engine should be failed in the case of a corrupted index. Defaults to <code>true</code>
-     */
-    public void setFailEngineOnCorruption(boolean failEngineOnCorruption) {
-        this.failEngineOnCorruption = failEngineOnCorruption;
     }
 }

@@ -20,6 +20,7 @@ package org.elasticsearch.common.lucene.index;
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.FilterIterator;
+import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,7 +47,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
     static class FieldSubsetDirectoryReader extends FilterDirectoryReader {
         final Set<String> fields;
         
-        public FieldSubsetDirectoryReader(DirectoryReader in, final Set<String> fields) throws IOException {
+        public FieldSubsetDirectoryReader(DirectoryReader in, final Set<String> fields) throws IOException  {
             super(in, new FilterDirectoryReader.SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
@@ -62,17 +63,14 @@ public final class FieldSubsetReader extends FilterLeafReader {
         }
     }
     
-    // TODO: do we need negation option?
     // nocommit: special handling for _source and _field_names.
-    private final Set<String> fields;
     private final FieldInfos fieldInfos;
     
     public FieldSubsetReader(LeafReader in, Set<String> fields) {
         super(in);
-        this.fields = fields;
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
-            if (hasField(fi.name)) {
+            if (fields.contains(fi.name)) {
                 filteredInfos.add(fi);
             }
         }
@@ -80,7 +78,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
     }
     
     boolean hasField(String field) {
-        return fields.contains(field);
+        return fieldInfos.fieldInfo(field) != null;
     }
     
     @Override
@@ -95,9 +93,8 @@ public final class FieldSubsetReader extends FilterLeafReader {
             return null;
         }
         f = new FieldFilterFields(f);
-        // we need to check for emptyness, so we can return
-                // null:
-                    return f.iterator().hasNext() ? f : null;
+        // we need to check for emptyness, so we can return null:
+        return f.iterator().hasNext() ? f : null;
     }
     
     @Override
@@ -144,9 +141,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
     public Fields fields() throws IOException {
         final Fields f = super.fields();
         return (f == null) ? null : new FieldFilterFields(f);
-    }
-    
-    
+    }    
     
     @Override
     public NumericDocValues getNumericDocValues(String field) throws IOException {
@@ -183,13 +178,6 @@ public final class FieldSubsetReader extends FilterLeafReader {
         return hasField(field) ? super.getDocsWithField(field) : null;
     }
     
-    @Override
-    public String toString() {
-        final StringBuilder sb = new StringBuilder("FieldSubsetReader(reader=");
-        sb.append(in).append(", fields=");
-        return sb.append(fields).append(')').toString();
-    }
-    
     private class FieldFilterFields extends FilterFields {
         
         public FieldFilterFields(Fields in) {
@@ -214,7 +202,13 @@ public final class FieldSubsetReader extends FilterLeafReader {
         
         @Override
         public Terms terms(String field) throws IOException {
-            return hasField(field) ? super.terms(field) : null;
+            if (FieldNamesFieldMapper.NAME.equals(field)) {
+                return super.terms(field); // nocommit: filter out terms/postings
+            } else if (hasField(field)) {
+                return super.terms(field);
+            } else {
+                return null;
+            }
         }
         
     }

@@ -301,7 +301,7 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
                 .put("node.master", false)
                 .put("node.color", color);
         if (newDataPath) {
-            settingsBuilder.put("path.data", newTempDirPath().toString());
+            settingsBuilder.put("path.data", createTempDir().toString());
         }
         return internalCluster().startNode(settingsBuilder.build());
     }
@@ -311,7 +311,7 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
                 .put("node.data", false)
                 .put("node.master", true);
         if (newDataPath) {
-            settingsBuilder.put("path.data", newTempDirPath().toString());
+            settingsBuilder.put("path.data", createTempDir().toString());
         }
         return internalCluster().startNode(settingsBuilder.build());
     }

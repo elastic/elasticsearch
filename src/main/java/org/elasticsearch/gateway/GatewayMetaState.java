@@ -98,26 +98,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         return metaStateService.loadFullState();
     }
 
-    public static class IndexMetaWriteInfo {
-        IndexMetaData newMetaData;
-        String reason;
-        public IndexMetaData previousMetaData;
-
-        public IndexMetaWriteInfo(IndexMetaData newMetaData, IndexMetaData previousMetaData, String reason) {
-            this.newMetaData = newMetaData;
-            this.reason = reason;
-            this.previousMetaData = previousMetaData;
-        }
-
-        public IndexMetaData getNewMetaData() {
-            return newMetaData;
-        }
-
-        public String getReason() {
-            return reason;
-        }
-    }
-
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         final ClusterState state = event.state();
@@ -273,6 +253,26 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                     }
                 }
             }
+        }
+    }
+
+    public static class IndexMetaWriteInfo {
+        final IndexMetaData newMetaData;
+        final String reason;
+        final IndexMetaData previousMetaData;
+
+        public IndexMetaWriteInfo(IndexMetaData newMetaData, IndexMetaData previousMetaData, String reason) {
+            this.newMetaData = newMetaData;
+            this.reason = reason;
+            this.previousMetaData = previousMetaData;
+        }
+
+        public IndexMetaData getNewMetaData() {
+            return newMetaData;
+        }
+
+        public String getReason() {
+            return reason;
         }
     }
 }

@@ -275,21 +275,23 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                                 final long position = indexInput.getFilePointer();
 
                                 // Pause using the rate limiter, if desired, to throttle the recovery
+                                long throttleTimeInNanos = 0;
                                 if (recoverySettings.rateLimiter() != null) {
-                                    recoverySettings.rateLimiter().pause(toRead);
+                                    throttleTimeInNanos = recoverySettings.rateLimiter().pause(toRead);
                                 }
-
+                                shard.recoveryStats().addThrottleTime(throttleTimeInNanos);
                                 indexInput.readBytes(buf, 0, toRead, false);
                                 final BytesArray content = new BytesArray(buf, 0, toRead);
                                 readCount += toRead;
                                 final boolean lastChunk = readCount == len;
+                                final RecoveryFileChunkRequest fileChunkRequest = new RecoveryFileChunkRequest(request.recoveryId(), request.shardId(), md, position,
+                                        content, lastChunk, throttleTimeInNanos);
                                 cancellableThreads.execute(new Interruptable() {
                                     @Override
                                     public void run() throws InterruptedException {
                                         // Actually send the file chunk to the target node, waiting for it to complete
                                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK,
-                                                new RecoveryFileChunkRequest(request.recoveryId(), request.shardId(), md, position, content, lastChunk),
-                                                requestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                                                fileChunkRequest, requestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                                     }
                                 });
 

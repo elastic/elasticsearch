@@ -41,17 +41,20 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
     private long position;
     private BytesReference content;
     private StoreFileMetaData metaData;
+    private long sourceThrottleTimeInNanos;
 
     RecoveryFileChunkRequest() {
     }
 
-    public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetaData metaData, long position, BytesReference content, boolean lastChunk) {
+    public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetaData metaData, long position, BytesReference content,
+                                    boolean lastChunk, long sourceThrottleTimeInNanos) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.metaData = metaData;
         this.position = position;
         this.content = content;
         this.lastChunk = lastChunk;
+        this.sourceThrottleTimeInNanos = sourceThrottleTimeInNanos;
     }
 
     public long recoveryId() {
@@ -83,6 +86,10 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         return content;
     }
 
+    public long sourceThrottleTimeInNanos() {
+        return sourceThrottleTimeInNanos;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -104,6 +111,11 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         } else {
             lastChunk = false;
         }
+        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_5_0)) {
+            sourceThrottleTimeInNanos = in.readLong();
+        } else {
+            sourceThrottleTimeInNanos = -1;
+        }
     }
 
     @Override
@@ -121,6 +133,9 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         }
         if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0_Beta1)) {
             out.writeBoolean(lastChunk);
+        }
+        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_5_0)) {
+            out.writeLong(sourceThrottleTimeInNanos);
         }
     }
 

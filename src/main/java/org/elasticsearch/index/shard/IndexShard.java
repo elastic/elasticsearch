@@ -44,7 +44,6 @@ import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -85,6 +84,7 @@ import org.elasticsearch.index.merge.scheduler.MergeSchedulerProvider;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -167,6 +167,8 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     @Nullable
     private RecoveryState recoveryState;
+
+    private final RecoveryStats recoveryStats = new RecoveryStats();
 
     private ApplyRefreshSettings applyRefreshSettings = new ApplyRefreshSettings();
 
@@ -776,6 +778,11 @@ public class IndexShard extends AbstractIndexShardComponent {
             IOUtils.close(engine);
             recoveryState().setStage(RecoveryState.Stage.INIT);
         }
+    }
+
+    /** returns stats about ongoing recoveries, both source and target */
+    public RecoveryStats recoveryStats() {
+        return recoveryStats;
     }
 
     /**

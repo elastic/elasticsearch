@@ -19,9 +19,7 @@
 
 package org.elasticsearch.indices.stats;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.*;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -650,7 +648,8 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testFlagOrdinalOrder() {
         Flag[] flags = new Flag[]{Flag.Store, Flag.Indexing, Flag.Get, Flag.Search, Flag.Merge, Flag.Flush, Flag.Refresh,
-                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Percolate, Flag.Completion, Flag.Segments, Flag.Translog, Flag.Suggest, Flag.QueryCache};
+                Flag.FilterCache, Flag.IdCache, Flag.FieldData, Flag.Docs, Flag.Warmer, Flag.Percolate, Flag.Completion, Flag.Segments,
+                Flag.Translog, Flag.Suggest, Flag.QueryCache, Flag.Recovery};
 
         assertThat(flags.length, equalTo(Flag.values().length));
         for (int i = 0; i < flags.length; i++) {
@@ -921,6 +920,9 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
             case QueryCache:
                 builder.setQueryCache(set);
                 break;
+            case Recovery:
+                builder.setRecovery(set);
+                break;
             default:
                 fail("new flag? " + flag);
                 break;
@@ -965,6 +967,8 @@ public class IndexStatsTests extends ElasticsearchIntegrationTest {
                 return response.getSuggest() != null;
             case QueryCache:
                 return response.getQueryCache() != null;
+            case Recovery:
+                return response.getRecoveryStats() != null;
             default:
                 fail("new flag? " + flag);
                 return false;

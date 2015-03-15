@@ -22,11 +22,14 @@ package org.elasticsearch.indices.recovery;
 import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -39,8 +42,10 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.indices.recovery.RecoveryState.Type;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -228,13 +233,13 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
     @TestLogging("indices.recovery:TRACE")
     public void rerouteRecoveryTest() throws Exception {
         logger.info("--> start node A");
-        String nodeA = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        final String nodeA = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
 
         logger.info("--> create index on node: {}", nodeA);
         ByteSizeValue shardSize = createAndPopulateIndex(INDEX_NAME, 1, SHARD_COUNT, REPLICA_COUNT).getShards()[0].getStats().getStore().size();
 
         logger.info("--> start node B");
-        String nodeB = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
+        final String nodeB = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));
 
         ensureGreen();
 
@@ -246,6 +251,18 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
                 .add(new MoveAllocationCommand(new ShardId(INDEX_NAME, 0), nodeA, nodeB))
                 .execute().actionGet().getState();
 
+        logger.info("--> waiting for recovery to start both on source and target");
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeA);
+                assertThat(indicesService.indexServiceSafe(INDEX_NAME).shardSafe(0).recoveryStats().currentAsSource(),
+                        equalTo(1));
+                indicesService = internalCluster().getInstance(IndicesService.class, nodeB);
+                assertThat(indicesService.indexServiceSafe(INDEX_NAME).shardSafe(0).recoveryStats().currentAsTarget(),
+                        equalTo(1));
+            }
+        });
 
         logger.info("--> request recoveries");
         RecoveryResponse response = client().admin().indices().prepareRecoveries(INDEX_NAME).execute().actionGet();
@@ -261,6 +278,44 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
 
         assertOnGoingRecoveryState(nodeBResponses.get(0).recoveryState(), 0, Type.RELOCATION, nodeA, nodeB, false);
         validateIndexRecoveryState(nodeBResponses.get(0).recoveryState().getIndex());
+
+        logger.info("--> request node recovery stats");
+        NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
+        long nodeAThrottling = Long.MAX_VALUE;
+        long nodeBThrottling = Long.MAX_VALUE;
+        for (NodeStats nodeStats : statsResponse.getNodes()) {
+            final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
+            if (nodeStats.getNode().name().equals(nodeA)) {
+                assertThat("node A should have ongoing recovery as source", recoveryStats.currentAsSource(), equalTo(1));
+                assertThat("node A should not have ongoing recovery as target", recoveryStats.currentAsTarget(), equalTo(0));
+                nodeAThrottling = recoveryStats.throttleTime().millis();
+            }
+            if (nodeStats.getNode().name().equals(nodeB)) {
+                assertThat("node B should not have ongoing recovery as source", recoveryStats.currentAsSource(), equalTo(0));
+                assertThat("node B should have ongoing recovery as target", recoveryStats.currentAsTarget(), equalTo(1));
+                nodeBThrottling = recoveryStats.throttleTime().millis();
+            }
+        }
+
+        logger.info("--> checking throttling increases");
+        final long finalNodeAThrottling = nodeAThrottling;
+        final long finalNodeBThrottling = nodeBThrottling;
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
+                for (NodeStats nodeStats : statsResponse.getNodes()) {
+                    final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
+                    if (nodeStats.getNode().name().equals(nodeA)) {
+                        assertThat("node A throttling should increase", recoveryStats.throttleTime().millis(), greaterThan(finalNodeAThrottling));
+                    }
+                    if (nodeStats.getNode().name().equals(nodeB)) {
+                        assertThat("node B throttling should increase", recoveryStats.throttleTime().millis(), greaterThan(finalNodeBThrottling));
+                    }
+                }
+            }
+        });
+
 
         logger.info("--> speeding up recoveries");
         restoreRecoverySpeed();

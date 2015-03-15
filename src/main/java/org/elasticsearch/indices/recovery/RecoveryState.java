@@ -29,7 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -37,6 +37,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -383,6 +384,10 @@ public class RecoveryState implements ToXContent, Streamable {
         static final XContentBuilderString PERCENT = new XContentBuilderString("percent");
         static final XContentBuilderString DETAILS = new XContentBuilderString("details");
         static final XContentBuilderString SIZE = new XContentBuilderString("size");
+        static final XContentBuilderString SOURCE_THROTTLE_TIME = new XContentBuilderString("source_throttle_time");
+        static final XContentBuilderString SOURCE_THROTTLE_TIME_IN_MILLIS = new XContentBuilderString("source_throttle_time_in_millis");
+        static final XContentBuilderString TARGET_THROTTLE_TIME = new XContentBuilderString("target_throttle_time");
+        static final XContentBuilderString TARGET_THROTTLE_TIME_IN_MILLIS = new XContentBuilderString("target_throttle_time_in_millis");
     }
 
     public static class Timer implements Streamable {
@@ -645,43 +650,72 @@ public class RecoveryState implements ToXContent, Streamable {
 
     public static class Index extends Timer implements ToXContent, Streamable {
 
-        private Map<String, File> fileDetails = ConcurrentCollections.newConcurrentMap();
+        private Map<String, File> fileDetails = new HashMap<>();
 
-        private volatile long version = -1;
+        public final static long UNKNOWN = -1L;
 
-        public List<File> fileDetails() {
+        private long version = UNKNOWN;
+        private long sourceThrottlingInNanos = UNKNOWN;
+        private long targetThrottleTimeInNanos = UNKNOWN;
+
+        public synchronized List<File> fileDetails() {
             return ImmutableList.copyOf(fileDetails.values());
         }
 
-        public void reset() {
+        public synchronized void reset() {
             super.reset();
-            version = -1;
+            version = UNKNOWN;
             fileDetails.clear();
+            sourceThrottlingInNanos = UNKNOWN;
+            targetThrottleTimeInNanos = UNKNOWN;
         }
 
-
-        public void addFileDetail(String name, long length, boolean reused) {
+        public synchronized void addFileDetail(String name, long length, boolean reused) {
             File file = new File(name, length, reused);
             File existing = fileDetails.put(name, file);
             assert existing == null : "file [" + name + "] is already reported";
         }
 
-        public void addRecoveredBytesToFile(String name, long bytes) {
+        public synchronized void addRecoveredBytesToFile(String name, long bytes) {
             File file = fileDetails.get(name);
             file.addRecoveredBytes(bytes);
         }
 
-        public long version() {
+        public synchronized long version() {
             return this.version;
         }
 
+        public synchronized void addSourceThrottling(long timeInNanos) {
+            if (sourceThrottlingInNanos == UNKNOWN) {
+                sourceThrottlingInNanos = timeInNanos;
+            } else {
+                sourceThrottlingInNanos += timeInNanos;
+            }
+        }
+
+        public synchronized void addTargetThrottling(long timeInNanos) {
+            if (targetThrottleTimeInNanos == UNKNOWN) {
+                targetThrottleTimeInNanos = timeInNanos;
+            } else {
+                targetThrottleTimeInNanos += timeInNanos;
+            }
+        }
+
+        public synchronized TimeValue sourceThrottling() {
+            return TimeValue.timeValueNanos(sourceThrottlingInNanos);
+        }
+
+        public synchronized TimeValue targetThrottling() {
+            return TimeValue.timeValueNanos(targetThrottleTimeInNanos);
+        }
+
         /** total number of files that are part of this recovery, both re-used and recovered */
-        public int totalFileCount() {
+        public synchronized int totalFileCount() {
             return fileDetails.size();
         }
 
         /** total number of files to be recovered (potentially not yet done) */
-        public int totalRecoverFiles() {
+        public synchronized int totalRecoverFiles() {
             int total = 0;
             for (File file : fileDetails.values()) {
                 if (file.reused() == false) {
@@ -693,7 +727,7 @@ public class RecoveryState implements ToXContent, Streamable {
 
 
         /** number of file that were recovered (excluding on ongoing files) */
-        public int recoveredFileCount() {
+        public synchronized int recoveredFileCount() {
             int count = 0;
             for (File file : fileDetails.values()) {
                 if (file.fullyRecovered()) {
@@ -704,7 +738,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
         /** percent of recovered (i.e., not reused) files out of the total files to be recovered */
-        public float recoveredFilesPercent() {
+        public synchronized float recoveredFilesPercent() {
             int total = 0;
             int recovered = 0;
             for (File file : fileDetails.values()) {
@@ -727,7 +761,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
         /** total number of bytes in th shard */
-        public long totalBytes() {
+        public synchronized long totalBytes() {
             long total = 0;
             for (File file : fileDetails.values()) {
                 total += file.length();
@@ -736,7 +770,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
         /** total number of bytes recovered so far, including both existing and reused */
-        public long recoveredBytes() {
+        public synchronized long recoveredBytes() {
             long recovered = 0;
             for (File file : fileDetails.values()) {
                 recovered += file.recovered();
@@ -745,7 +779,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
         /** total bytes of files to be recovered (potentially not yet done) */
-        public long totalRecoverBytes() {
+        public synchronized long totalRecoverBytes() {
             long total = 0;
             for (File file : fileDetails.values()) {
                 if (file.reused() == false) {
@@ -755,7 +789,7 @@ public class RecoveryState implements ToXContent, Streamable {
             return total;
         }
 
-        public long totalReuseBytes() {
+        public synchronized long totalReuseBytes() {
             long total = 0;
             for (File file : fileDetails.values()) {
                 if (file.reused()) {
@@ -766,7 +800,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
         /** percent of bytes recovered out of total files bytes *to be* recovered */
-        public float recoveredBytesPercent() {
+        public synchronized float recoveredBytesPercent() {
             long total = 0;
             long recovered = 0;
             for (File file : fileDetails.values()) {
@@ -786,7 +820,7 @@ public class RecoveryState implements ToXContent, Streamable {
             }
         }
 
-        public int reusedFileCount() {
+        public synchronized int reusedFileCount() {
             int reused = 0;
             for (File file : fileDetails.values()) {
                 if (file.reused()) {
@@ -796,7 +830,7 @@ public class RecoveryState implements ToXContent, Streamable {
             return reused;
         }
 
-        public long reusedBytes() {
+        public synchronized long reusedBytes() {
             long reused = 0;
             for (File file : fileDetails.values()) {
                 if (file.reused()) {
@@ -806,12 +840,12 @@ public class RecoveryState implements ToXContent, Streamable {
             return reused;
         }
 
-        public void updateVersion(long version) {
+        public synchronized void updateVersion(long version) {
             this.version = version;
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
+        public synchronized void readFrom(StreamInput in) throws IOException {
             if (in.getVersion().before(Version.V_1_5_0)) {
                 startTime = in.readVLong();
                 long time = in.readVLong();
@@ -840,11 +874,13 @@ public class RecoveryState implements ToXContent, Streamable {
                     File file = File.readFile(in);
                     fileDetails.put(file.name, file);
                 }
+                sourceThrottlingInNanos = in.readLong();
+                targetThrottleTimeInNanos = in.readLong();
             }
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public synchronized void writeTo(StreamOutput out) throws IOException {
             if (out.getVersion().before(Version.V_1_5_0)) {
                 out.writeVLong(startTime);
                 out.writeVLong(time());
@@ -883,11 +919,13 @@ public class RecoveryState implements ToXContent, Streamable {
                 for (File file : files) {
                     file.writeTo(out);
                 }
+                out.writeLong(sourceThrottlingInNanos);
+                out.writeLong(targetThrottleTimeInNanos);
             }
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public synchronized XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             // stream size first, as it matters more and the files section can be long
             builder.startObject(Fields.SIZE);
             builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, totalBytes());
@@ -910,11 +948,13 @@ public class RecoveryState implements ToXContent, Streamable {
             }
             builder.endObject();
             builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time());
+            builder.timeValueField(Fields.SOURCE_THROTTLE_TIME_IN_MILLIS, Fields.SOURCE_THROTTLE_TIME, sourceThrottling());
+            builder.timeValueField(Fields.TARGET_THROTTLE_TIME_IN_MILLIS, Fields.TARGET_THROTTLE_TIME, targetThrottling());
             return builder;
         }
 
         @Override
-        public String toString() {
+        public synchronized String toString() {
             try {
                 XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
                 builder.startObject();

@@ -45,6 +45,16 @@ public class IndexMetaState extends AbstractComponent {
         this.metaStateService = metaStateService;
     }
 
+    /**
+     * Loads the current meta state for each index in the new cluster state and checks if it has to be persisted.
+     * Each index state that should be written to disk will be returned. This is only run for data only nodes.
+     * It will return only the states for indices that actually have a shard allocated on the current node.
+     *
+     * @param event           the cluster state event from which we figure out what is new in each index and should potentially be written
+     * @param currentMetaData the current index state in memory.
+     * @return iterable over all indices states that should be written to disk
+     *
+     */
     public Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStateOnDataNode(ClusterChangedEvent event, MetaData currentMetaData) {
         Map<String, GatewayMetaState.IndexMetaWriteInfo> indicesToWrite = new HashMap<>();
         RoutingNode thisNode = event.state().getRoutingNodes().node(event.state().nodes().localNodeId());
@@ -76,6 +86,16 @@ public class IndexMetaState extends AbstractComponent {
         return indicesToWrite.values();
     }
 
+    /**
+     * Loads the current meta state for each index in the new cluster state and checks if it has to be persisted.
+     * Each index state that is part of the new cluster state will be considered even if this node has no shard of the
+     * index allocated on it. This is only run for master nodes.
+     *
+     * @param event           the cluster state event from which we figure out what is new in each index and should potentially be written
+     * @param currentMetaData the current index state in memory.
+     * @return iterable over all indices states that should be written to disk
+     *
+     */
     public Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStatesOnMaster(ClusterChangedEvent event, MetaData currentMetaData) {
         Map<String, GatewayMetaState.IndexMetaWriteInfo> indicesToWrite = new HashMap<>();
         MetaData newMetaData = event.state().metaData();

@@ -117,7 +117,6 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
         ClusterChangedEvent event = generateEvent(initializing, versionChanged);
         final NodeEnvironment env = newNodeEnvironment();
         MetaStateService metaStateService = new MetaStateService(ImmutableSettings.EMPTY, env);
-        IndexMetaState indexMetaState = new IndexMetaState(ImmutableSettings.EMPTY, metaStateService);
 
         MetaData inMemoryMetaData = null;
         if (stateInMemory) {
@@ -136,9 +135,9 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
         }
         Iterator<GatewayMetaState.IndexMetaWriteInfo> indices;
         if (masterEligible) {
-            indices = indexMetaState.filterStatesOnMaster(event, inMemoryMetaData).iterator();
+            indices = GatewayMetaState.filterStatesOnMaster(event, inMemoryMetaData, metaStateService, logger).iterator();
         } else {
-            indices = indexMetaState.filterStateOnDataNode(event, inMemoryMetaData).iterator();
+            indices = GatewayMetaState.filterStateOnDataNode(event, inMemoryMetaData, metaStateService, logger).iterator();
         }
         if (expectMetaData) {
             assertThat(indices.hasNext(), equalTo(true));

@@ -253,7 +253,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                 }
             }
         }
-        if (hasCustomPre20HashFunction|| pre20UseType != null) {
+        if (hasCustomPre20HashFunction || pre20UseType != null) {
             logger.warn("Settings [{}] and [{}] are deprecated. Index settings from your old indices have been updated to record the fact that they "
                     + "used some custom routing logic, you can now remove these settings from your `elasticsearch.yml` file", DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, DEPRECATED_SETTING_ROUTING_USE_TYPE);
         }

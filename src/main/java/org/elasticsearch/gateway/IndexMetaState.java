@@ -59,13 +59,13 @@ public class IndexMetaState extends AbstractComponent {
     public Iterable<GatewayMetaState.IndexMetaWriteInfo> getIndicesToWriteDataOnlyNode(ClusterChangedEvent event, MetaData currentMetaData) {
         Map<String, GatewayMetaState.IndexMetaWriteInfo> indicesToWrite = new HashMap<>();
         RoutingNode thisNode = event.state().getRoutingNodes().node(event.state().nodes().localNodeId());
-        if ( thisNode == null) {
+        if (thisNode == null) {
             // this needs some other handling
             return indicesToWrite.values();
         }
         // iterate over all shards allocated on this node in the new cluster state but only write if ...
         for (MutableShardRouting shardRouting : thisNode) {
-            IndexMetaData indexMetaData  = event.state().metaData().index(shardRouting.index());
+            IndexMetaData indexMetaData = event.state().metaData().index(shardRouting.index());
             IndexMetaData currentIndexMetaData = maybeLoadIndexState(currentMetaData, indexMetaData);
             String writeReason = null;
             // ... state persistence was disabled or index was newly created
@@ -84,8 +84,9 @@ public class IndexMetaState extends AbstractComponent {
                                 writeReason));
             }
         }
-        return  indicesToWrite.values();
+        return indicesToWrite.values();
     }
+
     public Iterable<GatewayMetaState.IndexMetaWriteInfo> getIndicesToWriteMasterNode(ClusterChangedEvent event, MetaData currentMetaData) {
         Map<String, GatewayMetaState.IndexMetaWriteInfo> indicesToWrite = new HashMap<>();
         MetaData newMetaData = event.state().metaData();
@@ -94,13 +95,13 @@ public class IndexMetaState extends AbstractComponent {
             String writeReason = null;
             IndexMetaData currentIndexMetaData = maybeLoadIndexState(currentMetaData, indexMetaData);
             // ... new index or state persistence was disabled?
-            if ( currentIndexMetaData == null) {
+            if (currentIndexMetaData == null) {
                 writeReason = "freshly created";
                 // ... version changed
             } else if (currentIndexMetaData.version() != indexMetaData.version()) {
                 writeReason = "version changed from [" + currentIndexMetaData.version() + "] to [" + indexMetaData.version() + "]";
             }
-            if (writeReason!=null) {
+            if (writeReason != null) {
                 indicesToWrite.put(indexMetaData.index(),
                         new GatewayMetaState.IndexMetaWriteInfo(indexMetaData, currentIndexMetaData,
                                 writeReason));
@@ -120,7 +121,8 @@ public class IndexMetaState extends AbstractComponent {
             } catch (IOException e) {
                 logger.debug("failed to load index state ", e);
             }
-        } return currentIndexMetaData;
+        }
+        return currentIndexMetaData;
     }
 
 }

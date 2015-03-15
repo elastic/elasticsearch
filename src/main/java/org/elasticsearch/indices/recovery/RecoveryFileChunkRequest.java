@@ -41,6 +41,7 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
     private long position;
     private BytesReference content;
     private StoreFileMetaData metaData;
+    private long sourceThrottleTimeInNanos;
 
     private int totalTranslogOps;
 
@@ -48,7 +49,7 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
     }
 
     public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetaData metaData, long position, BytesReference content,
-                                    boolean lastChunk, int totalTranslogOps) {
+                                    boolean lastChunk, int totalTranslogOps, long sourceThrottleTimeInNanos) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.metaData = metaData;
@@ -56,6 +57,7 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         this.content = content;
         this.lastChunk = lastChunk;
         this.totalTranslogOps = totalTranslogOps;
+        this.sourceThrottleTimeInNanos = sourceThrottleTimeInNanos;
     }
 
     public long recoveryId() {
@@ -91,6 +93,10 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         return totalTranslogOps;
     }
 
+    public long sourceThrottleTimeInNanos() {
+        return sourceThrottleTimeInNanos;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -115,8 +121,10 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
 
         if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_5_0)) {
             totalTranslogOps = in.readVInt();
+            sourceThrottleTimeInNanos = in.readLong();
         } else {
             totalTranslogOps = RecoveryState.Translog.UNKNOWN;
+            sourceThrottleTimeInNanos = -1;
         }
     }
 
@@ -138,8 +146,8 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         }
         if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_5_0)) {
             out.writeVInt(totalTranslogOps);
+            out.writeLong(sourceThrottleTimeInNanos);
         }
-
     }
 
     @Override

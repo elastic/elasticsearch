@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -169,6 +170,9 @@ public class CommonStatsFlags implements Streamable, Cloneable {
     public void writeTo(StreamOutput out) throws IOException {
         long longFlags = 0;
         for (Flag flag : flags) {
+            if (out.getVersion().before(Version.V_1_5_0) && flag == Flag.Recovery) {
+                continue;
+            }
             longFlags |= (1 << flag.ordinal());
         }
         out.writeLong(longFlags);
@@ -225,7 +229,9 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         Segments("segments"),
         Translog("translog"),
         Suggest("suggest"),
-        QueryCache("query_cache");
+        QueryCache("query_cache"),
+        Recovery("recovery");
+
 
         private final String restName;
 

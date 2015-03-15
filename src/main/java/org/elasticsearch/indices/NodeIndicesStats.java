@@ -42,6 +42,7 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.percolator.stats.PercolateStats;
+import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
@@ -158,6 +159,11 @@ public class NodeIndicesStats implements Streamable, Serializable, ToXContent {
     @Nullable
     public SuggestStats getSuggest() {
         return stats.getSuggest();
+    }
+
+    @Nullable
+    public RecoveryStats getRecoveryStats() {
+        return stats.getRecoveryStats();
     }
 
     public static NodeIndicesStats readIndicesStats(StreamInput in) throws IOException {

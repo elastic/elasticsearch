@@ -432,6 +432,10 @@ public class RecoveryTarget extends AbstractComponent {
                 final RecoveryStatus recoveryStatus = statusRef.status();
                 final Store store = recoveryStatus.store();
                 recoveryStatus.state().getTranslog().totalOperations(request.totalTranslogOps());
+                final RecoveryState.Index indexState = recoveryStatus.state().getIndex();
+                if (request.sourceThrottleTimeInNanos() != RecoveryState.Index.UNKNOWN) {
+                    indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());
+                }
                 IndexOutput indexOutput;
                 if (request.position() == 0) {
                     indexOutput = recoveryStatus.openAndPutIndexOutput(request.name(), request.metadata(), store);
@@ -439,14 +443,16 @@ public class RecoveryTarget extends AbstractComponent {
                     indexOutput = recoveryStatus.getOpenIndexOutput(request.name());
                 }
                 if (recoverySettings.rateLimiter() != null) {
-                    recoverySettings.rateLimiter().pause(request.content().length());
+                    long targetThrottling = recoverySettings.rateLimiter().pause(request.content().length());
+                    indexState.addTargetThrottling(targetThrottling);
+                    recoveryStatus.indexShard().recoveryStats().addThrottleTime(targetThrottling);
                 }
                 BytesReference content = request.content();
                 if (!content.hasArray()) {
                     content = content.toBytesArray();
                 }
                 indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
-                recoveryStatus.state().getIndex().addRecoveredBytesToFile(request.name(), content.length());
+                indexState.addRecoveredBytesToFile(request.name(), content.length());
                 if (indexOutput.getFilePointer() >= request.length() || request.lastChunk()) {
                     try {
                         Store.verify(indexOutput);

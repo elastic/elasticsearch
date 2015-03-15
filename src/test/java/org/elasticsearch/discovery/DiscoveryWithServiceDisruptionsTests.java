@@ -644,7 +644,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
     public void testClusterFormingWithASlowNode() throws Exception {
         configureCluster(3, 2);
 
-        SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(getRandom(), 0, 0, 5000, 6000);
+        SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(getRandom(), 0, 0, 1000, 2000);
 
         // don't wait for initial state, wat want to add the disruption while the cluster is forming..
         internalCluster().startNodesAsync(3,

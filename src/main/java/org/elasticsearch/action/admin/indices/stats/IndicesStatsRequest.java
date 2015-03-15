@@ -265,6 +265,15 @@ public class IndicesStatsRequest extends BroadcastOperationRequest<IndicesStatsR
         return flags.isSet(Flag.QueryCache);
     }
 
+    public IndicesStatsRequest recovery(boolean recovery) {
+        flags.set(Flag.Recovery, recovery);
+        return this;
+    }
+
+    public boolean recovery() {
+        return flags.isSet(Flag.Recovery);
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

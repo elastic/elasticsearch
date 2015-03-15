@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authc.ldap;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.RealmConfig;
@@ -55,6 +56,7 @@ public class LdapSessionFactoryTests extends LdapTest {
 
     @Test
     @Network
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-shield/issues/767")
     public void testConnectTimeout() {
         // Local sockets connect too fast...
         String ldapUrl = "ldap://54.200.235.244:389";

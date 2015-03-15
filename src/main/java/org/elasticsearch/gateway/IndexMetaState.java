@@ -27,27 +27,21 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.NodeEnvironment;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 /**
- * The dangling indices state is responsible for finding new dangling indices (indices that have
- * their state written on disk, but don't exists in the metadata of the cluster), and importing
- * them into the cluster.
+ * Helper for filtering the index meta states when they are persisted to disk.
  */
 public class IndexMetaState extends AbstractComponent {
 
-    private final NodeEnvironment nodeEnv;
     private final MetaStateService metaStateService;
 
-
     @Inject
-    public IndexMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService) {
+    public IndexMetaState(Settings settings, MetaStateService metaStateService) {
         super(settings);
-        this.nodeEnv = nodeEnv;
         this.metaStateService = metaStateService;
     }
 

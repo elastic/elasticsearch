@@ -117,7 +117,7 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
         ClusterChangedEvent event = generateEvent(initializing, versionChanged);
         final NodeEnvironment env = newNodeEnvironment();
         MetaStateService metaStateService = new MetaStateService(ImmutableSettings.EMPTY, env);
-        IndexMetaState indexMetaState = new IndexMetaState(ImmutableSettings.EMPTY, env, metaStateService);
+        IndexMetaState indexMetaState = new IndexMetaState(ImmutableSettings.EMPTY, metaStateService);
 
         MetaData inMemoryMetaData = null;
         if (stateInMemory) {

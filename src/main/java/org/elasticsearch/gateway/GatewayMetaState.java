@@ -122,11 +122,13 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
                 }
             }
 
-            Iterable<IndexMetaWriteInfo> writeInfo = new ArrayList<>();
+            Iterable<IndexMetaWriteInfo> writeInfo;
             if (isDataOnlyNode(event.state())) {
                 writeInfo = indexMetaState.getIndicesToWriteDataOnlyNode(event, currentMetaData);
             } else if (isMasterEligibleNode(event.state())) {
                 writeInfo = indexMetaState.getIndicesToWriteMasterNode(event, currentMetaData);
+            } else {
+                writeInfo = Collections.emptyList();
             }
 
             // check and write changes in indices

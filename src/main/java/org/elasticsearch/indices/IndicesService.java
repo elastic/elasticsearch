@@ -32,8 +32,6 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.bootstrap.Elasticsearch;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
@@ -70,6 +68,7 @@ import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -89,7 +88,10 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -204,6 +206,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                     case Refresh:
                         oldStats.refresh.add(oldShardsStats.refreshStats);
                         break;
+                    case Recovery:
+                        oldStats.recoveryStats.add(oldShardsStats.recoveryStats);
+                        break;
                     case Flush:
                         oldStats.flush.add(oldShardsStats.flushStats);
                         break;
@@ -227,6 +232,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                     }
                 } catch (IllegalIndexShardStateException e) {
                     // we can safely ignore illegal state on ones that are closing for example
+                    logger.trace("{} ignoring shard stats", e, indexShard.shardId());
                 }
             }
         }
@@ -416,6 +422,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         final MergeStats mergeStats = new MergeStats();
         final RefreshStats refreshStats = new RefreshStats();
         final FlushStats flushStats = new FlushStats();
+        final RecoveryStats recoveryStats = new RecoveryStats();
 
         @Override
         public synchronized void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
@@ -427,6 +434,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 mergeStats.add(indexShard.mergeStats());
                 refreshStats.add(indexShard.refreshStats());
                 flushStats.add(indexShard.flushStats());
+                recoveryStats.addAsOld(indexShard.recoveryStats());
             }
         }
     }

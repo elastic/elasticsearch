@@ -37,6 +37,7 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.percolator.stats.PercolateStats;
+import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.DocsStats;
@@ -116,6 +117,9 @@ public class CommonStats implements Streamable, ToXContent {
                 case QueryCache:
                     queryCache = new QueryCacheStats();
                     break;
+                case Recovery:
+                    recoveryStats = new RecoveryStats();
+                    break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
             }
@@ -182,6 +186,9 @@ public class CommonStats implements Streamable, ToXContent {
                 case QueryCache:
                     queryCache = indexShard.queryCache().stats();
                     break;
+                case Recovery:
+                    recoveryStats = indexShard.recoveryStats();
+                    break;
                 default:
                     throw new IllegalStateException("Unknown Flag: " + flag);
             }
@@ -241,6 +248,9 @@ public class CommonStats implements Streamable, ToXContent {
 
     @Nullable
     public QueryCacheStats queryCache;
+
+    @Nullable
+    public RecoveryStats recoveryStats;
 
     public void add(CommonStats stats) {
         if (docs == null) {
@@ -389,6 +399,14 @@ public class CommonStats implements Streamable, ToXContent {
         } else {
             queryCache.add(stats.getQueryCache());
         }
+        if (recoveryStats == null) {
+            if (stats.getRecoveryStats() != null) {
+                recoveryStats = new RecoveryStats();
+                recoveryStats.add(stats.getRecoveryStats());
+            }
+        } else {
+            recoveryStats.add(stats.getRecoveryStats());
+        }
     }
 
     @Nullable
@@ -481,6 +499,11 @@ public class CommonStats implements Streamable, ToXContent {
         return queryCache;
     }
 
+    @Nullable
+    public RecoveryStats getRecoveryStats() {
+        return recoveryStats;
+    }
+
     public static CommonStats readCommonStats(StreamInput in) throws IOException {
         CommonStats stats = new CommonStats();
         stats.readFrom(in);
@@ -567,6 +590,11 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             queryCache = in.readOptionalStreamable(new QueryCacheStats());
+        }
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            if (in.readBoolean()) {
+                recoveryStats = RecoveryStats.readRecoveryStats(in);
+            }
         }
     }
 
@@ -669,6 +697,9 @@ public class CommonStats implements Streamable, ToXContent {
         if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
             out.writeOptionalStreamable(queryCache);
         }
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            out.writeOptionalStreamable(recoveryStats);
+        }
     }
 
     // note, requires a wrapping object
@@ -727,6 +758,9 @@ public class CommonStats implements Streamable, ToXContent {
         }
         if (queryCache != null) {
             queryCache.toXContent(builder, params);
+        }
+        if (recoveryStats != null) {
+            recoveryStats.toXContent(builder, params);
         }
         return builder;
     }

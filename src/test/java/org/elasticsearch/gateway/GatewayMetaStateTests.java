@@ -136,9 +136,9 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
         }
         Iterator<GatewayMetaState.IndexMetaWriteInfo> indices;
         if (masterEligible) {
-            indices = indexMetaState.getIndicesToWriteMasterNode(event, inMemoryMetaData).iterator();
+            indices = indexMetaState.filterStatesOnMaster(event, inMemoryMetaData).iterator();
         } else {
-            indices = indexMetaState.getIndicesToWriteDataOnlyNode(event, inMemoryMetaData).iterator();
+            indices = indexMetaState.filterStateOnDataNode(event, inMemoryMetaData).iterator();
         }
         if (expectMetaData) {
             assertThat(indices.hasNext(), equalTo(true));

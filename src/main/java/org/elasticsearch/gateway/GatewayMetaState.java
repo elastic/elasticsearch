@@ -19,9 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,7 +26,9 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.DjbHashFunction;
+import org.elasticsearch.cluster.routing.HashFunction;
+import org.elasticsearch.cluster.routing.SimpleHashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -38,13 +37,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MultiDataPathUpgrader;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.Index;
 
-import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Collections;
 
 /**
  *
@@ -124,9 +121,9 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
             Iterable<IndexMetaWriteInfo> writeInfo;
             if (isDataOnlyNode(event.state())) {
-                writeInfo = indexMetaState.getIndicesToWriteDataOnlyNode(event, currentMetaData);
+                writeInfo = indexMetaState.filterStateOnDataNode(event, currentMetaData);
             } else if (isMasterEligibleNode(event.state())) {
-                writeInfo = indexMetaState.getIndicesToWriteMasterNode(event, currentMetaData);
+                writeInfo = indexMetaState.filterStatesOnMaster(event, currentMetaData);
             } else {
                 writeInfo = Collections.emptyList();
             }

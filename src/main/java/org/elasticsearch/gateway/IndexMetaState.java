@@ -51,7 +51,7 @@ public class IndexMetaState extends AbstractComponent {
         this.metaStateService = metaStateService;
     }
 
-    public Iterable<GatewayMetaState.IndexMetaWriteInfo> getIndicesToWriteDataOnlyNode(ClusterChangedEvent event, MetaData currentMetaData) {
+    public Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStateOnDataNode(ClusterChangedEvent event, MetaData currentMetaData) {
         Map<String, GatewayMetaState.IndexMetaWriteInfo> indicesToWrite = new HashMap<>();
         RoutingNode thisNode = event.state().getRoutingNodes().node(event.state().nodes().localNodeId());
         if (thisNode == null) {
@@ -82,7 +82,7 @@ public class IndexMetaState extends AbstractComponent {
         return indicesToWrite.values();
     }
 
-    public Iterable<GatewayMetaState.IndexMetaWriteInfo> getIndicesToWriteMasterNode(ClusterChangedEvent event, MetaData currentMetaData) {
+    public Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStatesOnMaster(ClusterChangedEvent event, MetaData currentMetaData) {
         Map<String, GatewayMetaState.IndexMetaWriteInfo> indicesToWrite = new HashMap<>();
         MetaData newMetaData = event.state().metaData();
         // iterate over all indices but only write if ...

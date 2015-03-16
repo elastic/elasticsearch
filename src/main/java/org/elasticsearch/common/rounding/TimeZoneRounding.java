@@ -157,7 +157,7 @@ public abstract class TimeZoneRounding extends Rounding {
         @Override
         public long roundKey(long utcMillis) {
             long local = preTz.convertUTCToLocal(utcMillis);
-            return preTz.convertLocalToUTC(field.roundFloor(local), true, utcMillis);
+            return preTz.convertLocalToUTC(field.roundFloor(local), false, utcMillis);
         }
 
         @Override
@@ -168,11 +168,11 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long nextRoundingValue(long time) {
-            long currentWithoutPostZone = postTz.convertLocalToUTC(time, true);
+            long currentWithoutPostZone = postTz.convertLocalToUTC(time, false);
             // we also need to correct for preTz because rounding takes place in local time zone
             long local = preTz.convertUTCToLocal(currentWithoutPostZone);
             long nextLocal = durationField.add(local, 1);
-            return postTz.convertUTCToLocal(preTz.convertLocalToUTC((nextLocal), true));
+            return postTz.convertUTCToLocal(preTz.convertLocalToUTC((nextLocal), false));
         }
 
         @Override
@@ -283,7 +283,7 @@ public abstract class TimeZoneRounding extends Rounding {
 
         @Override
         public long nextRoundingValue(long currentWithPostZone) {
-            long currentWithoutPostZone = postTz.convertLocalToUTC(currentWithPostZone, true);
+            long currentWithoutPostZone = postTz.convertLocalToUTC(currentWithPostZone, false);
             long nextWithoutPostZone = durationField.add(currentWithoutPostZone, 1);
             return postTz.convertUTCToLocal(nextWithoutPostZone);
         }
@@ -386,7 +386,7 @@ public abstract class TimeZoneRounding extends Rounding {
         public long valueForKey(long key) {
             long time = Rounding.Interval.roundValue(key, interval);
             // now, time is still in local, move it to UTC
-            time = preTz.convertLocalToUTC(time,  true);
+            time = preTz.convertLocalToUTC(time,  false);
             // now apply post Tz
             time = postTz.convertUTCToLocal(time);
             return time;

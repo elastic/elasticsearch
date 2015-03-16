@@ -32,6 +32,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.util.IOUtils;
@@ -73,7 +74,6 @@ import org.elasticsearch.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -84,9 +84,11 @@ import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
+import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.apache.lucene.util.AbstractRandomizedTest.CHILD_JVM_ID;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
@@ -95,7 +97,6 @@ import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.ElasticsearchTestCase.terminate;
 import static org.hamcrest.Matchers.*;
 
-@TestLogging("index.translog:TRACE")
 public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     public static final String TRANSLOG_PRIMARY_LOCATION = "work/fs-translog/JVM_" + CHILD_JVM_ID + "/primary";
@@ -1003,6 +1004,97 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         } catch (VersionConflictEngineException e) {
             // all is well
         }
+    }
+
+    public void testForceMerge() {
+        int numDocs = randomIntBetween(10, 100);
+        for (int i=0; i < numDocs; i++) {
+            ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), B_1, false);
+            Engine.Index index = new Engine.Index(null, newUid(Integer.toString(i)), doc);
+            engine.index(index);
+            engine.refresh("test");
+        }
+        try (Engine.Searcher test = engine.acquireSearcher("test")) {
+            assertEquals(numDocs, test.reader().numDocs());
+        }
+        engine.forceMerge(true, 1, false, false);
+        assertEquals(engine.segments(true).size(), 1);
+
+        ParsedDocument doc = testParsedDocument(Integer.toString(0), Integer.toString(0), "test", null, -1, -1, testDocument(), B_1, false);
+        Engine.Index index = new Engine.Index(null, newUid(Integer.toString(0)), doc);
+        engine.delete(new Engine.Delete(index.type(), index.id(), index.uid()));
+        engine.forceMerge(true, 10, true, false); //expunge deletes
+
+        assertEquals(engine.segments(true).size(), 1);
+        try (Engine.Searcher test = engine.acquireSearcher("test")) {
+            assertEquals(numDocs-1, test.reader().numDocs());
+            assertEquals(numDocs-1, test.reader().maxDoc());
+        }
+
+        doc = testParsedDocument(Integer.toString(1), Integer.toString(1), "test", null, -1, -1, testDocument(), B_1, false);
+        index = new Engine.Index(null, newUid(Integer.toString(1)), doc);
+        engine.delete(new Engine.Delete(index.type(), index.id(), index.uid()));
+        engine.forceMerge(true, 10, false, false); //expunge deletes
+
+        assertEquals(engine.segments(true).size(), 1);
+        try (Engine.Searcher test = engine.acquireSearcher("test")) {
+            assertEquals(numDocs-2, test.reader().numDocs());
+            assertEquals(numDocs-1, test.reader().maxDoc());
+        }
+    }
+
+    public void testForceMergeAndClose() throws IOException, InterruptedException {
+        int numIters = randomIntBetween(2, 10);
+        for (int j = 0; j < numIters; j++) {
+            try (Store store = createStore()) {
+                final Translog translog = createTranslog();
+                final InternalEngine engine = createEngine(store, translog);
+                final CountDownLatch startGun = new CountDownLatch(1);
+                final CountDownLatch indexed = new CountDownLatch(1);
+
+                Thread thread = new Thread() {
+                    public void run() {
+                        try {
+                            try {
+                                startGun.await();
+                            } catch (InterruptedException e) {
+                                throw new RuntimeException(e);
+                            }
+                            int i = 0;
+                            while (true) {
+                                int numDocs  = randomIntBetween(1, 20);
+                                for (int j = 0; j < numDocs; j++) {
+                                    i++;
+                                    ParsedDocument doc = testParsedDocument(Integer.toString(i), Integer.toString(i), "test", null, -1, -1, testDocument(), B_1, false);
+                                    Engine.Index index = new Engine.Index(null, newUid(Integer.toString(i)), doc);
+                                    engine.index(index);
+                                }
+                                engine.refresh("test");
+                                indexed.countDown();
+                                try {
+                                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean());
+                                } catch (ForceMergeFailedEngineException ex) {
+                                    // ok
+                                    return;
+                                }
+                            }
+                        } catch (AlreadyClosedException | EngineClosedException ex) {
+                            // fine
+                        }
+                    }
+                };
+
+                thread.start();
+                startGun.countDown();
+                int someIters = randomIntBetween(1, 10);
+                for (int i = 0; i < someIters; i++) {
+                    engine.forceMerge(randomBoolean(), 1, false, randomBoolean());
+                }
+                indexed.await();
+                IOUtils.close(engine, translog);
+            }
+        }
+
     }
 
     @Test

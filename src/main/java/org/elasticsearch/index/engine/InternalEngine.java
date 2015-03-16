@@ -52,7 +52,6 @@ import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -83,11 +82,11 @@ public class InternalEngine extends Engine {
     private final SearcherFactory searcherFactory;
     private final SearcherManager searcherManager;
 
-    private final AtomicBoolean optimizeMutex = new AtomicBoolean();
     // we use flushNeeded here, since if there are no changes, then the commit won't write
     // will not really happen, and then the commitUserData and the new translog will not be reflected
     private volatile boolean flushNeeded = false;
     private final Lock flushLock = new ReentrantLock();
+    private final ReentrantLock optimizeLock = new ReentrantLock();
 
     protected final FlushingRecoveryCounter onGoingRecoveries;
     // A uid (in the form of BytesRef) to the version map
@@ -710,58 +709,59 @@ public class InternalEngine extends Engine {
         lastDeleteVersionPruneTimeMSec = timeMSec;
     }
 
-    // TODO: can we please remove this method?!
-    private void waitForMerges(boolean flushAfter, boolean upgrade) {
-        try {
-            Method method = IndexWriter.class.getDeclaredMethod("waitForMerges");
-            method.setAccessible(true);
-            method.invoke(indexWriter);
-        } catch (ReflectiveOperationException e) {
-            throw new OptimizeFailedEngineException(shardId, e);
-        }
-        if (flushAfter) {
-            flush(true, true, true);
-        }
-        if (upgrade) {
-            logger.info("Finished upgrade of " + shardId);
-        }
-    }
-
     @Override
     public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, final boolean upgrade) throws EngineException {
-        if (optimizeMutex.compareAndSet(false, true)) {
-            try (ReleasableLock lock = readLock.acquire()) {
-                ensureOpen();
-                /*
-                 * The way we implement upgrades is a bit hackish in the sense that we set an instance
-                 * variable and that this setting will thus apply to the next forced merge that will be run.
-                 * This is ok because (1) this is the only place we call forceMerge, (2) we have a single
-                 * thread for optimize, and the 'optimizeMutex' guarding this code, and (3) ConcurrentMergeScheduler
-                 * syncs calls to findForcedMerges.
-                 */
-                MergePolicy mp = indexWriter.getConfig().getMergePolicy();
-                assert mp instanceof ElasticsearchMergePolicy : "MergePolicy is " + mp.getClass().getName();
-                if (upgrade) {
-                    logger.info("Starting upgrade of " + shardId);
-                    ((ElasticsearchMergePolicy) mp).setUpgradeInProgress(true);
-                }
-
+        /*
+         * We do NOT acquire the readlock here since we are waiting on the merges to finish
+         * that's fine since the IW.rollback should stop all the threads and trigger an IOException
+         * causing us to fail the forceMerge
+         *
+         * The way we implement upgrades is a bit hackish in the sense that we set an instance
+         * variable and that this setting will thus apply to the next forced merge that will be run.
+         * This is ok because (1) this is the only place we call forceMerge, (2) we have a single
+         * thread for optimize, and the 'optimizeLock' guarding this code, and (3) ConcurrentMergeScheduler
+         * syncs calls to findForcedMerges.
+         */
+        assert indexWriter.getConfig().getMergePolicy() instanceof ElasticsearchMergePolicy : "MergePolicy is " + indexWriter.getConfig().getMergePolicy().getClass().getName();
+        ElasticsearchMergePolicy mp = (ElasticsearchMergePolicy) indexWriter.getConfig().getMergePolicy();
+        optimizeLock.lock();
+        try {
+            ensureOpen();
+            if (upgrade) {
+                logger.info("starting segment upgrade");
+                mp.setUpgradeInProgress(true);
+            }
+            store.incRef(); // increment the ref just to ensure nobody closes the store while we optimize
+            try {
                 if (onlyExpungeDeletes) {
-                    indexWriter.forceMergeDeletes(false);
+                    assert upgrade == false;
+                    indexWriter.forceMergeDeletes(true /* blocks and waits for merges*/);
                 } else if (maxNumSegments <= 0) {
+                    assert upgrade == false;
                     indexWriter.maybeMerge();
                 } else {
-                    indexWriter.forceMerge(maxNumSegments, false);
+                    indexWriter.forceMerge(maxNumSegments, true /* blocks and waits for merges*/);
                 }
-            } catch (Throwable t) {
-                maybeFailEngine("optimize", t);
-                throw new OptimizeFailedEngineException(shardId, t);
+                if (flush) {
+                    flush(true, true, true);
+                }
+                if (upgrade) {
+                    logger.info("finished segment upgrade");
+                }
             } finally {
-                optimizeMutex.set(false);
+                store.decRef();
+            }
+        } catch (Throwable t) {
+            ForceMergeFailedEngineException ex = new ForceMergeFailedEngineException(shardId, t);
+            maybeFailEngine("force merge", ex);
+            throw ex;
+        } finally {
+            try {
+                mp.setUpgradeInProgress(false); // reset it just to make sure we reset it in a case of an error
+            } finally {
+                optimizeLock.unlock();
             }
         }
-
-        waitForMerges(flush, upgrade);
     }
 
     @Override

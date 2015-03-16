@@ -19,6 +19,7 @@ package org.elasticsearch.common.lucene.index;
 
 import org.apache.lucene.index.*;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FilterIterator;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 
@@ -203,14 +204,101 @@ public final class FieldSubsetReader extends FilterLeafReader {
         @Override
         public Terms terms(String field) throws IOException {
             if (FieldNamesFieldMapper.NAME.equals(field)) {
-                return super.terms(field); // nocommit: filter out terms/postings
+                Terms terms = super.terms(field);
+                if (terms != null) {
+                    terms = new FieldSubsetTerms(terms, fieldInfos);
+                }
+                return terms;
             } else if (hasField(field)) {
                 return super.terms(field);
             } else {
                 return null;
             }
         }
+    }
+    
+    static class FieldSubsetTerms extends FilterTerms {
+        final FieldInfos infos;
         
+        FieldSubsetTerms(Terms in, FieldInfos infos) {
+            super(in);
+            this.infos = infos;
+        }
+
+        @Override
+        public int getDocCount() throws IOException {
+            return -1;
+        }
+
+        @Override
+        public long getSumDocFreq() throws IOException {
+            return -1;
+        }
+
+        @Override
+        public long getSumTotalTermFreq() throws IOException {
+            return -1;
+        }
+
+        @Override
+        public TermsEnum iterator(TermsEnum reuse) throws IOException {
+            return new FieldSubsetTermsEnum(in.iterator(null), infos);
+        }
+
+        @Override
+        public long size() throws IOException {
+            return -1;
+        }
+    }
+    
+    static class FieldSubsetTermsEnum extends FilterTermsEnum {
+        final FieldInfos infos;
+        
+        FieldSubsetTermsEnum(TermsEnum in, FieldInfos infos) {
+            super(in);
+            this.infos = infos;
+        }
+        
+        /** Return true if term is accepted.
+         */
+        protected boolean accept(BytesRef term) throws IOException {
+            return infos.fieldInfo(term.utf8ToString()) != null;
+        }
+
+        @Override
+        public boolean seekExact(BytesRef term) throws IOException {
+            return accept(term) && in.seekExact(term);
+        }
+
+        @Override
+        public SeekStatus seekCeil(BytesRef term) throws IOException {
+            SeekStatus status = in.seekCeil(term);
+            if (status == SeekStatus.END || accept(term())) {
+                return status;
+            }
+            return next() == null ? SeekStatus.END : SeekStatus.NOT_FOUND;
+        }
+
+        @Override
+        public void seekExact(long ord) throws IOException {
+          throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long ord() throws IOException {
+          throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BytesRef next() throws IOException {
+            BytesRef next;
+            while ((next = in.next()) != null) {
+                if (accept(next)) {
+                    break;
+                }
+            }
+            return next;
+        }
     }
     
 }

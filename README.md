@@ -16,7 +16,8 @@ You need to install a version matching your Elasticsearch version:
 |       Elasticsearch    | Attachments Plugin|                                                             Docs                                                                   |
 |------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
 |    master              | Build from source | See below                                                                                                                          |
-|    es-1.x              | Build from source | [2.5.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/es-1.x/#version-250-snapshot-for-elasticsearch-1x)|
+|    es-1.x              | Build from source | [2.6.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/es-1.x/#version-260-snapshot-for-elasticsearch-1x)|
+|    es-1.5              | Build from source | [2.5.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/es-1.5/#version-250-snapshot-for-elasticsearch-15)|
 |    es-1.4              |     2.4.3         | [2.4.3](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.4.3/#version-243-for-elasticsearch-14)                  |
 |    es-1.3              |     2.3.2         | [2.3.2](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.3.2/#version-232-for-elasticsearch-13)                  |
 |    es-1.2              |     2.2.1         | [2.2.1](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.2.1/#version-221-for-elasticsearch-12)                  |

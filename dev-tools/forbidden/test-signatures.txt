@@ -1,2 +1,3 @@
 
 com.carrotsearch.randomizedtesting.RandomizedTest#globalTempDir() @ Use newTempDirPath() instead
+com.carrotsearch.randomizedtesting.annotations.Seed @ Don't commit hardcoded seeds

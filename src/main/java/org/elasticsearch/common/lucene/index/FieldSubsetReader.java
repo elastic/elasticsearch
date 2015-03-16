@@ -178,6 +178,18 @@ public final class FieldSubsetReader extends FilterLeafReader {
     public Bits getDocsWithField(String field) throws IOException {
         return hasField(field) ? super.getDocsWithField(field) : null;
     }
+    
+    // we share core cache keys (for e.g. fielddata)
+    
+    @Override
+    public Object getCombinedCoreAndDeletesKey() {
+        return in.getCombinedCoreAndDeletesKey();
+    }
+
+    @Override
+    public Object getCoreCacheKey() {
+        return in.getCoreCacheKey();
+    }
 
     private class FieldFilterFields extends FilterFields {
         

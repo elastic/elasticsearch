@@ -430,16 +430,16 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
             if (metadata.hasLegacyChecksum()) {
                 if (isUnreliableLegacyChecksum(metadata)) {
                     logger.debug("create legacy length-only output for non-write-once file {}", fileName);
-                    output = new LegacyVerification.LengthVerifyingIndexOutput(output, metadata.length());
+                    output = new LegacyVerification.LengthVerifyingIndexOutput(output, metadata.name(), metadata.length());
                 } else {
                     logger.debug("create legacy adler32 output for {}", fileName);
-                    output = new LegacyVerification.Adler32VerifyingIndexOutput(output, metadata.checksum(), metadata.length());
+                    output = new LegacyVerification.Adler32VerifyingIndexOutput(output, metadata.name(), metadata.checksum(), metadata.length());
                 }
             } else if (metadata.checksum() == null) {
                 // TODO: when the file is a segments_N, we can still CRC-32 + length for more safety
                 // its had that checksum forever.
                 logger.debug("create legacy length-only output for {}", fileName);
-                output = new LegacyVerification.LengthVerifyingIndexOutput(output, metadata.length());
+                output = new LegacyVerification.LengthVerifyingIndexOutput(output, metadata.name(), metadata.length());
             } else {
                 assert metadata.writtenBy() != null;
                 assert metadata.writtenBy().onOrAfter(Version.LUCENE_48);
@@ -1214,7 +1214,7 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
         private String actualChecksum;
 
         LuceneVerifyingIndexOutput(StoreFileMetaData metadata, IndexOutput out) {
-            super(out);
+            super(out, metadata.name());
             this.metadata = metadata;
             checksumPosition = metadata.length() - 8; // the last 8 bytes are the checksum
         }

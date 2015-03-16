@@ -115,14 +115,15 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                     }
                                     indices.put(indexMetaData.index(), indexService);
                                 }
-
                                 aliasValidator.validateAliasFilter(aliasAction.alias(), filter, indexService.queryParserService());
+                                aliasValidator.validateAliasFields(aliasAction.fields(), indexService.mapperService());
                             }
                             AliasMetaData newAliasMd = AliasMetaData.newAliasMetaDataBuilder(
                                     aliasAction.alias())
                                     .filter(filter)
                                     .indexRouting(aliasAction.indexRouting())
                                     .searchRouting(aliasAction.searchRouting())
+                                    .fields(aliasAction.fields())
                                     .build();
                             // Check if this alias already exists
                             AliasMetaData aliasMd = indexMetaData.aliases().get(aliasAction.alias());

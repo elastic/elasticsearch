@@ -85,7 +85,7 @@ public class AliasMetaData {
     }
 
     public boolean filteringRequired() {
-        return filter != null;
+        return filter != null || fields != null;
     }
 
     public String getSearchRouting() {

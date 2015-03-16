@@ -178,7 +178,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
     public Bits getDocsWithField(String field) throws IOException {
         return hasField(field) ? super.getDocsWithField(field) : null;
     }
-    
+
     private class FieldFilterFields extends FilterFields {
         
         public FieldFilterFields(Fields in) {

@@ -62,6 +62,17 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<Ind
     /**
      * Adds an alias to the index.
      *
+     * @param indices The indices
+     * @param alias The alias
+     */
+    public IndicesAliasesRequestBuilder addAlias(String[] indices, String alias, String filter, String... fields) {
+        request.addAlias(alias, indices, filter, fields);
+        return this;
+    }
+
+    /**
+     * Adds an alias to the index.
+     *
      * @param index  The index
      * @param alias  The alias
      * @param filter The filter

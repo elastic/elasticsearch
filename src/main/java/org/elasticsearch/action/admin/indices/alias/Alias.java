@@ -159,12 +159,13 @@ public class Alias implements Streamable {
         return this;
     }
 
-    public String[] getFields() {
+    public String[] fields() {
         return fields;
     }
 
-    public void setFields(String[] fields) {
+    public Alias fields(String... fields) {
         this.fields = fields;
+        return this;
     }
 
     /**
@@ -230,7 +231,7 @@ public class Alias implements Streamable {
                         throw new ElasticsearchParseException("Numeric value expected");
                     }
                 }
-                alias.setFields(fields.toArray(new String[0]));
+                alias.fields(fields.toArray(new String[0]));
             }
         }
         return alias;

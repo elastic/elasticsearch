@@ -28,6 +28,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.FieldMappers;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.InvalidAliasNameException;
@@ -140,6 +142,15 @@ public class AliasValidator extends AbstractComponent {
             validateAliasFilter(parser, indexQueryParserService);
         } catch (Throwable e) {
             throw new ElasticsearchIllegalArgumentException("failed to parse filter for alias [" + alias + "]", e);
+        }
+    }
+
+    public void validateAliasFields(String[] fields, MapperService mapperService) {
+        for (String field : fields) {
+            FieldMappers fieldMappers = mapperService.fullName(field);
+            if (fieldMappers.isEmpty()) {
+                throw new ElasticsearchIllegalArgumentException("field [" + field + "] doesn't exist");
+            }
         }
     }
 

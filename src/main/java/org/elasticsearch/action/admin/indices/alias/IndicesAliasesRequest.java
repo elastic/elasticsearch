@@ -118,6 +118,11 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return this;
         }
 
+        public AliasActions fields(String... fields) {
+            aliasAction.fields(fields);
+            return this;
+        }
+
         public Type actionType() {
             return aliasAction.actionType();
         }
@@ -217,6 +222,10 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         return this;
     }
 
+    public IndicesAliasesRequest addAlias(String alias, String[] indices, String filter, String... fields) {
+        addAliasAction(new AliasActions(AliasAction.Type.ADD, indices, alias).filter(filter).fields(fields));
+        return this;
+    }
 
     public void addAliasAction(AliasActions aliasAction) {
         allAliasActions.add(aliasAction);

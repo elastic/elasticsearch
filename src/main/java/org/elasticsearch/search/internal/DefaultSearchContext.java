@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.ElasticsearchException;
@@ -28,6 +29,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.lucene.index.FieldSubsetReader;
 import org.elasticsearch.common.lucene.search.AndFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
@@ -42,6 +44,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -195,8 +198,11 @@ public class DefaultSearchContext extends SearchContext {
 
         Set<String> fields = indexService.aliasesService().aliasFields(request.filteringAliases());
         if (fields != null) {
+            // Always include _uid field:
+            fields.add(UidFieldMapper.NAME);
             try {
-                this.searcher = new ContextIndexSearcher(this, engineSearcher, fields);
+                DirectoryReader filter = FieldSubsetReader.wrap((DirectoryReader) engineSearcher.searcher().getIndexReader(), fields);
+                this.searcher = new ContextIndexSearcher(this, engineSearcher, filter);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

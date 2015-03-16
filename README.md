@@ -14,7 +14,8 @@ You need to install a version matching your Elasticsearch version:
 |       Elasticsearch    | GCE Cloud Plugin  |                                                             Docs                                                                   |
 |------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
 |    master              | Build from source | See below                                                                                                                          |
-|    es-1.x              | Build from source | [2.5.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-gce/tree/es-1.x/#google-compute-engine-cloud-plugin-for-elasticsearch)|
+|    es-1.x              | Build from source | [2.6.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-gce/tree/es-1.x/#google-compute-engine-cloud-plugin-for-elasticsearch)|
+|    es-1.5              | Build from source | [2.5.0-SNAPSHOT](https://github.com/elasticsearch/elasticsearch-cloud-gce/tree/es-1.5/#google-compute-engine-cloud-plugin-for-elasticsearch)|
 |    es-1.4              |     2.4.1         | [2.4.1](https://github.com/elasticsearch/elasticsearch-cloud-gce/tree/v2.4.1/#version-241-for-elasticsearch-14)                  |
 |    es-1.3              |     2.3.0         | [2.3.0](https://github.com/elasticsearch/elasticsearch-cloud-gce/tree/v2.3.0/#version-230-for-elasticsearch-13)                  |
 |    es-1.2              |     2.2.0         | [2.2.0](https://github.com/elasticsearch/elasticsearch-cloud-gce/tree/v2.2.0/#google-compute-engine-cloud-plugin-for-elasticsearch)|

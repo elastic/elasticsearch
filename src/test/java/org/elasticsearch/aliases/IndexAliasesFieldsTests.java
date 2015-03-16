@@ -107,6 +107,29 @@ public class IndexAliasesFieldsTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
+    public void testSource() throws Exception {
+        createIndex("test", client().admin().indices().prepareCreate("test")
+                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+                        .addAlias(new Alias("alias1").fields("field2"))
+        );
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+                .setRefresh(true)
+                .get();
+
+        SearchResponse response = client().prepareSearch("test").get();
+        assertThat((String) response.getHits().getAt(0).sourceAsMap().get("field1"), equalTo("value1"));
+        response = client().prepareSearch("alias1").get();
+        assertThat(response.getHits().getAt(0).sourceAsMap().get("field1"), nullValue());
+
+        client().admin().indices().prepareAliases().addAlias(new String[] {"test"}, "alias2", null, "field1").get();
+
+        response = client().prepareSearch("test").get();
+        assertThat((String) response.getHits().getAt(0).sourceAsMap().get("field2"), equalTo("value2"));
+        response = client().prepareSearch("alias2").get();
+        assertThat(response.getHits().getAt(0).sourceAsMap().get("field2"), nullValue());
+    }
+
+    @Test
     public void testSort() throws Exception {
         createIndex("test", client().admin().indices().prepareCreate("test")
                         .addMapping("type1", "field1", "type=long", "field2", "type=long")

@@ -44,6 +44,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
@@ -206,6 +207,7 @@ public class DefaultSearchContext extends SearchContext {
             // Always include _uid field:
             // no push: add other meta fields
             indexedFieldNames.add(UidFieldMapper.NAME);
+            indexedFieldNames.add(SourceFieldMapper.NAME);
             try {
                 DirectoryReader filter = FieldSubsetReader.wrap((DirectoryReader) engineSearcher.searcher().getIndexReader(), indexedFieldNames, fullFieldNames);
                 this.searcher = new ContextIndexSearcher(this, engineSearcher, filter);

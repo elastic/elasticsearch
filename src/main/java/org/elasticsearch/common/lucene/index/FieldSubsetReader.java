@@ -21,11 +21,18 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FilterIterator;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -41,33 +48,36 @@ public final class FieldSubsetReader extends FilterLeafReader {
      * and so on. 
      */
     public static DirectoryReader wrap(DirectoryReader in, Set<String> indexedFieldNames, Set<String> fullFieldNames) throws IOException {
-        return new FieldSubsetDirectoryReader(in, indexedFieldNames);
+        return new FieldSubsetDirectoryReader(in, indexedFieldNames, fullFieldNames);
     }
     
     // wraps subreaders with fieldsubsetreaders.
     static class FieldSubsetDirectoryReader extends FilterDirectoryReader {
         final Set<String> fields;
+        final Set<String> fullFieldNames;
         
-        public FieldSubsetDirectoryReader(DirectoryReader in, final Set<String> fields) throws IOException  {
+        public FieldSubsetDirectoryReader(DirectoryReader in, final Set<String> fields, final Set<String> fullFieldNames) throws IOException  {
             super(in, new FilterDirectoryReader.SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
-                    return new FieldSubsetReader(reader, fields);
+                    return new FieldSubsetReader(reader, fields, fullFieldNames);
                 }
             });
             this.fields = fields;
+            this.fullFieldNames = fullFieldNames;
         }
         
         @Override
         protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new FieldSubsetDirectoryReader(in, fields);
+            return new FieldSubsetDirectoryReader(in, fields, fullFieldNames);
         }
     }
     
     // nocommit: special handling for _source and _field_names.
     private final FieldInfos fieldInfos;
+    private final String[] fullFieldNames;
     
-    public FieldSubsetReader(LeafReader in, Set<String> fields) {
+    public FieldSubsetReader(LeafReader in, Set<String> fields, Set<String> fullFieldNames) {
         super(in);
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
@@ -76,6 +86,11 @@ public final class FieldSubsetReader extends FilterLeafReader {
             }
         }
         fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
+        if (fullFieldNames != null) {
+            this.fullFieldNames = fullFieldNames.toArray(new String[0]);
+        } else {
+            this.fullFieldNames = null;
+        }
     }
     
     boolean hasField(String field) {
@@ -103,7 +118,14 @@ public final class FieldSubsetReader extends FilterLeafReader {
         super.document(docID, new StoredFieldVisitor() {
             @Override
             public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
-                visitor.binaryField(fieldInfo, value);
+                if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
+                    Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(value, true);
+                    Map<String, Object> transformedSource = XContentMapValues.filter(result.v2(), fullFieldNames, null);
+                    XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
+                    visitor.binaryField(fieldInfo, xContentBuilder.bytes().toBytes());
+                } else {
+                    visitor.binaryField(fieldInfo, value);
+                }
             }
             
             @Override

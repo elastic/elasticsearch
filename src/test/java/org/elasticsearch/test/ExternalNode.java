@@ -43,7 +43,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import static junit.framework.Assert.assertFalse;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
@@ -141,6 +140,7 @@ final class ExternalNode implements Closeable {
             if (waitForNode(client, nodeName)) {
                 nodeInfo = nodeInfo(client, nodeName);
                 assert nodeInfo != null;
+                logger.debug("external node {} found, version [{}], build {}", nodeInfo.getNode(), nodeInfo.getVersion(), nodeInfo.getBuild());
             } else {
                 throw new IllegalStateException("Node [" + nodeName + "] didn't join the cluster");
             }

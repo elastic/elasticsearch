@@ -1255,7 +1255,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      */
     protected OptimizeResponse optimize() {
         waitForRelocation();
-        OptimizeResponse actionGet = client().admin().indices().prepareOptimize().setForce(randomBoolean()).execute().actionGet();
+        OptimizeResponse actionGet = client().admin().indices().prepareOptimize().setMaxNumSegments(1).setForce(randomBoolean()).execute().actionGet();
         assertNoFailures(actionGet);
         return actionGet;
     }

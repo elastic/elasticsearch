@@ -27,6 +27,6 @@ import org.elasticsearch.index.shard.ShardId;
 public class OptimizeFailedEngineException extends EngineException {
 
     public OptimizeFailedEngineException(ShardId shardId, Throwable t) {
-        super(shardId, "Optimize failed", t);
+        super(shardId, "force merge failed", t);
     }
 }

@@ -1882,7 +1882,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "child", "c1").setParent("p1").setSource("c_field", "blue").get();
         client().prepareIndex("test", "child", "c2").setParent("p1").setSource("c_field", "red").get();
         client().prepareIndex("test", "child", "c3").setParent("p2").setSource("c_field", "red").get();
-        client().admin().indices().prepareOptimize("test").setFlush(true).get();
+        client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).setFlush(true).get();
         client().prepareIndex("test", "parent", "p3").setSource("p_field", "p_value3").get();
         client().prepareIndex("test", "parent", "p4").setSource("p_field", "p_value4").get();
         client().prepareIndex("test", "child", "c4").setParent("p3").setSource("c_field", "green").get();

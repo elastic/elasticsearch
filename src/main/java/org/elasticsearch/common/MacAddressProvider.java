@@ -68,6 +68,9 @@ public class MacAddressProvider {
         } catch( SocketException se ) {
             logger.warn("Unable to get mac address, will use a dummy address", se);
             // address will be set below
+        } catch (Error e) {
+            //Apparently Azure WebJobs return java.lang.Error when trying to get the macaddress
+            logger.warn("unable to get mac address, will use a dummy address", e);
         }
 
         if (!isValidAddress(address)) {

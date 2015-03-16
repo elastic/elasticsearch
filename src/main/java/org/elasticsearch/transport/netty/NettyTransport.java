@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.netty;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -605,6 +606,18 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
             ctx.getChannel().close();
             disconnectFromNodeChannel(ctx.getChannel(), e.getCause());
+        } else if (e.getCause() instanceof SizeHeaderFrameDecoder.HttpOnTransportException) {
+            // in case we are able to return data, serialize the exception content and sent it back to the client
+            if (ctx.getChannel().isOpen()) {
+                ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(e.getCause().getMessage().getBytes(Charsets.UTF_8));
+                ChannelFuture channelFuture = ctx.getChannel().write(buffer);
+                channelFuture.addListener(new ChannelFutureListener() {
+                    @Override
+                    public void operationComplete(ChannelFuture future) throws Exception {
+                        future.getChannel().close();
+                    }
+                });
+            }
         } else {
             logger.warn("exception caught on transport layer [{}], closing connection", e.getCause(), ctx.getChannel());
             // close the channel, which will cause a node to be disconnected if relevant

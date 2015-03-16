@@ -30,10 +30,12 @@ import org.apache.lucene.store.IndexOutput;
 // do NOT optimize this class for performance
 public abstract class VerifyingIndexOutput extends IndexOutput {
     protected final IndexOutput out;
-    
+    private final String name;
+
     /** Sole constructor */
-    VerifyingIndexOutput(IndexOutput out) {
+    VerifyingIndexOutput(IndexOutput out, String name) {
         this.out = out;
+        this.name = name;
     }
     
     /**
@@ -68,5 +70,16 @@ public abstract class VerifyingIndexOutput extends IndexOutput {
     @Override
     public final long length() throws IOException {
         return out.length();
+    }
+
+    /**
+     * Returns the name of the resource to verfiy
+     */
+    public final String getName() {
+        return name;
+    }
+
+    public final String toString() {
+        return "(resource=" + out + ")(name=" + name + ")"; // out.toString is buggy in 4.10.x so we also append the name here to see which file we verify
     }
 }

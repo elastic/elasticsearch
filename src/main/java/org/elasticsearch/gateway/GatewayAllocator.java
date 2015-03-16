@@ -118,8 +118,8 @@ public class GatewayAllocator extends AbstractComponent {
             if (!routingNodes.routingTable().index(shard.index()).shard(shard.id()).primaryAllocatedPostApi()) {
                 continue;
             }
-
-            ObjectLongOpenHashMap<DiscoveryNode> nodesState = buildShardStates(nodes, shard);
+            final String indexUUID = allocation.metaData().index(shard.index()).getUUID();
+            ObjectLongOpenHashMap<DiscoveryNode> nodesState = buildShardStates(nodes, shard, indexUUID);
 
             int numberOfAllocationsFound = 0;
             long highestVersion = -1;
@@ -370,7 +370,7 @@ public class GatewayAllocator extends AbstractComponent {
         return changed;
     }
 
-    private ObjectLongOpenHashMap<DiscoveryNode> buildShardStates(final DiscoveryNodes nodes, MutableShardRouting shard) {
+    private ObjectLongOpenHashMap<DiscoveryNode> buildShardStates(final DiscoveryNodes nodes, MutableShardRouting shard, String indexUUID) {
         ObjectLongOpenHashMap<DiscoveryNode> shardStates = cachedShardsState.get(shard.shardId());
         ObjectOpenHashSet<String> nodeIds;
         if (shardStates == null) {
@@ -399,7 +399,7 @@ public class GatewayAllocator extends AbstractComponent {
         }
 
         String[] nodesIdsArray = nodeIds.toArray(String.class);
-        TransportNodesListGatewayStartedShards.NodesGatewayStartedShards response = listGatewayStartedShards.list(shard.shardId(), nodesIdsArray, listTimeout).actionGet();
+        TransportNodesListGatewayStartedShards.NodesGatewayStartedShards response = listGatewayStartedShards.list(shard.shardId(), indexUUID, nodesIdsArray, listTimeout).actionGet();
         logListActionFailures(shard, "state", response.failures());
 
         for (TransportNodesListGatewayStartedShards.NodeGatewayStartedShards nodeShardState : response) {

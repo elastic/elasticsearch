@@ -40,6 +40,8 @@ public class TranslogStats implements ToXContent, Streamable {
     public TranslogStats() {}
 
     public TranslogStats(int estimatedNumberOfOperations, long translogSizeInBytes) {
+        assert estimatedNumberOfOperations >= 0 : "estimatedNumberOfOperations must be >=0, got [" + estimatedNumberOfOperations + "]";
+        assert translogSizeInBytes >= 0 : "translogSizeInBytes must be >=0, got [" + translogSizeInBytes + "]";
         this.estimatedNumberOfOperations = estimatedNumberOfOperations;
         this.translogSizeInBytes = translogSizeInBytes;
     }
@@ -80,16 +82,16 @@ public class TranslogStats implements ToXContent, Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         estimatedNumberOfOperations = in.readVInt();
-        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
-            translogSizeInBytes = in.readLong();
+        if (in.getVersion().onOrAfter(Version.V_1_4_5)) {
+            translogSizeInBytes = in.readVLong();
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(estimatedNumberOfOperations);
-        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
-            out.writeLong(translogSizeInBytes);
+        if (out.getVersion().onOrAfter(Version.V_1_4_5)) {
+            out.writeVLong(translogSizeInBytes);
         }
     }
 }

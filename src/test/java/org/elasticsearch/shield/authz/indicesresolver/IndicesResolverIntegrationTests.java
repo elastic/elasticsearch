@@ -16,6 +16,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.shield.authz.AuthorizationException;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.elasticsearch.test.ShieldSettingsSource;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -26,6 +27,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.CoreMatchers.*;
 
 @ClusterScope(scope = Scope.SUITE)
+@TestLogging("cluster.routing.allocation:TRACE")
 public class IndicesResolverIntegrationTests extends ShieldIntegrationTest {
 
     @Override

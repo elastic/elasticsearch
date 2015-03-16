@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
@@ -48,12 +47,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.query.parser.QueryParserCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.FieldMappers;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MapperBuilders;
-import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
@@ -224,6 +218,11 @@ public class QueryParseContext {
     public Filter cacheFilter(Filter filter, final @Nullable HashedBytesRef cacheKey, final FilterCachingPolicy cachePolicy) {
         if (filter == null) {
             return null;
+        }
+        // TODO: not happy with using SearchContext here, but passing down the alias fields (or the fact that it is being used) makes it messier
+        SearchContext sc = SearchContext.current();
+        if (sc != null && sc.aliasFields() != null && !sc.aliasFields().isEmpty()) {
+            return filter;
         }
         if (this.disableFilterCaching || this.propagateNoCache || filter instanceof NoCacheFilter) {
             return filter;

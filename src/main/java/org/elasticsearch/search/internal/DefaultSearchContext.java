@@ -174,6 +174,8 @@ public class DefaultSearchContext extends SearchContext {
 
     private InnerHitsContext innerHitsContext;
 
+    private Set<FieldMapper> aliasFields;
+
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
                          ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
@@ -193,15 +195,16 @@ public class DefaultSearchContext extends SearchContext {
         this.indexShard = indexShard;
         this.indexService = indexService;
 
-        Set<FieldMapper> fields = indexService.aliasesService().aliasFields(request.filteringAliases());
-        if (fields != null) {
+        aliasFields = indexService.aliasesService().aliasFields(request.filteringAliases());
+        if (aliasFields != null) {
             Set<String> indexedFieldNames = new HashSet<>();
             Set<String> fullFieldNames = new HashSet<>();
-            for (FieldMapper field : fields) {
+            for (FieldMapper field : aliasFields) {
                 indexedFieldNames.add(field.names().indexName());
                 fullFieldNames.add(field.names().fullName());
             }
             // Always include _uid field:
+            // no push: add other meta fields
             indexedFieldNames.add(UidFieldMapper.NAME);
             try {
                 DirectoryReader filter = FieldSubsetReader.wrap((DirectoryReader) engineSearcher.searcher().getIndexReader(), indexedFieldNames, fullFieldNames);
@@ -806,5 +809,9 @@ public class DefaultSearchContext extends SearchContext {
     @Override
     public InnerHitsContext innerHits() {
         return innerHitsContext;
+    }
+
+    public Set<FieldMapper> aliasFields() {
+        return aliasFields;
     }
 }

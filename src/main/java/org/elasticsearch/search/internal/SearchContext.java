@@ -66,6 +66,7 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -162,6 +163,8 @@ public abstract class SearchContext implements Releasable {
     public abstract void innerHits(InnerHitsContext innerHitsContext);
 
     public abstract InnerHitsContext innerHits();
+
+    public abstract Set<FieldMapper> aliasFields();
 
     public abstract SuggestionSearchContext suggest();
 

@@ -69,6 +69,7 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -689,4 +690,8 @@ public class PercolateContext extends SearchContext {
         throw new UnsupportedOperationException();
     }
 
+    @Override
+    public Set<FieldMapper> aliasFields() {
+        throw new UnsupportedOperationException("percolator doesn't support alias fields");
+    }
 }

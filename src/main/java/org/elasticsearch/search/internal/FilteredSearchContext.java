@@ -57,6 +57,7 @@ import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
+import java.util.Set;
 
 /**
  */
@@ -563,4 +564,8 @@ public abstract class FilteredSearchContext extends SearchContext {
         return in.timeEstimateCounter();
     }
 
+    @Override
+    public Set<FieldMapper> aliasFields() {
+        return in.aliasFields();
+    }
 }

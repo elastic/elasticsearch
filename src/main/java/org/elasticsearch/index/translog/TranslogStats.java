@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -51,6 +53,14 @@ public class TranslogStats implements ToXContent, Streamable {
         this.translogSizeInBytes =+ translogStats.translogSizeInBytes;
     }
 
+    public ByteSizeValue translogSizeInBytes() {
+        return new ByteSizeValue(translogSizeInBytes);
+    }
+
+    public long estimatedNumberOfOperations() {
+        return estimatedNumberOfOperations;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.TRANSLOG);
@@ -70,10 +80,16 @@ public class TranslogStats implements ToXContent, Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         estimatedNumberOfOperations = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+            translogSizeInBytes = in.readLong();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(estimatedNumberOfOperations);
+        if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+            out.writeLong(translogSizeInBytes);
+        }
     }
 }

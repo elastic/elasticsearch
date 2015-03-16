@@ -40,8 +40,8 @@ public final class FieldSubsetReader extends FilterLeafReader {
      * can be used normally (e.g. passed to {@link DirectoryReader#openIfChanged(DirectoryReader)})
      * and so on. 
      */
-    public static DirectoryReader wrap(DirectoryReader in, Set<String> fields) throws IOException {
-        return new FieldSubsetDirectoryReader(in, fields);
+    public static DirectoryReader wrap(DirectoryReader in, Set<String> indexedFieldNames, Set<String> fullFieldNames) throws IOException {
+        return new FieldSubsetDirectoryReader(in, indexedFieldNames);
     }
     
     // wraps subreaders with fieldsubsetreaders.

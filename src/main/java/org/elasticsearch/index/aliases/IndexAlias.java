@@ -22,6 +22,7 @@ package org.elasticsearch.index.aliases;
 import org.apache.lucene.search.Filter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedString;
+import org.elasticsearch.index.mapper.FieldMapper;
 
 /**
  *
@@ -34,9 +35,9 @@ public class IndexAlias {
 
     private Filter parsedFilter;
 
-    private String[] fields;
+    private FieldMapper[] fields;
 
-    public IndexAlias(String alias, @Nullable CompressedString filter, @Nullable Filter parsedFilter, @Nullable String[] fields) {
+    public IndexAlias(String alias, @Nullable CompressedString filter, @Nullable Filter parsedFilter, @Nullable FieldMapper[] fields) {
         this.alias = alias;
         this.filter = filter;
         this.parsedFilter = parsedFilter;
@@ -57,7 +58,7 @@ public class IndexAlias {
         return parsedFilter;
     }
 
-    public String[] getFields() {
+    public FieldMapper[] getFields() {
         return fields;
     }
 }

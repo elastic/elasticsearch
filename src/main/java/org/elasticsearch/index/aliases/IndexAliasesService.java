@@ -33,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -64,7 +65,7 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
         return aliases.get(alias);
     }
 
-    public IndexAlias create(String alias, @Nullable CompressedString filter, String[] fields) {
+    public IndexAlias create(String alias, @Nullable CompressedString filter, FieldMapper[] fields) {
         return new IndexAlias(alias, filter, parse(alias, filter), fields);
     }
 
@@ -119,7 +120,7 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
         }
     }
 
-    public Set<String> aliasFields(String... aliases) {
+    public Set<FieldMapper> aliasFields(String... aliases) {
         if (aliases == null || aliases.length == 0) {
             return null;
         }
@@ -132,7 +133,7 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
             return Sets.newHashSet(indexAlias.getFields());
         } else {
             // we need to bench here a bit, to see maybe it makes sense to use OrFilter
-            Set<String> fields = new HashSet<>();
+            Set<FieldMapper> fields = new HashSet<>();
             for (String alias : aliases) {
                 IndexAlias indexAlias = alias(alias);
                 if (indexAlias == null) {

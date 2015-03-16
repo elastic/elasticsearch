@@ -56,6 +56,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -464,7 +465,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     continue;
                 }
                 IndexAliasesService indexAliasesService = indexService.aliasesService();
-                processAliases(index, indexMetaData.aliases().values(), indexAliasesService);
+                processAliases(index, indexMetaData.aliases().values(), indexService);
                 // go over and remove aliases
                 for (IndexAlias indexAlias : indexAliasesService) {
                     if (!indexMetaData.aliases().containsKey(indexAlias.alias())) {
@@ -476,13 +477,23 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
     }
 
-    private void processAliases(String index, ObjectContainer<AliasMetaData> aliases, IndexAliasesService indexAliasesService) {
+    private void processAliases(String index, ObjectContainer<AliasMetaData> aliases, IndexService indexService) {
+        IndexAliasesService indexAliasesService = indexService.aliasesService();
+        MapperService mapperService = indexService.mapperService();
         HashMap<String, IndexAlias> newAliases = newHashMap();
         for (ObjectCursor<AliasMetaData> cursor : aliases) {
             AliasMetaData aliasMd = cursor.value;
             String alias = aliasMd.alias();
             CompressedString filter = aliasMd.filter();
-            String[] fields = aliasMd.getFields();
+            final FieldMapper[] fields;
+            if (aliasMd.getFields().length == 0) {
+                fields = null;
+            } else {
+                fields = new FieldMapper[aliasMd.getFields().length];
+                for (int i = 0; i < fields.length; i++) {
+                    fields[i] = mapperService.smartNameFieldMapper(aliasMd.getFields()[i]);
+                }
+            }
             try {
                 if (!indexAliasesService.hasAlias(alias)) {
                     if (logger.isDebugEnabled()) {

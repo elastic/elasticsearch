@@ -69,10 +69,7 @@ import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
  *
@@ -196,12 +193,18 @@ public class DefaultSearchContext extends SearchContext {
         this.indexShard = indexShard;
         this.indexService = indexService;
 
-        Set<String> fields = indexService.aliasesService().aliasFields(request.filteringAliases());
+        Set<FieldMapper> fields = indexService.aliasesService().aliasFields(request.filteringAliases());
         if (fields != null) {
+            Set<String> indexedFieldNames = new HashSet<>();
+            Set<String> fullFieldNames = new HashSet<>();
+            for (FieldMapper field : fields) {
+                indexedFieldNames.add(field.names().indexName());
+                fullFieldNames.add(field.names().fullName());
+            }
             // Always include _uid field:
-            fields.add(UidFieldMapper.NAME);
+            indexedFieldNames.add(UidFieldMapper.NAME);
             try {
-                DirectoryReader filter = FieldSubsetReader.wrap((DirectoryReader) engineSearcher.searcher().getIndexReader(), fields);
+                DirectoryReader filter = FieldSubsetReader.wrap((DirectoryReader) engineSearcher.searcher().getIndexReader(), indexedFieldNames, fullFieldNames);
                 this.searcher = new ContextIndexSearcher(this, engineSearcher, filter);
             } catch (IOException e) {
                 throw new RuntimeException(e);

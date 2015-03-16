@@ -33,9 +33,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 
 import java.util.Collections;
@@ -57,7 +55,7 @@ public class FieldSubsetReaderTests extends ElasticsearchLuceneTestCase {
         iw.addDocument(doc);
         
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw, true), Collections.singleton("fieldA"));
+        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw, true), Collections.singleton("fieldA"), null);
         
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
@@ -84,7 +82,7 @@ public class FieldSubsetReaderTests extends ElasticsearchLuceneTestCase {
         iw.addDocument(doc);
         
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw, true), Collections.singleton("fieldA"));
+        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw, true), Collections.singleton("fieldA"), null);
         
         // see only one field
         LeafReader segmentReader = ir.leaves().get(0).reader();
@@ -114,7 +112,7 @@ public class FieldSubsetReaderTests extends ElasticsearchLuceneTestCase {
         iw.addDocument(doc);
         
         // open reader
-        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw, true), Collections.singleton("id"));
+        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw, true), Collections.singleton("id"), null);
         assertEquals(2, ir.numDocs());
         assertEquals(1, ir.leaves().size());
 

@@ -61,6 +61,11 @@ public final class DisabledIndexFieldData extends AbstractIndexFieldData<AtomicF
         throw fail();
     }
 
+    @Override
+    protected AtomicFieldData empty(int maxDoc) {
+        throw fail();
+    }
+
     private ElasticsearchIllegalStateException fail() {
         return new ElasticsearchIllegalStateException("Field data loading is forbidden on " + getFieldNames().name());
     }

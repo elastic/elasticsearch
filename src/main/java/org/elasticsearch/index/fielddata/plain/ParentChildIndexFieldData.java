@@ -210,6 +210,11 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
     }
 
+    @Override
+    protected AtomicParentChildFieldData empty(int maxDoc) {
+        return new ParentChildAtomicFieldData(ImmutableOpenMap.<String, AtomicOrdinalsFieldData>of());
+    }
+
     class TypeBuilder {
 
         final PagedBytes bytes;

@@ -21,6 +21,9 @@ package org.elasticsearch.aliases;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
@@ -77,6 +80,54 @@ public class IndexAliasesFieldsTests extends ElasticsearchSingleNodeTest {
         assertThat(response.getHits().getAt(0).fields().get("field2").<String>getValue(), equalTo("value2"));
         response = client().prepareSearch("alias2").addField("field2").get();
         assertThat(response.getHits().getAt(0).fields().get("field2"), nullValue());
+    }
+
+    @Test
+    public void testSort() throws Exception {
+        createIndex("test", client().admin().indices().prepareCreate("test")
+                        .addMapping("type1", "field1", "type=long", "field2", "type=long")
+                        .addAlias(new Alias("alias1").fields("field2"))
+        );
+
+        client().prepareIndex("test", "type1", "1").setSource("field1", 1d, "field2", 2d)
+                .setRefresh(true)
+                .get();
+
+        SearchResponse response = client().prepareSearch("test").addSort("field1", SortOrder.ASC).get();
+        assertThat((Long) response.getHits().getAt(0).sortValues()[0], equalTo(1l));
+        response = client().prepareSearch("alias1").addSort("field1", SortOrder.ASC).get();
+        assertThat((Long) response.getHits().getAt(0).sortValues()[0], equalTo(Long.MAX_VALUE));
+
+        client().admin().indices().prepareAliases().addAlias(new String[]{"test"}, "alias2", null, "field1").get();
+
+        response = client().prepareSearch("test").addSort("field2", SortOrder.ASC).get();
+        assertThat((Long) response.getHits().getAt(0).sortValues()[0], equalTo(2l));
+        response = client().prepareSearch("alias2").addSort("field2", SortOrder.ASC).get();
+        assertThat((Long) response.getHits().getAt(0).sortValues()[0], equalTo(Long.MAX_VALUE));
+    }
+
+    @Test
+    public void testAggs() throws Exception {
+        createIndex("test", client().admin().indices().prepareCreate("test")
+                        .addMapping("type1", "field1", "type=string", "field2", "type=string")
+                        .addAlias(new Alias("alias1").fields("field2"))
+        );
+        client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")
+                .setRefresh(true)
+                .get();
+
+        SearchResponse response = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("_name").field("field1")).get();
+        assertThat(((Terms) response.getAggregations().get("_name")).getBucketByKey("value1").getDocCount(), equalTo(1l));
+        response = client().prepareSearch("alias1").addAggregation(AggregationBuilders.terms("_name").field("field1")).get();
+        assertThat(((Terms) response.getAggregations().get("_name")).getBucketByKey("value1"), nullValue());
+
+        client().admin().indices().prepareAliases().addAlias(new String[]{"test"}, "alias2", null, "field1").get();
+
+
+        response = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("_name").field("field2")).get();
+        assertThat(((Terms) response.getAggregations().get("_name")).getBucketByKey("value2").getDocCount(), equalTo(1l));
+        response = client().prepareSearch("alias2").addAggregation(AggregationBuilders.terms("_name").field("field2")).get();
+        assertThat(((Terms) response.getAggregations().get("_name")).getBucketByKey("value2"), nullValue());
     }
 
 }

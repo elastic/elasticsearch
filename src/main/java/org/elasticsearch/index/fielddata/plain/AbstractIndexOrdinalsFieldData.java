@@ -95,6 +95,11 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
         return iterator;
     }
 
+    @Override
+    protected AtomicOrdinalsFieldData empty(int maxDoc) {
+        return AbstractAtomicOrdinalsFieldData.empty();
+    }
+
     private static final class FrequencyFilter extends FilteredTermsEnum {
 
         private int minFreq;

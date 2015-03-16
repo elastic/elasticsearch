@@ -324,6 +324,11 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
 
     }
 
+    @Override
+    protected AtomicNumericFieldData empty(int maxDoc) {
+        return AtomicLongFieldData.empty(maxDoc);
+    }
+
     protected CommonSettings.MemoryStorageFormat chooseStorageFormat(LeafReader reader, PackedLongValues values, Ordinals build, RandomAccessOrds ordinals,
                                                                      long minValue, long maxValue, float acceptableOverheadRatio, int pageSize) {
 

@@ -208,6 +208,11 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
         return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
     }
 
+    @Override
+    protected AtomicNumericFieldData empty(int maxDoc) {
+        return AtomicDoubleFieldData.empty(maxDoc);
+    }
+
     private static SortedNumericDoubleValues withOrdinals(Ordinals ordinals, final FloatArray values, int maxDoc) {
         final RandomAccessOrds ords = ordinals.ordinals();
         final SortedDocValues singleOrds = DocValues.unwrapSingleton(ords);

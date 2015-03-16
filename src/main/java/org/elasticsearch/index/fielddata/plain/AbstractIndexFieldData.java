@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -72,6 +72,9 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
     @Override
     public FD load(LeafReaderContext context) {
         try {
+            if (context.reader().getFieldInfos().fieldInfo(fieldNames.indexName()) == null) {
+                return empty(context.reader().maxDoc());
+            }
             FD fd = cache.load(context, this);
             return fd;
         } catch (Throwable e) {
@@ -82,6 +85,8 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
             }
         }
     }
+
+    protected abstract FD empty(int maxDoc);
 
     /**
      * A {@code PerValueEstimator} is a sub-class that can be used to estimate

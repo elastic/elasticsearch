@@ -81,4 +81,8 @@ abstract class AbstractIndexGeoPointFieldData extends AbstractIndexFieldData<Ato
         throw new ElasticsearchIllegalArgumentException("can't sort on geo_point field without using specific sorting feature, like geo_distance");
     }
 
+    @Override
+    protected AtomicGeoPointFieldData empty(int maxDoc) {
+        return AbstractAtomicGeoPointFieldData.empty(maxDoc);
+    }
 }

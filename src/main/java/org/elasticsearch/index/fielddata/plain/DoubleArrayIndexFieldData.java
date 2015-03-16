@@ -210,6 +210,11 @@ public class DoubleArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
         return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
     }
 
+    @Override
+    protected AtomicNumericFieldData empty(int maxDoc) {
+        return AtomicDoubleFieldData.empty(maxDoc);
+    }
+
     private static SortedNumericDoubleValues withOrdinals(Ordinals ordinals, final DoubleArray values, int maxDoc) {
         final RandomAccessOrds ords = ordinals.ordinals();
         final SortedDocValues singleOrds = DocValues.unwrapSingleton(ords);

@@ -31,9 +31,12 @@ import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 // do NOT optimize this class for performance
 public abstract class VerifyingIndexOutput extends FilterIndexOutput {
 
+    private final String name;
+
     /** Sole constructor */
-    VerifyingIndexOutput(IndexOutput out) {
+    VerifyingIndexOutput(IndexOutput out, String name) {
         super(out);
+        this.name = name;
     }
     
     /**
@@ -41,5 +44,16 @@ public abstract class VerifyingIndexOutput extends FilterIndexOutput {
      * called after all data has been written to this output.
      */
     public abstract void verify() throws IOException;
+
+    /**
+     * Returns the name of the resource to verfiy
+     */
+    public String getName() {
+        return name;
+    }
+
+    public String toString() {
+        return "(resource=" + out + ")(name=" + name + ")"; // out.toString is buggy in 4.10.x so we also append the name here to see which file we verify
+    }
 
 }

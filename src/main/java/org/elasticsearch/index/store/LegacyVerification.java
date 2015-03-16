@@ -56,8 +56,8 @@ class LegacyVerification {
         final Checksum checksum = new BufferedChecksum(new Adler32());
         long written;
         
-        public Adler32VerifyingIndexOutput(IndexOutput out, String adler32, long length) {
-            super(out);
+        public Adler32VerifyingIndexOutput(IndexOutput out, String name, String adler32, long length) {
+            super(out, name);
             this.adler32 = adler32;
             this.length = length;
         }
@@ -65,13 +65,13 @@ class LegacyVerification {
         @Override
         public void verify() throws IOException {
             if (written != length) {
-                throw new CorruptIndexException("expected length=" + length + " != actual length: " + written + " : file truncated?" + 
-                                                " (resource=" + out + ")");
+                throw new CorruptIndexException("expected length=" + length + " != actual length: " + written + " : file truncated? " +
+                                                super.toString());
             }
             final String actualChecksum = Store.digestToString(checksum.getValue());
             if (!adler32.equals(actualChecksum)) {
                 throw new CorruptIndexException("checksum failed (hardware problem?) : expected=" + adler32 +
-                                                " actual=" + actualChecksum + " resource=(" + out + ")");
+                                                " actual=" + actualChecksum +" " + super.toString());
             }
         }
 
@@ -97,16 +97,16 @@ class LegacyVerification {
         final long length;
         long written;
         
-        public LengthVerifyingIndexOutput(IndexOutput out, long length) {
-            super(out);
+        public LengthVerifyingIndexOutput(IndexOutput out, String name, long length) {
+            super(out, name);
             this.length = length;
         }
 
         @Override
         public void verify() throws IOException {
             if (written != length) {
-                throw new CorruptIndexException("expected length=" + length + " != actual length: " + written + " : file truncated?" + 
-                                                " (resource=" + out + ")");
+                throw new CorruptIndexException("expected length=" + length + " != actual length: " + written + " : file truncated? " +
+                        super.toString());
             }
         }
 

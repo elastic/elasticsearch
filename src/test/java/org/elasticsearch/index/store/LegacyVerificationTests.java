@@ -48,7 +48,7 @@ public class LegacyVerificationTests extends ElasticsearchLuceneTestCase {
         Directory dir = newDirectory();
         
         IndexOutput o = dir.createOutput("legacy", IOContext.DEFAULT);
-        VerifyingIndexOutput out = new LegacyVerification.Adler32VerifyingIndexOutput(o, expectedString, 8);
+        VerifyingIndexOutput out = new LegacyVerification.Adler32VerifyingIndexOutput(o, "legacy", expectedString, 8);
         out.writeBytes(bytes, 0, bytes.length);
         out.verify();
         out.close();
@@ -67,7 +67,7 @@ public class LegacyVerificationTests extends ElasticsearchLuceneTestCase {
         Directory dir = newDirectory();
         
         IndexOutput o = dir.createOutput("legacy", IOContext.DEFAULT);
-        VerifyingIndexOutput out = new LegacyVerification.Adler32VerifyingIndexOutput(o, expectedString, 8);
+        VerifyingIndexOutput out = new LegacyVerification.Adler32VerifyingIndexOutput(o, "legacy", expectedString, 8);
         out.writeBytes(corruptBytes, 0, bytes.length);
         try {
             out.verify();
@@ -91,7 +91,7 @@ public class LegacyVerificationTests extends ElasticsearchLuceneTestCase {
         Directory dir = newDirectory();
         
         IndexOutput o = dir.createOutput("oneByte", IOContext.DEFAULT);
-        VerifyingIndexOutput out = new LegacyVerification.LengthVerifyingIndexOutput(o, 1);
+        VerifyingIndexOutput out = new LegacyVerification.LengthVerifyingIndexOutput(o, "oneByte", 1);
         out.writeByte((byte) 3);
         out.verify();
         out.close();
@@ -104,7 +104,7 @@ public class LegacyVerificationTests extends ElasticsearchLuceneTestCase {
         Directory dir = newDirectory();
         
         IndexOutput o = dir.createOutput("oneByte", IOContext.DEFAULT);
-        VerifyingIndexOutput out = new LegacyVerification.LengthVerifyingIndexOutput(o, 2);
+        VerifyingIndexOutput out = new LegacyVerification.LengthVerifyingIndexOutput(o, "oneByte", 2);
         out.writeByte((byte) 3);
         try {
             out.verify();

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.indices.recovery;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -332,7 +331,6 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
         assertThat(state.getStage(), equalTo(Stage.DONE));
     }
 
-    @Repeat(iterations = 300)
     public void testTranslog() throws Throwable {
         final Translog translog = new Translog();
         AtomicBoolean stop = new AtomicBoolean();

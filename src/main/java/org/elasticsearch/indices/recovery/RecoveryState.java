@@ -493,7 +493,7 @@ public class RecoveryState implements ToXContent, Streamable {
     }
 
     public static class Translog extends Timer implements ToXContent, Streamable {
-        public static int UNKNOWN = -1;
+        public static final int UNKNOWN = -1;
 
         private int recovered;
         private int total = UNKNOWN;
@@ -507,13 +507,13 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
         public synchronized void incrementRecoveredOperations() {
-            this.recovered++;
+            recovered++;
             assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
         }
 
         /** returns the total number of translog operations recovered so far */
         public synchronized int recoveredOperations() {
-            return this.recovered;
+            return recovered;
         }
 
         /**
@@ -523,7 +523,7 @@ public class RecoveryState implements ToXContent, Streamable {
          * A value of -1 ({@link RecoveryState.Translog#UNKNOWN} is return if this is unknown (typically a gateway recovery)
          */
         public synchronized int totalOperations() {
-            return this.total;
+            return total;
         }
 
         public synchronized void totalOperations(int total) {

@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.index.translog;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -38,6 +40,8 @@ public class TranslogStats implements ToXContent, Streamable {
     public TranslogStats() {}
 
     public TranslogStats(int estimatedNumberOfOperations, long translogSizeInBytes) {
+        assert estimatedNumberOfOperations >= 0 : "estimatedNumberOfOperations must be >=0, got [" + estimatedNumberOfOperations + "]";
+        assert translogSizeInBytes >= 0 : "translogSizeInBytes must be >=0, got [" + translogSizeInBytes + "]";
         this.estimatedNumberOfOperations = estimatedNumberOfOperations;
         this.translogSizeInBytes = translogSizeInBytes;
     }
@@ -49,6 +53,14 @@ public class TranslogStats implements ToXContent, Streamable {
 
         this.estimatedNumberOfOperations += translogStats.estimatedNumberOfOperations;
         this.translogSizeInBytes =+ translogStats.translogSizeInBytes;
+    }
+
+    public ByteSizeValue translogSizeInBytes() {
+        return new ByteSizeValue(translogSizeInBytes);
+    }
+
+    public long estimatedNumberOfOperations() {
+        return estimatedNumberOfOperations;
     }
 
     @Override
@@ -70,10 +82,16 @@ public class TranslogStats implements ToXContent, Streamable {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         estimatedNumberOfOperations = in.readVInt();
+        if (in.getVersion().onOrAfter(Version.V_1_4_5)) {
+            translogSizeInBytes = in.readVLong();
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(estimatedNumberOfOperations);
+        if (out.getVersion().onOrAfter(Version.V_1_4_5)) {
+            out.writeVLong(translogSizeInBytes);
+        }
     }
 }

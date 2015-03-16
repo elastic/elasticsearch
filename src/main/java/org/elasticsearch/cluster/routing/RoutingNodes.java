@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectIntOpenHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Predicate;
 import com.google.common.collect.*;
+
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -557,6 +558,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 primaries++;
             }
             unassigned.add(mutableShardRouting);
+            transactionId++;
+        }
+        
+        public void remove(MutableShardRouting mutableShardRouting) {
+            unassigned.remove(mutableShardRouting);
+            if(mutableShardRouting.primary()) {
+                primaries--;
+            }
             transactionId++;
         }
 

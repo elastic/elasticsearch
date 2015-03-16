@@ -19,9 +19,8 @@
 
 package org.elasticsearch.indices.store;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
+import com.google.common.collect.*;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
@@ -33,28 +32,19 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.store.IndexStoreModule;
-import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetaData;
+import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.store.*;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -77,8 +67,8 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         this.nodeEnv = nodeEnv;
     }
 
-    public ActionFuture<NodesStoreFilesMetaData> list(ShardId shardId, boolean onlyUnallocated, String[] nodesIds, @Nullable TimeValue timeout) {
-        return execute(new Request(shardId, onlyUnallocated, nodesIds).timeout(timeout));
+    public ActionFuture<NodesStoreFilesMetaData> list(ShardId[] shardIds, boolean onlyUnallocated, String[] nodesIds, @Nullable TimeValue timeout) {
+        return execute(new Request(shardIds, onlyUnallocated, nodesIds).timeout(timeout));
     }
 
     @Override
@@ -110,25 +100,38 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
     }
 
     @Override
-    protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) {
-        if (request.unallocated) {
-            IndexService indexService = indicesService.indexService(request.shardId.index().name());
-            if (indexService == null) {
-                return new NodeStoreFilesMetaData(clusterService.localNode(), null);
+    protected NodeStoreFilesMetaData nodeOperation(NodeRequest request) throws ElasticsearchException {
+        StoreFilesMetaData[] storeFilesMetaData = new StoreFilesMetaData[request.shardIds.length];
+        for (int i = 0; i < request.shardIds.length; i++) {
+            ShardId shardId = request.shardIds[i];
+            
+            if (request.unallocated) {
+                IndexService indexService = indicesService.indexService(shardId.index().name());
+                if (indexService == null) {
+                    storeFilesMetaData[i] = null;
+                    continue;
+                }
+                if (!indexService.hasShard(shardId.id())) {
+                    storeFilesMetaData[i] = null;
+                    continue;
+                }
             }
-            if (!indexService.hasShard(request.shardId.id())) {
-                return new NodeStoreFilesMetaData(clusterService.localNode(), null);
+            
+            IndexMetaData metaData = clusterService.state().metaData().index(shardId.index().name());
+            
+            if (metaData == null) {
+                storeFilesMetaData[i] = null;
+                continue;
+            }
+            try {
+                storeFilesMetaData[i] = listStoreMetaData(shardId);
+                continue;
+            } catch (IOException e) {
+                throw new ElasticsearchException("Failed to list store metadata for shard [" + shardId + "]", e);
             }
         }
-        IndexMetaData metaData = clusterService.state().metaData().index(request.shardId.index().name());
-        if (metaData == null) {
-            return new NodeStoreFilesMetaData(clusterService.localNode(), null);
-        }
-        try {
-            return new NodeStoreFilesMetaData(clusterService.localNode(), listStoreMetaData(request.shardId));
-        } catch (IOException e) {
-            throw new ElasticsearchException("Failed to list store metadata for shard [" + request.shardId + "]", e);
-        }
+        
+        return new NodeStoreFilesMetaData(clusterService.localNode(), storeFilesMetaData);
     }
 
     private StoreFilesMetaData listStoreMetaData(ShardId shardId) throws IOException {
@@ -209,7 +212,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         public boolean fileExists(String name) {
             return files.containsKey(name);
         }
-
+        
         public StoreFileMetaData file(String name) {
             return files.get(name);
         }
@@ -246,36 +249,42 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
 
     static class Request extends NodesOperationRequest<Request> {
 
-        private ShardId shardId;
+        private ShardId[] shardIds;
 
         private boolean unallocated;
 
         public Request() {
         }
 
-        public Request(ShardId shardId, boolean unallocated, Set<String> nodesIds) {
+        public Request(ShardId[] shardIds, boolean unallocated, Set<String> nodesIds) {
             super(nodesIds.toArray(new String[nodesIds.size()]));
-            this.shardId = shardId;
+            this.shardIds = shardIds;
             this.unallocated = unallocated;
         }
 
-        public Request(ShardId shardId, boolean unallocated, String... nodesIds) {
+        public Request(ShardId[] shardIds, boolean unallocated, String... nodesIds) {
             super(nodesIds);
-            this.shardId = shardId;
+            this.shardIds = shardIds;
             this.unallocated = unallocated;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+            shardIds = new ShardId[in.readVInt()];
+            for (int i = 0; i < shardIds.length; i++) {
+                shardIds[i] = ShardId.readShardId(in);
+            }
             unallocated = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            shardId.writeTo(out);
+            out.writeVInt(shardIds.length);
+            for (ShardId shardId : shardIds) {
+                shardId.writeTo(out);
+            }
             out.writeBoolean(unallocated);
         }
     }
@@ -318,7 +327,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
 
     static class NodeRequest extends NodeOperationRequest {
 
-        private ShardId shardId;
+        private ShardId[] shardIds;
 
         private boolean unallocated;
 
@@ -327,39 +336,45 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
 
         NodeRequest(String nodeId, TransportNodesListShardStoreMetaData.Request request) {
             super(request, nodeId);
-            this.shardId = request.shardId;
+            this.shardIds = request.shardIds;
             this.unallocated = request.unallocated;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            shardId = ShardId.readShardId(in);
+            shardIds = new ShardId[in.readVInt()];
+            for (int i = 0; i < shardIds.length; i++) {
+                shardIds[i] = ShardId.readShardId(in);
+            }
             unallocated = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            shardId.writeTo(out);
+            out.writeVInt(shardIds.length);
+            for (ShardId shardId : shardIds) {
+                shardId.writeTo(out);
+            }
             out.writeBoolean(unallocated);
         }
     }
 
     public static class NodeStoreFilesMetaData extends NodeOperationResponse {
 
-        private StoreFilesMetaData storeFilesMetaData;
+        private StoreFilesMetaData[] storeFilesMetaDatas;
 
         NodeStoreFilesMetaData() {
         }
 
-        public NodeStoreFilesMetaData(DiscoveryNode node, StoreFilesMetaData storeFilesMetaData) {
+        public NodeStoreFilesMetaData(DiscoveryNode node, StoreFilesMetaData[] storeFilesMetaDatas) {
             super(node);
-            this.storeFilesMetaData = storeFilesMetaData;
+            this.storeFilesMetaDatas = storeFilesMetaDatas;
         }
 
-        public StoreFilesMetaData storeFilesMetaData() {
-            return storeFilesMetaData;
+        public StoreFilesMetaData[] storeFilesMetaData() {
+            return storeFilesMetaDatas;
         }
 
         public static NodeStoreFilesMetaData readListShardStoreNodeOperationResponse(StreamInput in) throws IOException {
@@ -371,19 +386,25 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesOperatio
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            if (in.readBoolean()) {
-                storeFilesMetaData = StoreFilesMetaData.readStoreFilesMetaData(in);
-            }
+            storeFilesMetaDatas = new StoreFilesMetaData[in.readVInt()];
+            for (int i = 0; i < storeFilesMetaDatas.length; i++) {
+                if (in.readBoolean()) {
+                    storeFilesMetaDatas[i] = StoreFilesMetaData.readStoreFilesMetaData(in);
+                }
+            }            
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (storeFilesMetaData == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                storeFilesMetaData.writeTo(out);
+            out.writeVInt(storeFilesMetaDatas.length);
+            for (StoreFilesMetaData storeFilesMetaData : storeFilesMetaDatas) {
+                if (storeFilesMetaData == null) {
+                    out.writeBoolean(false);
+                } else {
+                    out.writeBoolean(true);
+                    storeFilesMetaData.writeTo(out);
+                }
             }
         }
     }

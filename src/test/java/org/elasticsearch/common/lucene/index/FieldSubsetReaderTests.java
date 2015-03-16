@@ -26,8 +26,12 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
 
 import java.util.Collections;
@@ -58,6 +62,32 @@ public class FieldSubsetReaderTests extends ElasticsearchLuceneTestCase {
             seenFields.add(field);
         }
         assertEquals(Collections.singleton("fieldA"), seenFields);
+        
+        IOUtils.close(ir, iw, dir);
+    }
+    
+    public void testFieldNames() throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = new IndexWriterConfig(null);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+        
+        // add document with 2 fields
+        Document doc = new Document();
+        doc.add(new StringField("fieldA", "test", Field.Store.NO));
+        doc.add(new StringField("fieldB", "test", Field.Store.NO));
+        doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldA", Field.Store.NO));
+        doc.add(new StringField(FieldNamesFieldMapper.NAME, "fieldB", Field.Store.NO));
+        iw.addDocument(doc);
+        
+        // open reader
+        DirectoryReader ir = FieldSubsetReader.wrap(DirectoryReader.open(iw, true), Collections.singleton("fieldA"));
+        
+        // see only one field
+        LeafReader segmentReader = ir.leaves().get(0).reader();
+        Terms terms = segmentReader.terms(FieldNamesFieldMapper.NAME);
+        TermsEnum termsEnum = terms.iterator(null);
+        assertEquals(new BytesRef("fieldA"), termsEnum.next());
+        assertNull(termsEnum.next());
         
         IOUtils.close(ir, iw, dir);
     }

@@ -69,24 +69,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
 
     @Override
     public RestStatus status() {
-        if (shardFailures.length == 0) {
-            if (successfulShards == 0 && totalShards > 0) {
-                return RestStatus.SERVICE_UNAVAILABLE;
-            }
-            return RestStatus.OK;
-        }
-        // if total failure, bubble up the status code to the response level
-        if (successfulShards == 0 && totalShards > 0) {
-            RestStatus status = RestStatus.OK;
-            for (int i = 0; i < shardFailures.length; i++) {
-                RestStatus shardStatus = shardFailures[i].status();
-                if (shardStatus.getStatus() >= status.getStatus()) {
-                    status = shardFailures[i].status();
-                }
-            }
-            return status;
-        }
-        return RestStatus.OK;
+        return RestStatus.status(successfulShards, totalShards, shardFailures);
     }
 
     /**

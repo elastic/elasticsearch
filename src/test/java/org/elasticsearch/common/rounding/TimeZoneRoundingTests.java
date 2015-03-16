@@ -26,6 +26,7 @@ import org.joda.time.format.ISODateTimeFormat;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 /**
  */

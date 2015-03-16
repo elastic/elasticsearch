@@ -217,7 +217,7 @@ public class UpdateSettingsTests extends ElasticsearchIntegrationTest {
 
         // Optimize does a waitForMerges, which we must do to make sure all in-flight (throttled) merges finish:
         logger.info("test: optimize");
-        client().admin().indices().prepareOptimize("test").get();
+        client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).get();
         logger.info("test: optimize done");
 
         // Record current throttling so far

@@ -25,8 +25,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeParser;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -143,10 +143,16 @@ public class BucketHelpers {
      * @param gapPolicy  The gap policy to apply if empty buckets are found
      * @return           The value extracted from <code>bucket</code> found at <code>aggPath</code>
      */
-    public static Double resolveBucketValue(InternalHistogram<? extends InternalHistogram.Bucket> histo, InternalHistogram.Bucket bucket,
-                                            String aggPath, GapPolicy gapPolicy) {
+    public static Double resolveBucketValue(InternalMultiBucketAggregation<?, ? extends InternalMultiBucketAggregation.Bucket> agg,
+            InternalMultiBucketAggregation.Bucket bucket, String aggPath, GapPolicy gapPolicy) {
+        List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
+        return resolveBucketValue(agg, bucket, aggPathsList, gapPolicy);
+    }
+
+    public static Double resolveBucketValue(InternalMultiBucketAggregation<?, ? extends InternalMultiBucketAggregation.Bucket> agg,
+            InternalMultiBucketAggregation.Bucket bucket, List<String> aggPathsList, GapPolicy gapPolicy) {
         try {
-            Object propertyValue = bucket.getProperty(histo.getName(), AggregationPath.parse(aggPath).getPathElementsAsStringList());
+            Object propertyValue = bucket.getProperty(agg.getName(), aggPathsList);
             if (propertyValue == null) {
                 throw new AggregationExecutionException(DerivativeParser.BUCKETS_PATH.getPreferredName()
                         + " must reference either a number value or a single value numeric metric aggregation");

@@ -64,16 +64,16 @@ public class NettyHttpChannel extends HttpChannel {
     private OrderedUpstreamMessageEvent orderedUpstreamMessageEvent = null;
     private Pattern corsPattern;
 
-    public NettyHttpChannel(NettyHttpServerTransport transport, NettyHttpRequest request, Pattern corsPattern) {
-        super(request);
+    public NettyHttpChannel(NettyHttpServerTransport transport, NettyHttpRequest request, Pattern corsPattern, boolean detailedErrorsEnabled) {
+        super(request, detailedErrorsEnabled);
         this.transport = transport;
         this.channel = request.getChannel();
         this.nettyRequest = request.request();
         this.corsPattern = corsPattern;
     }
 
-    public NettyHttpChannel(NettyHttpServerTransport transport, NettyHttpRequest request, Pattern corsPattern, OrderedUpstreamMessageEvent orderedUpstreamMessageEvent) {
-        this(transport, request, corsPattern);
+    public NettyHttpChannel(NettyHttpServerTransport transport, NettyHttpRequest request, Pattern corsPattern, OrderedUpstreamMessageEvent orderedUpstreamMessageEvent, boolean detailedErrorsEnabled) {
+        this(transport, request, corsPattern, detailedErrorsEnabled);
         this.orderedUpstreamMessageEvent = orderedUpstreamMessageEvent;
     }
 

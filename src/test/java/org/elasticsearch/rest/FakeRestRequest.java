@@ -28,6 +28,8 @@ class FakeRestRequest extends RestRequest {
 
     private final Map<String, String> headers;
 
+    private final Map<String, String> params;
+
     FakeRestRequest() {
         this(new HashMap<String, String>(), new HashMap<String, String>());
     }
@@ -37,6 +39,7 @@ class FakeRestRequest extends RestRequest {
         for (Map.Entry<String, String> entry : context.entrySet()) {
             putInContext(entry.getKey(), entry.getValue());
         }
+        this.params = new HashMap<>();
     }
 
     @Override
@@ -81,21 +84,25 @@ class FakeRestRequest extends RestRequest {
 
     @Override
     public boolean hasParam(String key) {
-        return false;
+        return params.containsKey(key);
     }
 
     @Override
     public String param(String key) {
-        return null;
+        return params.get(key);
     }
 
     @Override
     public String param(String key, String defaultValue) {
-        return null;
+        String value = params.get(key);
+        if (value == null) {
+            return defaultValue;
+        }
+        return value;
     }
 
     @Override
     public Map<String, String> params() {
-        return null;
+        return params;
     }
 }

@@ -72,6 +72,11 @@ be cached for. Defaults to `1728000` (20 days)
 header should be returned. Note: This header is only returned, when the setting is
 set to `true`. Defaults to `false`
 
+|`http.detailed_errors.enabled` |Enables or disables the output of detailed error messages
+and stack traces in response output. Note: When set to `false` and the `error_trace` request
+parameter is specified, an error will be returned; when `error_trace` is not specified, a
+simple message will be returned. Defaults to `true`
+
 |`http.pipelining` |Enable or disable HTTP pipelining, defaults to `true`.
 
 |`http.pipelining.max_events` |The maximum number of events to be queued up in memory before a HTTP connection is closed, defaults to `10000`.

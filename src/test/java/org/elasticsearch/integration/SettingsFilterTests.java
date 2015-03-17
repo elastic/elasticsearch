@@ -61,14 +61,21 @@ public class SettingsFilterTests extends ShieldIntegrationTest {
         return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(InternalNode.HTTP_ENABLED, true)
 
-                // ldap realm filtering
                 .put("shield.authc.realms.esusers.type", "esusers")
+
+                // ldap realm filtering
                 .put("shield.authc.realms.ldap1.type", "ldap")
                 .put("shield.authc.realms.ldap1.enabled", "false")
                 .put("shield.authc.realms.ldap1.url", "ldap://host.domain")
                 .put("shield.authc.realms.ldap1.hostname_verification", randomAsciiOfLength(5))
                 .put("shield.authc.realms.ldap1.bind_dn", randomAsciiOfLength(5))
                 .put("shield.authc.realms.ldap1.bind_password", randomAsciiOfLength(5))
+
+                // active directory filtering
+                .put("shield.authc.realms.ad1.type", "active_directory")
+                .put("shield.authc.realms.ad1.enabled", "false")
+                .put("shield.authc.realms.ad1.url", "ldap://host.domain")
+                .put("shield.authc.realms.ad1.hostname_verification", randomAsciiOfLength(5))
 
                 .put("shield.ssl.keystore.path", "/path/to/keystore")
                 .put("shield.ssl.ciphers", "_ciphers")
@@ -114,6 +121,9 @@ public class SettingsFilterTests extends ShieldIntegrationTest {
             assertThat(settings.get("shield.authc.realms.ldap1.bind_password"), nullValue());
             assertThat(settings.get("shield.authc.realms.ldap1.bind_dn"), nullValue());
             assertThat(settings.get("shield.authc.realms.ldap1.url"), is("ldap://host.domain"));
+
+            assertThat(settings.get("shield.authc.realms.ad1.hostname_verification"), nullValue());
+            assertThat(settings.get("shield.authc.realms.ad1.url"), is("ldap://host.domain"));
 
             assertThat(settings.get("shield.ssl.keystore.path"), nullValue());
             assertThat(settings.get("shield.ssl.ciphers"), nullValue());

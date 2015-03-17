@@ -60,7 +60,7 @@ public class LdapUserSearchSessionFactory extends SessionFactory {
     static void filterOutSensitiveSettings(String realmName, ShieldSettingsFilter filter) {
         filter.filterOut("shield.authc.realms." + realmName + ".bind_dn");
         filter.filterOut("shield.authc.realms." + realmName + ".bind_password");
-        filter.filterOut("shield.authc.realms." + realmName + ".hostname_verification");
+        filter.filterOut("shield.authc.realms." + realmName + "." + HOSTNAME_VERIFICATION_SETTING);
     }
 
     static LDAPConnectionPool connectionPool(Settings settings, ServerSet serverSet, TimeValue timeout) {

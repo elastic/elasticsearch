@@ -56,7 +56,7 @@
         <repository>
             <id>lucene-snapshots</id>
             <name>Lucene Snapshots</name>
-            <url>https://download.elasticsearch.org/lucenesnapshots/1662607</url>
+            <url>https://download.elastic.co/lucenesnapshots/1662607</url>
         </repository>
     </repositories>
 

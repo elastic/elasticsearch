@@ -36,11 +36,13 @@ public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
     private final NettyHttpServerTransport serverTransport;
     private final Pattern corsPattern;
     private final boolean httpPipeliningEnabled;
+    private final boolean detailedErrorsEnabled;
 
-    public HttpRequestHandler(NettyHttpServerTransport serverTransport) {
+    public HttpRequestHandler(NettyHttpServerTransport serverTransport, boolean detailedErrorsEnabled) {
         this.serverTransport = serverTransport;
         this.corsPattern = RestUtils.getCorsSettingRegex(serverTransport.settings());
         this.httpPipeliningEnabled = serverTransport.pipelining;
+        this.detailedErrorsEnabled = detailedErrorsEnabled;
     }
 
     @Override
@@ -58,9 +60,9 @@ public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
         // when reading, or using a cumalation buffer
         NettyHttpRequest httpRequest = new NettyHttpRequest(request, e.getChannel());
         if (oue != null) {
-            serverTransport.dispatchRequest(httpRequest, new NettyHttpChannel(serverTransport, httpRequest, corsPattern, oue));
+            serverTransport.dispatchRequest(httpRequest, new NettyHttpChannel(serverTransport, httpRequest, corsPattern, oue, detailedErrorsEnabled));
         } else {
-            serverTransport.dispatchRequest(httpRequest, new NettyHttpChannel(serverTransport, httpRequest, corsPattern));
+            serverTransport.dispatchRequest(httpRequest, new NettyHttpChannel(serverTransport, httpRequest, corsPattern, detailedErrorsEnabled));
         }
         super.messageReceived(ctx, e);
     }

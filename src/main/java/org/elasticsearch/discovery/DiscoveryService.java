@@ -34,8 +34,6 @@ import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
-import static java.lang.Thread.sleep;
-
 /**
  *
  */

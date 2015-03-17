@@ -25,7 +25,6 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 
 import java.util.Arrays;
 import java.util.List;

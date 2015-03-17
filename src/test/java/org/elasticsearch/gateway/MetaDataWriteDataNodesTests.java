@@ -26,17 +26,12 @@ import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDeci
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -179,122 +174,6 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         assertFalse(client().admin().indices().prepareExists("blue_index").get().isExists());
     }
 
-    @Test
-    public void randomStartStopReloacteWithAndWithoutData() throws Exception {
-        // relocate shards to and fro and start master nodes randomly with or without data folder and see what happens
-        // not sure if this test is any good, it did not uncover anything
-
-        Map<String, Boolean> runningMasterNodes = new HashMap<>();
-        String[] masterNodeNames = {"master_node_1", "master_node_2"};
-        for (String name : masterNodeNames) {
-            runningMasterNodes.put(startMasterNode(false), true);
-        }
-        logger.debug("start data node");
-        String redNode = startDataNode("red", false);
-        String blueNode = startDataNode("blue", false);
-
-
-        client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("3")).get();
-        assertAcked(prepareCreate("blue_index").setSettings(ImmutableSettings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "blue")));
-        index("blue_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
-        assertAcked(prepareCreate("red_index").setSettings(ImmutableSettings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")));
-        index("red_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
-
-        // green index can be anywhere
-        assertAcked(prepareCreate("green_index").setSettings(ImmutableSettings.builder().put("index.number_of_replicas", 0)));
-        index("green_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
-        waitForConcreteMappingsOnAll("blue_index", "doc", "text");
-        waitForConcreteMappingsOnAll("red_index", "doc", "text");
-        waitForConcreteMappingsOnAll("green_index", "doc", "text");
-
-        String[] indexNames = {"blue_index", "red_index"};
-        String[] colors = {"blue", "red"};
-        ensureGreen();
-        int numMasterNodesUp = masterNodeNames.length;
-        for (int i = 0; i < 10; i++) {
-            // 1. start stop node or relocate?
-            if (randomBoolean()) {
-                // we start or stop a master node
-                if (numMasterNodesUp > 0 && numMasterNodesUp < masterNodeNames.length) {
-                    //we have a working cluster, we can either stop or start a master node
-                    if (randomBoolean()) {
-                        numMasterNodesUp = stopMasterNode(runningMasterNodes, numMasterNodesUp);
-                    } else {
-                        numMasterNodesUp = startMasterNode(runningMasterNodes, numMasterNodesUp);
-                    }
-                } else if (numMasterNodesUp == masterNodeNames.length) {
-                    // all masters are running, can only stop one
-                    numMasterNodesUp = stopMasterNode(runningMasterNodes, numMasterNodesUp);
-                } else if (numMasterNodesUp == 0) {
-                    // all masters are stopped, must start one
-                    numMasterNodesUp = startMasterNode(runningMasterNodes, numMasterNodesUp);
-                }
-
-            } else {
-                if (numMasterNodesUp > 0) {
-                    // relocate a random index to red or blue
-                    String index = indexNames[randomInt(1)];
-                    String color = colors[randomInt(1)];
-                    logger.info("move index {} to node with color {}", index, color);
-                    ensureGreen(index);
-                    client().admin().indices().prepareUpdateSettings(index).setSettings(ImmutableSettings.builder().put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", color)).get();
-                    client().admin().cluster().prepareHealth().setWaitForRelocatingShards(0).get();
-                    ensureGreen();
-                }
-            }
-        }
-        if (numMasterNodesUp == 0) {
-            numMasterNodesUp = startMasterNode(runningMasterNodes, numMasterNodesUp);
-        }
-        client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForRelocatingShards(0).setWaitForEvents(Priority.LANGUID).get();
-        ensureGreen("blue_index");
-        assertTrue(client().admin().indices().prepareExists("blue_index").get().isExists());
-        ensureGreen("red_index");
-        assertTrue(client().admin().indices().prepareExists("red_index").get().isExists());
-        ensureGreen("green_index");
-        assertTrue(client().admin().indices().prepareExists("green_index").get().isExists());
-        assertTrue(client().prepareGet("red_index", "doc", "1").get().isExists());
-        assertTrue(client().prepareGet("blue_index", "doc", "1").get().isExists());
-        assertTrue(client().prepareGet("green_index", "doc", "1").get().isExists());
-    }
-
-    protected int stopMasterNode(Map<String, Boolean> runningMasterNodes, int numMasterNodesUp) throws IOException {
-        String runningMasterNode = getRunningMasterNode(runningMasterNodes);
-        logger.info("Stopping master eligible node {}", runningMasterNode);
-        stopNode(runningMasterNode);
-        runningMasterNodes.put(runningMasterNode, false);
-        numMasterNodesUp--;
-        return numMasterNodesUp;
-    }
-
-    protected int startMasterNode(Map<String, Boolean> runningMasterNodes, int numMasterNodesUp) {
-        String downMasterNode = getDownMasterNode(runningMasterNodes);
-        runningMasterNodes.remove(downMasterNode);
-        boolean withNewDataPath = randomBoolean();
-        logger.info("Starting master eligible node {} with {} data path", downMasterNode, (withNewDataPath ? "random empty " : "default"));
-        runningMasterNodes.put(startMasterNode(withNewDataPath), true);
-        numMasterNodesUp++;
-        return numMasterNodesUp;
-    }
-
-    private String getRunningMasterNode(Map<String, Boolean> masterNodes) {
-        for (Map.Entry<String, Boolean> masterNode : masterNodes.entrySet()) {
-            if (masterNode.getValue() == true) {
-                return masterNode.getKey();
-            }
-        }
-        return null;
-    }
-
-    private String getDownMasterNode(Map<String, Boolean> masterNodes) {
-        for (Map.Entry<String, Boolean> masterNode : masterNodes.entrySet()) {
-            if (masterNode.getValue() == false) {
-                return masterNode.getKey();
-            }
-        }
-        return null;
-    }
-
     private String startDataNode(String color, boolean newDataPath) {
         ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder()
                 .put("node.data", true)
@@ -317,7 +196,7 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
     }
 
     private void stopNode(String name) throws IOException {
-       internalCluster().stopRandomNode(InternalTestCluster.nameFilter(name));
+        internalCluster().stopRandomNode(InternalTestCluster.nameFilter(name));
     }
 
     protected void assertIndexNotInMetaState(String nodeName, String indexName) throws Exception {

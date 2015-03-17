@@ -1,19 +1,11 @@
 [[setup-upgrade]]
 == Upgrading
 
-Elasticsearch can usually be upgraded using a rolling upgrade process, resulting in no interruption of service.  This section details how to perform both rolling and restart upgrades.  To determine whether a rolling upgrade is supported for your release, please consult this table:
+[float]
+[[rolling-upgrades]]
+=== Rolling Upgrades
 
-[cols="1,2,3",options="header",]
-|=======================================================================
-|Upgrade From |Upgrade To |Supported Upgrade Type
-|0.90.x |1.x |Restart Upgrade
-
-|< 0.90.7 |0.90.x |Restart Upgrade
-
-|>= 0.90.7 |0.90.x |Rolling Upgrade
-
-|1.x |1.x |Rolling Upgrade
-|=======================================================================
+Recent user feedback has led us to revise our guidance on rolling upgrades.  It is no longer recommended to perform a rolling upgrade for Elasticsearch.  We have found that even minor changes in the underlying Lucene version can result in shard incompatibilities between the original and new versions being installed, and running them in parallel has led to cases of shard corruption.  In order to prevent this, we recommend that all nodes be upgraded at the same time, and that the cluster be completely shut down during the upgrade.
 
 TIP: Before upgrading Elasticsearch, it is a good idea to consult the
 <<breaking-changes,breaking changes>> docs.
@@ -24,126 +16,26 @@ TIP: Before upgrading Elasticsearch, it is a good idea to consult the
 
 Before performing an upgrade, it's a good idea to back up the data on your system.  This will allow you to roll back in the event of a problem with the upgrade.  The upgrades sometimes include upgrades to the Lucene libraries used by Elasticsearch to access the index files, and after an index file has been updated to work with a new version of Lucene, it may not be accessible to the versions of Lucene present in earlier Elasticsearch releases.
 
-[float]
-==== 0.90.x and earlier
-
-To back up a running 0.90.x system, first disable index flushing.  This will prevent indices from being flushed to disk while the backup is in process:
-
-[source,sh]
------------------------------------
-$ curl -XPUT 'http://localhost:9200/_all/_settings' -d '{
-    "index": {
-        "translog.disable_flush": "true"
-    }
-}'
------------------------------------
-
-Then disable reallocation.  This will prevent the cluster from moving data files from one node to another while the backup is in process:
-
-[source,sh]
------------------------------------
-$ curl -XPUT 'http://localhost:9200/_cluster/settings' -d '{
-    "transient" : {
-        "cluster.routing.allocation.disable_allocation": "true"
-    }
-}'
------------------------------------
-
-After reallocation and index flushing are disabled, initiate a backup of Elasticsearch's data path using your favorite backup method (tar, storage array snapshots, backup software).  When the backup is complete and data no longer needs to be read from the Elasticsearch data path, reallocation and index flushing must be re-enabled:
-
-[source,sh]
------------------------------------
-$ curl -XPUT 'http://localhost:9200/_all/_settings' -d '{
-    "index": {
-        "translog.disable_flush": "false"
-    }
-}'
-
-$ curl -XPUT 'http://localhost:9200/_cluster/settings' -d '{
-    "transient" : {
-        "cluster.routing.allocation.disable_allocation": "false"
-    }
-}'
------------------------------------
-
-[float]
-==== 1.0 and later
-
 To back up a running 1.0 or later system, it is simplest to use the snapshot feature.  Complete instructions for backup and restore with snapshots are available http://www.elasticsearch.org/guide/en/elasticsearch/reference/current/modules-snapshots.html[here].
 
 [float]
-[[rolling-upgrades]]
-=== Rolling upgrade process
-
-A rolling upgrade allows the ES cluster to be upgraded one node at a time, with no observable downtime for end users.  Running multiple versions of Elasticsearch in the same cluster for any length of time beyond that required for an upgrade is not supported, as shard replication from the more recent version to the previous versions will not work.
-
-Within minor or maintenance releases after release 1.0, rolling upgrades are supported.  To perform a rolling upgrade:
-
-* Disable shard reallocation (optional).  This is done to allow for a faster startup after cluster shutdown.  If this step is not performed, the nodes will immediately start trying to replicate shards to each other on startup and will spend a lot of time on wasted I/O.  With shard reallocation disabled, the nodes will join the cluster with their indices intact, without attempting to rebalance.  After startup is complete, reallocation will be turned back on.
-
-This syntax applies to Elasticsearch 1.0 and later:
-
-[source,sh]
---------------------------------------------------
-        curl -XPUT localhost:9200/_cluster/settings -d '{
-                "transient" : {
-                    "cluster.routing.allocation.enable" : "none"
-                }
-        }'
---------------------------------------------------
-
-* Shut down a single node within the cluster.
-
-[source,sh]
---------------------------------------------
-curl -XPOST 'http://localhost:9200/_cluster/nodes/_local/_shutdown'
---------------------------------------------
-
-* Confirm that all shards are correctly reallocated to the remaining running nodes.
-
-* Upgrade the stopped node.  To upgrade using a zip or compressed tarball from elasticsearch.org:
-** Extract the zip or tarball to a new directory, usually in the same volume as the current Elasticsearch installation.  Do not overwrite the existing installation, as the downloaded archive will contain a default elasticsearch.yml file and will overwrite your existing configuration.
-** Copy the configuration files from the old Elasticsearch installation's config directory to the new Elasticsearch installation's config directory.  Move data files from the old Elasticsesarch installation's data directory if necessary.  If data files are not located within the tarball's extraction directory, they will not have to be moved.
-** The simplest solution for moving from one version to another is to have a symbolic link for 'elasticsearch' that points to the currently running version.  This link can be easily updated and will provide a stable access point to the most recent version.  Update this symbolic link if it is being used.
-
-* To upgrade using a `.deb` or `.rpm` package:
-** Use `rpm` or `dpkg` to install the new package.  All files should be placed in their proper locations, and config files should not be overwritten.
-
-* Start the now upgraded node.  Confirm that it joins the cluster.
-
-* Re-enable shard reallocation:
-
-[source,sh]
---------------------------------------------------
-        curl -XPUT localhost:9200/_cluster/settings -d '{
-                "transient" : {
-                    "cluster.routing.allocation.enable" : "all"
-                }
-        }'
---------------------------------------------------
-
-* Observe that all shards are properly allocated on all nodes.  Balancing may take some time.
-
-* Repeat this process for all remaining nodes.
-
-
-It may be possible to perform the upgrade by installing the new software while the service is running.  This would reduce downtime by ensuring the service was ready to run on the new version as soon as it is stopped on the node being upgraded.  This can be done by installing the new version in its own directory and using the symbolic link method outlined above.  It is important to test this procedure first to be sure that site-specific configuration data and production indices will not be overwritten during the upgrade process.
-
-[float]
 [[restart-upgrade]]
-=== Cluster restart upgrade process
+=== Upgrade Process
 
-Elasticsearch releases prior to 1.0 and releases after 1.0 are not compatible with each other, so a rolling upgrade is not possible.  In order to upgrade a pre-1.0 system to 1.0 or later, a full cluster stop and start is required.  In order to perform this upgrade:
+In order to prevent possible shard corruption during and immediately after an upgrade, a full cluster stop and start is required.  In order to perform this upgrade:
 
 * Disable shard reallocation (optional).  This is done to allow for a faster startup after cluster shutdown.  If this step is not performed, the nodes will immediately start trying to replicate shards to each other on startup and will spend a lot of time on wasted I/O.  With shard reallocation disabled, the nodes will join the cluster with their indices intact, without attempting to rebalance.  After startup is complete, reallocation will be turned back on.
 
-This syntax is from versions prior to 1.0:
+* Disable writes and flush indices (optional).  This is done to allow for a faster startup after cluster shutdown.  If this step is performed, the cluster will not be able to perform write operations until after the restart is complete.  Disabling writes and performing a _flush operation will force all indices to wrte their transaction logs to internal index storage.  This will avoid the necessity for transaction log playback on startup, reducing the time needed to start the primary shards and to initialize any replicas.
+
+This syntax is from versions 1.0 and up:
 
 [source,sh]
 --------------------------------------------------
 	curl -XPUT localhost:9200/_cluster/settings -d '{
 		"persistent" : {
-		"cluster.routing.allocation.disable_allocation" : true
+		"cluster.routing.allocation.enable" : "none",
+		"cluster.blocks.read_only" : true
 		}
 	}'
 --------------------------------------------------
@@ -151,6 +43,9 @@ This syntax is from versions prior to 1.0:
 * Stop all Elasticsearch services on all nodes in the cluster.
 [source,sh]
 ------------------------------------------------------
+	curl -XPOST 'http://localhost:9200/_flush' -d '{
+		"wait_if_ongoing" : true
+		}'
 	curl -XPOST 'http://localhost:9200/_shutdown'
 ------------------------------------------------------
 
@@ -160,15 +55,14 @@ This syntax is from versions prior to 1.0:
 ** Start master-eligible nodes first, one at a time.  Verify that a quorum has been reached and a master has been elected before proceeding.
 ** Start data nodes and then client nodes one at a time, verifying that they successfully join the cluster.
 
-* When the cluster is running and reaches a yellow state, shard reallocation can be enabled.
+* When the cluster is running and reaches a yellow state, shard reallocation and index writes can be enabled.
 
-This syntax is from release 1.0 and later:
 [source,sh]
 ------------------------------------------------------
 	curl -XPUT localhost:9200/_cluster/settings -d '{
      		"persistent" : {
-		"cluster.routing.allocation.disable_allocation": false,
-         	"cluster.routing.allocation.enable" : "all"
+         	"cluster.routing.allocation.enable" : "all",
+		"cluster.blocks.read_only" : false
      		}
  	}'
 ------------------------------------------------------

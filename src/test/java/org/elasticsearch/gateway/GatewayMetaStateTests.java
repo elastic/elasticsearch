@@ -35,20 +35,19 @@ import org.junit.Test;
 
 import java.util.Iterator;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Test IndexMetaState for master and data only nodes return correct list of indices to write
  * There are many parameters:
- * - meta state is on disk with old version
- * - meta state is on disk with new version
- * - meta state is not on disk
- * - meta state is in memory with old version
+ * - meta state is not on disk/ is on disk
+ * - meta state is on disk with old version/ up to date version
+ * - meta state is not in memory
+ * - meta state is in memory with old version/ new version
  * - meta state is in memory with new version
- * - version changed in cluster state event
- * - no change
+ * - version changed in cluster state event/ no change
  * - node is data only node
  * - node is master eligible
  * for data only nodes: shard initializing on shard
@@ -111,16 +110,24 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
                             boolean stateOnDisk,
                             boolean stateOnDiskOutdated,
                             boolean stateInMemory,
-                            boolean stateInMemoryOutdated,
                             boolean masterEligible,
                             boolean expectMetaData) throws Exception {
+        logger.debug("Testing combination:");
+        logger.debug("initializing: {}", initializing);
+        logger.debug("versionChanged: {}", versionChanged);
+        logger.debug("stateOnDisk: {}", stateOnDisk);
+        logger.debug("stateOnDiskOutdated: {}", stateOnDiskOutdated);
+        logger.debug("stateInMemory: {}", stateInMemory);
+        logger.debug("masterEligible: {}", masterEligible);
+        logger.debug("expectMetaData: {}", expectMetaData);
+
         ClusterChangedEvent event = generateEvent(initializing, versionChanged);
         final NodeEnvironment env = newNodeEnvironment();
         MetaStateService metaStateService = new MetaStateService(ImmutableSettings.EMPTY, env);
 
         MetaData inMemoryMetaData = null;
         if (stateInMemory) {
-            if (stateInMemoryOutdated) {
+            if (versionChanged) {
                 inMemoryMetaData = event.previousState().metaData();
             } else {
                 inMemoryMetaData = event.state().metaData();
@@ -149,30 +156,64 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
     }
 
     @Test
-    public void testAllCombinations() throws Exception {
-        assertState(/*initializing*/true, /*versionChanged*/true,
-        /*stateOnDisk*/true, /*stateOnDiskOutdated*/true,
-        /*stateInMemory*/true, /*stateInMemoryOutdated*/true,
-        /*masterEligible*/true,/*expectMetaData*/true);
+    public void testVersionChangeIsAlwaysWritten() throws Exception {
+        // test that version changes are always written
+        boolean initializing = randomBoolean();
+        boolean versionChanged = true;
+        boolean stateOnDisk = randomBoolean();
+        // if we run into version changed then the state on disk must be outdated
+        boolean stateOnDiskOutdated = true;
+        boolean stateInMemory = randomBoolean();
+        boolean masterEligible = randomBoolean();
+        boolean expectMetaData = true;
+        assertState(initializing, versionChanged,
+                stateOnDisk, stateOnDiskOutdated,
+                stateInMemory, masterEligible, expectMetaData);
+    }
 
-        assertState(/*initializing*/true, /*versionChanged*/true,
-        /*stateOnDisk*/true, /*stateOnDiskOutdated*/true,
-        /*stateInMemory*/true, /*stateInMemoryOutdated*/true,
-        /*masterEligible*/false,/*expectMetaData*/true);
+    @Test
+    public void testUpToDateStateOnDiskAndNotInMemory() throws Exception {
+        // make sure state is not written again if we wrote already
+        boolean initializing = false;
+        boolean versionChanged = false;
+        boolean stateOnDisk = true;
+        boolean stateOnDiskOutdated = false;
+        boolean stateInMemory = false;
+        boolean masterEligible = randomBoolean();
+        boolean expectMetaData = false;
+        assertState(initializing, versionChanged,
+                stateOnDisk, stateOnDiskOutdated,
+                stateInMemory, masterEligible, expectMetaData);
+    }
 
-        assertState(/*initializing*/false, /*versionChanged*/false,
-        /*stateOnDisk*/true, /*stateOnDiskOutdated*/true,
-        /*stateInMemory*/true, /*stateInMemoryOutdated*/true,
-        /*masterEligible*/false,/*expectMetaData*/false);
+    @Test
+    public void testInitializingDataOnlyNode() throws Exception {
+        // make sure initializing shards on data only node always written
+        boolean initializing = true;
+        boolean versionChanged = randomBoolean();
+        boolean stateOnDisk = randomBoolean();
+        boolean stateOnDiskOutdated = randomBoolean();
+        boolean stateInMemory = randomBoolean();
+        boolean masterEligible = false;
+        boolean expectMetaData = true;
+        assertState(initializing, versionChanged,
+                stateOnDisk, stateOnDiskOutdated,
+                stateInMemory, masterEligible,
+                expectMetaData);
+    }
 
-        assertState(/*initializing*/false, /*versionChanged*/false,
-        /*stateOnDisk*/true, /*stateOnDiskOutdated*/true,
-        /*stateInMemory*/false, /*stateInMemoryOutdated*/true,
-        /*masterEligible*/false,/*expectMetaData*/false);
-
-        assertState(/*initializing*/true, /*versionChanged*/false,
-        /*stateOnDisk*/true, /*stateOnDiskOutdated*/false,
-        /*stateInMemory*/false, /*stateInMemoryOutdated*/true,
-        /*masterEligible*/false,/*expectMetaData*/true);
+    @Test
+    public void testAllUpToDateNothingWritten() throws Exception {
+        // make sure state is not written again if we wrote already
+        boolean initializing = false;
+        boolean versionChanged = false;
+        boolean stateOnDisk = true;
+        boolean stateOnDiskOutdated = false;
+        boolean stateInMemory = true;
+        boolean masterEligible = randomBoolean();
+        boolean expectMetaData = false;
+        assertState(initializing, versionChanged,
+                stateOnDisk, stateOnDiskOutdated,
+                stateInMemory, masterEligible, expectMetaData);
     }
 }

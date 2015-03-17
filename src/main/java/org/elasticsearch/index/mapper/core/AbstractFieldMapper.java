@@ -90,7 +90,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     public static class Defaults {
         public static final FieldType FIELD_TYPE = new FieldType();
-        public static final boolean DOC_VALUES = false;
+        public static final boolean PRE_2X_DOC_VALUES = false;
 
         static {
             FIELD_TYPE.setTokenized(true);
@@ -302,7 +302,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     protected FieldDataType fieldDataType;
     protected final MultiFields multiFields;
     protected CopyTo copyTo;
-    protected final boolean writePre2xSettings;
+    protected final boolean indexCreatedBefore2x;
 
     protected AbstractFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues, NamedAnalyzer indexAnalyzer,
                                   NamedAnalyzer searchAnalyzer, SimilarityProvider similarity,
@@ -319,8 +319,10 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         this.boost = boost;
         this.fieldType = fieldType;
         this.fieldType.freeze();
-        
-        if (indexAnalyzer == null && this.fieldType.tokenized() == false && this.fieldType.indexOptions() != IndexOptions.NONE) {
+        this.indexCreatedBefore2x = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
+
+        boolean indexedNotAnalyzed = this.fieldType.tokenized() == false && this.fieldType.indexOptions() != IndexOptions.NONE;
+        if (indexAnalyzer == null && indexedNotAnalyzed) {
             this.indexAnalyzer = this.searchAnalyzer = Lucene.KEYWORD_ANALYZER;
         } else {
             this.indexAnalyzer = indexAnalyzer;
@@ -339,16 +341,22 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
                     ImmutableSettings.builder().put(defaultFieldDataType().getSettings()).put(fieldDataSettings)
             );
         }
+        
         if (docValues != null) {
+            // explicitly set
             this.docValues = docValues;
-        } else if (fieldDataType == null) {
-            this.docValues = false;
+        } else if (fieldDataType != null && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(fieldDataType.getFormat(indexSettings))) {
+            // convoluted way to enable doc values, should be removed in the future
+            this.docValues = true;
+        } else if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0)) {
+            // 2.0+ index, default to true when appropriate
+            this.docValues = defaultDocValues();
         } else {
-            this.docValues = FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(fieldDataType.getFormat(indexSettings));
-        }
+            // old default, disable
+            this.docValues = false;
+        } 
         this.multiFields = multiFields;
         this.copyTo = copyTo;
-        this.writePre2xSettings = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
     }
 
     @Nullable
@@ -359,6 +367,19 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     @Nullable
     protected String defaultDocValuesFormat() {
         return null;
+    }
+    
+    protected boolean defaultDocValues() {
+        if (indexCreatedBefore2x) {
+            return Defaults.PRE_2X_DOC_VALUES;
+        } else {
+            return fieldType.tokenized() == false && fieldType.indexOptions() != IndexOptions.NONE;
+        }
+    }
+
+    @Override
+    public final boolean hasDocValues() {
+        return docValues;
     }
 
     @Override
@@ -683,7 +704,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     protected void doXContentBody(XContentBuilder builder, boolean includeDefaults, Params params) throws IOException {
 
         builder.field("type", contentType());
-        if (writePre2xSettings && (includeDefaults || !names.name().equals(names.indexNameClean()))) {
+        if (indexCreatedBefore2x && (includeDefaults || !names.name().equals(names.indexNameClean()))) {
             builder.field("index_name", names.indexNameClean());
         }
 
@@ -701,7 +722,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         if (includeDefaults || fieldType.stored() != defaultFieldType.stored()) {
             builder.field("store", fieldType.stored());
         }
-        if (includeDefaults || hasDocValues() != Defaults.DOC_VALUES) {
+        if (includeDefaults || hasDocValues() != defaultDocValues()) {
             builder.field(TypeParsers.DOC_VALUES, docValues);
         }
         if (includeDefaults || fieldType.storeTermVectors() != defaultFieldType.storeTermVectors()) {
@@ -822,11 +843,6 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     @Override
     public boolean supportsNullValue() {
         return true;
-    }
-
-    @Override
-    public boolean hasDocValues() {
-        return docValues;
     }
 
     @Override

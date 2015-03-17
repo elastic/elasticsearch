@@ -67,6 +67,7 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
 
                 .startObject("int_to_str_test")
                 .field("type", "integer")
+                .field("doc_values", false)
                 .array("copy_to",  "another_field", "new_field")
                 .endObject()
                 .endObject().endObject().endObject().string();
@@ -111,7 +112,7 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(doc.getFields("int_to_str_test").length, equalTo(1));
         assertThat(doc.getFields("int_to_str_test")[0].numericValue().intValue(), equalTo(42));
 
-        assertThat(doc.getFields("new_field").length, equalTo(1));
+        assertThat(doc.getFields("new_field").length, equalTo(2)); // new field has doc values
         assertThat(doc.getFields("new_field")[0].numericValue().intValue(), equalTo(42));
 
         fieldMapper = docMapper.mappers().name("new_field").mapper();
@@ -234,14 +235,27 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
             XContentBuilder mapping = jsonBuilder().startObject()
                     .startObject("type")
                         .startObject("properties")
+                            .startObject("target")
+                                .field("type", "long")
+                                .field("doc_values", false)
+                            .endObject()
                             .startObject("n1")
                                 .field("type", "nested")
                                 .startObject("properties")
+                                    .startObject("target")
+                                        .field("type", "long")
+                                        .field("doc_values", false)
+                                    .endObject()
                                     .startObject("n2")
                                         .field("type", "nested")
                                         .startObject("properties")
+                                            .startObject("target")
+                                                .field("type", "long")
+                                                .field("doc_values", false)
+                                            .endObject()
                                             .startObject("source")
                                                 .field("type", "long")
+                                                .field("doc_values", false)
                                                 .startArray("copy_to")
                                                     .value("target") // should go to the root doc
                                                     .value("n1.target") // should go to the parent doc
@@ -250,7 +264,7 @@ public class CopyToMapperTests extends ElasticsearchSingleNodeTest {
                                             .endObject();
             for (int i = 0; i < 3; ++i) {
                 if (mapped) {
-                    mapping = mapping.startObject("target").field("type", "long").endObject();
+                    mapping = mapping.startObject("target").field("type", "long").field("doc_values", false).endObject();
                 }
                 mapping = mapping.endObject().endObject();
             }

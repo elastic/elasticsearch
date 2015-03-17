@@ -317,12 +317,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             if (frequently() && randomDynamicTemplates()) {
                 mappings = XContentFactory.jsonBuilder().startObject().startObject("_default_");
                 if (randomBoolean()) {
+                    boolean timestampEnabled = randomBoolean();
                     mappings.startObject(TimestampFieldMapper.NAME)
-                            .field("enabled", randomBoolean())
-                            .startObject("fielddata")
-                            .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                            .endObject()
-                            .endObject();
+                            .field("enabled", timestampEnabled);
+                    if (timestampEnabled) {
+                        mappings.field("doc_values", randomBoolean());
+                    }
+                    mappings.endObject();
                 }
                 if (randomBoolean()) {
                     mappings.startObject(SizeFieldMapper.NAME)
@@ -332,62 +333,54 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 if (randomBoolean()) {
                     mappings.startObject(AllFieldMapper.NAME)
                             .field("auto_boost", true)
-                            .endObject();
+                        .endObject();
                 }
                 if (randomBoolean()) {
                     mappings.startObject(SourceFieldMapper.NAME)
                             .field("compress", randomBoolean())
                             .endObject();
                 }
-                if (compatibilityVersion().onOrAfter(Version.V_1_3_0) && compatibilityVersion().before(Version.V_2_0_0)) {
-                    // some tests rely on this BWC version behavior that we wanna keep
-                    mappings.startObject(FieldNamesFieldMapper.NAME)
-                            .startObject("fielddata")
-                            .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst", "doc_values"))
-                            .endObject()
-                            .endObject();
-                }
                 mappings.startArray("dynamic_templates")
                         .startObject()
-                        .startObject("template-strings")
-                        .field("match_mapping_type", "string")
+                    .startObject("template-strings")
+                    .field("match_mapping_type", "string")
                         .startObject("mapping")
-                        .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst")) // unfortunately doc values only work on not_analyzed fields
-                        .field(Loading.KEY, randomLoadingValues())
+                    .startObject("fielddata")
+                    .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst"))
+                    .field(Loading.KEY, randomLoadingValues())
                         .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
                         .startObject()
-                        .startObject("template-longs")
-                        .field("match_mapping_type", "long")
-                        .startObject("mapping")
-                        .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                    .startObject("template-longs")
+                    .field("match_mapping_type", "long")
+                    .startObject("mapping")
+                    .field("doc_values", randomBoolean())
+                    .startObject("fielddata")
+                    .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
                         .startObject()
-                        .startObject("template-doubles")
-                        .field("match_mapping_type", "double")
-                        .startObject("mapping")
-                        .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                    .startObject("template-doubles")
+                    .field("match_mapping_type", "double")
+                    .startObject("mapping")
+                    .field("doc_values", randomBoolean())
+                    .startObject("fielddata")
+                    .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
                         .startObject()
-                        .startObject("template-geo_points")
-                        .field("match_mapping_type", "geo_point")
-                        .startObject("mapping")
-                        .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                    .startObject("template-geo_points")
+                    .field("match_mapping_type", "geo_point")
+                    .startObject("mapping")
+                    .field("doc_values", randomBoolean())
+                    .startObject("fielddata")
+                    .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
                         .endObject()
                         .endObject()
@@ -1735,7 +1728,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * "paged_bytes", "fst", or "doc_values".
      */
     public static String randomBytesFieldDataFormat() {
-        return randomFrom(Arrays.asList("paged_bytes", "fst", "doc_values"));
+        return randomFrom(Arrays.asList("paged_bytes", "fst"));
     }
 
     /**

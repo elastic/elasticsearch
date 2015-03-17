@@ -131,7 +131,7 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     }
 
     protected RoutingFieldMapper(FieldType fieldType, boolean required, String path, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), 1.0f, fieldType, null, Lucene.KEYWORD_ANALYZER,
+        super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), 1.0f, fieldType, false, Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
         this.required = required;
         this.path = path;
@@ -145,11 +145,6 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
     @Override
     public FieldDataType defaultFieldDataType() {
         return new FieldDataType("string");
-    }
-
-    @Override
-    public boolean hasDocValues() {
-        return false;
     }
 
     public void markAsRequired() {
@@ -229,16 +224,16 @@ public class RoutingFieldMapper extends AbstractFieldMapper<String> implements I
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (writePre2xSettings && (includeDefaults || indexed != indexedDefault)) {
+        if (indexCreatedBefore2x && (includeDefaults || indexed != indexedDefault)) {
             builder.field("index", indexTokenizeOptionToString(indexed, fieldType.tokenized()));
         }
-        if (writePre2xSettings && (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored())) {
+        if (indexCreatedBefore2x && (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored())) {
             builder.field("store", fieldType.stored());
         }
         if (includeDefaults || required != Defaults.REQUIRED) {
             builder.field("required", required);
         }
-        if (writePre2xSettings && (includeDefaults || path != Defaults.PATH)) {
+        if (indexCreatedBefore2x && (includeDefaults || path != Defaults.PATH)) {
             builder.field("path", path);
         }
         builder.endObject();

@@ -70,6 +70,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
                 .startObject("test-str")
                 .field("type", "string")
                 .field("index", "not_analyzed")
+                .field("doc_values", randomBoolean())
                 .startObject("fielddata")
                 .field("format", randomBytesFieldDataFormat())
                 .endObject() // fielddata

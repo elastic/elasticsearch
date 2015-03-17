@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.date;
 
 import org.apache.lucene.analysis.NumericTokenStream.NumericTermAttribute;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -32,7 +33,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
@@ -41,17 +47,25 @@ import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.elasticsearch.test.TestSearchContext;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
+import static org.elasticsearch.index.mapper.string.SimpleStringMappingTests.docValuesType;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
-
-    @Test
+    
     public void testAutomaticDateParser() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").endObject()
@@ -82,7 +96,6 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
     }
     
-    @Test
     public void testParseLocal() {
         assertThat(Locale.GERMAN, equalTo(LocaleUtils.parse("de")));
         assertThat(Locale.GERMANY, equalTo(LocaleUtils.parse("de_DE")));
@@ -98,7 +111,6 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(Locale.ROOT,  equalTo(LocaleUtils.parse("ROOT")));
     }
     
-    @Test
     public void testLocale() throws IOException {
         String mapping = XContentFactory.jsonBuilder()
                     .startObject()
@@ -169,7 +181,6 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(pos, equalTo(values.size()));
     }
 
-    @Test
     public void testTimestampAsDate() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("date_field").field("type", "date").endObject().endObject()
@@ -187,7 +198,6 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(doc.rootDoc().getField("date_field").tokenStream(defaultMapper.mappers().indexAnalyzer(), null), notNullValue());
     }
 
-    @Test
     public void testDateDetection() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .field("date_detection", false)
@@ -203,11 +213,10 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject()
                 .bytes());
 
-        assertThat(doc.rootDoc().get("date_field"), nullValue());
+        assertThat(doc.rootDoc().get("date_field"), equalTo("1262304000000"));
         assertThat(doc.rootDoc().get("date_field_x"), equalTo("2010-01-01"));
     }
-
-    @Test
+    
     public void testHourFormat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .field("date_detection", false)
@@ -235,9 +244,7 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(rangeFilter.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(11).millis()).getMillis()));
         assertThat(rangeFilter.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(10).millis()).getMillis()));
     }
-
-
-    @Test
+    
     public void testDayWithoutYearFormat() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .field("date_detection", false)
@@ -265,8 +272,7 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(rangeFilter.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(35).millis()).getMillis()));
         assertThat(rangeFilter.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(34).millis()).getMillis()));
     }
-
-    @Test
+    
     public void testIgnoreMalformedOption() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -330,7 +336,6 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         }
     }
 
-    @Test
     public void testThatMergingWorks() throws Exception {
         String initialMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
@@ -365,6 +370,22 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         DateFieldMapper mergedFieldMapper = (DateFieldMapper) defaultMapper.mappers().name("field").mapper();
         Map<String, String> mergedConfig = getConfigurationViaXContent(mergedFieldMapper);
         assertThat(mergedConfig.get("format"), is("EEE MMM dd HH:mm:ss.S Z yyyy||EEE MMM dd HH:mm:ss.SSS Z yyyy||yyyy-MM-dd'T'HH:mm:ss.SSSZZ"));
+    }
+    
+    public void testDefaultDocValues() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties").startObject("date_field").field("type", "date").endObject().endObject()
+            .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = mapper(mapping);
+
+        ParsedDocument parsedDoc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+            .startObject()
+            .field("date_field", "2010-01-01")
+            .endObject()
+            .bytes());
+        ParseContext.Document doc = parsedDoc.rootDoc();
+        assertEquals(DocValuesType.SORTED_NUMERIC, docValuesType(doc, "date_field"));
     }
 
     private Map<String, String> getConfigurationViaXContent(DateFieldMapper dateFieldMapper) throws IOException {

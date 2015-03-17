@@ -37,6 +37,11 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class BinaryDVFieldDataTests extends AbstractFieldDataTests {
 
+    @Override
+    protected boolean hasDocValues() {
+        return true;
+    }
+
     @Test
     public void testDocValue() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("test")

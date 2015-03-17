@@ -26,6 +26,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.loader.SettingsLoader;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -55,6 +57,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
 import static org.elasticsearch.index.mapper.MapperBuilders.all;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
@@ -125,6 +128,24 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             AllFieldMapper.Builder builder = all();
+            
+            // parseField below will happily parse the doc_values setting, but it is then never passed to
+            // the AllFieldMapper ctor in the builder since it is not valid. Here we validate
+            // the doc values settings (old and new) are rejected
+            Object docValues = node.get("doc_values");
+            if (docValues != null && nodeBooleanValue(docValues)) {
+                throw new MapperParsingException("Field [" + name + "] is always tokenized and cannot have doc values");
+            }
+            // convoluted way of specifying doc values
+            Object fielddata = node.get("fielddata");
+            if (fielddata != null) {
+                Map<String, Object> fielddataMap = nodeMapValue(fielddata, "fielddata");
+                Object format = fielddataMap.get("format");
+                if ("doc_values".equals(format)) {
+                    throw new MapperParsingException("Field [" + name + "] is always tokenized and cannot have doc values");
+                }
+            }
+            
             parseField(builder, builder.name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -158,11 +179,8 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
     protected AllFieldMapper(String name, FieldType fieldType, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                              EnabledAttributeMapper enabled, boolean autoBoost, SimilarityProvider similarity, Loading normsLoading,
                              @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, name, name, name), 1.0f, fieldType, null, indexAnalyzer, searchAnalyzer,
+        super(new Names(name, name, name, name), 1.0f, fieldType, false, indexAnalyzer, searchAnalyzer,
                 similarity, normsLoading, fieldDataSettings, indexSettings);
-        if (hasDocValues()) {
-            throw new MapperParsingException("Field [" + names.fullName() + "] is always tokenized and cannot have doc values");
-        }
         this.enabledState = enabled;
         this.autoBoost = autoBoost;
 

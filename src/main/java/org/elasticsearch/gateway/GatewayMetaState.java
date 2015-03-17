@@ -145,20 +145,12 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         }
     }
 
-
     protected boolean isDataOnlyNode(ClusterState state) {
         return ((isMasterEligibleNode(state) == false) && (state.nodes().localNode().dataNode() == true));
     }
 
     protected boolean isMasterEligibleNode(ClusterState state) {
         return state.nodes().localNode().masterNode() == true;
-    }
-
-    /**
-     * Returns true if the local node is either a master eligible node or if shards are allocated on this node
-     */
-    private boolean shouldWriteOnNode(ClusterState state, boolean shardsAllocatedOnThisNodeInNewClusterState) {
-        return (shardsAllocatedOnThisNodeInNewClusterState == true) || isMasterEligibleNode(state);
     }
 
     /**
@@ -263,7 +255,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
      * @param event           the cluster state event from which we figure out what is new in each index and should potentially be written
      * @param currentMetaData the current index state in memory.
      * @return iterable over all indices states that should be written to disk
-     *
      */
     public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStateOnDataNode(ClusterChangedEvent event, MetaData currentMetaData, MetaStateService metaStateService, ESLogger logger) {
         Map<String, IndexMetaWriteInfo> indicesToWrite = new HashMap<>();
@@ -304,9 +295,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
      * @param event           the cluster state event from which we figure out what is new in each index and should potentially be written
      * @param currentMetaData the current index state in memory.
      * @return iterable over all indices states that should be written to disk
-     *
      */
-    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStatesOnMaster(ClusterChangedEvent event, MetaData currentMetaData,  MetaStateService metaStateService, ESLogger logger) {
+    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStatesOnMaster(ClusterChangedEvent event, MetaData currentMetaData, MetaStateService metaStateService, ESLogger logger) {
         Map<String, GatewayMetaState.IndexMetaWriteInfo> indicesToWrite = new HashMap<>();
         MetaData newMetaData = event.state().metaData();
         // iterate over all indices but only write if ...

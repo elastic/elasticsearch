@@ -675,6 +675,10 @@ public class DocumentMapper implements ToXContent {
         }
     }
 
+    public boolean mappingsModified() {
+        return cache.get().mappingsModified();
+    }
+
     public void close() {
         cache.close();
         rootObjectMapper.close();

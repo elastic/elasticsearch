@@ -213,14 +213,18 @@ public class AggregatorFactories {
                 temporarilyMarked.add(factory);
                 String[] bucketsPaths = factory.getBucketsPaths();
                 for (String bucketsPath : bucketsPaths) {
-                    ReducerFactory matchingFactory = reducerFactoriesMap.get(bucketsPath);
-                    if (bucketsPath.equals("_count") || bucketsPath.equals("_key") || aggFactoryNames.contains(bucketsPath)) {
+                    int aggSepIndex = bucketsPath.indexOf('>');
+                    String firstAggName = aggSepIndex == -1 ? bucketsPath : bucketsPath.substring(0, aggSepIndex);
+                    if (bucketsPath.equals("_count") || bucketsPath.equals("_key") || aggFactoryNames.contains(firstAggName)) {
                         continue;
-                    } else if (matchingFactory != null) {
-                        resolveReducerOrder(aggFactoryNames, reducerFactoriesMap, orderedReducers, unmarkedFactories, temporarilyMarked,
-                                matchingFactory);
                     } else {
-                        throw new ElasticsearchIllegalStateException("No reducer found for path [" + bucketsPath + "]");
+                        ReducerFactory matchingFactory = reducerFactoriesMap.get(firstAggName);
+                        if (matchingFactory != null) {
+                            resolveReducerOrder(aggFactoryNames, reducerFactoriesMap, orderedReducers, unmarkedFactories,
+                                    temporarilyMarked, matchingFactory);
+                        } else {
+                            throw new ElasticsearchIllegalStateException("No aggregation found for path [" + bucketsPath + "]");
+                        }
                     }
                 }
                 unmarkedFactories.remove(factory);

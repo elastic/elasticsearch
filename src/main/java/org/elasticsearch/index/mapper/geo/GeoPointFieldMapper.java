@@ -197,8 +197,8 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
                     latMapperBuilder.precisionStep(precisionStep);
                     lonMapperBuilder.precisionStep(precisionStep);
                 }
-                latMapper = (DoubleFieldMapper) latMapperBuilder.includeInAll(false).store(fieldType.stored()).build(context);
-                lonMapper = (DoubleFieldMapper) lonMapperBuilder.includeInAll(false).store(fieldType.stored()).build(context);
+                latMapper = (DoubleFieldMapper) latMapperBuilder.includeInAll(false).store(fieldType.stored()).docValues(false).build(context);
+                lonMapper = (DoubleFieldMapper) lonMapperBuilder.includeInAll(false).store(fieldType.stored()).docValues(false).build(context);
             }
             StringFieldMapper geohashMapper = null;
             if (enableGeoHash) {
@@ -469,6 +469,11 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
     @Override
     public FieldDataType defaultFieldDataType() {
         return new FieldDataType("geo_point");
+    }
+    
+    @Override
+    protected boolean defaultDocValues() {
+        return false;
     }
 
     public DoubleFieldMapper latMapper() {

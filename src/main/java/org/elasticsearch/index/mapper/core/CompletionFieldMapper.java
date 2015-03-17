@@ -240,7 +240,7 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
     // with older postings formats such as Elasticsearch090
     public CompletionFieldMapper(Names names, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, PostingsFormat wrappedPostingsFormat, SimilarityProvider similarity, boolean payloads,
                                  boolean preserveSeparators, boolean preservePositionIncrements, int maxInputLength, Settings indexSettings, MultiFields multiFields, CopyTo copyTo, SortedMap<String, ContextMapping> contextMappings) {
-        super(names, 1.0f, Defaults.FIELD_TYPE, null, indexAnalyzer, searchAnalyzer, similarity, null, null, indexSettings, multiFields, copyTo);
+        super(names, 1.0f, Defaults.FIELD_TYPE, false, indexAnalyzer, searchAnalyzer, similarity, null, null, indexSettings, multiFields, copyTo);
         analyzingSuggestLookupProvider = new AnalyzingCompletionLookupProvider(preserveSeparators, false, preservePositionIncrements, payloads);
         if (wrappedPostingsFormat == null) {
             // delayed until postingsFormat() is called
@@ -491,11 +491,6 @@ public class CompletionFieldMapper extends AbstractFieldMapper<String> {
 
     @Override
     public boolean isSortable() {
-        return false;
-    }
-
-    @Override
-    public boolean hasDocValues() {
         return false;
     }
 

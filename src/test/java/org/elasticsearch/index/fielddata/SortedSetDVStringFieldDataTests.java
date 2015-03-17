@@ -30,6 +30,11 @@ public class SortedSetDVStringFieldDataTests extends AbstractStringFieldDataTest
     }
 
     @Override
+    protected boolean hasDocValues() {
+        return true;
+    }
+
+    @Override
     protected long minRamBytesUsed() {
         return 0;
     }

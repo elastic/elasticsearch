@@ -349,7 +349,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (writePre2xSettings == false) {
+        if (indexCreatedBefore2x == false) {
             return builder;
         }
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);

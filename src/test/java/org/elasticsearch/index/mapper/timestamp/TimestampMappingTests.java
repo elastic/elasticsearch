@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -183,6 +184,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
         try {
             request.process(metaData, mappingMetaData, true, "test");
+            fail();
         } catch (TimestampParsingException e) {
             assertThat(e.getDetailedMessage(), containsString("timestamp is required by mapping"));
         }
@@ -488,11 +490,12 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "lazy").field("format", "doc_values").endObject().field("store", "yes").endObject()
                 .endObject().endObject().string();
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        DocumentMapperParser parser = createIndex("test", indexSettings).mapperService().documentMapperParser();
 
         DocumentMapper docMapper = parser.parse(mapping);
         assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.LAZY));
-        assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(docMapper.timestampFieldMapper().fieldDataType().getSettings()), equalTo("doc_values"));
+        assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(indexSettings), equalTo("doc_values"));
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "eager").field("format", "array").endObject().field("store", "yes").endObject()
                 .endObject().endObject().string();
@@ -500,7 +503,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(false));
         assertThat(mergeResult.conflicts().length, equalTo(0));
         assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.EAGER));
-        assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(docMapper.timestampFieldMapper().fieldDataType().getSettings()), equalTo("array"));
+        assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(indexSettings), equalTo("array"));
     }
 
     @Test
@@ -558,7 +561,8 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .field("default", "1970-01-01")
                 .endObject()
                 .endObject().endObject().string();
-        DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        DocumentMapperParser parser = createIndex("test", indexSettings).mapperService().documentMapperParser();
 
         DocumentMapper docMapper = parser.parse(mapping);
         assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.LAZY));
@@ -581,7 +585,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(mergeResult.conflicts().length, equalTo(expectedConflicts.length));
         assertThat(docMapper.timestampFieldMapper().fieldDataType().getLoading(), equalTo(FieldMapper.Loading.LAZY));
         assertTrue(docMapper.timestampFieldMapper().enabled());
-        assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(docMapper.timestampFieldMapper().fieldDataType().getSettings()), equalTo("doc_values"));
+        assertThat(docMapper.timestampFieldMapper().fieldDataType().getFormat(indexSettings), equalTo("doc_values"));
     }
 
     @Test
@@ -607,7 +611,14 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .endObject().endObject().string();
 
         DocumentMapper.MergeResult mergeResult = docMapper.merge(parser.parse(mapping), DocumentMapper.MergeFlags.mergeFlags().simulate(true));
-        String[] expectedConflicts = {"mapper [_timestamp] has different index values", "mapper [_timestamp] has different tokenize values"};
+        List<String> expectedConflicts = new ArrayList<>();
+        expectedConflicts.add("mapper [_timestamp] has different index values");
+        expectedConflicts.add("mapper [_timestamp] has different tokenize values");
+        if (indexValues.get(0).equals("not_analyzed") == false) {
+            // if the only index value left is not_analyzed, then the doc values setting will be the same, but in the
+            // other two cases, it will change
+            expectedConflicts.add("mapper [_timestamp] has different doc_values values");
+        }
 
         for (String conflict : mergeResult.conflicts()) {
             assertThat(conflict, isIn(expectedConflicts));

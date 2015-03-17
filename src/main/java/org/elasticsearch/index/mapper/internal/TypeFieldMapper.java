@@ -34,7 +34,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -109,7 +108,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     }
 
     public TypeFieldMapper(String name, String indexName, float boost, FieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), boost, fieldType, null, Lucene.KEYWORD_ANALYZER,
+        super(new Names(name, indexName, indexName, name), boost, fieldType, false, Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
     }
 
@@ -121,11 +120,6 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
     @Override
     public FieldDataType defaultFieldDataType() {
         return new FieldDataType("string");
-    }
-
-    @Override
-    public boolean hasDocValues() {
-        return false;
     }
 
     @Override
@@ -191,7 +185,7 @@ public class TypeFieldMapper extends AbstractFieldMapper<String> implements Inte
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (writePre2xSettings == false) {
+        if (indexCreatedBefore2x == false) {
             return builder;
         }
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);

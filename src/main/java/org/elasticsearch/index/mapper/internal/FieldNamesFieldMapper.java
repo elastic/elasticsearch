@@ -268,7 +268,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
         if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (writePre2xSettings && (includeDefaults || fieldType().equals(Defaults.FIELD_TYPE) == false)) {
+        if (indexCreatedBefore2x && (includeDefaults || fieldType().equals(Defaults.FIELD_TYPE) == false)) {
             super.doXContentBody(builder, includeDefaults, params);
         }
         

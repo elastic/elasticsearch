@@ -22,6 +22,8 @@ package org.elasticsearch.index.mapper.all;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -29,6 +31,8 @@ import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.lucene.all.AllField;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.all.AllTokenStream;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -426,5 +430,32 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         }
         mapping += "\"properties\":{}}" ;
         createIndex("test").mapperService().documentMapperParser().parse("test", mapping);
+    }
+    
+    public void testDocValuesNotAllowed() throws IOException {
+        String mapping = jsonBuilder().startObject().startObject("type")
+            .startObject("_all")
+                .field("doc_values", true)
+            .endObject().endObject().endObject().string();
+        try {
+            createIndex("test").mapperService().documentMapperParser().parse(mapping);
+            fail();
+        } catch (MapperParsingException e) {
+            assertThat(e.getDetailedMessage(), containsString("[_all] is always tokenized and cannot have doc values"));
+        }
+        
+
+        mapping = jsonBuilder().startObject().startObject("type")
+            .startObject("_all")
+                .startObject("fielddata")
+                    .field("format", "doc_values")
+            .endObject().endObject().endObject().endObject().string();
+        Settings legacySettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        try {
+            createIndex("test_old", legacySettings).mapperService().documentMapperParser().parse(mapping);
+            fail();
+        } catch (MapperParsingException e) {
+            assertThat(e.getDetailedMessage(), containsString("[_all] is always tokenized and cannot have doc values"));
+        }
     }
 }

@@ -131,7 +131,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     protected BooleanFieldMapper(Names names, float boost, FieldType fieldType, Boolean nullValue,
                                  SimilarityProvider similarity, Loading normsLoading,
                                  @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(names, boost, fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(names, boost, fieldType, false, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
     }
 
@@ -255,10 +255,5 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         if (includeDefaults || nullValue != null) {
             builder.field("null_value", nullValue);
         }
-    }
-
-    @Override
-    public boolean hasDocValues() {
-        return false;
     }
 }

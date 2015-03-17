@@ -22,19 +22,26 @@ package org.elasticsearch.search.aggregations.reducers.movavg;
 import com.google.common.base.Function;
 import com.google.common.collect.EvictingQueue;
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.*;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
-import org.elasticsearch.search.aggregations.reducers.*;
+import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
+import org.elasticsearch.search.aggregations.reducers.InternalSimpleValue;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
+import org.elasticsearch.search.aggregations.reducers.ReducerStreams;
 import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModelStreams;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -43,7 +50,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
 import static org.elasticsearch.search.aggregations.reducers.BucketHelpers.resolveBucketValue;
 
 public class MovAvgReducer extends Reducer {
@@ -155,8 +161,7 @@ public class MovAvgReducer extends Reducer {
         }
 
         @Override
-        protected Reducer createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-                Map<String, Object> metaData) throws IOException {
+        protected Reducer createInternal(Map<String, Object> metaData) throws IOException {
             return new MovAvgReducer(name, bucketsPaths, formatter, gapPolicy, window, model, metaData);
         }
 

@@ -17,26 +17,32 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers;
+package org.elasticsearch.search.aggregations.reducers.bucketmetrics;
 
-import org.elasticsearch.search.aggregations.reducers.bucketmetrics.MaxBucketBuilder;
-import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeBuilder;
-import org.elasticsearch.search.aggregations.reducers.movavg.MovAvgBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
 
-public final class ReducerBuilders {
+import java.io.IOException;
 
-    private ReducerBuilders() {
+public class MaxBucketBuilder extends ReducerBuilder<MaxBucketBuilder> {
+
+    private String format;
+
+    public MaxBucketBuilder(String name) {
+        super(name, MaxBucketReducer.TYPE.name());
     }
 
-    public static final DerivativeBuilder derivative(String name) {
-        return new DerivativeBuilder(name);
+    public MaxBucketBuilder format(String format) {
+        this.format = format;
+        return this;
     }
 
-    public static final MaxBucketBuilder maxBucket(String name) {
-        return new MaxBucketBuilder(name);
+    @Override
+    protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+        if (format != null) {
+            builder.field(MaxBucketParser.FORMAT.getPreferredName(), format);
+        }
+        return builder;
     }
 
-    public static final MovAvgBuilder smooth(String name) {
-        return new MovAvgBuilder(name);
-    }
 }

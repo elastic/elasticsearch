@@ -199,9 +199,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                 break;
         }
 
-        Settings settings = builder.build();
-        System.out.println(settings.toDelimitedString('\n'));
-        buildScriptService(settings);
+        buildScriptService(builder.build());
         createFileScripts("groovy", "expression", "mustache", "test");
 
         for (ScriptedOp scriptedOp : ScriptedOp.values()) {
@@ -314,9 +312,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
             }
         }
 
-        Settings settings = builder.build();
-        System.out.println(settings.toDelimitedString('\n'));
-        buildScriptService(settings);
+        buildScriptService(builder.build());
         createFileScripts("groovy", "expression", "mustache", "test");
 
         for (ScriptEngineService scriptEngineService : scriptEngineServices) {

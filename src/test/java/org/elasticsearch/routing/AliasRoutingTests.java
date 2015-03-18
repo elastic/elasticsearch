@@ -19,11 +19,8 @@
 
 package org.elasticsearch.routing;
 
-import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.script.ScriptService;
@@ -34,7 +31,6 @@ import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 /**
  *
@@ -327,60 +323,6 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
         //Let's make sure that, even though 2 docs are available, only one is returned according to the size we set in the request
         //Therefore the reduce phase has taken place, which proves that the QUERY_AND_FETCH search type wasn't erroneously forced.
         assertThat(searchResponse.getHits().getHits().length, equalTo(1));
-    }
-
-    @Test
-    public void testRequiredRoutingMappingWithAlias() throws Exception {
-        prepareCreate("test").addMapping(
-                "type1",
-                XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_routing").field("required", true)
-                        .endObject().endObject().endObject()).get();
-        ensureGreen();
-        logger.info("--> indexing with id [1], and routing [0]");
-        client().prepareIndex("test", "type1", "1").setRouting("0").setSource("field", "value1").setRefresh(true).execute().actionGet();
-        logger.info("--> verifying get with no routing, should not find anything");
-
-        logger.info("--> indexing with id [1], with no routing, should fail");
-        try {
-            client().prepareIndex("test", "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
-            fail();
-        } catch (ElasticsearchException e) {
-            assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
-        }
-
-        logger.info("--> verifying get with routing, should find");
-        for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
-        }
-
-        logger.info("--> deleting with no routing, should broadcast the delete since _routing is required");
-        client().prepareDelete("test", "type1", "1").setRefresh(true).execute().actionGet();
-        for (int i = 0; i < 5; i++) {
-            try {
-                client().prepareGet("test", "type1", "1").get();
-                fail();
-            } catch (RoutingMissingException e) {
-                assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
-            }
-            assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
-        }
-
-        logger.info("--> indexing with id [1], and routing [0]");
-        client().prepareIndex("test", "type1", "1").setRouting("0").setSource("field", "value1").setRefresh(true).execute().actionGet();
-        logger.info("--> verifying get with no routing, should not find anything");
-
-        logger.info("--> bulk deleting with no routing, should broadcast the delete since _routing is required");
-        client().prepareBulk().add(Requests.deleteRequest("test").type("type1").id("1")).execute().actionGet();
-        refresh();
-        for (int i = 0; i < 5; i++) {
-            try {
-                assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
-                fail();
-            } catch (RoutingMissingException e) {
-                assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
-            }
-            assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
-        }
     }
 
     @Test

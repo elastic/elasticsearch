@@ -30,25 +30,18 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -269,54 +262,6 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("3", "test").string()));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
         }
-    }
-
-    @Test
-    public void testDeleteRoutingRequired() throws ExecutionException, InterruptedException, IOException {
-        assertAcked(prepareCreate("test").addMapping("test",
-                XContentFactory.jsonBuilder().startObject().startObject("test").startObject("_routing").field("required", true).endObject().endObject().endObject()));
-        ensureGreen();
-
-        int numDocs = iterations(10, 50);
-        IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
-        for (int i = 0; i < numDocs - 2; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "test", Integer.toString(i))
-                    .setRouting(randomAsciiOfLength(randomIntBetween(1, 10))).setSource("field", "value");
-        }
-        String firstDocId = Integer.toString(numDocs - 2);
-        indexRequestBuilders[numDocs - 2] = client().prepareIndex("test", "test", firstDocId)
-                .setRouting("routing").setSource("field", "value");
-        String secondDocId = Integer.toString(numDocs - 1);
-        String secondRouting = randomAsciiOfLength(randomIntBetween(1, 10));
-        indexRequestBuilders[numDocs - 1] = client().prepareIndex("test", "test", secondDocId)
-                .setRouting(secondRouting).setSource("field", "value");
-
-        indexRandom(true, indexRequestBuilders);
-
-        SearchResponse searchResponse = client().prepareSearch("test").get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs));
-
-        //use routing
-        DeleteResponse deleteResponse = client().prepareDelete("test", "test", firstDocId).setRouting("routing").get();
-        assertThat(deleteResponse.isFound(), equalTo(true));
-        GetResponse getResponse = client().prepareGet("test", "test", firstDocId).setRouting("routing").get();
-        assertThat(getResponse.isExists(), equalTo(false));
-        refresh();
-        searchResponse = client().prepareSearch("test").get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs - 1));
-
-        //don't use routing and trigger a broadcast delete
-        deleteResponse = client().prepareDelete("test", "test", secondDocId).get();
-        assertThat(deleteResponse.isFound(), equalTo(true));
-
-        getResponse = client().prepareGet("test", "test", secondDocId).setRouting(secondRouting).get();
-        assertThat(getResponse.isExists(), equalTo(false));
-        refresh();
-        searchResponse = client().prepareSearch("test").setSize(numDocs).get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs - 2));
     }
 
     private XContentBuilder source(String id, String nameValue) throws IOException {

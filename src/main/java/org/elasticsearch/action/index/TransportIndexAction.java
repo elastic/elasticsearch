@@ -122,7 +122,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     @Override
-    protected boolean resolveRequest(ClusterState state, InternalRequest request, ActionListener<IndexResponse> indexResponseActionListener) {
+    protected void resolveRequest(ClusterState state, InternalRequest request, ActionListener<IndexResponse> indexResponseActionListener) {
         MetaData metaData = clusterService.state().metaData();
 
         MappingMetaData mappingMd = null;
@@ -130,7 +130,6 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             mappingMd = metaData.index(request.concreteIndex()).mappingOrDefault(request.request().type());
         }
         request.request().process(metaData, mappingMd, allowIdGeneration, request.concreteIndex());
-        return true;
     }
 
     private void innerExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {

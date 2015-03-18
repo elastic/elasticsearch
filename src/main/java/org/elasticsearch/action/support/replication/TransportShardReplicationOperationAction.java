@@ -134,11 +134,10 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     protected abstract boolean resolveIndex();
 
     /**
-     * Resolves the request, by default doing nothing. If the resolve
-     * means a different execution, then return false here to indicate not to continue and execute this request.
+     * Resolves the request, by default doing nothing. Can be subclassed to do
+     * additional processing or validation depending on the incoming request
      */
-    protected boolean resolveRequest(ClusterState state, InternalRequest request, ActionListener<Response> listener) {
-        return true;
+    protected void resolveRequest(ClusterState state, InternalRequest request, ActionListener<Response> listener) {
     }
 
     protected TransportRequestOptions transportOptions() {
@@ -340,10 +339,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 } else {
                     internalRequest.concreteIndex(internalRequest.request().index());
                 }
-                // check if we need to execute, and if not, return
-                if (!resolveRequest(observer.observedState(), internalRequest, listener)) {
-                    return;
-                }
+
+                resolveRequest(observer.observedState(), internalRequest, listener);
+
                 blockException = checkRequestBlock(observer.observedState(), internalRequest);
                 if (blockException != null) {
                     if (blockException.retryable()) {

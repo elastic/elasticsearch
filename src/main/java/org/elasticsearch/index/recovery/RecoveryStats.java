@@ -31,7 +31,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- *
+ * Recovery related statistics, starting at the shard level and allowing aggregation to
+ * indices and node level
  */
 public class RecoveryStats implements ToXContent, Streamable {
 
@@ -48,6 +49,17 @@ public class RecoveryStats implements ToXContent, Streamable {
         }
         this.currentAsSource.addAndGet(recoveryStats.currentAsSource());
         this.currentAsTarget.addAndGet(recoveryStats.currentAsTarget());
+        this.throttleTimeInNanos.addAndGet(recoveryStats.throttleTime().nanos());
+    }
+
+    /**
+     * add statistics that should be accumulated about old shards after they have been
+     * deleted or relocated
+     */
+    public void addAsOld(RecoveryStats recoveryStats) {
+        if (recoveryStats == null) {
+            return;
+        }
         this.throttleTimeInNanos.addAndGet(recoveryStats.throttleTime().nanos());
     }
 
@@ -72,20 +84,20 @@ public class RecoveryStats implements ToXContent, Streamable {
         return TimeValue.timeValueNanos(throttleTimeInNanos.get());
     }
 
-    public void incrementRecoveriesAsTarget() {
+    public void incCurrentAsTarget() {
         currentAsTarget.incrementAndGet();
     }
 
-    public void decrementRecoveriesAsTarget() {
+    public void decCurrentAsTarget() {
         currentAsTarget.decrementAndGet();
     }
 
-    public void incrementRecoveriesAsSource() {
+    public void incCurrentAsSource() {
         currentAsSource.incrementAndGet();
     }
 
-    public void decrementRecoveriesAsSource() {
-        currentAsTarget.decrementAndGet();
+    public void decCurrentAsSource() {
+        currentAsSource.decrementAndGet();
     }
 
     public void addThrottleTime(long nanos) {

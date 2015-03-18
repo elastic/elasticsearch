@@ -160,7 +160,7 @@ public class RecoverySource extends AbstractComponent {
             }
             assert shardRecoveryHandlers.contains(handler) == false : "Handler was already registered [" + handler + "]";
             shardRecoveryHandlers.add(handler);
-            shard.recoveryStats().incrementRecoveriesAsSource();
+            shard.recoveryStats().incCurrentAsSource();
         }
 
         synchronized void remove(IndexShard shard, RecoverySourceHandler handler) {
@@ -169,7 +169,7 @@ public class RecoverySource extends AbstractComponent {
             boolean remove = shardRecoveryHandlers.remove(handler);
             assert remove : "Handler was not registered [" + handler + "]";
             if (remove) {
-                shard.recoveryStats().decrementRecoveriesAsSource();
+                shard.recoveryStats().decCurrentAsSource();
             }
             if (shardRecoveryHandlers.isEmpty()) {
                 ongoingRecoveries.remove(shard);
@@ -186,7 +186,7 @@ public class RecoverySource extends AbstractComponent {
                     } catch (Exception ex) {
                         failures.add(ex);
                     } finally {
-                        shard.recoveryStats().decrementRecoveriesAsSource();
+                        shard.recoveryStats().decCurrentAsSource();
                     }
                 }
                 ExceptionsHelper.maybeThrowRuntimeAndSuppress(failures);

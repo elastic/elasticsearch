@@ -85,7 +85,7 @@ public class RecoveryStatus extends AbstractRefCounted {
         this.store = indexShard.store();
         // make sure the store is not released until we are done.
         store.incRef();
-        indexShard.recoveryStats().incrementRecoveriesAsTarget();
+        indexShard.recoveryStats().incCurrentAsTarget();
         logger.info("--> incremented recoveries {}", indexShard.recoveryStats());
     }
 
@@ -241,7 +241,7 @@ public class RecoveryStatus extends AbstractRefCounted {
         } finally {
             // free store. increment happens in constructor
             store.decRef();
-            indexShard.recoveryStats().decrementRecoveriesAsTarget();
+            indexShard.recoveryStats().decCurrentAsTarget();
         }
     }
 

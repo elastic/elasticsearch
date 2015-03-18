@@ -304,6 +304,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
             @Override
             public void run() {
                 NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
+                assertThat(statsResponse.getNodes(), arrayWithSize(2));
                 for (NodeStats nodeStats : statsResponse.getNodes()) {
                     final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
                     if (nodeStats.getNode().name().equals(nodeA)) {
@@ -331,10 +332,38 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
         assertRecoveryState(shardResponses.get(0).recoveryState(), 0, Type.RELOCATION, Stage.DONE, nodeA, nodeB, false);
         validateIndexRecoveryState(shardResponses.get(0).recoveryState().getIndex());
 
+        statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
+        assertThat(statsResponse.getNodes(), arrayWithSize(2));
+        for (NodeStats nodeStats : statsResponse.getNodes()) {
+            final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
+            assertThat(recoveryStats.currentAsSource(), equalTo(0));
+            assertThat(recoveryStats.currentAsTarget(), equalTo(0));
+            if (nodeStats.getNode().name().equals(nodeA)) {
+                assertThat("node A throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0l));
+            }
+            if (nodeStats.getNode().name().equals(nodeB)) {
+                assertThat("node B throttling should be >0 ", recoveryStats.throttleTime().millis(), greaterThan(0l));
+            }
+        }
+
         logger.info("--> bump replica count");
         client().admin().indices().prepareUpdateSettings(INDEX_NAME)
                 .setSettings(settingsBuilder().put("number_of_replicas", 1)).execute().actionGet();
         ensureGreen();
+
+        statsResponse = client().admin().cluster().prepareNodesStats().clear().setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery)).get();
+        assertThat(statsResponse.getNodes(), arrayWithSize(2));
+        for (NodeStats nodeStats : statsResponse.getNodes()) {
+            final RecoveryStats recoveryStats = nodeStats.getIndices().getRecoveryStats();
+            assertThat(recoveryStats.currentAsSource(), equalTo(0));
+            assertThat(recoveryStats.currentAsTarget(), equalTo(0));
+            if (nodeStats.getNode().name().equals(nodeA)) {
+                assertThat("node A throttling should be >0", recoveryStats.throttleTime().millis(), greaterThan(0l));
+            }
+            if (nodeStats.getNode().name().equals(nodeB)) {
+                assertThat("node B throttling should be >0 ", recoveryStats.throttleTime().millis(), greaterThan(0l));
+            }
+        }
 
         logger.info("--> start node C");
         String nodeC = internalCluster().startNode(settingsBuilder().put("gateway.type", "local"));

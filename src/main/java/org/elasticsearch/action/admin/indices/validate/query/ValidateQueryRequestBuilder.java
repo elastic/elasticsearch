@@ -85,6 +85,14 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
         return this;
     }
 
+    /**
+     * Indicates whether the query should be rewritten into primitive queries
+     */
+    public ValidateQueryRequestBuilder setRewrite(boolean rewrite) {
+        request.rewrite(rewrite);
+        return this;
+    }
+
     @Override
     protected void doExecute(ActionListener<ValidateQueryResponse> listener) {
         if (sourceBuilder != null) {

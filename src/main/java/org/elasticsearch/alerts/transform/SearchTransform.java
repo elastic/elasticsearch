@@ -63,7 +63,7 @@ public class SearchTransform extends Transform<SearchTransform.Result> {
     @Override
     public Result apply(ExecutionContext ctx, Payload payload) throws IOException {
         SearchRequest req = createRequest(request, ctx, payload);
-        SearchResponse resp = client.search(req).actionGet();
+        SearchResponse resp = client.search(req);
         return new Result(TYPE, new Payload.XContent(resp));
     }
 

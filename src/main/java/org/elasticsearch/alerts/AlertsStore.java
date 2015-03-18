@@ -13,8 +13,7 @@ import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.*;
 import org.elasticsearch.alerts.support.Callback;
 import org.elasticsearch.alerts.support.TemplateUtils;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
@@ -31,10 +30,10 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -93,7 +92,7 @@ public class AlertsStore extends AbstractComponent {
         if (state.routingTable().index(ALERT_INDEX).allPrimaryShardsActive()) {
             logger.debug("alerts index [{}] found with all active primary shards. loading alerts...", ALERT_INDEX);
             try {
-                int count = loadAlerts(client, scrollSize, scrollTimeout, alertIndexMetaData.numberOfShards(), alertParser, alertMap);
+                int count = loadAlerts(alertIndexMetaData.numberOfShards());
                 logger.debug("loaded [{}] alerts from the alert index [{}]", count, ALERT_INDEX);
             } catch (Exception e) {
                 logger.debug("failed to load alerts for alert index [{}]. scheduled to retry alert loading...", e, ALERT_INDEX);
@@ -226,42 +225,43 @@ public class AlertsStore extends AbstractComponent {
      * scrolls all the alert documents in the alerts index, parses them, and loads them into
      * the given map.
      */
-    static int loadAlerts(ClientProxy client, int scrollSize, TimeValue scrollTimeout, int numPrimaryShards, Alert.Parser parser, Map<String, Alert> alerts) {
-        assert alerts.isEmpty() : "no alerts should reside, but there are [" + alerts.size() + "] alerts.";
-        RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(ALERT_INDEX)).actionGet();
+    int loadAlerts(int numPrimaryShards) {
+        assert alertMap.isEmpty() : "no alerts should reside, but there are [" + alertMap.size() + "] alerts.";
+        RefreshResponse refreshResponse = client.refresh(new RefreshRequest(ALERT_INDEX));
         if (refreshResponse.getSuccessfulShards() < numPrimaryShards) {
             throw new AlertsException("not all required shards have been refreshed");
         }
 
         int count = 0;
-        SearchResponse response = client.prepareSearch(ALERT_INDEX)
-                .setTypes(ALERT_TYPE)
-                .setPreference("_primary")
-                .setSearchType(SearchType.SCAN)
-                .setScroll(scrollTimeout)
-                .setSize(scrollSize)
-                .setVersion(true)
-                .get();
+        SearchRequest searchRequest = new SearchRequest(ALERT_INDEX)
+                .types(ALERT_TYPE)
+                .preference("_primary")
+                .searchType(SearchType.SCAN)
+                .scroll(scrollTimeout)
+                .source(new SearchSourceBuilder()
+                        .size(scrollSize)
+                        .version(true));
+        SearchResponse response = client.search(searchRequest);
         try {
             if (response.getTotalShards() != response.getSuccessfulShards()) {
                 throw new ElasticsearchException("Partial response while loading alerts");
             }
 
             if (response.getHits().getTotalHits() > 0) {
-                response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
+                response = client.searchScroll(response.getScrollId(), scrollTimeout);
                 while (response.getHits().hits().length != 0) {
                     for (SearchHit hit : response.getHits()) {
                         String name = hit.getId();
-                        Alert alert = parser.parse(name, true, hit.getSourceRef());
+                        Alert alert = alertParser.parse(name, true, hit.getSourceRef());
                         alert.status().version(hit.version());
-                        alerts.put(name, alert);
+                        alertMap.put(name, alert);
                         count++;
                     }
-                    response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
+                    response = client.searchScroll(response.getScrollId(), scrollTimeout);
                 }
             }
         } finally {
-            client.prepareClearScroll().addScrollId(response.getScrollId()).get();
+            client.clearScroll(response.getScrollId());
         }
         return count;
     }
@@ -272,7 +272,7 @@ public class AlertsStore extends AbstractComponent {
         }
     }
 
-    public final class AlertPut {
+    public class AlertPut {
 
         private final Alert previous;
         private final Alert current;
@@ -297,7 +297,7 @@ public class AlertsStore extends AbstractComponent {
         }
     }
 
-    public final class AlertDelete {
+    public class AlertDelete {
 
         private final DeleteResponse response;
 

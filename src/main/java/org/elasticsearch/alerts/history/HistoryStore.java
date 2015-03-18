@@ -9,9 +9,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.alerts.support.TemplateUtils;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
@@ -109,13 +107,13 @@ public class HistoryStore extends AbstractComponent {
             }
         }
 
-        RefreshResponse refreshResponse = client.admin().indices().refresh(new RefreshRequest(ALERT_HISTORY_INDEX_PREFIX + "*")).actionGet();
+        RefreshResponse refreshResponse = client.refresh(new RefreshRequest(ALERT_HISTORY_INDEX_PREFIX + "*"));
         if (refreshResponse.getSuccessfulShards() < numPrimaryShards) {
             return new LoadResult(false);
         }
 
         SearchRequest searchRequest = createScanSearchRequest(firedAlertState);
-        SearchResponse response = client.search(searchRequest).actionGet();
+        SearchResponse response = client.search(searchRequest);
         List<FiredAlert> alerts = new ArrayList<>();
         try {
             if (response.getTotalShards() != response.getSuccessfulShards()) {
@@ -123,7 +121,7 @@ public class HistoryStore extends AbstractComponent {
             }
 
             if (response.getHits().getTotalHits() > 0) {
-                response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
+                response = client.searchScroll(response.getScrollId(), scrollTimeout);
                 while (response.getHits().hits().length != 0) {
                     for (SearchHit sh : response.getHits()) {
                         String historyId = sh.getId();
@@ -132,11 +130,11 @@ public class HistoryStore extends AbstractComponent {
                         logger.debug("loaded fired alert from index [{}/{}/{}]", sh.index(), sh.type(), sh.id());
                         alerts.add(historyEntry);
                     }
-                    response = client.prepareSearchScroll(response.getScrollId()).setScroll(scrollTimeout).get();
+                    response = client.searchScroll(response.getScrollId(), scrollTimeout);
                 }
             }
         } finally {
-            client.prepareClearScroll().addScrollId(response.getScrollId()).get();
+            client.clearScroll(response.getScrollId());
         }
         templateUtils.ensureIndexTemplateIsLoaded(state, "alerthistory");
         return new LoadResult(true, alerts);

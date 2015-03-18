@@ -7,6 +7,8 @@ package org.elasticsearch.alerts.support.init.proxy;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequestBuilder;
@@ -18,6 +20,7 @@ import org.elasticsearch.alerts.support.init.InitializingService;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * A lazily initialized proxy to an elasticsearch {@link Client}. Inject this proxy whenever a client
@@ -65,20 +68,23 @@ public class ClientProxy implements InitializingService.Initializable {
         return client.prepareGet(index, type, id);
     }
 
-    public ActionFuture<SearchResponse> search(SearchRequest request) {
-        return client.search(request);
+    public SearchResponse search(SearchRequest request) {
+        return client.search(request).actionGet();
     }
 
-    public SearchRequestBuilder prepareSearch(String... indices) {
-        return client.prepareSearch(indices);
+    public SearchResponse searchScroll(String scrollId, TimeValue timeout) {
+        SearchScrollRequest request = new SearchScrollRequest(scrollId).scroll(timeout);
+        return client.searchScroll(request).actionGet();
     }
 
-    public SearchScrollRequestBuilder prepareSearchScroll(String scrollId) {
-        return client.prepareSearchScroll(scrollId);
+    public ClearScrollResponse clearScroll(String scrollId) {
+        ClearScrollRequest request = new ClearScrollRequest();
+        request.addScrollId(scrollId);
+        return client.clearScroll(request).actionGet();
     }
 
-    public ClearScrollRequestBuilder prepareClearScroll() {
-        return client.prepareClearScroll();
+    public RefreshResponse refresh(RefreshRequest request) {
+        return client.admin().indices().refresh(request).actionGet();
     }
 
 }

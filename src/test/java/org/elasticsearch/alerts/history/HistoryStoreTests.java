@@ -6,7 +6,6 @@
 package org.elasticsearch.alerts.history;
 
 import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -17,8 +16,6 @@ import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.alerts.support.TemplateUtils;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -46,7 +43,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsEqual.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.*;
-import static org.mockito.Mockito.verifyZeroInteractions;
 
 /**
  */
@@ -194,13 +190,14 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         csBuilder.routingTable(routingTableBuilder);
         ClusterState cs = csBuilder.build();
 
-        mockRefresh(0);
+        RefreshResponse refreshResponse = mockRefreshResponse(1, 0);
+        when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
         HistoryStore.LoadResult result = historyStore.loadFiredAlerts(cs, FiredAlert.State.AWAITS_EXECUTION);
         assertThat(result.succeeded(), is(false));
         assertThat(ImmutableSet.copyOf(result).size(), equalTo(0));
 
         verifyZeroInteractions(templateUtils);
-        verify(clientProxy, times(1)).admin();
+        verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
     }
 
     @Test
@@ -225,26 +222,22 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         csBuilder.routingTable(routingTableBuilder);
         ClusterState cs = csBuilder.build();
 
-        mockRefresh(1);
+        RefreshResponse refreshResponse = mockRefreshResponse(1, 1);
+        when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
 
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getSuccessfulShards()).thenReturn(0);
         when(searchResponse.getTotalShards()).thenReturn(1);
-        ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);
-        when(actionFuture.actionGet()).thenReturn(searchResponse);
-        when(clientProxy.search(any(SearchRequest.class))).thenReturn(actionFuture);
+        when(clientProxy.search(any(SearchRequest.class))).thenReturn(searchResponse);
 
-        ClearScrollRequestBuilder clearScrollRequestBuilder = mock(ClearScrollRequestBuilder.class);
-        when(clearScrollRequestBuilder.addScrollId(anyString())).thenReturn(clearScrollRequestBuilder);
-        when(clearScrollRequestBuilder.get()).thenReturn(new ClearScrollResponse(true, 1));
-        when(clientProxy.prepareClearScroll()).thenReturn(clearScrollRequestBuilder);
+        when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 1));
 
         HistoryStore.LoadResult result = historyStore.loadFiredAlerts(cs, FiredAlert.State.AWAITS_EXECUTION);
         assertThat(result.succeeded(), is(false));
         assertThat(ImmutableSet.copyOf(result).size(), equalTo(0));
 
         verifyZeroInteractions(templateUtils);
-        verify(clientProxy, times(1)).admin();
+        verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
     }
 
     @Test
@@ -269,27 +262,23 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         csBuilder.routingTable(routingTableBuilder);
         ClusterState cs = csBuilder.build();
 
-        mockRefresh(1);
+        RefreshResponse refreshResponse = mockRefreshResponse(1, 1);
+        when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
 
         SearchResponse searchResponse = mock(SearchResponse.class);
         when(searchResponse.getSuccessfulShards()).thenReturn(1);
         when(searchResponse.getTotalShards()).thenReturn(1);
         when(searchResponse.getHits()).thenReturn(InternalSearchHits.empty());
-        ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);
-        when(actionFuture.actionGet()).thenReturn(searchResponse);
-        when(clientProxy.search(any(SearchRequest.class))).thenReturn(actionFuture);
+        when(clientProxy.search(any(SearchRequest.class))).thenReturn(searchResponse);
 
-        ClearScrollRequestBuilder clearScrollRequestBuilder = mock(ClearScrollRequestBuilder.class);
-        when(clearScrollRequestBuilder.addScrollId(anyString())).thenReturn(clearScrollRequestBuilder);
-        when(clearScrollRequestBuilder.get()).thenReturn(new ClearScrollResponse(true, 1));
-        when(clientProxy.prepareClearScroll()).thenReturn(clearScrollRequestBuilder);
+        when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 1));
 
         HistoryStore.LoadResult result = historyStore.loadFiredAlerts(cs, FiredAlert.State.AWAITS_EXECUTION);
         assertThat(result.succeeded(), is(true));
         assertThat(ImmutableSet.copyOf(result).size(), equalTo(0));
 
         verify(templateUtils, times(1)).ensureIndexTemplateIsLoaded(cs, "alerthistory");
-        verify(clientProxy, times(1)).admin();
+        verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
     }
 
     @Test
@@ -314,7 +303,8 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         csBuilder.routingTable(routingTableBuilder);
         ClusterState cs = csBuilder.build();
 
-        mockRefresh(1);
+        RefreshResponse refreshResponse = mockRefreshResponse(1, 1);
+        when(clientProxy.refresh(any(RefreshRequest.class))).thenReturn(refreshResponse);
 
         SearchResponse searchResponse1 = mock(SearchResponse.class);
         when(searchResponse1.getSuccessfulShards()).thenReturn(1);
@@ -325,38 +315,27 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         hit.sourceRef(new BytesArray("{}"));
         InternalSearchHits hits = new InternalSearchHits(new InternalSearchHit[]{hit}, 1, 1.0f);
         when(searchResponse1.getHits()).thenReturn(hits);
-        ActionFuture<SearchResponse> actionFuture = mock(ActionFuture.class);
-        when(actionFuture.actionGet()).thenReturn(searchResponse1);
-        when(clientProxy.search(any(SearchRequest.class))).thenReturn(actionFuture);
+        when(clientProxy.search(any(SearchRequest.class))).thenReturn(searchResponse1);
 
         // First return a scroll response with a single hit
-        SearchScrollRequestBuilder searchScrollRequestBuilder1 = mock(SearchScrollRequestBuilder.class);
-        when(searchScrollRequestBuilder1.setScroll(any(TimeValue.class))).thenReturn(searchScrollRequestBuilder1);
-        when(searchScrollRequestBuilder1.get()).thenReturn(searchResponse1);
-        when(clientProxy.prepareSearchScroll(anyString())).thenReturn(searchScrollRequestBuilder1);
+        when(clientProxy.searchScroll(anyString(), any(TimeValue.class))).thenReturn(searchResponse1);
 
         // then with no hits
-        SearchScrollRequestBuilder searchScrollRequestBuilder2 = mock(SearchScrollRequestBuilder.class);
-        when(searchScrollRequestBuilder2.setScroll(any(TimeValue.class))).thenReturn(searchScrollRequestBuilder2);
         SearchResponse searchResponse2 = new SearchResponse(InternalSearchResponse.empty(), null, 1, 1, 1, null);
-        when(searchScrollRequestBuilder2.get()).thenReturn(searchResponse2);
-        when(clientProxy.prepareSearchScroll(anyString())).thenReturn(searchScrollRequestBuilder2);
+        when(clientProxy.searchScroll(anyString(), any(TimeValue.class))).thenReturn(searchResponse2);
 
         FiredAlert firedAlert = mock(FiredAlert.class);
         when(firedAlert.state()).thenReturn(FiredAlert.State.AWAITS_EXECUTION);
         when(parser.parse(any(BytesReference.class), eq("_id"), eq(1l))).thenReturn(firedAlert);
 
-        ClearScrollRequestBuilder clearScrollRequestBuilder = mock(ClearScrollRequestBuilder.class);
-        when(clearScrollRequestBuilder.addScrollId(anyString())).thenReturn(clearScrollRequestBuilder);
-        when(clearScrollRequestBuilder.get()).thenReturn(new ClearScrollResponse(true, 1));
-        when(clientProxy.prepareClearScroll()).thenReturn(clearScrollRequestBuilder);
+        when(clientProxy.clearScroll(anyString())).thenReturn(new ClearScrollResponse(true, 1));
 
         HistoryStore.LoadResult result = historyStore.loadFiredAlerts(cs, FiredAlert.State.AWAITS_EXECUTION);
         assertThat(result.succeeded(), is(true));
         assertThat(ImmutableSet.copyOf(result).size(), equalTo(0));
 
         verify(templateUtils, times(1)).ensureIndexTemplateIsLoaded(cs, "alerthistory");
-        verify(clientProxy, times(1)).admin();
+        verify(clientProxy, times(1)).refresh(any(RefreshRequest.class));
     }
 
     @Test
@@ -367,16 +346,11 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         assertThat(HistoryStore.getAlertHistoryIndexNameForTime(new DateTime(2833165811000L, DateTimeZone.UTC)), equalTo(".alert_history_2059-10-12"));
     }
 
-    private void mockRefresh(int numSuccessfulShards) {
-        AdminClient adminClient = mock(AdminClient.class);
-        when(clientProxy.admin()).thenReturn(adminClient);
-        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
-        when(adminClient.indices()).thenReturn(indicesAdminClient);
-        ActionFuture<RefreshResponse> actionFuture = mock(ActionFuture.class);
-        when(indicesAdminClient.refresh(any(RefreshRequest.class))).thenReturn(actionFuture);
+    private RefreshResponse mockRefreshResponse(int total, int successful) {
         RefreshResponse refreshResponse = mock(RefreshResponse.class);
-        when(actionFuture.actionGet()).thenReturn(refreshResponse);
-        when(refreshResponse.getSuccessfulShards()).thenReturn(numSuccessfulShards);
+        when(refreshResponse.getTotalShards()).thenReturn(total);
+        when(refreshResponse.getSuccessfulShards()).thenReturn(successful);
+        return refreshResponse;
     }
 
 }

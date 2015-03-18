@@ -74,7 +74,7 @@ public class SearchInput extends Input<SearchInput.Result> {
         }
 
         // actionGet deals properly with InterruptedException
-        SearchResponse response = client.search(request).actionGet();
+        SearchResponse response = client.search(request);
         if (logger.isDebugEnabled()) {
             logger.debug("[{}] found [{}] hits", ctx.id(), ctx.alert().name(), response.getHits().getTotalHits());
             for (SearchHit hit : response.getHits()) {

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.alerts;
 
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -15,10 +16,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class AlertLockService {
 
     private final KeyedLock<String> alertLock = new KeyedLock<>();
-
-    private AtomicBoolean running = new AtomicBoolean();
+    private final AtomicBoolean running = new AtomicBoolean(false);
 
     public Lock acquire(String name) {
+        if (!running.get()) {
+            throw new ElasticsearchIllegalStateException("not started");
+        }
+
         alertLock.acquire(name);
         return new Lock(name, alertLock);
     }
@@ -38,7 +42,7 @@ public class AlertLockService {
             // ongoing operations to complete. Resulting in once the alert service starts again that more than
             // expected alert action entries are processed.
             //
-            // Note: new operations will fail now because the state has been set to: stopping
+            // Note: new operations will fail now because the running has been set to false
             while (alertLock.hasLockedKeys()) {
                 try {
                     Thread.sleep(100);
@@ -46,6 +50,10 @@ public class AlertLockService {
                 }
             }
         }
+    }
+
+    KeyedLock<String> getAlertLock() {
+        return alertLock;
     }
 
     public static class Lock {

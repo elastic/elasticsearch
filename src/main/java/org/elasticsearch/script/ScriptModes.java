@@ -61,28 +61,39 @@ public class ScriptModes {
         //dynamic scripts are enabled by default only for sandboxed languages
         addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INLINE, ScriptMode.SANDBOX, scriptModesMap);
 
-        List<String> scriptSettings = Lists.newArrayList();
+        List<String> processedSettings = Lists.newArrayList();
+        processSourceBasedGlobalSettings(settings, scriptEngines, processedSettings, scriptModesMap);
+        processOperationBasedGlobalSettings(settings, scriptEngines, processedSettings, scriptModesMap);
+        processEngineSpecificSettings(settings, scriptEngines, processedSettings, scriptModesMap);
+        processDisableDynamicDeprecatedSetting(settings, scriptEngines, processedSettings, scriptModesMap, logger);
+        return ImmutableMap.copyOf(scriptModesMap);
+    }
 
+    private static void processSourceBasedGlobalSettings(Settings settings, Map<String, ScriptEngineService> scriptEngines, List<String> processedSettings, Map<String, ScriptMode> scriptModes) {
         //read custom source based settings for all operations (e.g. script.indexed: enable)
         for (ScriptType scriptType : ScriptType.values()) {
             String scriptTypeSetting = settings.get(SCRIPT_SETTINGS_PREFIX + scriptType);
             if (Strings.hasLength(scriptTypeSetting)) {
                 ScriptMode scriptTypeMode = ScriptMode.parse(scriptTypeSetting);
-                scriptSettings.add(SCRIPT_SETTINGS_PREFIX + scriptType + ": " + scriptTypeMode);
-                addGlobalScriptTypeModes(scriptEngines.keySet(), scriptType, scriptTypeMode, scriptModesMap);
+                processedSettings.add(SCRIPT_SETTINGS_PREFIX + scriptType + ": " + scriptTypeMode);
+                addGlobalScriptTypeModes(scriptEngines.keySet(), scriptType, scriptTypeMode, scriptModes);
             }
         }
+    }
 
+    private static void processOperationBasedGlobalSettings(Settings settings, Map<String, ScriptEngineService> scriptEngines, List<String> processedSettings, Map<String, ScriptMode> scriptModes) {
         //read custom op based settings for all sources (e.g. script.aggs: disable)
         //op based settings take precedence over source based settings, hence they get expanded later
         for (ScriptedOp scriptedOp : ScriptedOp.values()) {
             ScriptMode scriptMode = getScriptedOpMode(settings, SCRIPT_SETTINGS_PREFIX, scriptedOp);
             if (scriptMode != null) {
-                scriptSettings.add(SCRIPT_SETTINGS_PREFIX + scriptedOp + ": " + scriptMode);
-                addGlobalScriptedOpModes(scriptEngines.keySet(), scriptedOp, scriptMode, scriptModesMap);
+                processedSettings.add(SCRIPT_SETTINGS_PREFIX + scriptedOp + ": " + scriptMode);
+                addGlobalScriptedOpModes(scriptEngines.keySet(), scriptedOp, scriptMode, scriptModes);
             }
         }
+    }
 
+    private static void processEngineSpecificSettings(Settings settings, Map<String, ScriptEngineService> scriptEngines, List<String> processedSettings, Map<String, ScriptMode> scriptModes) {
         Map<String, Settings> langGroupedSettings = settings.getGroups(ENGINE_SETTINGS_PREFIX, true);
         for (Map.Entry<String, Settings> langSettings : langGroupedSettings.entrySet()) {
             //read engine specific settings that refer to a non existing script lang will be ignored
@@ -93,35 +104,36 @@ public class ScriptModes {
                         String scriptTypePrefix = scriptType + ".";
                         ScriptMode scriptMode = getScriptedOpMode(langSettings.getValue(), scriptTypePrefix, scriptedOp);
                         if (scriptMode != null) {
-                            scriptSettings.add(scriptTypePrefix + scriptedOp + ": " + scriptMode);
-                            addScriptMode(scriptEngineService, scriptType, scriptedOp, scriptMode, scriptModesMap);
+                            processedSettings.add(scriptTypePrefix + scriptedOp + ": " + scriptMode);
+                            addScriptMode(scriptEngineService, scriptType, scriptedOp, scriptMode, scriptModes);
                         }
                     }
                 }
             }
         }
+    }
 
+    private static void processDisableDynamicDeprecatedSetting(Settings settings, Map<String, ScriptEngineService> scriptEngines,
+                                                               List<String> processedSettings, Map<String, ScriptMode> scriptModes, ESLogger logger) {
         //read deprecated disable_dynamic setting, apply only if none of the new settings is used
         String disableDynamicSetting = settings.get(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING);
         if (disableDynamicSetting != null) {
-            if (scriptSettings.isEmpty()) {
+            if (processedSettings.isEmpty()) {
                 ScriptService.DynamicScriptDisabling dynamicScriptDisabling = ScriptService.DynamicScriptDisabling.parse(disableDynamicSetting);
                 switch(dynamicScriptDisabling) {
                     case EVERYTHING_ALLOWED:
-                        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INDEXED, ScriptMode.ENABLE, scriptModesMap);
-                        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INLINE, ScriptMode.ENABLE, scriptModesMap);
+                        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INDEXED, ScriptMode.ENABLE, scriptModes);
+                        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INLINE, ScriptMode.ENABLE, scriptModes);
                         break;
                     case ONLY_DISK_ALLOWED:
-                        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INDEXED, ScriptMode.DISABLE, scriptModesMap);
-                        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INLINE, ScriptMode.DISABLE, scriptModesMap);
+                        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INDEXED, ScriptMode.DISABLE, scriptModes);
+                        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INLINE, ScriptMode.DISABLE, scriptModes);
                         break;
                 }
             } else {
-                logger.warn("ignoring [{}] setting as conflicting scripting settings have been specified: {}", ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, scriptSettings);
+                logger.warn("ignoring [{}] setting as conflicting scripting settings have been specified: {}", ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, processedSettings);
             }
         }
-
-        return ImmutableMap.copyOf(scriptModesMap);
     }
 
     private static ScriptMode getScriptedOpMode(Settings settings, String prefix, ScriptedOp scriptedOp) {

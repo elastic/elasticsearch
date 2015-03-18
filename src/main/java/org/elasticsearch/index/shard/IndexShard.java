@@ -46,7 +46,6 @@ import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -222,7 +221,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.codecService = codecService;
         this.shardSuggestService = shardSuggestService;
         this.shardBitsetFilterCache = shardBitsetFilterCache;
-        assert clusterService.lifecycleState() == Lifecycle.State.STARTED; // otherwise localNode is still none;
+        assert clusterService.localNode() != null : "Local node is null lifecycle state is: " + clusterService.lifecycleState();
         this.localNode = clusterService.localNode();
         state = IndexShardState.CREATED;
         this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
@@ -960,7 +959,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
         ByteSizeValue preValue = config.getIndexingBufferSize();
         config.setIndexingBufferSize(shardIndexingBufferSize);
-        if (preValue.bytes() != shardIndexingBufferSize.bytes()) {
+        // update engine if it is already started.
+        if (preValue.bytes() != shardIndexingBufferSize.bytes() && engineUnsafe() != null) {
             // its inactive, make sure we do a refresh / full IW flush in this case, since the memory
             // changes only after a "data" change has happened to the writer
             // the index writer lazily allocates memory and a refresh will clean it all up.
@@ -1029,18 +1029,9 @@ public class IndexShard extends AbstractIndexShardComponent {
                     config.setCompoundOnFlush(compoundOnFlush);
                     change = true;
                 }
-
-                final boolean failEngineOnCorruption = settings.getAsBoolean(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, config.isFailEngineOnCorruption());
-                if (failEngineOnCorruption != config.isFailEngineOnCorruption()) {
-                    logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, config.isFailEngineOnCorruption(), failEngineOnCorruption);
-                    config.setFailEngineOnCorruption(failEngineOnCorruption);
-                    change = true;
-                }
-                final boolean failOnMergeFailure = settings.getAsBoolean(EngineConfig.INDEX_FAIL_ON_MERGE_FAILURE_SETTING, config.isFailOnMergeFailure());
-                if (failOnMergeFailure != config.isFailOnMergeFailure()) {
-                    logger.info("updating {} from [{}] to [{}]", EngineConfig.INDEX_FAIL_ON_MERGE_FAILURE_SETTING, config.isFailOnMergeFailure(), failOnMergeFailure);
-                    config.setFailOnMergeFailure(failOnMergeFailure);
-                    change = true;
+                final String versionMapSize = settings.get(EngineConfig.INDEX_VERSION_MAP_SIZE, config.getVersionMapSizeSetting());
+                if (config.getVersionMapSizeSetting().equals(versionMapSize) == false) {
+                    config.setVersionMapSizeSetting(versionMapSize);
                 }
             }
             if (change) {
@@ -1175,11 +1166,15 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public Engine engine() {
-        Engine engine = this.currentEngineReference.get();
+        Engine engine = engineUnsafe();
         if (engine == null) {
             throw new EngineClosedException(shardId);
         }
         return engine;
+    }
+
+    protected Engine engineUnsafe() {
+        return this.currentEngineReference.get();
     }
 
     class ShardEngineFailListener implements Engine.FailedEngineListener {

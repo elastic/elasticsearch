@@ -22,9 +22,7 @@ package org.elasticsearch.cluster.settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -83,6 +81,24 @@ public class SettingsValidatorTests extends ElasticsearchTestCase {
         assertThat(Validator.POSITIVE_INTEGER.validate("", "0"), notNullValue());
         assertThat(Validator.POSITIVE_INTEGER.validate("", "-1"), notNullValue());
         assertThat(Validator.POSITIVE_INTEGER.validate("", "10.2"), notNullValue());
+
+        assertThat(Validator.PERCENTAGE.validate("", "asdasd"), notNullValue());
+        assertThat(Validator.PERCENTAGE.validate("", "-1"), notNullValue());
+        assertThat(Validator.PERCENTAGE.validate("", "20"), notNullValue()); // we expect 20%
+        assertThat(Validator.PERCENTAGE.validate("", "-1%"), notNullValue());
+        assertThat(Validator.PERCENTAGE.validate("", "101%"), notNullValue());
+        assertThat(Validator.PERCENTAGE.validate("", "100%"), nullValue());
+        assertThat(Validator.PERCENTAGE.validate("", "99%"), nullValue());
+        assertThat(Validator.PERCENTAGE.validate("", "0%"), nullValue());
+
+        assertThat(Validator.BYTES_SIZE_OR_PERCENTAGE.validate("", "asdasd"), notNullValue());
+        assertThat(Validator.BYTES_SIZE_OR_PERCENTAGE.validate("", "20"), nullValue());
+        assertThat(Validator.BYTES_SIZE_OR_PERCENTAGE.validate("", "20mb"), nullValue());
+        assertThat(Validator.BYTES_SIZE_OR_PERCENTAGE.validate("", "-1%"), notNullValue());
+        assertThat(Validator.BYTES_SIZE_OR_PERCENTAGE.validate("", "101%"), notNullValue());
+        assertThat(Validator.BYTES_SIZE_OR_PERCENTAGE.validate("", "100%"), nullValue());
+        assertThat(Validator.BYTES_SIZE_OR_PERCENTAGE.validate("", "99%"), nullValue());
+        assertThat(Validator.BYTES_SIZE_OR_PERCENTAGE.validate("", "0%"), nullValue());
     }
 
     @Test

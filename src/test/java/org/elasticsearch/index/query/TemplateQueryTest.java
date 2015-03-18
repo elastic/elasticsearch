@@ -19,7 +19,6 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Maps;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.indexedscripts.delete.DeleteIndexedScriptResponse;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
 import org.junit.Test;
@@ -43,9 +43,7 @@ import java.util.Map;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -230,7 +228,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         createIndex(ScriptService.SCRIPT_INDEX);
         ensureGreen(ScriptService.SCRIPT_INDEX);
 
-        PutIndexedScriptResponse scriptResponse = client().preparePutIndexedScript("mustache", "testTemplate", "{" +
+        PutIndexedScriptResponse scriptResponse = client().preparePutIndexedScript(MustacheScriptEngineService.NAME, "testTemplate", "{" +
                 "\"template\":{" +
                 "                \"query\":{" +
                 "                   \"match\":{" +
@@ -241,7 +239,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
         assertTrue(scriptResponse.isCreated());
 
-        scriptResponse = client().preparePutIndexedScript("mustache", "testTemplate", "{" +
+        scriptResponse = client().preparePutIndexedScript(MustacheScriptEngineService.NAME, "testTemplate", "{" +
                 "\"template\":{" +
                 "                \"query\":{" +
                 "                   \"match\":{" +
@@ -252,7 +250,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
         assertEquals(scriptResponse.getVersion(), 2);
 
-        GetIndexedScriptResponse getResponse = client().prepareGetIndexedScript("mustache", "testTemplate").get();
+        GetIndexedScriptResponse getResponse = client().prepareGetIndexedScript(MustacheScriptEngineService.NAME, "testTemplate").get();
         assertTrue(getResponse.isExists());
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
@@ -272,10 +270,10 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
                 setTemplateName("testTemplate").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
         assertHitCount(searchResponse, 4);
 
-        DeleteIndexedScriptResponse deleteResponse = client().prepareDeleteIndexedScript("mustache","testTemplate").get();
+        DeleteIndexedScriptResponse deleteResponse = client().prepareDeleteIndexedScript(MustacheScriptEngineService.NAME,"testTemplate").get();
         assertTrue(deleteResponse.isFound());
 
-        getResponse = client().prepareGetIndexedScript("mustache", "testTemplate").get();
+        getResponse = client().prepareGetIndexedScript(MustacheScriptEngineService.NAME, "testTemplate").get();
         assertFalse(getResponse.isExists());
 
         client().prepareSearch("test").setTypes("type").
@@ -287,7 +285,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         createIndex(ScriptService.SCRIPT_INDEX);
         ensureGreen(ScriptService.SCRIPT_INDEX);
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "mustache", "1a").setSource("{" +
+        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, MustacheScriptEngineService.NAME, "1a").setSource("{" +
                 "\"template\":{"+
                 "                \"query\":{" +
                 "                   \"match\":{" +
@@ -295,7 +293,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
                 "       }" +
                     "}" +
                 "}"));
-        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "mustache", "2").setSource("{" +
+        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, MustacheScriptEngineService.NAME, "2").setSource("{" +
                 "\"template\":{"+
                 "                \"query\":{" +
                 "                   \"match\":{" +
@@ -304,7 +302,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
                     "}" +
                 "}"));
 
-        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "mustache", "3").setSource("{" +
+        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, MustacheScriptEngineService.NAME, "3").setSource("{" +
                 "\"template\":{"+
                 "             \"match\":{" +
                 "                    \"theField\" : \"{{fieldParam}}\"}" +
@@ -381,7 +379,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
       String multiQuery = "{\"query\":{\"terms\":{\"theField\":[\"{{#fieldParam}}\",\"{{.}}\",\"{{/fieldParam}}\"]}}}";
 
-      builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "mustache", "4").setSource(jsonBuilder().startObject().field("template", multiQuery).endObject()));
+      builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, MustacheScriptEngineService.NAME, "4").setSource(jsonBuilder().startObject().field("template", multiQuery).endObject()));
 
       indexRandom(true,builders);
 

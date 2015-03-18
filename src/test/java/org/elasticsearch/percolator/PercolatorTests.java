@@ -22,6 +22,7 @@ import com.google.common.base.Predicate;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
+import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -50,7 +51,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -950,7 +950,84 @@ public class PercolatorTests extends ElasticsearchIntegrationTest {
         for (PercolateResponse.Match match : response) {
             assertThat(match.getIndex().string(), equalTo("test2"));
         }
+    }
 
+    @Test
+    public void testPercolateWithAliasFilter() throws Exception {
+        assertAcked(prepareCreate("my-index")
+                        .addMapping(PercolatorService.TYPE_NAME, "a", "type=string,index=not_analyzed")
+                        .addAlias(new Alias("a").filter(FilterBuilders.termFilter("a", "a")))
+                        .addAlias(new Alias("b").filter(FilterBuilders.termFilter("a", "b")))
+                        .addAlias(new Alias("c").filter(FilterBuilders.termFilter("a", "c")))
+        );
+        client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "1")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("a", "a").endObject())
+                .get();
+        client().prepareIndex("my-index", PercolatorService.TYPE_NAME, "2")
+                .setSource(jsonBuilder().startObject().field("query", matchAllQuery()).field("a", "b").endObject())
+                .get();
+        refresh();
+
+        // Specifying only the document to percolate and no filter, sorting or aggs, the queries are retrieved from
+        // memory directly. Otherwise we need to retrieve those queries from lucene to be able to execute filters,
+        // aggregations and sorting on top of them. So this test a different code execution path.
+        PercolateResponse response = client().preparePercolate()
+                .setIndices("a")
+                .setDocumentType("my-type")
+                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
+                .get();
+        assertNoFailures(response);
+        assertThat(response.getCount(), equalTo(1l));
+        assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
+
+        response = client().preparePercolate()
+                .setIndices("b")
+                .setDocumentType("my-type")
+                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
+                .get();
+        assertNoFailures(response);
+        assertThat(response.getCount(), equalTo(1l));
+        assertThat(response.getMatches()[0].getId().string(), equalTo("2"));
+
+
+        response = client().preparePercolate()
+                .setIndices("c")
+                .setDocumentType("my-type")
+                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
+                .get();
+        assertNoFailures(response);
+        assertThat(response.getCount(), equalTo(0l));
+
+        // Testing that the alias filter and the filter specified while percolating are both taken into account.
+        response = client().preparePercolate()
+                .setIndices("a")
+                .setDocumentType("my-type")
+                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
+                .setPercolateFilter(FilterBuilders.matchAllFilter())
+                .get();
+        assertNoFailures(response);
+        assertThat(response.getCount(), equalTo(1l));
+        assertThat(response.getMatches()[0].getId().string(), equalTo("1"));
+
+        response = client().preparePercolate()
+                .setIndices("b")
+                .setDocumentType("my-type")
+                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
+                .setPercolateFilter(FilterBuilders.matchAllFilter())
+                .get();
+        assertNoFailures(response);
+        assertThat(response.getCount(), equalTo(1l));
+        assertThat(response.getMatches()[0].getId().string(), equalTo("2"));
+
+
+        response = client().preparePercolate()
+                .setIndices("c")
+                .setDocumentType("my-type")
+                .setPercolateDoc(new PercolateSourceBuilder.DocBuilder().setDoc("{}"))
+                .setPercolateFilter(FilterBuilders.matchAllFilter())
+                .get();
+        assertNoFailures(response);
+        assertThat(response.getCount(), equalTo(0l));
     }
 
     @Test

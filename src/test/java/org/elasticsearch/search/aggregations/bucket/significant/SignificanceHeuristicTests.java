@@ -86,6 +86,7 @@ public class SignificanceHeuristicTests extends ElasticsearchTestCase {
         SignificanceHeuristicStreams.registerStream(PercentageScore.STREAM, PercentageScore.STREAM.getName());
         SignificanceHeuristicStreams.registerStream(GND.STREAM, GND.STREAM.getName());
         SignificanceHeuristicStreams.registerStream(ChiSquare.STREAM, ChiSquare.STREAM.getName());
+        SignificanceHeuristicStreams.registerStream(ScriptHeuristic.STREAM, ScriptHeuristic.STREAM.getName());
         Version version = ElasticsearchIntegrationTest.randomVersion();
         InternalSignificantTerms[] sigTerms = getRandomSignificantTerms(getRandomSignificanceheuristic());
 

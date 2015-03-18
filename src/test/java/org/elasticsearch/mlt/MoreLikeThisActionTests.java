@@ -671,8 +671,7 @@ public class MoreLikeThisActionTests extends ElasticsearchIntegrationTest {
     public void testMoreLikeThisIgnoreLike() throws ExecutionException, InterruptedException, IOException {
         createIndex("test");
         ensureGreen();
-
-        int numFields = randomIntBetween(5, 35);
+        int numFields = randomIntBetween(5, 10);
 
         logger.info("Create a document that has all the fields.");
         XContentBuilder doc = jsonBuilder().startObject();

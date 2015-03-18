@@ -48,10 +48,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -59,6 +56,7 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class GroovyScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
+    public static final String NAME = "groovy";
     public static String GROOVY_SCRIPT_SANDBOX_ENABLED = "script.groovy.sandbox.enabled";
     public static String GROOVY_SCRIPT_BLACKLIST_PATCH = "script.groovy.sandbox.method_blacklist_patch";
 
@@ -85,9 +83,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
      */
     public boolean addToBlacklist(String... additions) {
         Set<String> newBlackList = new HashSet<>(blacklistAdditions);
-        for (String addition : additions) {
-            newBlackList.add(addition);
-        }
+        Collections.addAll(newBlackList, additions);
         boolean changed = this.blacklistAdditions.equals(newBlackList) == false;
         this.blacklistAdditions = ImmutableSet.copyOf(newBlackList);
         return changed;
@@ -120,7 +116,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     @Override
     public void scriptRemoved(@Nullable CompiledScript script) {
         // script could be null, meaning the script has already been garbage collected
-        if (script == null || "groovy".equals(script.lang())) {
+        if (script == null || NAME.equals(script.lang())) {
             // Clear the cache, this removes old script versions from the
             // cache to prevent running out of PermGen space
             loader.clearCache();
@@ -129,12 +125,12 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     @Override
     public String[] types() {
-        return new String[]{"groovy"};
+        return new String[]{NAME};
     }
 
     @Override
     public String[] extensions() {
-        return new String[]{"groovy"};
+        return new String[]{NAME};
     }
 
     @Override
@@ -157,6 +153,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     /**
      * Return a script object with the given vars from the compiled script object
      */
+    @SuppressWarnings("unchecked")
     private Script createScript(Object compiledScript, Map<String, Object> vars) throws InstantiationException, IllegalAccessException {
         Class scriptClass = (Class) compiledScript;
         Script scriptObject = (Script) scriptClass.newInstance();
@@ -225,12 +222,12 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         private final SearchLookup lookup;
         private final Map<String, Object> variables;
         private final ESLogger logger;
-        private Scorer scorer;
 
         public GroovyScript(Script script, ESLogger logger) {
             this(script, null, logger);
         }
 
+        @SuppressWarnings("unchecked")
         public GroovyScript(Script script, @Nullable SearchLookup lookup, ESLogger logger) {
             this.script = script;
             this.lookup = lookup;
@@ -240,7 +237,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
         @Override
         public void setScorer(Scorer scorer) {
-            this.scorer = scorer;
             this.variables.put("_score", new ScoreAccessor(scorer));
         }
 

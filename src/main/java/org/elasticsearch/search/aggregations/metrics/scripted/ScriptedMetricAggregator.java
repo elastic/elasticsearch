@@ -53,7 +53,6 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
     private final Map<String, Object> params;
     // initial parameters for {reduce}
     private final Map<String, Object> reduceParams;
-    private final ScriptService scriptService;
     private final ScriptType reduceScriptType;
 
     protected ScriptedMetricAggregator(String name, String scriptLang, ScriptType initScriptType, String initScript,
@@ -61,7 +60,6 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
             String reduceScript, Map<String, Object> params, Map<String, Object> reduceParams, AggregationContext context,
             Aggregator parent, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
         super(name, context, parent, reducers, metaData);
-        this.scriptService = context.searchContext().scriptService();
         this.scriptLang = scriptLang;
         this.reduceScriptType = reduceScriptType;
         if (params == null) {
@@ -75,6 +73,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         } else {
             this.reduceParams = reduceParams;
         }
+        ScriptService scriptService = context.searchContext().scriptService();
         if (initScript != null) {
             scriptService.executable(scriptLang, initScript, initScriptType, this.params).run();
         }

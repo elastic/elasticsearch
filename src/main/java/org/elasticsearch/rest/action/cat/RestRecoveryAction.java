@@ -98,6 +98,9 @@ public class RestRecoveryAction extends AbstractCatAction {
                 .addCell("bytes_percent", "alias:bp;desc:percent of bytes recovered")
                 .addCell("total_files", "alias:tf;desc:total number of files")
                 .addCell("total_bytes", "alias:tb;desc:total number of bytes")
+                .addCell("translog", "alias:tr;desc:translog operations recovered")
+                .addCell("translog_percent", "alias:trp;desc:percent of translog recovery")
+                .addCell("total_translog", "alias:trt;desc:current total translog operations")
                 .endHeaders();
         return t;
     }
@@ -156,6 +159,9 @@ public class RestRecoveryAction extends AbstractCatAction {
                 t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredBytesPercent()));
                 t.addCell(state.getIndex().totalFileCount());
                 t.addCell(state.getIndex().totalBytes());
+                t.addCell(state.getTranslog().recoveredOperations());
+                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getTranslog().recoveredPercent()));
+                t.addCell(state.getTranslog().totalOperations());
                 t.endRow();
             }
         }

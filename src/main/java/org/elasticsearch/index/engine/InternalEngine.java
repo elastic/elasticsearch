@@ -52,7 +52,6 @@ import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -83,11 +82,11 @@ public class InternalEngine extends Engine {
     private final SearcherFactory searcherFactory;
     private final SearcherManager searcherManager;
 
-    private final AtomicBoolean optimizeMutex = new AtomicBoolean();
     // we use flushNeeded here, since if there are no changes, then the commit won't write
     // will not really happen, and then the commitUserData and the new translog will not be reflected
     private volatile boolean flushNeeded = false;
     private final Lock flushLock = new ReentrantLock();
+    private final ReentrantLock optimizeLock = new ReentrantLock();
 
     protected final FlushingRecoveryCounter onGoingRecoveries;
     // A uid (in the form of BytesRef) to the version map
@@ -203,7 +202,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public GetResult get(Get get) throws EngineException {
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (get.realtime()) {
                 VersionValue versionValue = versionMap.getUnderLock(get.uid().bytes());
@@ -232,7 +231,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void create(Create create) throws EngineException {
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (create.origin() == Operation.Origin.RECOVERY) {
                 // Don't throttle recovery operations
@@ -338,7 +337,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public void index(Index index) throws EngineException {
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             if (index.origin() == Operation.Origin.RECOVERY) {
                 // Don't throttle recovery operations
@@ -357,11 +356,10 @@ public class InternalEngine extends Engine {
     }
 
     /**
-     * Forces a refresh if the versionMap is using too much RAM (currently > 25% of IndexWriter's RAM buffer).
+     * Forces a refresh if the versionMap is using too much RAM
      */
     private void checkVersionMapRefresh() {
-        // TODO: we force refresh when versionMap is using > 25% of IW's RAM buffer; should we make this separately configurable?
-        if (versionMap.ramBytesUsedForRefresh() > 0.25 * engineConfig.getIndexingBufferSize().bytes() && versionMapRefreshPending.getAndSet(true) == false) {
+        if (versionMap.ramBytesUsedForRefresh() > config().getVersionMapSize().bytes() && versionMapRefreshPending.getAndSet(true) == false) {
             try {
                 if (isClosed.get()) {
                     // no point...
@@ -438,8 +436,9 @@ public class InternalEngine extends Engine {
 
     @Override
     public void delete(Delete delete) throws EngineException {
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
+            // NOTE: we don't throttle this when merges fall behind because delete-by-id does not create new segments:
             innerDelete(delete);
             flushNeeded = true;
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
@@ -505,8 +504,21 @@ public class InternalEngine extends Engine {
 
     @Override
     public void delete(DeleteByQuery delete) throws EngineException {
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
+            if (delete.origin() == Operation.Origin.RECOVERY) {
+                // Don't throttle recovery operations
+                innerDelete(delete);
+            } else {
+                try (Releasable r = throttle.acquireThrottle()) {
+                    innerDelete(delete);
+                }
+            }
+        }
+    }
+
+    private void innerDelete(DeleteByQuery delete) throws EngineException {
+        try {
             Query query;
             if (delete.nested() && delete.aliasFilter() != null) {
                 query = new IncludeNestedDocsQuery(new FilteredQuery(delete.query(), delete.aliasFilter()), delete.parentFilter());
@@ -535,7 +547,7 @@ public class InternalEngine extends Engine {
     public void refresh(String source) throws EngineException {
         // we obtain a read lock here, since we don't want a flush to happen while we are refreshing
         // since it flushes the index as well (though, in terms of concurrency, we are allowed to do it)
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             updateIndexWriterSettings();
             searcherManager.maybeRefreshBlocking();
@@ -580,7 +592,7 @@ public class InternalEngine extends Engine {
          *  Thread 1: flushes via API and gets the flush lock but blocks on the readlock since Thread 2 has the writeLock
          *  Thread 2: flushes at the end of the recovery holding the writeLock and blocks on the flushLock owned by Thread 1
          */
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             updateIndexWriterSettings();
             if (flushLock.tryLock() == false) {
@@ -640,8 +652,15 @@ public class InternalEngine extends Engine {
                     }
 
                 }
-                // reread the last committed segment infos
+                /*
+                 * we have to inc-ref the store here since if the engine is closed by a tragic event
+                 * we don't acquire the write lock and wait until we have exclusive access. This might also
+                 * dec the store reference which can essentially close the store and unless we can inc the reference
+                 * we can't use it.
+                 */
+                store.incRef();
                 try {
+                    // reread the last committed segment infos
                     lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
                 } catch (Throwable e) {
                     if (isClosed.get() == false) {
@@ -650,6 +669,8 @@ public class InternalEngine extends Engine {
                             throw new FlushFailedEngineException(shardId, e);
                         }
                     }
+                } finally {
+                    store.decRef();
                 }
             } catch (FlushFailedEngineException ex) {
                 maybeFailEngine("flush", ex);
@@ -688,58 +709,59 @@ public class InternalEngine extends Engine {
         lastDeleteVersionPruneTimeMSec = timeMSec;
     }
 
-    // TODO: can we please remove this method?!
-    private void waitForMerges(boolean flushAfter, boolean upgrade) {
-        try {
-            Method method = IndexWriter.class.getDeclaredMethod("waitForMerges");
-            method.setAccessible(true);
-            method.invoke(indexWriter);
-        } catch (ReflectiveOperationException e) {
-            throw new OptimizeFailedEngineException(shardId, e);
-        }
-        if (flushAfter) {
-            flush(true, true, true);
-        }
-        if (upgrade) {
-            logger.info("Finished upgrade of " + shardId);
-        }
-    }
-
     @Override
     public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, final boolean upgrade) throws EngineException {
-        if (optimizeMutex.compareAndSet(false, true)) {
-            try (ReleasableLock _ = readLock.acquire()) {
-                ensureOpen();
-                /*
-                 * The way we implement upgrades is a bit hackish in the sense that we set an instance
-                 * variable and that this setting will thus apply to the next forced merge that will be run.
-                 * This is ok because (1) this is the only place we call forceMerge, (2) we have a single
-                 * thread for optimize, and the 'optimizeMutex' guarding this code, and (3) ConcurrentMergeScheduler
-                 * syncs calls to findForcedMerges.
-                 */
-                MergePolicy mp = indexWriter.getConfig().getMergePolicy();
-                assert mp instanceof ElasticsearchMergePolicy : "MergePolicy is " + mp.getClass().getName();
-                if (upgrade) {
-                    logger.info("Starting upgrade of " + shardId);
-                    ((ElasticsearchMergePolicy) mp).setUpgradeInProgress(true);
-                }
-
+        /*
+         * We do NOT acquire the readlock here since we are waiting on the merges to finish
+         * that's fine since the IW.rollback should stop all the threads and trigger an IOException
+         * causing us to fail the forceMerge
+         *
+         * The way we implement upgrades is a bit hackish in the sense that we set an instance
+         * variable and that this setting will thus apply to the next forced merge that will be run.
+         * This is ok because (1) this is the only place we call forceMerge, (2) we have a single
+         * thread for optimize, and the 'optimizeLock' guarding this code, and (3) ConcurrentMergeScheduler
+         * syncs calls to findForcedMerges.
+         */
+        assert indexWriter.getConfig().getMergePolicy() instanceof ElasticsearchMergePolicy : "MergePolicy is " + indexWriter.getConfig().getMergePolicy().getClass().getName();
+        ElasticsearchMergePolicy mp = (ElasticsearchMergePolicy) indexWriter.getConfig().getMergePolicy();
+        optimizeLock.lock();
+        try {
+            ensureOpen();
+            if (upgrade) {
+                logger.info("starting segment upgrade");
+                mp.setUpgradeInProgress(true);
+            }
+            store.incRef(); // increment the ref just to ensure nobody closes the store while we optimize
+            try {
                 if (onlyExpungeDeletes) {
-                    indexWriter.forceMergeDeletes(false);
+                    assert upgrade == false;
+                    indexWriter.forceMergeDeletes(true /* blocks and waits for merges*/);
                 } else if (maxNumSegments <= 0) {
+                    assert upgrade == false;
                     indexWriter.maybeMerge();
                 } else {
-                    indexWriter.forceMerge(maxNumSegments, false);
+                    indexWriter.forceMerge(maxNumSegments, true /* blocks and waits for merges*/);
                 }
-            } catch (Throwable t) {
-                maybeFailEngine("optimize", t);
-                throw new OptimizeFailedEngineException(shardId, t);
+                if (flush) {
+                    flush(true, true, true);
+                }
+                if (upgrade) {
+                    logger.info("finished segment upgrade");
+                }
             } finally {
-                optimizeMutex.set(false);
+                store.decRef();
+            }
+        } catch (Throwable t) {
+            ForceMergeFailedEngineException ex = new ForceMergeFailedEngineException(shardId, t);
+            maybeFailEngine("force merge", ex);
+            throw ex;
+        } finally {
+            try {
+                mp.setUpgradeInProgress(false); // reset it just to make sure we reset it in a case of an error
+            } finally {
+                optimizeLock.unlock();
             }
         }
-
-        waitForMerges(flush, upgrade);
     }
 
     @Override
@@ -747,7 +769,7 @@ public class InternalEngine extends Engine {
         // we have to flush outside of the readlock otherwise we might have a problem upgrading
         // the to a write lock when we fail the engine in this operation
         flush(false, false, true);
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
             return deletionPolicy.snapshot();
         } catch (IOException e) {
@@ -759,7 +781,7 @@ public class InternalEngine extends Engine {
     public void recover(RecoveryHandler recoveryHandler) throws EngineException {
         // take a write lock here so it won't happen while a flush is in progress
         // this means that next commits will not be allowed once the lock is released
-        try (ReleasableLock _ = writeLock.acquire()) {
+        try (ReleasableLock lock = writeLock.acquire()) {
             ensureOpen();
             onGoingRecoveries.startRecovery();
         }
@@ -848,7 +870,7 @@ public class InternalEngine extends Engine {
 
     @Override
     public List<Segment> segments(boolean verbose) {
-        try (ReleasableLock _ = readLock.acquire()) {
+        try (ReleasableLock lock = readLock.acquire()) {
             Segment[] segmentsArr = getSegmentInfo(lastCommittedSegmentInfos, verbose);
 
             // fill in the merges flag
@@ -1070,12 +1092,8 @@ public class InternalEngine extends Engine {
         @Override
         public void onFailedMerge(MergePolicy.MergeException e) {
             if (Lucene.isCorruptionException(e)) {
-                if (engineConfig.isFailEngineOnCorruption()) {
-                    failEngine("corrupt file detected source: [merge]", e);
-                } else {
-                    logger.warn("corrupt file detected source: [merge] but [{}] is set to [{}]", e, EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, engineConfig.isFailEngineOnCorruption());
-                }
-            } else if (engineConfig.isFailOnMergeFailure()) {
+                failEngine("corrupt file detected source: [merge]", e);
+            } else {
                 failEngine("merge exception", e);
             }
         }

@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.PercentageScore;
+import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;

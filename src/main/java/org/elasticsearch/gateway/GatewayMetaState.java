@@ -121,9 +121,9 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
             Iterable<IndexMetaWriteInfo> writeInfo;
             if (isDataOnlyNode(event.state())) {
-                writeInfo = filterStateOnDataNode(event, currentMetaData);
+                writeInfo = filterStateOnDataNode(event.state(), currentMetaData);
             } else if (isMasterEligibleNode(event.state())) {
-                writeInfo = filterStatesOnMaster(event, currentMetaData);
+                writeInfo = filterStatesOnMaster(event.state(), currentMetaData);
             } else {
                 writeInfo = Collections.emptyList();
             }
@@ -252,20 +252,20 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
      * Each index state that should be written to disk will be returned. This is only run for data only nodes.
      * It will return only the states for indices that actually have a shard allocated on the current node.
      *
-     * @param event           the cluster state event from which we figure out what is new in each index and should potentially be written
+     * @param state           the cluster state from which we figure out what is new in each index and should potentially be written
      * @param currentMetaData the current index state in memory.
      * @return iterable over all indices states that should be written to disk
      */
-    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStateOnDataNode(ClusterChangedEvent event, MetaData currentMetaData) {
-        Map<String, IndexMetaWriteInfo> indicesToWrite = new HashMap<>();
-        RoutingNode thisNode = event.state().getRoutingNodes().node(event.state().nodes().localNodeId());
+    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStateOnDataNode(ClusterState state, MetaData currentMetaData) {
+        Map<String, GatewayMetaState.IndexMetaWriteInfo> indicesToWrite = new HashMap<>();
+        RoutingNode thisNode = state.getRoutingNodes().node(state.nodes().localNodeId());
         if (thisNode == null) {
             // this needs some other handling
             return indicesToWrite.values();
         }
         // iterate over all shards allocated on this node in the new cluster state but only write if ...
         for (MutableShardRouting shardRouting : thisNode) {
-            IndexMetaData indexMetaData = event.state().metaData().index(shardRouting.index());
+            IndexMetaData indexMetaData = state.metaData().index(shardRouting.index());
             IndexMetaData currentIndexMetaData = currentMetaData == null ? null : currentMetaData.index(indexMetaData.index());
             String writeReason = null;
             if (currentIndexMetaData == null || indexMetaData.version() != currentIndexMetaData.version()) {
@@ -294,13 +294,13 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
      * Each index state that is part of the new cluster state will be considered even if this node has no shard of the
      * index allocated on it. This is only run for master nodes.
      *
-     * @param event           the cluster state event from which we figure out what is new in each index and should potentially be written
+     * @param state           the cluster state from which we figure out what is new in each index and should potentially be written
      * @param currentMetaData the current index state in memory.
      * @return iterable over all indices states that should be written to disk
      */
-    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStatesOnMaster(ClusterChangedEvent event, MetaData currentMetaData) {
+    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStatesOnMaster(ClusterState state, MetaData currentMetaData) {
         Map<String, GatewayMetaState.IndexMetaWriteInfo> indicesToWrite = new HashMap<>();
-        MetaData newMetaData = event.state().metaData();
+        MetaData newMetaData = state.metaData();
         // iterate over all indices but only write if ...
         for (IndexMetaData indexMetaData : newMetaData) {
             String writeReason = null;

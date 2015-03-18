@@ -402,7 +402,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 }
                 if (!shard.active() || !observer.observedState().nodes().nodeExists(shard.currentNodeId())) {
                     logger.trace("primary shard [{}] is not yet active or we do not know the node it is assigned to [{}], scheduling a retry.", shard.shardId(), shard.currentNodeId());
-                    retryBecauseUnavailable(shardIt.shardId(), "Primary shard is not active or isn't assigned is a known node.");
+                    retryBecauseUnavailable(shardIt.shardId(), "Primary shard is not active or isn't assigned to a known node.");
                     return;
                 }
 

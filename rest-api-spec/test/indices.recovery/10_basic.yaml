@@ -1,9 +1,6 @@
 ---
 "Indices recovery test":
 
-  - skip:
-      features: gtelte
-
   - do:
       indices.create:
         index:  test_1

@@ -34,7 +34,7 @@ import java.util.List;
  */
 public final class Features {
 
-    private static final List<String> SUPPORTED = Lists.newArrayList("gtelte", "groovy_scripting");
+    private static final List<String> SUPPORTED = Lists.newArrayList("groovy_scripting");
 
     private Features() {
 

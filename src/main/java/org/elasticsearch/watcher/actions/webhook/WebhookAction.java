@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.actions.webhook;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
@@ -23,15 +24,15 @@ import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpMethod;
 import org.elasticsearch.watcher.support.http.HttpResponse;
 import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.support.template.XContentTemplate;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.WatchExecutionContext;
 
 import java.io.IOException;
-import java.util.Locale;
-import java.util.Map;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.util.*;
 
 /**
  */
@@ -41,9 +42,9 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
     private final HttpClient httpClient;
 
-    private final HttpMethod method;
-    private final Template url;
-    private final @Nullable Template body;
+    final HttpMethod method;
+    final Template url;
+    final @Nullable Template body;
 
     public WebhookAction(ESLogger logger, @Nullable Transform transform, HttpClient httpClient, HttpMethod method, Template url, Template body) {
         super(logger, transform);
@@ -61,8 +62,14 @@ public class WebhookAction extends Action<WebhookAction.Result> {
     @Override
     protected Result execute(WatchExecutionContext ctx, Payload payload) throws IOException {
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
-        String urlText = url.render(model);
-        String bodyText = body != null ? body.render(model) : XContentTemplate.YAML.render(model);
+        Map<String, Object> urlSafeModel = new HashMap<>(model.size());
+
+        for (Map.Entry<String, Object> entry : model.entrySet()) {
+            urlSafeModel.put(entry.getKey(), makeURLSafe(entry.getValue()));
+        }
+
+        String urlText = url.render(urlSafeModel);
+        String bodyText = body != null ? body.render(model) : ""; //If body is null send an empty body
         try {
             try (HttpResponse response = httpClient.execute(method, urlText, bodyText)) {
                 int status = response.status();
@@ -158,7 +165,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
             @Override
             protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field("success", success())
+                return builder.field(SUCCESS_FIELD.getPreferredName(), success())
                         .field(WebhookAction.Parser.HTTP_STATUS_FIELD.getPreferredName(), httpStatus)
                         .field(WebhookAction.Parser.URL_FIELD.getPreferredName(), url)
                         .field(WebhookAction.Parser.BODY_FIELD.getPreferredName(), body);
@@ -172,6 +179,10 @@ public class WebhookAction extends Action<WebhookAction.Result> {
             public Failure(String reason) {
                 super(TYPE, false);
                 this.reason = reason;
+            }
+
+            public String reason() {
+                return reason;
             }
 
             @Override
@@ -299,13 +310,36 @@ public class WebhookAction extends Action<WebhookAction.Result> {
                 throw new ActionException("could not parse webhook result. expected boolean field [success]");
             }
 
-            Result result =  success ? new Result.Executed(httpStatus, url, body) : new Result.Failure(reason);
+
+            Result result = (reason == null) ? new Result.Executed(httpStatus, url, body) : new Result.Failure(reason);
             if (transformResult != null) {
                 result.transformResult(transformResult);
             }
             return result;
         }
     }
+
+    private Object makeURLSafe(Object toSafe) throws UnsupportedEncodingException {
+        if (toSafe instanceof List) {
+            List<Object> returnObject = new ArrayList<>(((List) toSafe).size());
+            for (Object o : (List)toSafe) {
+                returnObject.add(makeURLSafe(o));
+            }
+            return returnObject;
+        } else if (toSafe instanceof Map) {
+            Map<Object, Object> returnObject = new HashMap<>(((Map) toSafe).size());
+            for (Object key : ((Map) toSafe).keySet()) {
+                returnObject.put(key, makeURLSafe(((Map) toSafe).get(key)));
+            }
+            return returnObject;
+        } else if (toSafe instanceof String) {
+            return URLEncoder.encode(toSafe.toString(), Charsets.UTF_8.name());
+        } else {
+            //Don't know how to convert anything else
+            return toSafe;
+        }
+    }
+
 
     public static class SourceBuilder implements Action.SourceBuilder {
 

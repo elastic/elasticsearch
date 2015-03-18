@@ -38,8 +38,8 @@ public class IndexAction extends Action<IndexAction.Result> {
 
     private final ClientProxy client;
 
-    private final String index;
-    private final String type;
+    final String index;
+    final String type;
 
     public IndexAction(ESLogger logger, @Nullable Transform transform, ClientProxy client, String index, String type) {
         super(logger, transform);
@@ -235,8 +235,8 @@ public class IndexAction extends Action<IndexAction.Result> {
 
     public static class Result extends Action.Result {
 
-        private final Payload response;
-        private final String reason;
+        final Payload response;
+        final String reason;
 
         public Result(Payload response, String reason, boolean isCreated) {
             super(TYPE, isCreated);

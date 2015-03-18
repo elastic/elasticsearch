@@ -15,6 +15,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.ActionSettingsException;
+import org.elasticsearch.watcher.actions.TransformMocks;
 import org.elasticsearch.watcher.actions.email.service.*;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.template.ScriptTemplate;
@@ -148,8 +149,8 @@ public class EmailActionTests extends ElasticsearchTestCase {
         ScriptTemplate subject = randomBoolean() ? new ScriptTemplate(scriptService, "_subject") : null;
         ScriptTemplate textBody = randomBoolean() ? new ScriptTemplate(scriptService, "_text_body") : null;
         ScriptTemplate htmlBody = randomBoolean() ? new ScriptTemplate(scriptService, "_text_html") : null;
-        final Transform transform = randomBoolean() ? null : new TransformMock();
-        TransformRegistry transformRegistry = transform == null ? mock(TransformRegistry.class) : new TransformRegistryMock(transform);
+        final Transform transform = randomBoolean() ? null : new TransformMocks.TransformMock();
+        TransformRegistry transformRegistry = transform == null ? mock(TransformRegistry.class) : new TransformMocks.TransformRegistryMock(transform);
         boolean attachPayload = randomBoolean();
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("account", "_account")
@@ -283,8 +284,8 @@ public class EmailActionTests extends ElasticsearchTestCase {
         Template textBody = new TemplateMock("_text_body");
         Template htmlBody = randomBoolean() ? null : new TemplateMock("_html_body");
         boolean attachPayload = randomBoolean();
-        Transform transform = randomBoolean() ? null : new TransformMock();
-        TransformRegistry transformRegistry = transform == null ? mock(TransformRegistry.class) : new TransformRegistryMock(transform);
+        Transform transform = randomBoolean() ? null : new TransformMocks.TransformMock();
+        TransformRegistry transformRegistry = transform == null ? mock(TransformRegistry.class) : new TransformMocks.TransformRegistryMock(transform);
 
         EmailAction action = new EmailAction(logger, transform, service, email, auth, profile, account, subject, textBody, htmlBody, attachPayload);
 
@@ -327,7 +328,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
             when(transformResult.type()).thenReturn("_transform_type");
             when(transformResult.payload()).thenReturn(new Payload.Simple("_key", "_value"));
         }
-        TransformRegistry transformRegistry = transformResult != null ? new TransformRegistryMock(transformResult) : mock(TransformRegistry.class);
+        TransformRegistry transformRegistry = transformResult != null ? new TransformMocks.TransformRegistryMock(transformResult) : mock(TransformRegistry.class);
 
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("success", success);
@@ -421,89 +422,6 @@ public class EmailActionTests extends ElasticsearchTestCase {
             public TemplateMock parse(XContentParser parser) throws IOException, ParseException {
                 return new TemplateMock(parser.text());
             }
-        }
-    }
-
-    static class TransformMock extends Transform<TransformMock.Result> {
-
-        @Override
-        public String type() {
-            return "_transform";
-        }
-
-        @Override
-        public Result apply(WatchExecutionContext ctx, Payload payload) throws IOException {
-            return new Result("_transform", new Payload.Simple("_key", "_value"));
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.startObject().endObject();
-        }
-
-        public static class Result extends Transform.Result {
-
-            public Result(String type, Payload payload) {
-                super(type, payload);
-            }
-
-            @Override
-            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder;
-            }
-        }
-    }
-
-    static class TransformRegistryMock extends TransformRegistry {
-
-        public TransformRegistryMock(final Transform transform) {
-            super(ImmutableMap.<String, Transform.Parser>of("_transform", new Transform.Parser() {
-                @Override
-                public String type() {
-                    return transform.type();
-                }
-
-                @Override
-                public Transform parse(XContentParser parser) throws IOException {
-                    parser.nextToken();
-                    assertThat(parser.currentToken(), is(XContentParser.Token.END_OBJECT));
-                    return transform;
-                }
-
-                @Override
-                public Transform.Result parseResult(XContentParser parser) throws IOException {
-                    return null; // should not be called when this ctor is used
-                }
-            }));
-        }
-
-        public TransformRegistryMock(final Transform.Result result) {
-            super(ImmutableMap.<String, Transform.Parser>of("_transform_type", new Transform.Parser() {
-                @Override
-                public String type() {
-                    return result.type();
-                }
-
-                @Override
-                public Transform parse(XContentParser parser) throws IOException {
-                    return null; // should not be called when this ctor is used.
-                }
-
-                @Override
-                public Transform.Result parseResult(XContentParser parser) throws IOException {
-                    assertThat(parser.currentToken(), is(XContentParser.Token.START_OBJECT));
-                    parser.nextToken();
-                    assertThat(parser.currentToken(), is(XContentParser.Token.FIELD_NAME));
-                    assertThat(parser.currentName(), is("payload"));
-                    parser.nextToken();
-                    assertThat(parser.currentToken(), is(XContentParser.Token.START_OBJECT));
-                    Map<String, Object> data = parser.map();
-                    assertThat(data, equalTo(result.payload().data()));
-                    parser.nextToken();
-                    assertThat(parser.currentToken(), is(XContentParser.Token.END_OBJECT));
-                    return result;
-                }
-            }));
         }
     }
 }

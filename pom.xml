@@ -269,7 +269,6 @@
                 <filtering>true</filtering>
             </resource>
         </resources>
-
         <testResources>
             <testResource>
                 <directory>${basedir}/src/test/resources</directory>
@@ -277,7 +276,6 @@
                     <include>**/*.*</include>
                 </includes>
             </testResource>
-
             <testResource>
                 <directory>${basedir}/rest-api-spec</directory>
                 <targetPath>rest-api-spec</targetPath>
@@ -287,7 +285,6 @@
                 </includes>
             </testResource>
         </testResources>
-
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

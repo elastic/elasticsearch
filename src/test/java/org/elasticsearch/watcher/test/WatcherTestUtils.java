@@ -25,6 +25,7 @@ import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.input.search.SearchInput;
+import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.SystemClock;
@@ -108,7 +109,14 @@ public final class WatcherTestUtils {
         return ctx;
     }
 
+
     public static Watch createTestWatch(String watchName, ScriptServiceProxy scriptService, HttpClient httpClient, EmailService emailService, ESLogger logger) throws AddressException {
+        return createTestWatch(watchName, ClientProxy.of(ElasticsearchIntegrationTest.client()), scriptService, httpClient, emailService, logger);
+    }
+
+
+    public static Watch createTestWatch(String watchName, ClientProxy client, ScriptServiceProxy scriptService, HttpClient httpClient, EmailService emailService, ESLogger logger) throws AddressException {
+
         SearchRequest conditionRequest = newInputSearchRequest("my-condition-index").source(searchSource().query(matchAllQuery()));
         SearchRequest transformRequest = newInputSearchRequest("my-payload-index").source(searchSource().query(matchAllQuery()));
         transformRequest.searchType(SearchTransform.DEFAULT_SEARCH_TYPE);
@@ -140,13 +148,16 @@ public final class WatcherTestUtils {
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("foo", "bar");
 
+        Map<String, Object> inputData = new LinkedHashMap<>();
+        inputData.put("bar", "foo");
+
         return new Watch(
                 watchName,
                 SystemClock.INSTANCE,
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
-                new SearchInput(logger, scriptService, ClientProxy.of(ElasticsearchIntegrationTest.client()), conditionRequest, null),
+                new SimpleInput(logger, new Payload.Simple(inputData)),
                 new ScriptCondition(logger, scriptService, new Script("return true")),
-                new SearchTransform(logger, scriptService, ClientProxy.of(ElasticsearchIntegrationTest.client()), transformRequest),
+                new SearchTransform(logger, scriptService, client, transformRequest),
                 new Actions(actions),
                 metadata,
                 new TimeValue(0),

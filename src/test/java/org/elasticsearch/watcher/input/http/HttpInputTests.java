@@ -81,8 +81,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
         request.body(mockBody);
         HttpInput input = new HttpInput(logger, httpClient, request, null);
 
-        HttpResponse response = new HttpResponse();
-        response.status(123);
+        HttpResponse response = new HttpResponse(123);
         response.inputStream(new ByteArrayInputStream("{\"key\" : \"value\"}".getBytes(UTF8)));
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
 

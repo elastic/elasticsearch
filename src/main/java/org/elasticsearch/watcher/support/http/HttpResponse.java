@@ -18,12 +18,12 @@ public class HttpResponse implements Closeable {
     private InputStream inputStream;
     private byte[] body;
 
-    public int status() {
-        return status;
+    public HttpResponse(int status) {
+        this.status = status;
     }
 
-    public void status(int status) {
-        this.status = status;
+    public int status() {
+        return status;
     }
 
     public byte[] body() {
@@ -44,6 +44,8 @@ public class HttpResponse implements Closeable {
 
     @Override
     public void close() throws IOException {
-        inputStream.close();
+        if (inputStream != null) {
+            inputStream.close();
+        }
     }
 }

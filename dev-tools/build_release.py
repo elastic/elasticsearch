@@ -583,6 +583,20 @@ def ensure_checkout_is_clean(branchName):
   if 'is ahead' in s:
     raise RuntimeError('git status shows local commits; try running "git fetch origin", "git checkout %s", "git reset --hard origin/%s": got:\n%s' % (branchName, branchName, s))
 
+# Checks all source files for //NORELEASE comments
+def check_norelease(path='src'):
+  pattern = re.compile(r'\bnorelease\b', re.IGNORECASE)
+  for root, _, file_names in os.walk(path):
+    for file_name in fnmatch.filter(file_names, '*.java'):
+      full_path = os.path.join(root, file_name)
+      line_number = 0
+      with open(full_path, 'r', encoding='utf-8') as current_file:
+        for line in current_file:
+          line_number = line_number + 1
+          if pattern.search(line):
+            raise RuntimeError('Found //norelease comment in %s line %s' % (full_path, line_number))
+
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Builds and publishes a Elasticsearch Release')
   parser.add_argument('--branch', '-b', metavar='RELEASE_BRANCH', default=get_current_branch(),
@@ -626,6 +640,7 @@ if __name__ == '__main__':
   print('  JAVA_HOME is [%s]' % JAVA_HOME)
   print('  Running with maven command: [%s] ' % (MVN))
   if build:
+    check_norelease(path='src')
     ensure_checkout_is_clean(src_branch)
     verify_lucene_version()
     release_version = find_release_version(src_branch)

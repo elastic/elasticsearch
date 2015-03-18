@@ -32,14 +32,11 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.hamcrest.Matchers.*;
@@ -187,7 +184,7 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
         logger.info("--> indexing with id [1], with no routing, should fail");
         try {
             client().prepareIndex(indexOrAlias(), "type1", "1").setSource("field", "value1").setRefresh(true).execute().actionGet();
-            fail();
+            fail("index with missing routing when routing is required should fail");
         } catch (ElasticsearchException e) {
             assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
         }
@@ -197,17 +194,23 @@ public class SimpleRoutingTests extends ElasticsearchIntegrationTest {
             assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
         }
 
-        logger.info("--> deleting with no routing, should broadcast the delete since _routing is required");
-        client().prepareDelete(indexOrAlias(), "type1", "1").setRefresh(true).execute().actionGet();
+        logger.info("--> deleting with no routing, should fail");
+        try {
+            client().prepareDelete(indexOrAlias(), "type1", "1").setRefresh(true).execute().actionGet();
+            fail("delete with missing routing when routing is required should fail");
+        } catch (ElasticsearchException e) {
+            assertThat(e.unwrapCause(), instanceOf(RoutingMissingException.class));
+        }
+
         for (int i = 0; i < 5; i++) {
             try {
                 client().prepareGet(indexOrAlias(), "type1", "1").execute().actionGet().isExists();
-                fail();
+                fail("get with missing routing when routing is required should fail");
             } catch (RoutingMissingException e) {
                 assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
                 assertThat(e.getMessage(), equalTo("routing is required for [test]/[type1]/[1]"));
             }
-            assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
+            assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
         }
 
         logger.info("--> indexing with id [1], and routing [0]");

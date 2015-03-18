@@ -64,7 +64,6 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -536,7 +535,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs));
 
-        //use routing
         DeleteResponse deleteResponse = client().prepareDelete("test", "test", firstDocId).setRouting("routing").get();
         assertThat(deleteResponse.isFound(), equalTo(true));
         GetResponse getResponse = client().prepareGet("test", "test", firstDocId).setRouting("routing").get();
@@ -545,17 +543,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         searchResponse = client().prepareSearch("test").get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs - 1));
-
-        //don't use routing and trigger a broadcast delete
-        deleteResponse = client().prepareDelete("test", "test", secondDocId).get();
-        assertThat(deleteResponse.isFound(), equalTo(true));
-
-        getResponse = client().prepareGet("test", "test", secondDocId).setRouting(secondRouting).get();
-        assertThat(getResponse.isExists(), equalTo(false));
-        refresh();
-        searchResponse = client().prepareSearch("test").setSize(numDocs).get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs - 2));
     }
 
     @Test

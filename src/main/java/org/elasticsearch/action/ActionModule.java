@@ -129,8 +129,6 @@ import org.elasticsearch.action.count.CountAction;
 import org.elasticsearch.action.count.TransportCountAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
-import org.elasticsearch.action.delete.TransportIndexDeleteAction;
-import org.elasticsearch.action.delete.TransportShardDeleteAction;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryAction;
 import org.elasticsearch.action.deletebyquery.TransportDeleteByQueryAction;
 import org.elasticsearch.action.deletebyquery.TransportIndexDeleteByQueryAction;
@@ -282,8 +280,7 @@ public class ActionModule extends AbstractModule {
                 TransportDfsOnlyAction.class);
         registerAction(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class,
                 TransportShardMultiTermsVectorAction.class);
-        registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class,
-                TransportIndexDeleteAction.class, TransportShardDeleteAction.class);
+        registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class);
         registerAction(CountAction.INSTANCE, TransportCountAction.class);
         registerAction(ExistsAction.INSTANCE, TransportExistsAction.class);
         registerAction(SuggestAction.INSTANCE, TransportSuggestAction.class);

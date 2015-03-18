@@ -22,6 +22,7 @@ package org.elasticsearch.action.delete;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -35,7 +36,6 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
@@ -54,15 +54,12 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
 
     private final TransportCreateIndexAction createIndexAction;
 
-    private final TransportIndexDeleteAction indexDeleteAction;
-
     @Inject
     public TransportDeleteAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                  IndicesService indicesService, ThreadPool threadPool, ShardStateAction shardStateAction,
-                                 TransportCreateIndexAction createIndexAction, TransportIndexDeleteAction indexDeleteAction, ActionFilters actionFilters) {
+                                 TransportCreateIndexAction createIndexAction, ActionFilters actionFilters) {
         super(settings, DeleteAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction, actionFilters);
         this.createIndexAction = createIndexAction;
-        this.indexDeleteAction = indexDeleteAction;
         this.autoCreateIndex = new AutoCreateIndex(settings);
     }
 
@@ -102,7 +99,7 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
     }
 
     @Override
-    protected boolean resolveRequest(final ClusterState state, final InternalRequest request, final ActionListener<DeleteResponse> listener) {
+    protected void resolveRequest(final ClusterState state, final InternalRequest request, final ActionListener<DeleteResponse> listener) {
         request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));
         if (state.metaData().hasIndex(request.concreteIndex())) {
             // check if routing is required, if so, do a broadcast delete
@@ -114,34 +111,10 @@ public class TransportDeleteAction extends TransportShardReplicationOperationAct
                         throw new ElasticsearchIllegalArgumentException("routing value is required for deleting documents of type [" + request.request().type()
                                 + "] while using version_type [" + request.request().versionType() + "]");
                     }
-                    indexDeleteAction.execute(new IndexDeleteRequest(request.request(), request.concreteIndex()), new ActionListener<IndexDeleteResponse>() {
-                        @Override
-                        public void onResponse(IndexDeleteResponse indexDeleteResponse) {
-                            // go over the response, see if we have found one, and the version if found
-                            long version = Versions.MATCH_ANY;
-                            boolean found = false;
-                            for (ShardDeleteResponse deleteResponse : indexDeleteResponse.getResponses()) {
-                                if (deleteResponse.isFound()) {
-                                    version = deleteResponse.getVersion();
-                                    found = true;
-                                    break;
-                                }
-                            }
-                            DeleteResponse response = new DeleteResponse(request.concreteIndex(), request.request().type(), request.request().id(), version, found);
-                            response.setShardInfo(indexDeleteResponse.getShardInfo());
-                            listener.onResponse(response);
-                        }
-
-                        @Override
-                        public void onFailure(Throwable e) {
-                            listener.onFailure(e);
-                        }
-                    });
-                    return false;
+                    throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
                 }
             }
         }
-        return true;
     }
 
     private void innerExecute(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {

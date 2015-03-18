@@ -146,11 +146,11 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     }
 
     protected boolean isDataOnlyNode(ClusterState state) {
-        return ((isMasterEligibleNode(state) == false) && (state.nodes().localNode().dataNode() == true));
+        return ((isMasterEligibleNode(state) == false) && state.nodes().localNode().dataNode());
     }
 
     protected boolean isMasterEligibleNode(ClusterState state) {
-        return state.nodes().localNode().masterNode() == true;
+        return state.nodes().localNode().masterNode();
     }
 
     /**

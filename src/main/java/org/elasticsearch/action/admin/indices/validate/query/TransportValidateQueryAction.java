@@ -36,9 +36,10 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryParsingException;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
@@ -48,6 +49,7 @@ import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -173,10 +175,11 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
         boolean valid;
         String explanation = null;
         String error = null;
+        Engine.Searcher searcher = indexShard.acquireSearcher("validate_query");
 
         DefaultSearchContext searchContext = new DefaultSearchContext(0,
                 new ShardSearchLocalRequest(request.types(), request.nowInMillis(), request.filteringAliases()),
-                null, indexShard.acquireSearcher("validate_query"), indexService, indexShard,
+                null, searcher, indexService, indexShard,
                 scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter()
         );
         SearchContext.setCurrent(searchContext);
@@ -188,12 +191,15 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
 
             valid = true;
             if (request.explain()) {
-                explanation = searchContext.query().toString();
+                explanation = searchContext.query().rewrite(searcher.reader()).toString();
             }
         } catch (QueryParsingException e) {
             valid = false;
             error = e.getDetailedMessage();
         } catch (AssertionError e) {
+            valid = false;
+            error = e.getMessage();
+        } catch (IOException e) {
             valid = false;
             error = e.getMessage();
         } finally {

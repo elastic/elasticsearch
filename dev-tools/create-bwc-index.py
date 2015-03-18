@@ -66,8 +66,6 @@ def index_documents(es, index_name, type, num_docs):
       es.indices.refresh(index=index_name)
     if rarely():
       es.indices.flush(index=index_name, force=frequently())
-  if rarely():
-      es.indices.optimize(index=index_name)
   logging.info('Flushing index')
   es.indices.flush(index=index_name)
 
@@ -209,7 +207,7 @@ def generate_index(client, version):
   health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
   assert health['timed_out'] == False, 'cluster health timed out %s' % health
 
-  num_docs = random.randint(10, 100)
+  num_docs = random.randint(2000, 3000)
   index_documents(client, 'test', 'doc', num_docs)
   logging.info('Running basic asserts on the data added')
   run_basic_asserts(client, 'test', 'doc', num_docs)

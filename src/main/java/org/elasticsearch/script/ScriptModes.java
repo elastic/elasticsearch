@@ -20,6 +20,7 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
@@ -28,30 +29,29 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.*;
 
+/**
+ * Holds the {@link org.elasticsearch.script.ScriptMode}s for each of the different scripting languages available,
+ * each script source and each scripted operation.
+ */
 public class ScriptModes {
 
     static final String SCRIPT_SETTINGS_PREFIX = "script.";
     static final String ENGINE_SETTINGS_PREFIX = "script.engine";
 
-    private final ESLogger logger;
-
     final ImmutableMap<String, ScriptMode> scriptModes;
 
     ScriptModes(Map<String, ScriptEngineService> scriptEngines, Settings settings) {
-        this.logger = Loggers.getLogger(getClass(), settings);
+        ESLogger logger = Loggers.getLogger(getClass(), settings);
         //filter out the native engine as we don't want to apply fine grained settings to it.
         //native scripts are always on as they are static by definition.
         Map<String, ScriptEngineService> filteredEngines = Maps.newHashMap(scriptEngines);
         filteredEngines.remove(NativeScriptEngineService.NAME);
-        this.scriptModes = buildScriptModeSettingsMap(settings, filteredEngines);
+        this.scriptModes = buildScriptModeSettingsMap(settings, filteredEngines, logger);
     }
 
-    private ImmutableMap<String, ScriptMode> buildScriptModeSettingsMap(Settings settings, Map<String, ScriptEngineService> scriptEngines) {
+    private static ImmutableMap<String, ScriptMode> buildScriptModeSettingsMap(Settings settings, Map<String, ScriptEngineService> scriptEngines, ESLogger logger) {
         HashMap<String, ScriptMode> scriptModesMap = Maps.newHashMap();
 
         //file scripts are enabled by default, for any language
@@ -61,14 +61,14 @@ public class ScriptModes {
         //dynamic scripts are enabled by default only for sandboxed languages
         addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INLINE, ScriptMode.SANDBOX, scriptModesMap);
 
-        boolean newScriptSettingsUsed = false;
+        List<String> scriptSettings = Lists.newArrayList();
 
         //read custom source based settings for all operations (e.g. script.indexed: enable)
         for (ScriptType scriptType : ScriptType.values()) {
             String scriptTypeSetting = settings.get(SCRIPT_SETTINGS_PREFIX + scriptType);
             if (Strings.hasLength(scriptTypeSetting)) {
-                newScriptSettingsUsed = true;
                 ScriptMode scriptTypeMode = ScriptMode.parse(scriptTypeSetting);
+                scriptSettings.add(SCRIPT_SETTINGS_PREFIX + scriptType + ": " + scriptTypeMode);
                 addGlobalScriptTypeModes(scriptEngines.keySet(), scriptType, scriptTypeMode, scriptModesMap);
             }
         }
@@ -78,7 +78,7 @@ public class ScriptModes {
         for (ScriptedOp scriptedOp : ScriptedOp.values()) {
             ScriptMode scriptMode = getScriptedOpMode(settings, SCRIPT_SETTINGS_PREFIX, scriptedOp);
             if (scriptMode != null) {
-                newScriptSettingsUsed = true;
+                scriptSettings.add(SCRIPT_SETTINGS_PREFIX + scriptedOp + ": " + scriptMode);
                 addGlobalScriptedOpModes(scriptEngines.keySet(), scriptedOp, scriptMode, scriptModesMap);
             }
         }
@@ -90,9 +90,10 @@ public class ScriptModes {
             if (scriptEngineService != null) {
                 for (ScriptType scriptType : ScriptType.values()) {
                     for (ScriptedOp scriptedOp : ScriptedOp.values()) {
-                        ScriptMode scriptMode = getScriptedOpMode(langSettings.getValue(), scriptType + ".", scriptedOp);
+                        String scriptTypePrefix = scriptType + ".";
+                        ScriptMode scriptMode = getScriptedOpMode(langSettings.getValue(), scriptTypePrefix, scriptedOp);
                         if (scriptMode != null) {
-                            newScriptSettingsUsed = true;
+                            scriptSettings.add(scriptTypePrefix + scriptedOp + ": " + scriptMode);
                             addScriptMode(scriptEngineService, scriptType, scriptedOp, scriptMode, scriptModesMap);
                         }
                     }
@@ -103,9 +104,7 @@ public class ScriptModes {
         //read deprecated disable_dynamic setting, apply only if none of the new settings is used
         String disableDynamicSetting = settings.get(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING);
         if (disableDynamicSetting != null) {
-            if (newScriptSettingsUsed) {
-                logger.warn("ignoring [disable_dynamic] setting value as conflicting scripting settings have been specified");
-            } else {
+            if (scriptSettings.isEmpty()) {
                 ScriptService.DynamicScriptDisabling dynamicScriptDisabling = ScriptService.DynamicScriptDisabling.parse(disableDynamicSetting);
                 switch(dynamicScriptDisabling) {
                     case EVERYTHING_ALLOWED:
@@ -117,6 +116,8 @@ public class ScriptModes {
                         addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INLINE, ScriptMode.DISABLE, scriptModesMap);
                         break;
                 }
+            } else {
+                logger.warn("ignoring [{}] setting as conflicting scripting settings have been specified: {}", ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, scriptSettings);
             }
         }
 

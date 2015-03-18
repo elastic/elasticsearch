@@ -66,8 +66,6 @@ def index_documents(es, index_name, type, num_docs):
       es.indices.refresh(index=index_name)
     if rarely():
       es.indices.flush(index=index_name, force=frequently())
-  if rarely():
-      es.indices.optimize(index=index_name)
   logging.info('Flushing index')
   es.indices.flush(index=index_name)
 
@@ -149,12 +147,15 @@ def generate_index(client, version):
           'type': 'string',
           'index_analyzer': 'standard'
         },
-        'completion_with_index_analyzer': {
-          'type': 'completion',
-          'index_analyzer': 'standard'
-        }
       }
     }
+    # completion type was added in 0.90.3
+    if not version in ['0.90.0.Beta1', '0.90.0.RC1', '0.90.0.RC2', '0.90.0', '0.90.1', '0.90.2']:
+      mappings['analyzer_1']['properties']['completion_with_index_analyzer'] = {
+        'type': 'completion',
+        'index_analyzer': 'standard'
+      }
+
     mappings['analyzer_type2'] = {
       'index_analyzer': 'standard',
       'search_analyzer': 'keyword',
@@ -209,7 +210,7 @@ def generate_index(client, version):
   health = client.cluster.health(wait_for_status='green', wait_for_relocating_shards=0)
   assert health['timed_out'] == False, 'cluster health timed out %s' % health
 
-  num_docs = random.randint(10, 100)
+  num_docs = random.randint(2000, 3000)
   index_documents(client, 'test', 'doc', num_docs)
   logging.info('Running basic asserts on the data added')
   run_basic_asserts(client, 'test', 'doc', num_docs)

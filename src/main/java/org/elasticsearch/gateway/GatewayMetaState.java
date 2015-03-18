@@ -121,9 +121,9 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
             Iterable<IndexMetaWriteInfo> writeInfo;
             if (isDataOnlyNode(event.state())) {
-                writeInfo = filterStateOnDataNode(event, currentMetaData, metaStateService, logger);
+                writeInfo = filterStateOnDataNode(event, currentMetaData);
             } else if (isMasterEligibleNode(event.state())) {
-                writeInfo = filterStatesOnMaster(event, currentMetaData, metaStateService, logger);
+                writeInfo = filterStatesOnMaster(event, currentMetaData);
             } else {
                 writeInfo = Collections.emptyList();
             }
@@ -256,7 +256,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
      * @param currentMetaData the current index state in memory.
      * @return iterable over all indices states that should be written to disk
      */
-    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStateOnDataNode(ClusterChangedEvent event, MetaData currentMetaData, MetaStateService metaStateService, ESLogger logger) {
+    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStateOnDataNode(ClusterChangedEvent event, MetaData currentMetaData) {
         Map<String, IndexMetaWriteInfo> indicesToWrite = new HashMap<>();
         RoutingNode thisNode = event.state().getRoutingNodes().node(event.state().nodes().localNodeId());
         if (thisNode == null) {
@@ -266,7 +266,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         // iterate over all shards allocated on this node in the new cluster state but only write if ...
         for (MutableShardRouting shardRouting : thisNode) {
             IndexMetaData indexMetaData = event.state().metaData().index(shardRouting.index());
-            IndexMetaData currentIndexMetaData = maybeLoadIndexState(currentMetaData, indexMetaData, metaStateService, logger);
+            IndexMetaData currentIndexMetaData = currentMetaData == null ? null : currentMetaData.index(indexMetaData.index());
             String writeReason = null;
             // ... state persistence was disabled or index was newly created
             if (currentIndexMetaData == null) {
@@ -296,13 +296,13 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
      * @param currentMetaData the current index state in memory.
      * @return iterable over all indices states that should be written to disk
      */
-    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStatesOnMaster(ClusterChangedEvent event, MetaData currentMetaData, MetaStateService metaStateService, ESLogger logger) {
+    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStatesOnMaster(ClusterChangedEvent event, MetaData currentMetaData) {
         Map<String, GatewayMetaState.IndexMetaWriteInfo> indicesToWrite = new HashMap<>();
         MetaData newMetaData = event.state().metaData();
         // iterate over all indices but only write if ...
         for (IndexMetaData indexMetaData : newMetaData) {
             String writeReason = null;
-            IndexMetaData currentIndexMetaData = maybeLoadIndexState(currentMetaData, indexMetaData, metaStateService, logger);
+            IndexMetaData currentIndexMetaData = currentMetaData == null ? null : currentMetaData.index(indexMetaData.index());
             // ... new index or state persistence was disabled?
             if (currentIndexMetaData == null) {
                 writeReason = "freshly created";
@@ -318,20 +318,6 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
         }
         return indicesToWrite.values();
-    }
-
-    protected static IndexMetaData maybeLoadIndexState(MetaData currentMetaData, IndexMetaData indexMetaData, MetaStateService metaStateService, ESLogger logger) {
-        IndexMetaData currentIndexMetaData = null;
-        if (currentMetaData != null) {
-            currentIndexMetaData = currentMetaData.index(indexMetaData.index());
-        } else {
-            try {
-                currentIndexMetaData = metaStateService.loadIndexState(indexMetaData.index());
-            } catch (IOException e) {
-                logger.debug("failed to load index state ", e);
-            }
-        }
-        return currentIndexMetaData;
     }
 
     public static class IndexMetaWriteInfo {

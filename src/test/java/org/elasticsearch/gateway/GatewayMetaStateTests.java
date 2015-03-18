@@ -42,8 +42,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Test IndexMetaState for master and data only nodes return correct list of indices to write
  * There are many parameters:
- * - meta state is not on disk/ is on disk
- * - meta state is on disk with old version/ up to date version
  * - meta state is not in memory
  * - meta state is in memory with old version/ new version
  * - meta state is in memory with new version
@@ -107,23 +105,17 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
 
     public void assertState(boolean initializing,
                             boolean versionChanged,
-                            boolean stateOnDisk,
-                            boolean stateOnDiskOutdated,
                             boolean stateInMemory,
                             boolean masterEligible,
                             boolean expectMetaData) throws Exception {
         logger.debug("Testing combination:");
         logger.debug("initializing: {}", initializing);
         logger.debug("versionChanged: {}", versionChanged);
-        logger.debug("stateOnDisk: {}", stateOnDisk);
-        logger.debug("stateOnDiskOutdated: {}", stateOnDiskOutdated);
         logger.debug("stateInMemory: {}", stateInMemory);
         logger.debug("masterEligible: {}", masterEligible);
         logger.debug("expectMetaData: {}", expectMetaData);
 
         ClusterChangedEvent event = generateEvent(initializing, versionChanged);
-        final NodeEnvironment env = newNodeEnvironment();
-        MetaStateService metaStateService = new MetaStateService(ImmutableSettings.EMPTY, env);
 
         MetaData inMemoryMetaData = null;
         if (stateInMemory) {
@@ -133,18 +125,11 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
                 inMemoryMetaData = event.state().metaData();
             }
         }
-        if (stateOnDisk) {
-            if (stateOnDiskOutdated) {
-                metaStateService.writeIndex("test", event.previousState().metaData().index("test"), null);
-            } else {
-                metaStateService.writeIndex("test", event.state().metaData().index("test"), null);
-            }
-        }
         Iterator<GatewayMetaState.IndexMetaWriteInfo> indices;
         if (masterEligible) {
-            indices = GatewayMetaState.filterStatesOnMaster(event, inMemoryMetaData, metaStateService, logger).iterator();
+            indices = GatewayMetaState.filterStatesOnMaster(event, inMemoryMetaData).iterator();
         } else {
-            indices = GatewayMetaState.filterStateOnDataNode(event, inMemoryMetaData, metaStateService, logger).iterator();
+            indices = GatewayMetaState.filterStateOnDataNode(event, inMemoryMetaData).iterator();
         }
         if (expectMetaData) {
             assertThat(indices.hasNext(), equalTo(true));
@@ -160,29 +145,10 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
         // test that version changes are always written
         boolean initializing = randomBoolean();
         boolean versionChanged = true;
-        boolean stateOnDisk = randomBoolean();
-        // if we run into version changed then the state on disk must be outdated
-        boolean stateOnDiskOutdated = true;
         boolean stateInMemory = randomBoolean();
         boolean masterEligible = randomBoolean();
         boolean expectMetaData = true;
         assertState(initializing, versionChanged,
-                stateOnDisk, stateOnDiskOutdated,
-                stateInMemory, masterEligible, expectMetaData);
-    }
-
-    @Test
-    public void testUpToDateStateOnDiskAndNotInMemory() throws Exception {
-        // make sure state is not written again if we wrote already
-        boolean initializing = false;
-        boolean versionChanged = false;
-        boolean stateOnDisk = true;
-        boolean stateOnDiskOutdated = false;
-        boolean stateInMemory = false;
-        boolean masterEligible = randomBoolean();
-        boolean expectMetaData = false;
-        assertState(initializing, versionChanged,
-                stateOnDisk, stateOnDiskOutdated,
                 stateInMemory, masterEligible, expectMetaData);
     }
 
@@ -191,13 +157,10 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
         // make sure initializing shards on data only node always written
         boolean initializing = true;
         boolean versionChanged = randomBoolean();
-        boolean stateOnDisk = randomBoolean();
-        boolean stateOnDiskOutdated = randomBoolean();
         boolean stateInMemory = randomBoolean();
         boolean masterEligible = false;
         boolean expectMetaData = true;
         assertState(initializing, versionChanged,
-                stateOnDisk, stateOnDiskOutdated,
                 stateInMemory, masterEligible,
                 expectMetaData);
     }
@@ -207,13 +170,10 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
         // make sure state is not written again if we wrote already
         boolean initializing = false;
         boolean versionChanged = false;
-        boolean stateOnDisk = true;
-        boolean stateOnDiskOutdated = false;
         boolean stateInMemory = true;
         boolean masterEligible = randomBoolean();
         boolean expectMetaData = false;
         assertState(initializing, versionChanged,
-                stateOnDisk, stateOnDiskOutdated,
                 stateInMemory, masterEligible, expectMetaData);
     }
 }

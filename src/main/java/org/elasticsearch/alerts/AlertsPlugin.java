@@ -58,25 +58,11 @@ public class AlertsPlugin extends AbstractPlugin {
         return settingsBuilder()
                 .put("threadpool." + SCHEDULER_THREAD_POOL_NAME + ".type", "fixed")
                 .put("threadpool." + SCHEDULER_THREAD_POOL_NAME + ".size", availableProcessors * 2)
-                .put(alertThreadPoolSettings(availableProcessors, null))
+                .put("threadpool." + SCHEDULER_THREAD_POOL_NAME + ".queue_size", 1000)
+                .put("threadpool." + NAME + ".type", "fixed")
+                .put("threadpool." + NAME + ".size", availableProcessors * 5)
+                .put("threadpool." + NAME + ".queue_size", 1000)
                 .build();
-    }
-
-    public static Settings alertThreadPoolSettings(int availableProcessors, Integer queueSize) {
-        // Executing an alert involves a lot of wait time for networking (search, several index requests + optional condition logic)
-        //TODO Hack to get around threadpool issue
-        if (queueSize != null) {
-            return settingsBuilder()
-                    .put("threadpool." + NAME + ".type", "fixed")
-                    .put("threadpool." + NAME + ".size", availableProcessors * 5)
-                    .put("threadpool." + NAME + ".queue_size", queueSize)
-                    .build();
-        } else {
-            return settingsBuilder()
-                    .put("threadpool." + NAME + ".type", "fixed")
-                    .put("threadpool." + NAME + ".size", availableProcessors * 5)
-                    .build();
-        }
     }
 
 }

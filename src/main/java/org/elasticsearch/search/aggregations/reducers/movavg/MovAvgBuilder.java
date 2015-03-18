@@ -33,7 +33,7 @@ public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
     private String format;
     private GapPolicy gapPolicy;
     private Weighting weighting;
-    private Long window;
+    private Integer window;
     private Map<String, Object> settings;
 
     public MovAvgBuilder(String name) {
@@ -55,7 +55,7 @@ public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
         return this;
     }
 
-    public MovAvgBuilder window(long window) {
+    public MovAvgBuilder window(int window) {
         this.window = window;
         return this;
     }

@@ -624,6 +624,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
                     DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
                     DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
                     if (!Objects.equals(previousMaster, currentMaster)) {
+                        logger.info("node {} received new cluster state: {} \n and had previous cluster state: {}", node, event.state(), event.previousState());
                         String previousMasterNodeName = previousMaster != null ? previousMaster.name() : null;
                         String currentMasterNodeName = currentMaster != null ? currentMaster.name() : null;
                         masters.get(node).add(new Tuple<>(previousMasterNodeName, currentMasterNodeName));
@@ -647,8 +648,9 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
         masterNodeDisruption.startDisrupting();
 
         // Wait for the majority side to get stable
-        ensureStableCluster(2, majoritySide.get(0));
-        ensureStableCluster(2, majoritySide.get(1));
+        assertDifferentMaster(majoritySide.get(0), oldMasterNode);
+        assertDifferentMaster(majoritySide.get(1), oldMasterNode);
+        assertDiscoveryCompleted(majoritySide);
 
         // The old master node is frozen, but here we submit a cluster state update task that doesn't get executed,
         // but will be queued and once the old master node un-freezes it gets executed.
@@ -884,7 +886,7 @@ public class DiscoveryWithServiceDisruptionsTests extends ElasticsearchIntegrati
     public void testClusterFormingWithASlowNode() throws Exception {
         configureCluster(3, 2);
 
-        SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(getRandom(), 0, 0, 5000, 6000);
+        SlowClusterStateProcessing disruption = new SlowClusterStateProcessing(getRandom(), 0, 0, 1000, 2000);
 
         // don't wait for initial state, wat want to add the disruption while the cluster is forming..
         internalCluster().startNodesAsync(3,

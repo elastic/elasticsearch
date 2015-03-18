@@ -19,6 +19,7 @@
 
 package org.elasticsearch.indices.memory.breaker;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -107,6 +108,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/8710")
     public void testMemoryBreaker() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");
@@ -152,6 +154,7 @@ public class CircuitBreakerServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9270")
     public void testRamAccountingTermsEnum() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");

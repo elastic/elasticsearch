@@ -28,6 +28,8 @@ public class GatewayModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        bind(MetaStateService.class).asEagerSingleton();
+        bind(DanglingIndicesState.class).asEagerSingleton();
         bind(GatewayService.class).asEagerSingleton();
         bind(Gateway.class).asEagerSingleton();
         bind(GatewayShardsState.class).asEagerSingleton();

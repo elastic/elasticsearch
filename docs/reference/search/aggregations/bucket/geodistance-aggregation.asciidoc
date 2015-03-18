@@ -31,18 +31,19 @@ Response:
         "rings" : {
             "buckets": [
                 {
-                    "unit": "km",
+                    "key": "*-100.0",
+                    "from": 0,
                     "to": 100.0,
                     "doc_count": 3
                 },
                 {
-                    "unit": "km",
+                    "key": "100.0-300.0",
                     "from": 100.0,
                     "to": 300.0,
                     "doc_count": 1
                 },
                 {
-                    "unit": "km",
+                    "key": "300.0-*",
                     "from": 300.0,
                     "doc_count": 7
                 }

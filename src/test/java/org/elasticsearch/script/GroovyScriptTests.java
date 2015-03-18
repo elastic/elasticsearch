@@ -24,6 +24,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -72,7 +73,7 @@ public class GroovyScriptTests extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, false, reqs);
         try {
-            client().prepareSearch("test").setQuery(constantScoreQuery(scriptFilter("1 == not_found").lang("groovy"))).get();
+            client().prepareSearch("test").setQuery(constantScoreQuery(scriptFilter("1 == not_found").lang(GroovyScriptEngineService.NAME))).get();
             fail("should have thrown an exception");
         } catch (SearchPhaseExecutionException e) {
             assertThat(ExceptionsHelper.detailedMessage(e) + "should not contained NotSerializableTransportException",

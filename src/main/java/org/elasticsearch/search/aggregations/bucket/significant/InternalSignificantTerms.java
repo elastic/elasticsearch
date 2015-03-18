@@ -185,6 +185,7 @@ public abstract class InternalSignificantTerms extends InternalMultiBucketAggreg
             }
         }
 
+        significanceHeuristic.initialize(reduceContext);
         final int size = Math.min(requiredSize, buckets.size());
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
         for (Map.Entry<String, List<Bucket>> entry : buckets.entrySet()) {

@@ -489,13 +489,8 @@ public abstract class Engine implements Closeable {
     /** Check whether the engine should be failed */
     protected boolean maybeFailEngine(String source, Throwable t) {
         if (Lucene.isCorruptionException(t)) {
-            if (engineConfig.isFailEngineOnCorruption()) {
-                failEngine("corrupt file detected source: [" + source + "]", t);
-                return true;
-            } else {
-                logger.warn("corrupt file detected source: [{}] but [{}] is set to [{}]", t, source,
-                        EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, engineConfig.isFailEngineOnCorruption());
-            }
+            failEngine("corrupt file detected source: [" + source + "]", t);
+            return true;
         } else if (ExceptionsHelper.isOOM(t)) {
             failEngine("out of memory", t);
             return true;

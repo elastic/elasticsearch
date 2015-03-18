@@ -135,6 +135,11 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
 
     @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
+        return canRebalance(allocation);
+    }
+
+    @Override
+    public Decision canRebalance(RoutingAllocation allocation) {
         if (type == ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE) {
             // check if there are unassigned primaries.
             if ( allocation.routingNodes().hasUnassignedPrimaries() ) {

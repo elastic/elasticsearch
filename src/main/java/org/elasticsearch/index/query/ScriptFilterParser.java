@@ -69,7 +69,7 @@ public class ScriptFilterParser implements FilterParser {
         HashedBytesRef cacheKey = null;
         // also, when caching, since its isCacheable is false, will result in loading all bit set...
         String script = null;
-        String scriptLang = null;
+        String scriptLang;
         Map<String, Object> params = null;
 
         String filterName = null;
@@ -130,12 +130,9 @@ public class ScriptFilterParser implements FilterParser {
 
         private final SearchScript searchScript;
 
-        private final ScriptService.ScriptType scriptType;
-
         public ScriptFilter(String scriptLang, String script, ScriptService.ScriptType scriptType, Map<String, Object> params, ScriptService scriptService, SearchLookup searchLookup) {
             this.script = script;
             this.params = params;
-            this.scriptType = scriptType;
             this.searchScript = scriptService.search(searchLookup, scriptLang, script, scriptType, newHashMap(params));
         }
 

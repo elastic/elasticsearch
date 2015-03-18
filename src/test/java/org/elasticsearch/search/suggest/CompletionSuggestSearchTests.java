@@ -948,7 +948,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         if (optimize) {
             // make sure merging works just fine
             client().admin().indices().prepareFlush(INDEX).execute().actionGet();
-            client().admin().indices().prepareOptimize(INDEX).execute().actionGet();
+            client().admin().indices().prepareOptimize(INDEX).setMaxNumSegments(randomIntBetween(1, 5)).get();
         }
     }
 

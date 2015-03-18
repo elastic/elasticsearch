@@ -21,6 +21,7 @@ package org.elasticsearch.common.http.client;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchTimeoutException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -277,6 +278,9 @@ public class HttpDownloadHelper {
                 ((HttpURLConnection) connection).setUseCaches(true);
                 ((HttpURLConnection) connection).setConnectTimeout(5000);
             }
+            connection.setRequestProperty("ES-Version", Version.CURRENT.toString());
+            connection.setRequestProperty("User-Agent", "elasticsearch-plugin-manager");
+
             // connect to the remote site (may take some time)
             connection.connect();
 

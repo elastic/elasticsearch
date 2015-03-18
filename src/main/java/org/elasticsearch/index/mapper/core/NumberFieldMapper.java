@@ -37,6 +37,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -235,7 +236,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         RuntimeException e = null;
         try {
             innerParseCreateField(context, fields);
-        } catch (IllegalArgumentException e1) {
+        } catch (IllegalArgumentException | ElasticsearchIllegalArgumentException e1) {
             e = e1;
         } catch (MapperParsingException e2) {
             e = e2;

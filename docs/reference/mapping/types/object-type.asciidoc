@@ -141,8 +141,8 @@ only will new fields not be introduced into the mapping, but also that parsing
 [float]
 ==== enabled
 
-The `enabled` flag allows to disable parsing and indexing a named object
-completely. This is handy when a portion of the JSON document contains
+The `enabled` flag is used to disable parsing and indexing a named object.
+This is handy when a portion of the JSON document contains
 arbitrary JSON which should not be indexed, nor added to the mapping.
 For example:
 

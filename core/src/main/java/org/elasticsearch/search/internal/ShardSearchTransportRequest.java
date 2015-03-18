@@ -160,4 +160,14 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     public BytesReference cacheKey() throws IOException {
         return shardSearchLocalRequest.cacheKey();
     }
+
+    @Override
+    public void profile(boolean profile) {
+        shardSearchLocalRequest.profile(profile);
+    }
+
+    @Override
+    public boolean profile() {
+        return shardSearchLocalRequest.profile();
+    }
 }

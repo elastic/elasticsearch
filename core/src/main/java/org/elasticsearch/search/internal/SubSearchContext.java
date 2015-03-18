@@ -335,4 +335,9 @@ public class SubSearchContext extends FilteredSearchContext {
     public InnerHitsContext innerHits() {
         return innerHitsContext;
     }
+
+    @Override
+    public void enableProfiling() {
+        throw new UnsupportedOperationException();
+    }
 }

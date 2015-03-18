@@ -531,4 +531,9 @@ public abstract class FilteredSearchContext extends SearchContext {
     public Map<Class<?>, Collector> queryCollectors() {
         return in.queryCollectors();
     }
+
+    @Override
+    public void enableProfiling() {
+        throw new UnsupportedOperationException();
+    }
 }

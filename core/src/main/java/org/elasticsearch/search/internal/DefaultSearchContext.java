@@ -723,4 +723,9 @@ public class DefaultSearchContext extends SearchContext {
     public Map<Class<?>, Collector> queryCollectors() {
         return queryCollectors;
     }
+
+    @Override
+    public void enableProfiling() {
+        this.searcher = new ProfileIndexSearcher(this, engineSearcher);
+    }
 }

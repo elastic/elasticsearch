@@ -63,6 +63,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
@@ -102,6 +103,7 @@ import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.common.lucene.search.ProfileQuery;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -671,6 +673,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             dfsPhase.preProcess(context);
             queryPhase.preProcess(context);
             fetchPhase.preProcess(context);
+
+            // Wrap with a ProfileQuery after pre-processing, so that type filter is included
+            if (context.request().profile()) {
+                context.enableProfiling();
+                //ProfileQuery pQuery = new ProfileQuery(context.query());
+                //context.parsedQuery(new ParsedQuery(pQuery, context.parsedQuery().namedFilters()));
+            }
 
             // compute the context keep alive
             long keepAlive = defaultKeepAlive;

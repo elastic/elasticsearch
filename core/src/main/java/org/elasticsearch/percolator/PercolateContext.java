@@ -756,4 +756,9 @@ public class PercolateContext extends SearchContext {
     public Map<Class<?>, Collector> queryCollectors() {
         return queryCollectors;
     }
+
+    @Override
+    public void enableProfiling() {
+        throw new UnsupportedOperationException();
+    }
 }

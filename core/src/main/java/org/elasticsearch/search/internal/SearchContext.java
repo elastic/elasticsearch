@@ -311,6 +311,8 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
 
     public abstract FetchSearchResult fetchResult();
 
+    public abstract void enableProfiling();
+
     /**
      * Schedule the release of a resource. The time when {@link Releasable#close()} will be called on this object
      * is function of the provided {@link Lifetime}.

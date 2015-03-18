@@ -81,6 +81,8 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 
     private Scroll scroll;
 
+    private boolean profile;
+
     private String[] types = Strings.EMPTY_ARRAY;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
@@ -540,6 +542,15 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 
     public Boolean requestCache() {
         return this.requestCache;
+    }
+
+    public SearchRequest profile(boolean profile) {
+        this.profile = profile;
+        return this;
+    }
+
+    public boolean profile() {
+        return this.profile;
     }
 
     @Override

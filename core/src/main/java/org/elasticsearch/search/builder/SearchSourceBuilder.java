@@ -119,6 +119,9 @@ public class SearchSourceBuilder extends ToXContentToBytes {
 
     private String[] stats;
 
+    private Boolean profile = false;
+
+
     /**
      * Constructs a new search source builder.
      */
@@ -479,9 +482,18 @@ public class SearchSourceBuilder extends ToXContentToBytes {
         return this;
     }
 
+    /*
+     * Should the query be profiled. Defaults to <tt>False</tt>
+     */
+    public SearchSourceBuilder profile(Boolean profile) {
+        this.profile = profile;
+        return this;
+    }
     /**
-     * Indicates whether the response should contain the stored _source for
-     * every hit
+     * Indicates whether the response should contain the stored _source for every hit
+     *
+     * @param fetch
+     * @return
      */
     public SearchSourceBuilder fetchSource(boolean fetch) {
         if (this.fetchSourceContext == null) {
@@ -681,6 +693,10 @@ public class SearchSourceBuilder extends ToXContentToBytes {
 
         if (explain != null) {
             builder.field("explain", explain);
+        }
+
+        if (profile != null) {
+            builder.field("profile", profile);
         }
 
         if (fetchSourceContext != null) {

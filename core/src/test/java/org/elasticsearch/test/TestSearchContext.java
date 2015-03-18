@@ -664,4 +664,9 @@ public class TestSearchContext extends SearchContext {
     public Map<Class<?>, Collector> queryCollectors() {
         return queryCollectors;
     }
+
+    @Override
+    public void enableProfiling() {
+        throw new UnsupportedOperationException();
+    }
 }

@@ -64,6 +64,11 @@ public interface ShardSearchRequest extends HasContextAndHeaders {
 
     Scroll scroll();
 
+    void profile(boolean profile);
+
+    boolean profile();
+
+
     /**
      * Returns the cache key for this shard search request, based on its content
      */

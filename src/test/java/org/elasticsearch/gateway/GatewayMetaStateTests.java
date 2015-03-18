@@ -159,7 +159,7 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
         boolean versionChanged = randomBoolean();
         boolean stateInMemory = randomBoolean();
         boolean masterEligible = false;
-        boolean expectMetaData = versionChanged || stateInMemory == false;
+        boolean expectMetaData = true;
         assertState(initializing, versionChanged,
                 stateInMemory, masterEligible,
                 expectMetaData);

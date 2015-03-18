@@ -268,17 +268,15 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             IndexMetaData indexMetaData = state.metaData().index(shardRouting.index());
             IndexMetaData currentIndexMetaData = currentMetaData == null ? null : currentMetaData.index(indexMetaData.index());
             String writeReason = null;
-            if (currentIndexMetaData == null || indexMetaData.version() != currentIndexMetaData.version()) {
-                // ... state persistence was disabled or index was newly created
-                if (currentIndexMetaData == null) {
-                    writeReason = "freshly created";
-                    // ... new shard is allocated on node (we could optimize here and make sure only written once and not for each shard per index -> do later)
-                } else if (shardRouting.initializing()) {
-                    writeReason = "newly allocated on node";
-                    // ... version changed
-                } else if (indexMetaData.version() != currentIndexMetaData.version()) {
-                    writeReason = "version changed from [" + currentIndexMetaData.version() + "] to [" + indexMetaData.version() + "]";
-                }
+            // ... state persistence was disabled or index was newly created
+            if (currentIndexMetaData == null) {
+                writeReason = "freshly created";
+                // ... new shard is allocated on node (we could optimize here and make sure only written once and not for each shard per index -> do later)
+            } else if (shardRouting.initializing()) {
+                writeReason = "newly allocated on node";
+                // ... version changed
+            } else if (indexMetaData.version() != currentIndexMetaData.version()) {
+                writeReason = "version changed from [" + currentIndexMetaData.version() + "] to [" + indexMetaData.version() + "]";
             }
             if (writeReason != null) {
                 indicesToWrite.put(shardRouting.index(),

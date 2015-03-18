@@ -42,7 +42,7 @@ public class MovAvgParser implements Reducer.Parser {
 
     public static final ParseField FORMAT = new ParseField("format");
     public static final ParseField GAP_POLICY = new ParseField("gap_policy");
-    public static final ParseField WEIGHTING_TYPE = new ParseField("weighting");
+    public static final ParseField WEIGHTING = new ParseField("weighting");
     public static final ParseField WINDOW = new ParseField("window");
     public static final ParseField SETTINGS = new ParseField("settings");
 
@@ -58,7 +58,7 @@ public class MovAvgParser implements Reducer.Parser {
         String[] bucketsPaths = null;
         String format = null;
         GapPolicy gapPolicy = GapPolicy.IGNORE;
-        Weighting weightingType = Weighting.SIMPLE;
+        Weighting weighting = Weighting.SIMPLE;
         int window = 5;
         Map<String, Object> settings = null;
 
@@ -79,8 +79,8 @@ public class MovAvgParser implements Reducer.Parser {
                     bucketsPaths = new String[] { parser.text() };
                 } else if (GAP_POLICY.match(currentFieldName)) {
                     gapPolicy = GapPolicy.parse(context, parser.text());
-                } else if (WEIGHTING_TYPE.match(currentFieldName)) {
-                    weightingType = Weighting.parse(context, parser.text());
+                } else if (WEIGHTING.match(currentFieldName)) {
+                    weighting = Weighting.parse(context, parser.text());
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
                             + currentFieldName + "].");
@@ -119,9 +119,9 @@ public class MovAvgParser implements Reducer.Parser {
             formatter = ValueFormat.Patternable.Number.format(format).formatter();
         }
 
-        settings = getDefaultSettings(weightingType, settings);
+        settings = getDefaultSettings(weighting, settings);
 
-        return new MovAvgReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy, weightingType, window, settings);
+        return new MovAvgReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy, weighting, window, settings);
     }
 
     /**

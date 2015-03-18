@@ -206,7 +206,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                                 .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
                                 .subAggregation(movavg("movavg")
                                         .window(windowSize)
-                                        .weightingType(MovAvgModel.Weighting.SIMPLE)
+                                        .weighting(MovAvgModel.Weighting.SIMPLE)
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
                 ).execute().actionGet();
@@ -241,7 +241,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                                 .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
                                 .subAggregation(movavg("movavg")
                                         .window(windowSize)
-                                        .weightingType(MovAvgModel.Weighting.LINEAR)
+                                        .weighting(MovAvgModel.Weighting.LINEAR)
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
                 ).execute().actionGet();
@@ -276,7 +276,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                                 .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
                                 .subAggregation(movavg("movavg")
                                         .window(windowSize)
-                                        .weightingType(MovAvgModel.Weighting.SINGLE_EXP)
+                                        .weighting(MovAvgModel.Weighting.SINGLE_EXP)
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
                 ).execute().actionGet();
@@ -311,7 +311,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                                 .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
                                 .subAggregation(movavg("movavg")
                                         .window(windowSize)
-                                        .weightingType(MovAvgModel.Weighting.DOUBLE_EXP)
+                                        .weighting(MovAvgModel.Weighting.DOUBLE_EXP)
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
                 ).execute().actionGet();

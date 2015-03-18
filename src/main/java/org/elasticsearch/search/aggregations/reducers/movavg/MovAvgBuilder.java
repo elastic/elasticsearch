@@ -32,7 +32,7 @@ public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
 
     private String format;
     private GapPolicy gapPolicy;
-    private Weighting weightingType;
+    private Weighting weighting;
     private Long window;
     private Map<String, Object> settings;
 
@@ -50,8 +50,8 @@ public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
         return this;
     }
 
-    public MovAvgBuilder weightingType(Weighting weightingType) {
-        this.weightingType = weightingType;
+    public MovAvgBuilder weighting(Weighting weightingType) {
+        this.weighting = weightingType;
         return this;
     }
 
@@ -73,8 +73,8 @@ public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
         if (gapPolicy != null) {
             builder.field(MovAvgParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
         }
-        if (weightingType != null) {
-            builder.field(MovAvgParser.WEIGHTING_TYPE.getPreferredName(), weightingType.getName());
+        if (weighting != null) {
+            builder.field(MovAvgParser.WEIGHTING.getPreferredName(), weighting.getName());
         }
         if (window != null) {
             builder.field(MovAvgParser.WINDOW.getPreferredName(), window);

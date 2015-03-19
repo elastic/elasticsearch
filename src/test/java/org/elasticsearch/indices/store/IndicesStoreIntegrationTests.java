@@ -59,7 +59,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/10018")
     public void indexCleanup() throws Exception {
         final String masterNode = internalCluster().startNode(ImmutableSettings.builder().put("node.data", false));
         final String node_1 = internalCluster().startNode(ImmutableSettings.builder().put("node.master", false));

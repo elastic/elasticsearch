@@ -20,6 +20,7 @@
 package org.elasticsearch.indices.store;
 
 import org.apache.lucene.store.StoreRateLimiting;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -50,6 +52,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -213,11 +216,11 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             DiscoveryNode currentNode = state.nodes().get(shardRouting.currentNodeId());
             assert currentNode != null;
 
-            requests.add(new Tuple<>(currentNode, new ShardActiveRequest(clusterName, indexUUID, shardRouting.shardId())));
+            requests.add(new Tuple<>(currentNode, new ShardActiveRequest(clusterName, indexUUID, shardRouting.shardId(), new TimeValue(1, TimeUnit.SECONDS))));
             if (shardRouting.relocatingNodeId() != null) {
                 DiscoveryNode relocatingNode = state.nodes().get(shardRouting.relocatingNodeId());
                 assert relocatingNode != null;
-                requests.add(new Tuple<>(relocatingNode, new ShardActiveRequest(clusterName, indexUUID, shardRouting.shardId())));
+                requests.add(new Tuple<>(relocatingNode, new ShardActiveRequest(clusterName, indexUUID, shardRouting.shardId(), new TimeValue(1, TimeUnit.SECONDS))));
             }
         }
 
@@ -333,8 +336,69 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         }
 
         @Override
-        public void messageReceived(ShardActiveRequest request, TransportChannel channel) throws Exception {
-            channel.sendResponse(new ShardActiveResponse(shardActive(request), clusterService.localNode()));
+        public void messageReceived(final ShardActiveRequest request, final TransportChannel channel) throws Exception {
+            // make sure shard is really there before register cluster state obsever
+            ShardId shardId = request.shardId;
+            IndexService indexService = indicesService.indexService(shardId.index().getName());
+            if (indexService != null && indexService.indexUUID().equals(request.indexUUID)) {
+                if (!indexService.hasShard(shardId.id())) {
+                    channel.sendResponse(new ShardActiveResponse(false, clusterService.localNode()));
+                }
+            } else {
+                channel.sendResponse(new ShardActiveResponse(false, clusterService.localNode()));
+            }
+            // create observer just in case
+            ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout, logger);
+            // check if shard is active. if so, all is good
+            boolean shardActive = shardActive(request);
+            if (shardActive) {
+                channel.sendResponse(new ShardActiveResponse(shardActive(request), clusterService.localNode()));
+            } else {
+                // shard is not active, might be POST_RECOVERY so check if cluster state changed inbetween or wait for next change
+                observer.waitForNextChange(new ClusterStateObserver.Listener() {
+                    @Override
+                    public void onNewClusterState(ClusterState state) {
+                        try {
+                            channel.sendResponse(new ShardActiveResponse(shardActive(request), clusterService.localNode()));
+                        } catch (IOException e) {
+                            logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", request.shardId, new Exception());
+                            logger.error("Exception: ", e);
+                        }
+                    }
+
+                    @Override
+                    public void onClusterServiceClose() {
+                        try {
+                            channel.sendResponse(new ShardActiveResponse(false, clusterService.localNode()));
+                        } catch (IOException e) {
+                            logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", request.shardId, new Exception());
+                            logger.error("Exception: ", e);
+                        }
+                    }
+
+                    @Override
+                    public void onTimeout(TimeValue timeout) {
+                        // Try one more time
+                        try {
+                            channel.sendResponse(new ShardActiveResponse(shardActive(request), clusterService.localNode()));
+                        } catch (IOException e) {
+                            logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", request.shardId, new Exception());
+                            logger.error("Exception: ", e);
+                        }
+                    }
+                }, new ClusterStateObserver.ChangePredicate() {
+                    @Override
+                    public boolean apply(ClusterState previousState, ClusterState.ClusterStateStatus previousStatus,
+                                         ClusterState newState, ClusterState.ClusterStateStatus newStatus) {
+                        return shardActive(request);
+                    }
+
+                    @Override
+                    public boolean apply(ClusterChangedEvent event) {
+                        return shardActive(request);
+                    }
+                });
+            }
         }
 
         private boolean shardActive(ShardActiveRequest request) {
@@ -357,7 +421,8 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
     }
 
     private static class ShardActiveRequest extends TransportRequest {
-
+        public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.SECONDS);
+        protected TimeValue timeout = DEFAULT_TIMEOUT;
         private ClusterName clusterName;
         private String indexUUID;
         private ShardId shardId;
@@ -365,10 +430,11 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         ShardActiveRequest() {
         }
 
-        ShardActiveRequest(ClusterName clusterName, String indexUUID, ShardId shardId) {
+        ShardActiveRequest(ClusterName clusterName, String indexUUID, ShardId shardId, TimeValue timeout) {
             this.shardId = shardId;
             this.indexUUID = indexUUID;
             this.clusterName = clusterName;
+            this.timeout = timeout;
         }
 
         @Override
@@ -377,6 +443,9 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             clusterName = ClusterName.readClusterName(in);
             indexUUID = in.readString();
             shardId = ShardId.readShardId(in);
+            if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
+                timeout = new TimeValue(in.readLong(), TimeUnit.MILLISECONDS);
+            }
         }
 
         @Override
@@ -385,6 +454,9 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             clusterName.writeTo(out);
             out.writeString(indexUUID);
             shardId.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
+                out.writeLong(timeout.millis());
+            }
         }
     }
 

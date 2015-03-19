@@ -1,6 +1,8 @@
 [[modules-memcached]]
 == memcached
 
+deprecated[1.5.0,The memcached transport is deprecated and will be removed in 2.0.0]
+
 The memcached module allows to expose *elasticsearch*
 APIs over the memcached protocol (as closely
 as possible).

@@ -614,13 +614,17 @@ public class MetaDataTests extends ElasticsearchTestCase {
             MetaData metadata = MetaData.builder().build();
 
             // with no indices, asking for all indices should return empty list or exception, depending on indices options
-            try {
+            if (indicesOptions.allowNoIndices()) {
                 String[] concreteIndices = metadata.concreteIndices(indicesOptions, allIndices);
                 assertThat(concreteIndices, notNullValue());
                 assertThat(concreteIndices.length, equalTo(0));
-            } catch (IndexMissingException e) {
-                if (indicesOptions.allowNoIndices())
-                    fail("calling concreteIndices for all indices with allowNoIndices option should not throw exception");
+            } else {
+                try {
+                    metadata.concreteIndices(indicesOptions, allIndices);
+                    fail("calling concreteIndices for _all indices with allowNoIndices=false should throw exception");
+                } catch (IndexMissingException e) {
+                    // expected exception
+                }
             }
 
             // with existing indices, asking for all indices should return all open/closed indices depending on options
@@ -629,7 +633,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
                     .put(indexBuilder("bbb").state(State.OPEN).putAlias(AliasMetaData.builder("bbb_alias1")))
                     .put(indexBuilder("ccc").state(State.CLOSE).putAlias(AliasMetaData.builder("ccc_alias1")))
                     .build();
-            try {
+            if (indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed() || indicesOptions.allowNoIndices()) {
                 String[] concreteIndices = metadata.concreteIndices(indicesOptions, allIndices);
                 assertThat(concreteIndices, notNullValue());
                 int expectedNumberOfIndices = 0;
@@ -638,10 +642,13 @@ public class MetaDataTests extends ElasticsearchTestCase {
                 if (indicesOptions.expandWildcardsClosed())
                     expectedNumberOfIndices += 1;
                 assertThat(concreteIndices.length, equalTo(expectedNumberOfIndices));
-            } catch (IndexMissingException e) {
-                if (indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed() ||
-                        indicesOptions.allowNoIndices())
-                    fail("calling concreteIndices with non matchon wildcard and allowNoIndices=true should not throw exception");
+            } else {
+                try {
+                    metadata.concreteIndices(indicesOptions, allIndices);
+                    fail("calling concreteIndices for _all, with no wildcard expansion and allowNoIndices=false should throw exception");
+                } catch (IndexMissingException e) {
+                    // expected exception
+                }
             }
         }
     }
@@ -661,14 +668,17 @@ public class MetaDataTests extends ElasticsearchTestCase {
                     .put(indexBuilder("bbb").state(State.OPEN).putAlias(AliasMetaData.builder("bbb_alias1")))
                     .put(indexBuilder("ccc").state(State.CLOSE).putAlias(AliasMetaData.builder("ccc_alias1")))
                     .build();
-            try {
+            if (indicesOptions.allowNoIndices()) {
                 String[] concreteIndices = metadata.concreteIndices(indicesOptions, "Foo*");
                 assertThat(concreteIndices, notNullValue());
                 assertThat(concreteIndices.length, equalTo(0));
-            } catch (IndexMissingException e) {
-                if (indicesOptions.allowNoIndices())
-                    fail("not expecting exeption when either expandWildcardsOpen, expandWildcardsClose or "
-                            + "allowNoIndices is true");
+            } else {
+                try {
+                    metadata.concreteIndices(indicesOptions, "Foo*");
+                    fail("expecting exeption when result empty and allowNoIndicec=false");
+                } catch (IndexMissingException e) {
+                    // expected exception
+                }
             }
         }
     }

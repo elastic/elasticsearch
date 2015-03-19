@@ -679,8 +679,9 @@ public class MetaData implements Iterable<IndexMetaData> {
         if (isAllIndices(aliasesOrIndices)) {
             if (!indicesOptions.allowNoIndices()) {
                 throw new IndexMissingException(new Index("_all"));
+            } else {
+                return Strings.EMPTY_ARRAY;
             }
-            else return Strings.EMPTY_ARRAY;
         }
 
         boolean failClosed = indicesOptions.forbidClosedIndices() && !indicesOptions.ignoreUnavailable();

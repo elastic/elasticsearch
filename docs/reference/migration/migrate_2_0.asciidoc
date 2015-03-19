@@ -51,6 +51,13 @@ In addition, the following node settings related to routing have been deprecated
   document into account when computing its shard (default: `false`). `false` is
   now enforced on new indices.
 
+=== Async replication
+
+The `replication` parameter has been removed from all CRUD operations (index,
+update, delete, bulk, delete-by-query).  These operations are now synchronous
+only, and a request will only return once the changes have been replicated to
+all active shards in the shard group.
+
 === Store
 
 The `memory` / `ram` store (`index.store.type`) option was removed in Elasticsearch 2.0.

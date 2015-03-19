@@ -202,9 +202,6 @@ including:
 
 `timeout`::     Timeout waiting for a shard to become available.
 
-`replication`:: The replication type for the delete/index operation
-                (sync or async).
-
 `consistency`:: The write consistency of the index/delete operation.
 
 `refresh`::     Refresh the relevant primary and replica shards (not the whole

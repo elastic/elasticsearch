@@ -21,7 +21,6 @@
           index:  foobar
           type:   baz
           id:     1
-          replication:  async
           body:   { foo: bar }
 
  - match:   { _index:   foobar }

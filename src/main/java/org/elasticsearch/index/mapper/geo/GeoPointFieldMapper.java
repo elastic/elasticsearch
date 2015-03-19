@@ -665,11 +665,11 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         if (!Objects.equal(this.precisionStep, fieldMergeWith.precisionStep)) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different precision_step");
         }
-
-
-        if (!mergeContext.mergeFlags().simulate()) {
-            this.validateLat = fieldMergeWith.validateLat;
-            this.validateLon = fieldMergeWith.validateLon;
+        if (this.validateLat != fieldMergeWith.validateLat) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different validate_lat");
+        }
+        if (this.validateLon != fieldMergeWith.validateLon) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different validate_lon");
         }
     }
 

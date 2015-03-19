@@ -12,7 +12,7 @@ Testing is a crucial part of your application, and as information retrieval itse
 
 The key concept of randomized testing is not to use the same input values for every testcase, but still be able to reproduce it in case of a failure. This allows to test with vastly different input variables in order to make sure, that your implementation is actually independent from your provided test data.
 
-If you are interested in the implementation being used, check out the http://labs.carrotsearch.com/randomizedtesting.html[RandomizedTesting webpage].
+All of the tests are run using a custom junit runner, the `RandomizedRunner` provided by the randomized-testing project. If you are interested in the implementation being used, check out the http://labs.carrotsearch.com/randomizedtesting.html[RandomizedTesting webpage].
 
 
 [[using-elasticsearch-test-classes]]
@@ -159,12 +159,18 @@ protected Settings nodeSettings(int nodeOrdinal) {
 }
 -----------------------------------------
 
+[[parametrized-tests]]
+=== parameterized tests
 
+It is possible to write parameterized tests, that get run multiple times with different parameters. `RandomizedRunner` needs to be used rather than the `Parameterized` runner provided with junit (all the base test classes already use `RandomizedRunner` though). The method that provides the parameters
+needs to be annotated with the `@ParametersFactory` annotation and must be `static`, `public`, without arguments and must have a return type assignable to `Iterable<Object[]>`. The iterable must return arrays conforming to the suite class's constructor with respect to the number and types of parameters.
+The constructor's parameters can be annotated with the `@Name` annotation to provide more descriptive parameter names for test descriptions. Have a look at `ElasticsearchRestTests` for an example.
 
 [[randomized-testing]]
 === Randomized testing
 
 The code snippets you saw so far did not show any trace of randomized testing features, as they are carefully hidden under the hood. However when you are writing your own tests, you should make use of these features as well. Before starting with that, you should know, how to repeat a failed test with the same setup, how it failed. Luckily this is quite easy, as the whole mvn call is logged together with failed tests, which means you can simply copy and paste that line and run the test.
+
 
 [[generating-random-data]]
 ==== Generating random data

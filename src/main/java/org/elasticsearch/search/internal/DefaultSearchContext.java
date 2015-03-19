@@ -21,6 +21,7 @@ package org.elasticsearch.search.internal;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Counter;
@@ -44,8 +45,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -198,16 +197,16 @@ public class DefaultSearchContext extends SearchContext {
 
         aliasFields = indexService.aliasesService().aliasFields(request.filteringAliases());
         if (aliasFields != null) {
-            Set<String> indexedFieldNames = new HashSet<>();
+            // We need to include the meta fields, otherwise features will stop working.
+            Set<String> indexedFieldNames = Sets.newHashSet(MapperService.getMetaFields());
+            // We need to exclude the _all field here, because that includes all a copy of all values from all fields.
+            // which would break the filtering by field
+            indexedFieldNames.remove("_all");
             Set<String> fullFieldNames = new HashSet<>();
             for (FieldMapper field : aliasFields) {
                 indexedFieldNames.add(field.names().indexName());
                 fullFieldNames.add(field.names().fullName());
             }
-            // Always include _uid field:
-            // no push: add other meta fields
-            indexedFieldNames.add(UidFieldMapper.NAME);
-            indexedFieldNames.add(SourceFieldMapper.NAME);
             try {
                 DirectoryReader filter = FieldSubsetReader.wrap((DirectoryReader) engineSearcher.searcher().getIndexReader(), indexedFieldNames, fullFieldNames);
                 this.searcher = new ContextIndexSearcher(this, engineSearcher, filter);

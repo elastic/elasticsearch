@@ -146,9 +146,9 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 }'
 --------------------------------------------------
 If the document does not exist you may want your update script to
-run anyway in order to initialize the document contents using 
+run anyway in order to initialize the document contents using
 business logic unknown to the client. In this case pass the
-new `scripted_upsert` parameter with the value `true`. 
+new `scripted_upsert` parameter with the value `true`.
 
 [source,js]
 --------------------------------------------------
@@ -168,10 +168,10 @@ curl -XPOST 'localhost:9200/sessions/session/dh3sgudg8gsrgl/_update' -d '{
 --------------------------------------------------
 The default `scripted_upsert` setting is `false` meaning the script is not executed for inserts.
 However, in scenarios like the one above we may be using a non-trivial script stored
-using the new "indexed scripts" feature. The script may be deriving properties 
-like the duration of our web session based on observing multiple page view events so the 
+using the new "indexed scripts" feature. The script may be deriving properties
+like the duration of our web session based on observing multiple page view events so the
 client can supply a blank "upsert" document and allow the script to fill in most of the details
-using the events passed in the `params` element.  
+using the events passed in the `params` element.
 
 
 Last, the upsert facility also supports `doc_as_upsert`. So that the
@@ -197,14 +197,14 @@ The update operation supports similar parameters as the index API,
 including:
 
 [horizontal]
-`routing`::     Sets the routing that will be used to route the 
+`routing`::     Sets the routing that will be used to route the
                 document to the relevant shard.
 
 `parent`::      Simply sets the routing.
 
 `timeout`::     Timeout waiting for a shard to become available.
 
-`replication`:: The replication type for the delete/index operation
+`replication`:: deprecated[1.5.0, The ability to specify `async` replication is deprecated and will be removed in version 2.0.0] The replication type for the delete/index operation
                 (sync or async).
 
 `consistency`:: The write consistency of the index/delete operation.
@@ -214,7 +214,7 @@ including:
                 updated document appears in search results  immediately.
 
 `fields`::      return the relevant fields from the updated document.
-                Support `_source` to return the full updated 
+                Support `_source` to return the full updated
                 source.
 
 `version` & `version_type`:: the Update API uses the Elasticsearch's versioning
@@ -225,7 +225,7 @@ including:
                 after update (use with care! with `force` there is no guarantee the document
                 didn't change).Version types `external` & `external_gte` are not supported.
 
-                
+
 And also support `retry_on_conflict` which controls how many times to
 retry if there is a version conflict between getting the document and
 indexing / deleting it. Defaults to `0`.

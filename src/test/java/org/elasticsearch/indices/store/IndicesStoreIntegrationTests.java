@@ -39,6 +39,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.junit.Test;
 
 import java.nio.file.Files;
@@ -55,7 +56,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-@ClusterScope(scope= Scope.TEST, numDataNodes = 0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Test
@@ -94,6 +95,12 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(Files.exists(indexDirectory(node_3, "test")), equalTo(false));
 
         logger.info("--> move shard from node_1 to node_3, and wait for relocation to finish");
+        SlowClusterStateProcessing disruption = null;
+        if (randomBoolean()) {
+            disruption = new SlowClusterStateProcessing(node_3, getRandom(), 0, 0, 1000, 2000);
+            internalCluster().setDisruptionScheme(disruption);
+            disruption.startDisrupting();
+        }
         internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_3)).get();
         clusterHealth = client().admin().cluster().prepareHealth()
                 .setWaitForNodes("4")
@@ -107,6 +114,9 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(Files.exists(indexDirectory(node_2, "test")), equalTo(true));
         assertThat(Files.exists(shardDirectory(node_3, "test", 0)), equalTo(true));
         assertThat(Files.exists(indexDirectory(node_3, "test")), equalTo(true));
+        if (disruption != null) {
+            disruption.stopDisrupting();
+        }
     }
 
     @Test
@@ -202,7 +212,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         logger.info("Node 2 has shards: {}", Arrays.toString(node2Shards));
         final long shardVersions[] = new long[numShards];
         final int shardIds[] = new int[numShards];
-        i=0;
+        i = 0;
         for (ShardRouting shardRouting : stateResponse.getState().getRoutingTable().allShards("test")) {
             shardVersions[i] = shardRouting.version();
             shardIds[i] = shardRouting.getId();
@@ -213,11 +223,11 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
             public ClusterState execute(ClusterState currentState) throws Exception {
                 IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder("test");
                 for (int i = 0; i < numShards; i++) {
-                   indexRoutingTableBuilder.addIndexShard(
-                           new IndexShardRoutingTable.Builder(new ShardId("test", i), false)
-                                   .addShard(new ImmutableShardRouting("test", i, node_1_id, true, ShardRoutingState.STARTED, shardVersions[shardIds[i]]))
-                                   .build()
-                   );
+                    indexRoutingTableBuilder.addIndexShard(
+                            new IndexShardRoutingTable.Builder(new ShardId("test", i), false)
+                                    .addShard(new ImmutableShardRouting("test", i, node_1_id, true, ShardRoutingState.STARTED, shardVersions[shardIds[i]]))
+                                    .build()
+                    );
                 }
                 return ClusterState.builder(currentState)
                         .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder).build())
@@ -249,7 +259,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         return env.shardPaths(new ShardId(index, shard))[0];
     }
 
-    private boolean waitForShardDeletion(final String server, final  String index, final int shard) throws InterruptedException {
+    private boolean waitForShardDeletion(final String server, final String index, final int shard) throws InterruptedException {
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {
@@ -259,7 +269,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         return Files.exists(shardDirectory(server, index, shard));
     }
 
-    private boolean waitForIndexDeletion(final String server, final  String index) throws InterruptedException {
+    private boolean waitForIndexDeletion(final String server, final String index) throws InterruptedException {
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {

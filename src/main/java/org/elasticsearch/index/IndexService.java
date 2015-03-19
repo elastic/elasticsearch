@@ -452,7 +452,12 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         if (deleted.get()) { // we remove that shards content if this index has been deleted
             try {
                 if (ownsShard) {
-                    indicesServices.deleteShardStore("delete index", lock, indexSettings);
+                    try {
+                        indicesLifecycle.beforeIndexShardDeleted(lock.getShardId(), indexSettings);
+                    } finally {
+                        indicesServices.deleteShardStore("delete index", lock, indexSettings);
+                        indicesLifecycle.afterIndexShardDeleted(lock.getShardId(), indexSettings);
+                    }
                 }
             } catch (IOException e) {
                 indicesServices.addPendingDelete(lock.getShardId(), indexSettings);

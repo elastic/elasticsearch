@@ -24,6 +24,8 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
@@ -53,6 +55,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        Settings settings = super.nodeSettings(nodeOrdinal);
+        return ImmutableSettings.builder().put("gateway.type", "local").put(settings).build();
+    }
 
     @Test
     public void testNullShape() throws Exception {
@@ -441,7 +448,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
                 .endObject().endObject();
         indexRandom(true,
                 client().prepareIndex("test", "type", "1")
-                .setSource(docSource));
+                        .setSource(docSource));
         ensureSearchable("test");
 
         GeoShapeFilterBuilder filter = FilterBuilders.geoShapeFilter("location", ShapeBuilder.newGeometryCollection().polygon(ShapeBuilder.newPolygon().point(99.0, -1.0).point(99.0, 3.0).point(103.0, 3.0).point(103.0, -1.0).point(99.0, -1.0)), ShapeRelation.INTERSECTS);

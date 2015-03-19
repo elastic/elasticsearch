@@ -11,6 +11,7 @@ import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.rest.ElasticsearchRestTests;
@@ -47,6 +48,14 @@ public class ShieldRestTests extends ShieldIntegrationTest {
                                 new SecuredString(ShieldSettingsSource.DEFAULT_PASSWORD.toCharArray()))).build();
             }
         };
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(InternalNode.HTTP_ENABLED, true)
+                .build();
     }
 
     @ParametersFactory

@@ -30,6 +30,7 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
@@ -72,7 +73,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
     @Override
     public FD load(LeafReaderContext context) {
         try {
-            if (context.reader().getFieldInfos().fieldInfo(fieldNames.indexName()) == null) {
+            if (!isMetaField(fieldNames) && context.reader().getFieldInfos().fieldInfo(fieldNames.indexName()) == null) {
                 return empty(context.reader().maxDoc());
             }
             FD fd = cache.load(context, this);
@@ -84,6 +85,13 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
                 throw new ElasticsearchException(e.getMessage(), e);
             }
         }
+    }
+
+    /**
+     * Checks whether a field is a metadata field, if so we don't need check if its existence in leaf reader's field infp.
+     */
+    private boolean isMetaField(FieldMapper.Names field) {
+        return MapperService.isMetadataField(field.indexName())    ;
     }
 
     protected abstract FD empty(int maxDoc);

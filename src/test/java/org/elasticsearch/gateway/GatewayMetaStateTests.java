@@ -98,38 +98,32 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
                 .routingTable(routingTableOldClusterState)
                 .nodes(DiscoveryNodes.builder().put(newNode("node1")).localNodeId("node1"))
                 .build();
-        newClusterState = ClusterState.builder(previousClusterState).routingTable(routingTableNewClusterState).metaData(metaDataNewClusterState).build();
+        newClusterState = ClusterState.builder(previousClusterState).routingTable(routingTableNewClusterState).metaData(metaDataNewClusterState).version(previousClusterState.getVersion() + 1).build();
 
-        return new ClusterChangedEvent("test", newClusterState, previousClusterState);
+        ClusterChangedEvent event = new ClusterChangedEvent("test", newClusterState, previousClusterState);
+        assertThat(event.state().version(), equalTo(event.previousState().version() + 1));
+        return event;
     }
 
-    public void assertState(boolean initializing,
-                            boolean versionChanged,
+    public void assertState(ClusterChangedEvent event,
                             boolean stateInMemory,
                             boolean masterEligible,
                             boolean expectMetaData) throws Exception {
         logger.debug("Testing combination:");
-        logger.debug("initializing: {}", initializing);
-        logger.debug("versionChanged: {}", versionChanged);
         logger.debug("stateInMemory: {}", stateInMemory);
         logger.debug("masterEligible: {}", masterEligible);
         logger.debug("expectMetaData: {}", expectMetaData);
 
-        ClusterChangedEvent event = generateEvent(initializing, versionChanged);
 
         MetaData inMemoryMetaData = null;
         if (stateInMemory) {
-            if (versionChanged) {
-                inMemoryMetaData = event.previousState().metaData();
-            } else {
-                inMemoryMetaData = event.state().metaData();
-            }
+            inMemoryMetaData = event.previousState().metaData();
         }
         Iterator<GatewayMetaState.IndexMetaWriteInfo> indices;
         if (masterEligible) {
             indices = GatewayMetaState.filterStatesOnMaster(event.state(), inMemoryMetaData).iterator();
         } else {
-            indices = GatewayMetaState.filterStateOnDataNode(event.state(), inMemoryMetaData).iterator();
+            indices = GatewayMetaState.filterStateOnDataNode(event, inMemoryMetaData).iterator();
         }
         if (expectMetaData) {
             assertThat(indices.hasNext(), equalTo(true));
@@ -145,22 +139,24 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
         // test that version changes are always written
         boolean initializing = randomBoolean();
         boolean versionChanged = true;
+        ClusterChangedEvent event = generateEvent(initializing, versionChanged);
         boolean stateInMemory = randomBoolean();
         boolean masterEligible = randomBoolean();
         boolean expectMetaData = true;
-        assertState(initializing, versionChanged,
+        assertState(event,
                 stateInMemory, masterEligible, expectMetaData);
     }
 
     @Test
-    public void testInitializingDataOnlyNode() throws Exception {
-        // make sure initializing shards on data only node always written
+    public void testNewShardsAlwaysWritten() throws Exception {
+        // make sure new shards on data only node always written
         boolean initializing = true;
         boolean versionChanged = randomBoolean();
+        ClusterChangedEvent event = generateEvent(initializing, versionChanged);
         boolean stateInMemory = randomBoolean();
         boolean masterEligible = false;
         boolean expectMetaData = true;
-        assertState(initializing, versionChanged,
+        assertState(event,
                 stateInMemory, masterEligible,
                 expectMetaData);
     }
@@ -170,10 +166,22 @@ public class GatewayMetaStateTests extends ElasticsearchAllocationTestCase {
         // make sure state is not written again if we wrote already
         boolean initializing = false;
         boolean versionChanged = false;
+        ClusterChangedEvent event = generateEvent(initializing, versionChanged);
         boolean stateInMemory = true;
         boolean masterEligible = randomBoolean();
         boolean expectMetaData = false;
-        assertState(initializing, versionChanged,
+        assertState(event,
+                stateInMemory, masterEligible, expectMetaData);
+    }
+
+    @Test
+    public void testOnlyWriteIfNoShardsAllocatedBefore() throws Exception {
+        ClusterChangedEvent event = generateEvent(true, false);
+        ClusterChangedEvent newEventWithNothingChanged = new ClusterChangedEvent("test cluster state", event.state(), event.state());
+        boolean stateInMemory = true;
+        boolean masterEligible = randomBoolean();
+        boolean expectMetaData = false;
+        assertState(newEventWithNothingChanged,
                 stateInMemory, masterEligible, expectMetaData);
     }
 }

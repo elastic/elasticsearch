@@ -121,7 +121,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
             Iterable<IndexMetaWriteInfo> writeInfo;
             if (isDataOnlyNode(event.state())) {
-                writeInfo = filterStateOnDataNode(event.state(), currentMetaData);
+                writeInfo = filterStateOnDataNode(event, currentMetaData);
             } else if (isMasterEligibleNode(event.state())) {
                 writeInfo = filterStatesOnMaster(event.state(), currentMetaData);
             } else {
@@ -252,27 +252,31 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
      * Each index state that should be written to disk will be returned. This is only run for data only nodes.
      * It will return only the states for indices that actually have a shard allocated on the current node.
      *
-     * @param state           the cluster state from which we figure out what is new in each index and should potentially be written
+     * @param event           the cluster state event from which we figure out what is new in each index and should potentially be written
      * @param currentMetaData the current index state in memory.
      * @return iterable over all indices states that should be written to disk
      */
-    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStateOnDataNode(ClusterState state, MetaData currentMetaData) {
+    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStateOnDataNode(ClusterChangedEvent event, MetaData currentMetaData) {
+        ClusterState newState = event.state();
+        ClusterState previousState = event.previousState();
+
         Map<String, GatewayMetaState.IndexMetaWriteInfo> indicesToWrite = new HashMap<>();
-        RoutingNode thisNode = state.getRoutingNodes().node(state.nodes().localNodeId());
-        if (thisNode == null) {
+        RoutingNode newRoutingNode = newState.getRoutingNodes().node(newState.nodes().localNodeId());
+        RoutingNode previousRoutingNode = previousState.getRoutingNodes().node(newState.nodes().localNodeId());
+        if (newRoutingNode == null) {
             // this needs some other handling
             return indicesToWrite.values();
         }
         // iterate over all shards allocated on this node in the new cluster state but only write if ...
-        for (MutableShardRouting shardRouting : thisNode) {
-            IndexMetaData indexMetaData = state.metaData().index(shardRouting.index());
+        for (MutableShardRouting shardRouting : newRoutingNode) {
+            IndexMetaData indexMetaData = newState.metaData().index(shardRouting.index());
             IndexMetaData currentIndexMetaData = currentMetaData == null ? null : currentMetaData.index(indexMetaData.index());
             String writeReason = null;
             // ... state persistence was disabled or index was newly created
             if (currentIndexMetaData == null) {
                 writeReason = "freshly created";
                 // ... new shard is allocated on node (we could optimize here and make sure only written once and not for each shard per index -> do later)
-            } else if (shardRouting.initializing()) {
+            } else if (shardsOfThisIndexExistedOnNodeAlready(previousRoutingNode, shardRouting) == false) {
                 writeReason = "newly allocated on node";
                 // ... version changed
             } else if (indexMetaData.version() != currentIndexMetaData.version()) {
@@ -285,6 +289,10 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             }
         }
         return indicesToWrite.values();
+    }
+
+    public static boolean shardsOfThisIndexExistedOnNodeAlready(RoutingNode previousRoutingNode, MutableShardRouting shardRouting) {
+        return previousRoutingNode.shardsWithState(shardRouting.index(), ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED).size() != 0;
     }
 
     /**

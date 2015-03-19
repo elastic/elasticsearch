@@ -75,10 +75,20 @@ public final class FieldSubsetReader extends FilterLeafReader {
         }
     }
     
+    /** List of filtered fields (lucene names) */
     private final FieldInfos fieldInfos;
+    /** List of filtered fields (es names). this is used for _source filtering */
     private final String[] fullFieldNames;
     
-    public FieldSubsetReader(LeafReader in, Set<String> fields, Set<String> fullFieldNames) {
+    
+    /**
+     * Create a new FieldSubsetReader.
+     * 
+     * @param in reader to filter
+     * @param fields fields (lucene index names) to filter.
+     * @param fullFieldNames fields (es full names) to filter, used for _source.
+     */
+    FieldSubsetReader(LeafReader in, Set<String> fields, Set<String> fullFieldNames) {
         super(in);
         ArrayList<FieldInfo> filteredInfos = new ArrayList<>();
         for (FieldInfo fi : in.getFieldInfos()) {
@@ -94,6 +104,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
         }
     }
     
+    /** returns true if this field is allowed. */
     boolean hasField(String field) {
         return fieldInfos.fieldInfo(field) != null;
     }
@@ -214,6 +225,13 @@ public final class FieldSubsetReader extends FilterLeafReader {
         return in.getCoreCacheKey();
     }
 
+    /**
+     * Filters the Fields instance from the postings.
+     * <p>
+     * In addition to only returning fields allowed in this subset,
+     * the ES internal _field_names (used by exists filter) has special handling, 
+     * to hide terms for fields that don't exist.
+     */
     private class FieldFilterFields extends FilterFields {
         
         public FieldFilterFields(Fields in) {
@@ -239,6 +257,9 @@ public final class FieldSubsetReader extends FilterLeafReader {
         @Override
         public Terms terms(String field) throws IOException {
             if (FieldNamesFieldMapper.NAME.equals(field)) {
+                // for the _field_names field, fields for the document
+                // are encoded as postings, where term is the field.
+                // so we hide terms for fields we filter out.
                 Terms terms = super.terms(field);
                 if (terms != null) {
                     terms = new FieldSubsetTerms(terms, fieldInfos);

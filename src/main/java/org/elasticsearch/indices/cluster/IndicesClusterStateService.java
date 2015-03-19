@@ -22,6 +22,7 @@ package org.elasticsearch.indices.cluster;
 import com.carrotsearch.hppc.IntOpenHashSet;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -64,6 +65,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.RecoveryStatus;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -567,17 +569,20 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     indexService.removeShard(shardRouting.id(), "removing shard (different instance of it allocated on this node)");
                     shardHasBeenRemoved = true;
                 } else if (isPeerRecovery(shardRouting)) {
+                    final DiscoveryNode sourceNode = findSourceNodeForPeerRecovery(routingTable, nodes, shardRouting);
                     // check if there is an existing recovery going, and if so, and the source node is not the same, cancel the recovery to restart it
-                    RecoveryState recoveryState = recoveryTarget.recoveryState(indexShard);
-                    if (recoveryState != null && recoveryState.getStage() != RecoveryState.Stage.DONE) {
-                        // we have an ongoing recovery, find the source based on current routing and compare them
-                        DiscoveryNode sourceNode = findSourceNodeForPeerRecovery(routingTable, nodes, shardRouting);
-                        if (!recoveryState.getSourceNode().equals(sourceNode)) {
-                            logger.debug("[{}][{}] removing shard (recovery source changed), current [{}], global [{}])", shardRouting.index(), shardRouting.id(), currentRoutingEntry, shardRouting);
-                            // closing the shard will also cancel any ongoing recovery.
-                            indexService.removeShard(shardRouting.id(), "removing shard (recovery source node changed)");
-                            shardHasBeenRemoved = true;
+                    final Predicate<RecoveryStatus> shouldCancel = new Predicate<RecoveryStatus>() {
+                        @Override
+                        public boolean apply(@Nullable RecoveryStatus status) {
+                            return status.sourceNode().equals(sourceNode) == false;
                         }
+                    };
+                    if (recoveryTarget.cancelRecoveriesForShard(indexShard.shardId(), "recovery source node changed", shouldCancel)) {
+                        logger.debug("[{}][{}] removing shard (recovery source changed), current [{}], global [{}])", shardRouting.index(), shardRouting.id(), currentRoutingEntry, shardRouting);
+                        // closing the shard will also cancel any ongoing recovery.
+                        indexService.removeShard(shardRouting.id(), "removing shard (recovery source node changed)");
+                        shardHasBeenRemoved = true;
+
                     }
                 }
                 if (shardHasBeenRemoved == false && !shardRouting.equals(indexShard.routingEntry())) {
@@ -774,7 +779,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         if (!shardRouting.primary()) {
             IndexShardRoutingTable shardRoutingTable = routingTable.index(shardRouting.index()).shard(shardRouting.id());
             for (ShardRouting entry : shardRoutingTable) {
-                if (entry.primary() && entry.started()) {
+                if (entry.primary() && entry.active()) {
                     // only recover from started primary, if we can't find one, we will do it next round
                     sourceNode = nodes.get(entry.currentNodeId());
                     if (sourceNode == null) {

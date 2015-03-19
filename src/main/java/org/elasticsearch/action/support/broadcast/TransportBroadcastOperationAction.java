@@ -128,7 +128,7 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
             shardsIts = shards(clusterState, request, concreteIndices);
             expectedOps = shardsIts.size();
 
-            shardsResponses = new AtomicReferenceArray<Object>(expectedOps);
+            shardsResponses = new AtomicReferenceArray<>(expectedOps);
         }
 
         public void start() {

@@ -19,9 +19,10 @@
 
 package org.elasticsearch.indices.recovery;
 
+import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -95,13 +96,16 @@ public class RecoveriesCollection {
     }
 
     /** cancel the recovery with the given id (if found) and remove it from the recovery collection */
-    public void cancelRecovery(long id, String reason) {
+    public boolean cancelRecovery(long id, String reason) {
         RecoveryStatus removed = onGoingRecoveries.remove(id);
+        boolean cancelled = false;
         if (removed != null) {
             logger.trace("{} canceled recovery from {}, id [{}] (reason [{}])",
                     removed.shardId(), removed.sourceNode(), removed.recoveryId(), reason);
             removed.cancel(reason);
+            cancelled = true;
         }
+        return cancelled;
     }
 
     /**
@@ -128,41 +132,48 @@ public class RecoveriesCollection {
         }
     }
 
-    /**
-     * Try to find an ongoing recovery for a given shard. returns null if not found.
-     */
-    @Nullable
-    public StatusRef findRecoveryByShard(IndexShard indexShard) {
-        for (RecoveryStatus recoveryStatus : onGoingRecoveries.values()) {
-            // check if the recovery has already finished and if not protect
-            // against it being closed on us while we check
-            if (recoveryStatus.tryIncRef()) {
-                try {
-                    if (recoveryStatus.indexShard() == indexShard) {
-                        recoveryStatus.incRef();
-                        return new StatusRef(recoveryStatus);
-                    }
-                } finally {
-                    recoveryStatus.decRef();
-                }
-            }
-        }
-        return null;
-    }
-
     /** the number of ongoing recoveries */
     public int size() {
         return onGoingRecoveries.size();
     }
 
     /** cancel all ongoing recoveries for the given shard. typically because the shards is closed */
-    public void cancelRecoveriesForShard(ShardId shardId, String reason) {
+    public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
+        return cancelRecoveriesForShard(shardId, reason, Predicates.<RecoveryStatus>alwaysTrue());
+    }
+
+    /**
+     * cancel all ongoing recoveries for the given shard, if their status match a predicate
+     *
+     * @param reason       reason for cancellation
+     * @param shardId      shardId for which to cancel recoveries
+     * @param shouldCancel a predicate to check if a recovery should be cancelled or not.
+     *                     Note that the recovery state can change after this check, but before it is being cancelled via other
+     *                     already issued outstanding references.
+     * @return true if a recovery was cancelled
+     */
+    public boolean cancelRecoveriesForShard(ShardId shardId, String reason, Predicate<RecoveryStatus> shouldCancel) {
+        boolean cancelled = false;
         for (RecoveryStatus status : onGoingRecoveries.values()) {
             if (status.shardId().equals(shardId)) {
-                cancelRecovery(status.recoveryId(), reason);
+                boolean cancel = true;
+                if (shouldCancel != null) {
+                    if (status.tryIncRef()) {
+                        try {
+                            cancel = shouldCancel.apply(status);
+                        } finally {
+                            status.decRef();
+                        }
+                    }
+                }
+                if (cancel && cancelRecovery(status.recoveryId(), reason)) {
+                    cancelled = true;
+                }
             }
         }
+        return cancelled;
     }
+
 
     /**
      * a reference to {@link RecoveryStatus}, which implements {@link AutoCloseable}. closing the reference

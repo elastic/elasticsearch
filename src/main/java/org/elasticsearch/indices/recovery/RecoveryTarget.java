@@ -19,11 +19,11 @@
 
 package org.elasticsearch.indices.recovery;
 
+import com.google.common.base.Predicate;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -114,17 +114,18 @@ public class RecoveryTarget extends AbstractComponent {
         });
     }
 
-    public RecoveryState recoveryState(IndexShard indexShard) {
-        try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.findRecoveryByShard(indexShard)) {
-            if (statusRef == null) {
-                return null;
-            }
-            final RecoveryStatus recoveryStatus = statusRef.status();
-            return recoveryStatus.state();
-        } catch (Exception e) {
-            // shouldn't really happen, but have to be here due to auto close
-            throw new ElasticsearchException("error while getting recovery state", e);
-        }
+    /**
+     * cancel all ongoing recoveries for the given shard, if their status match a predicate
+     *
+     * @param reason       reason for cancellation
+     * @param shardId      shardId for which to cancel recoveries
+     * @param shouldCancel a predicate to check if a recovery should be cancelled or not. Null means cancel without an extra check.
+     *                     note that the recovery state can change after this check, but before it is being cancelled via other
+     *                     already issued outstanding references.
+     * @return true if a recovery was cancelled
+     */
+    public boolean cancelRecoveriesForShard(ShardId shardId, String reason, @Nullable Predicate<RecoveryStatus> shouldCancel) {
+        return onGoingRecoveries.cancelRecoveriesForShard(shardId, reason, shouldCancel);
     }
 
     public void startRecovery(final IndexShard indexShard, final RecoveryState.Type recoveryType, final DiscoveryNode sourceNode, final RecoveryListener listener) {
@@ -155,7 +156,7 @@ public class RecoveryTarget extends AbstractComponent {
     Map<String, StoreFileMetaData> existingFiles(DiscoveryNode sourceNode, Store store) throws IOException {
         final Version sourceNodeVersion = sourceNode.version();
         if (sourceNodeVersion.onOrAfter(Version.V_1_4_0)) {
-                return store.getMetadataOrEmpty().asMap();
+            return store.getMetadataOrEmpty().asMap();
         } else {
             logger.debug("Force full recovery source node version {}", sourceNodeVersion);
             // force full recovery if we recover from nodes < 1.4.0
@@ -180,7 +181,7 @@ public class RecoveryTarget extends AbstractComponent {
         if (sourceNodeVersion.before(Version.V_1_3_2) && recoverySettings.compress()) { // don't recover from pre 1.3.2 if compression is on?
             throw new ElasticsearchIllegalStateException("Can't recovery from node "
                     + recoveryStatus.sourceNode() + " with [" + RecoverySettings.INDICES_RECOVERY_COMPRESS
-                    + " : true] due to compression bugs -  see issue #7210 for details" );
+                    + " : true] due to compression bugs -  see issue #7210 for details");
         }
         final StartRecoveryRequest request = new StartRecoveryRequest(recoveryStatus.shardId(), recoveryStatus.sourceNode(), clusterService.localNode(),
                 false, existingFiles, recoveryStatus.state().getType(), recoveryStatus.recoveryId());
@@ -386,7 +387,7 @@ public class RecoveryTarget extends AbstractComponent {
         }
     }
 
-     class CleanFilesRequestHandler extends BaseTransportRequestHandler<RecoveryCleanFilesRequest> {
+    class CleanFilesRequestHandler extends BaseTransportRequestHandler<RecoveryCleanFilesRequest> {
 
         @Override
         public RecoveryCleanFilesRequest newInstance() {

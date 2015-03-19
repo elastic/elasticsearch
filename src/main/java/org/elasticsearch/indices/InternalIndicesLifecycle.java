@@ -210,6 +210,30 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
         }
     }
 
+    public void beforeIndexShardDeleted(ShardId shardId,
+                                       @IndexSettings Settings indexSettings) {
+        for (Listener listener : listeners) {
+            try {
+                listener.beforeIndexShardDeleted(shardId, indexSettings);
+            } catch (Throwable t) {
+                logger.warn("{} failed to invoke before shard deleted callback", t, shardId);
+                throw t;
+            }
+        }
+    }
+
+    public void afterIndexShardDeleted(ShardId shardId,
+                                      @IndexSettings Settings indexSettings) {
+        for (Listener listener : listeners) {
+            try {
+                listener.afterIndexShardDeleted(shardId, indexSettings);
+            } catch (Throwable t) {
+                logger.warn("{} failed to invoke after shard deleted callback", t, shardId);
+                throw t;
+            }
+        }
+    }
+
     public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, @Nullable String reason) {
         for (Listener listener : listeners) {
             try {

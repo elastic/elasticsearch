@@ -22,6 +22,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
@@ -48,7 +49,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ElasticsearchSingle
         getInstanceFromNode(IndicesLifecycle.class).addListener(new IndicesLifecycle.Listener() {
             @Override
             public void afterIndexClosed(Index index, @IndexSettings Settings indexSettings) {
-                assertEquals(counter.get(), 3);
+                assertEquals(counter.get(), 5);
                 counter.incrementAndGet();
             }
 
@@ -60,18 +61,30 @@ public class IndicesLifecycleListenerSingleNodeTests extends ElasticsearchSingle
 
             @Override
             public void afterIndexDeleted(Index index, @IndexSettings Settings indexSettings) {
-                assertEquals(counter.get(), 4);
+                assertEquals(counter.get(), 6);
                 counter.incrementAndGet();
             }
 
             @Override
-            public void beforeIndexDeleted(IndexService indexService) {
+              public void beforeIndexDeleted(IndexService indexService) {
                 assertEquals(counter.get(), 2);
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public void beforeIndexShardDeleted(ShardId shardId, Settings indexSettings) {
+                assertEquals(counter.get(), 3);
+                counter.incrementAndGet();
+            }
+
+            @Override
+            public void afterIndexShardDeleted(ShardId shardId, Settings indexSettings) {
+                assertEquals(counter.get(), 4);
                 counter.incrementAndGet();
             }
         });
         assertAcked(client().admin().indices().prepareDelete("test").get());
-        assertEquals(5, counter.get());
+        assertEquals(7, counter.get());
     }
 
 }

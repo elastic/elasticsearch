@@ -610,6 +610,6 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public Set<FieldMapper> aliasFields() {
-        throw new UnsupportedOperationException();
+        return null;
     }
 }

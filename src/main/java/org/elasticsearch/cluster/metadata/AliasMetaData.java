@@ -136,6 +136,7 @@ public class AliasMetaData {
 
         if (alias != null ? !alias.equals(that.alias) : that.alias != null) return false;
         if (filter != null ? !filter.equals(that.filter) : that.filter != null) return false;
+        if (fields != null ? !Arrays.equals(fields, that.fields) : that.fields != null) return false;
         if (indexRouting != null ? !indexRouting.equals(that.indexRouting) : that.indexRouting != null) return false;
         if (searchRouting != null ? !searchRouting.equals(that.searchRouting) : that.searchRouting != null)
             return false;
@@ -149,6 +150,7 @@ public class AliasMetaData {
         result = 31 * result + (filter != null ? filter.hashCode() : 0);
         result = 31 * result + (indexRouting != null ? indexRouting.hashCode() : 0);
         result = 31 * result + (searchRouting != null ? searchRouting.hashCode() : 0);
+        result = 31 * result + (fields != null ? Arrays.hashCode(fields) : 0);
         return result;
     }
 
@@ -343,6 +345,7 @@ public class AliasMetaData {
             } else {
                 out.writeBoolean(false);
             }
+            out.writeStringArrayNullable(aliasMetaData.fields);
 
         }
 
@@ -360,10 +363,10 @@ public class AliasMetaData {
             if (in.readBoolean()) {
                 searchRouting = in.readString();
             }
-            String[] fields = null;
-//            if (in.getVersion().onOrAfter(V)) {
-            fields = in.readStringArray();
-//        }
+            String[] fields = in.readStringArray();
+            if (fields.length == 0) {
+                fields = null;
+            }
             return new AliasMetaData(alias, filter, indexRouting, searchRouting, fields);
         }
     }

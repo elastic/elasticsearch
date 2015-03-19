@@ -486,7 +486,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             String alias = aliasMd.alias();
             CompressedString filter = aliasMd.filter();
             final FieldMapper[] fields;
-            if (aliasMd.getFields().length == 0) {
+            if (aliasMd.getFields() == null) {
                 fields = null;
             } else {
                 fields = new FieldMapper[aliasMd.getFields().length];

@@ -130,7 +130,11 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
                 // This shouldn't happen unless alias disappeared after filteringAliases was called.
                 throw new InvalidAliasNameException(index, aliases[0], "Unknown alias name was passed to alias view");
             }
-            return Sets.newHashSet(indexAlias.getFields());
+            if (indexAlias.getFields() == null) {
+                return null;
+            } else {
+                return Sets.newHashSet(indexAlias.getFields());
+            }
         } else {
             // we need to bench here a bit, to see maybe it makes sense to use OrFilter
             Set<FieldMapper> fields = new HashSet<>();
@@ -140,9 +144,15 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
                     // This shouldn't happen unless alias disappeared after filteringAliases was called.
                     throw new InvalidAliasNameException(index, aliases[0], "Unknown alias name was passed to alias view");
                 }
-                Collections.addAll(fields, indexAlias.getFields());
+                if (indexAlias.getFields() != null) {
+                    Collections.addAll(fields, indexAlias.getFields());
+                }
             }
-            return fields;
+            if (fields.isEmpty()) {
+                return null;
+            } else {
+                return fields;
+            }
         }
     }
 

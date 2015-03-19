@@ -214,7 +214,12 @@ public class AliasAction implements Streamable {
         filter = in.readOptionalString();
         indexRouting = in.readOptionalString();
         searchRouting = in.readOptionalString();
-        fields = in.readStringArray();
+        String fields[] = in.readStringArray();
+        if (fields.length == 0) {
+            this.fields = null;
+        } else {
+            this.fields = fields;
+        }
     }
 
     @Override
@@ -225,7 +230,7 @@ public class AliasAction implements Streamable {
         out.writeOptionalString(filter);
         out.writeOptionalString(indexRouting);
         out.writeOptionalString(searchRouting);
-        out.writeStringArray(fields);
+        out.writeStringArrayNullable(fields);
     }
 
     public static AliasAction newAddAliasAction(String index, String alias) {

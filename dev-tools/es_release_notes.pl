@@ -24,12 +24,16 @@ use utf8;
 
 my $Github_Key = load_github_key();
 my $Base_URL   = "https://${Github_Key}api.github.com/repos/";
-my $User_Repo  = 'elasticsearch/elasticsearch/';
+my $User_Repo  = 'elastic/elasticsearch/';
 my $Issue_URL  = "http://github.com/${User_Repo}issues/";
 
-my @Groups       = qw(breaking feature enhancement bug regression doc test);
+my @Groups = qw(
+    breaking    deprecation feature
+    enhancement bug regression doc test
+);
 my %Group_Labels = (
     breaking    => 'Breaking changes',
+    deprecation => 'Deprecations',
     doc         => 'Docs',
     feature     => 'New features',
     enhancement => 'Enhancements',
@@ -150,7 +154,8 @@ ISSUE:
     for my $issue (@issues) {
         next if $seen{ $issue->{number} } && !$issue->{pull_request};
         my %labels = map { $_->{name} => 1 } @{ $issue->{labels} };
-        my $header = $issue->{title} =~ s/^([^:]+):\s+// ? $1 : '';
+        my ($header) = map { substr( $_, 1 ) } grep {/^:/} keys %labels;
+        $header ||= 'NOT CLASSIFIED';
         for (@Groups) {
             if ( $labels{$_} ) {
                 push @{ $group{$_}{$header} }, $issue;

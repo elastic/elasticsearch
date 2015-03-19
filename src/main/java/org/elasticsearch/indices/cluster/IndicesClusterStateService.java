@@ -592,20 +592,20 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                         }
                     }
                 }
-                if (shardHasBeenRemoved == false && !shardRouting.equals(indexShard.routingEntry())) {
+                if (shardHasBeenRemoved == false && (shardRouting.equals(indexShard.routingEntry()) == false || shardRouting.version() > indexShard.routingEntry().version())) {
                     if (shardRouting.primary() && indexShard.routingEntry().primary() == false && shardRouting.initializing() && indexShard.allowsPrimaryPromotion() == false) {
                         logger.debug("{} reinitialize shard on primary promotion", indexShard.shardId());
                         indexService.removeShard(shardId, "promoted to primary");
                     } else {
                         // if we happen to remove the shardRouting by id above we don't need to jump in here!
-                        indexShard.routingEntry(shardRouting);
+                        indexShard.updateRoutingEntry(shardRouting, event.state().blocks().disableStatePersistence() == false);
                         indexService.shardInjectorSafe(shardId).getInstance(IndexShardGatewayService.class).routingStateChanged();
                     }
                 }
             }
 
             if (shardRouting.initializing()) {
-                applyInitializingShard(routingTable, nodes, indexMetaData, routingTable.index(shardRouting.index()).shard(shardRouting.id()), shardRouting);
+                applyInitializingShard(event.state(),indexMetaData, shardRouting);
             }
         }
     }
@@ -648,12 +648,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
     }
 
-    private void applyInitializingShard(final RoutingTable routingTable, final DiscoveryNodes nodes, final IndexMetaData indexMetaData, final IndexShardRoutingTable indexShardRouting, final ShardRouting shardRouting) throws ElasticsearchException {
+    private void applyInitializingShard(final ClusterState state, final IndexMetaData indexMetaData, final ShardRouting shardRouting) throws ElasticsearchException {
         final IndexService indexService = indicesService.indexService(shardRouting.index());
         if (indexService == null) {
             // got deleted on us, ignore
             return;
         }
+        final RoutingTable routingTable = state.routingTable();
+        final DiscoveryNodes nodes = state.getNodes();
         final int shardId = shardRouting.id();
 
         if (indexService.hasShard(shardId)) {
@@ -705,7 +707,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.debug("[{}][{}] creating shard", shardRouting.index(), shardId);
                 }
                 IndexShard indexShard = indexService.createShard(shardId, shardRouting.primary());
-                indexShard.routingEntry(shardRouting);
+                indexShard.updateRoutingEntry(shardRouting, state.blocks().disableStatePersistence() == false);
                 indexShard.addFailedEngineListener(failedEngineHandler);
             } catch (IndexShardAlreadyExistsException e) {
                 // ignore this, the method call can happen several times
@@ -754,6 +756,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 handleRecoveryFailure(indexService, indexMetaData, shardRouting, true, e);
             }
         } else {
+            final IndexShardRoutingTable indexShardRouting = routingTable.index(shardRouting.index()).shard(shardRouting.id());
             // we are the first primary, recover from the gateway
             // if its post api allocation, the index should exists
             boolean indexShouldExists = indexShardRouting.primaryAllocatedPostApi();

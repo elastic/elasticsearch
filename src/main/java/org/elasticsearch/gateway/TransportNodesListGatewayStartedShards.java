@@ -34,7 +34,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardStateMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -49,17 +51,12 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
 public class TransportNodesListGatewayStartedShards extends TransportNodesOperationAction<TransportNodesListGatewayStartedShards.Request, TransportNodesListGatewayStartedShards.NodesGatewayStartedShards, TransportNodesListGatewayStartedShards.NodeRequest, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> {
 
     public static final String ACTION_NAME = "internal:gateway/local/started_shards";
-
-    private GatewayShardsState shardsState;
+    private final NodeEnvironment nodeEnv;
 
     @Inject
-    public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters) {
+    public TransportNodesListGatewayStartedShards(Settings settings, ClusterName clusterName, ThreadPool threadPool, ClusterService clusterService, TransportService transportService, ActionFilters actionFilters, NodeEnvironment env) {
         super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters);
-    }
-
-    TransportNodesListGatewayStartedShards initGateway(GatewayShardsState shardsState) {
-        this.shardsState = shardsState;
-        return this;
+        this.nodeEnv = env;
     }
 
     public ActionFuture<NodesGatewayStartedShards> list(ShardId shardId, String[] nodesIds, @Nullable TimeValue timeout) {
@@ -118,10 +115,10 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     protected NodeGatewayStartedShards nodeOperation(NodeRequest request) throws ElasticsearchException {
         try {
             logger.trace("{} loading local shard state info", request.shardId);
-            ShardStateInfo shardStateInfo = shardsState.loadShardInfo(request.shardId);
-            if (shardStateInfo != null) {
-                logger.debug("{} shard state info found: [{}]", request.shardId, shardStateInfo);
-                return new NodeGatewayStartedShards(clusterService.localNode(), shardStateInfo.version);
+            ShardStateMetaData shardStateMetaData = ShardStateMetaData.load(logger, request.shardId, nodeEnv.shardPaths(request.shardId));
+            if (shardStateMetaData != null) {
+                logger.debug("{} shard state info found: [{}]", request.shardId, shardStateMetaData);
+                return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.version);
             }
             logger.trace("{} no local shard info found", request.shardId);
             return new NodeGatewayStartedShards(clusterService.localNode(), -1);
@@ -172,9 +169,6 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesOperat
     public static class NodesGatewayStartedShards extends NodesOperationResponse<NodeGatewayStartedShards> {
 
         private FailedNodeException[] failures;
-
-        NodesGatewayStartedShards() {
-        }
 
         public NodesGatewayStartedShards(ClusterName clusterName, NodeGatewayStartedShards[] nodes, FailedNodeException[] failures) {
             super(clusterName, nodes);

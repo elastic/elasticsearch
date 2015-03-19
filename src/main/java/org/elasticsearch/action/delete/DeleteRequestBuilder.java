@@ -21,7 +21,6 @@ package org.elasticsearch.action.delete;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
@@ -98,15 +97,6 @@ public class DeleteRequestBuilder extends ShardReplicationOperationRequestBuilde
      */
     public DeleteRequestBuilder setVersionType(VersionType versionType) {
         request.versionType(versionType);
-        return this;
-    }
-
-    /**
-     * Set the replication type for this operation.
-     */
-    @Override
-    public DeleteRequestBuilder setReplicationType(ReplicationType replicationType) {
-        request.replicationType(replicationType);
         return this;
     }
 

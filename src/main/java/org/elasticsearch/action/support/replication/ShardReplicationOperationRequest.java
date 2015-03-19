@@ -45,7 +45,6 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     protected String index;
 
     private boolean threadedOperation = true;
-    private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
     private volatile boolean canHaveDuplicates = false;
 
@@ -76,7 +75,6 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         this.timeout = request.timeout();
         this.index = request.index();
         this.threadedOperation = request.operationThreaded();
-        this.replicationType = request.replicationType();
         this.consistencyLevel = request.consistencyLevel();
     }
 
@@ -148,29 +146,6 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
-    /**
-     * The replication type.
-     */
-    public ReplicationType replicationType() {
-        return this.replicationType;
-    }
-
-    /**
-     * Sets the replication type.
-     */
-    @SuppressWarnings("unchecked")
-    public final T replicationType(ReplicationType replicationType) {
-        this.replicationType = replicationType;
-        return (T) this;
-    }
-
-    /**
-     * Sets the replication type.
-     */
-    public final T replicationType(String replicationType) {
-        return replicationType(ReplicationType.fromString(replicationType));
-    }
-
     public WriteConsistencyLevel consistencyLevel() {
         return this.consistencyLevel;
     }
@@ -196,7 +171,6 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         index = in.readString();
@@ -207,7 +181,6 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeString(index);

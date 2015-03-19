@@ -616,7 +616,11 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
+                if (request.timeout() > 0) {
+                    Thread.sleep(request.timeout);
+                }
                 channel.sendResponse(new RuntimeException(""));
+
             }
 
             @Override
@@ -659,7 +663,9 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
         serviceB.addTracer(tracer);
 
         tracer.reset(4);
-        serviceA.sendRequest(nodeB, "test", new StringMessageRequest(""), noopResponseHandler);
+        boolean timeout = randomBoolean();
+        TransportRequestOptions options = timeout ? new TransportRequestOptions().withTimeout(1) : TransportRequestOptions.EMPTY;
+        serviceA.sendRequest(nodeB, "test", new StringMessageRequest("", 10), options, noopResponseHandler);
         requestCompleted.acquire();
         tracer.expectedEvents.get().await();
         assertThat("didn't see request sent", tracer.sawRequestSent, equalTo(true));
@@ -773,24 +779,36 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
     static class StringMessageRequest extends TransportRequest {
 
         private String message;
+        private long timeout;
 
-        StringMessageRequest(String message) {
+        StringMessageRequest(String message, long timeout) {
             this.message = message;
+            this.timeout = timeout;
         }
 
         StringMessageRequest() {
+        }
+
+        public StringMessageRequest(String message) {
+            this(message, -1);
+        }
+
+        public long timeout() {
+            return timeout;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             message = in.readString();
+            timeout = in.readLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(message);
+            out.writeLong(timeout);
         }
     }
 

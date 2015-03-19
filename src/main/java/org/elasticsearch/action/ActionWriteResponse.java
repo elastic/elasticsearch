@@ -63,17 +63,15 @@ public abstract class ActionWriteResponse extends ActionResponse {
 
         private int total;
         private int successful;
-        private int pending;
         private Failure[] failures = EMPTY;
 
         public ShardInfo() {
         }
 
-        public ShardInfo(int total, int successful, int pending, Failure... failures) {
-            assert total >= 0 && successful >= 0 && pending >= 0;
+        public ShardInfo(int total, int successful, Failure... failures) {
+            assert total >= 0 && successful >= 0;
             this.total = total;
             this.successful = successful;
-            this.pending = pending;
             this.failures = failures;
         }
 
@@ -89,14 +87,6 @@ public abstract class ActionWriteResponse extends ActionResponse {
          */
         public int getSuccessful() {
             return successful;
-        }
-
-        /**
-         * @return the total number of shards a write is still to be performed on at the time this response was
-         * created. Typically this will only contain 0, but when async replication is used this number is higher than 0.
-         */
-        public int getPending() {
-            return pending;
         }
 
         /**
@@ -127,7 +117,6 @@ public abstract class ActionWriteResponse extends ActionResponse {
         public void readFrom(StreamInput in) throws IOException {
             total = in.readVInt();
             successful = in.readVInt();
-            pending = in.readVInt();
             int size = in.readVInt();
             failures = new Failure[size];
             for (int i = 0; i < size; i++) {
@@ -141,7 +130,6 @@ public abstract class ActionWriteResponse extends ActionResponse {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(total);
             out.writeVInt(successful);
-            out.writeVInt(pending);
             out.writeVInt(failures.length);
             for (Failure failure : failures) {
                 failure.writeTo(out);
@@ -153,9 +141,6 @@ public abstract class ActionWriteResponse extends ActionResponse {
             builder.startObject(Fields._SHARDS);
             builder.field(Fields.TOTAL, total);
             builder.field(Fields.SUCCESSFUL, successful);
-            if (pending > 0) {
-                builder.field(Fields.PENDING, pending);
-            }
             builder.field(Fields.FAILED, getFailed());
             if (failures.length > 0) {
                 builder.startArray(Fields.FAILURES);

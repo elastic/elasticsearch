@@ -115,7 +115,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
                     }
                     Failure failure = new Failure(request.index(), shardIt.shardId().id(), null,
                             "Failed to execute on all shard copies [" + ExceptionsHelper.detailedMessage(e) + "]", status, true);
-                    shardsResponses.set(index, new ShardActionResult(new ActionWriteResponse.ShardInfo(shardIt.size(), 0, 0, failure)));
+                    shardsResponses.set(index, new ShardActionResult(new ActionWriteResponse.ShardInfo(shardIt.size(), 0, failure)));
                     returnIfNeeded();
                 }
 
@@ -125,7 +125,6 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
                         List<Failure> failureList = new ArrayList<>();
 
                         int total = 0;
-                        int pending = 0;
                         int successful = 0;
                         for (int i = 0; i < shardsResponses.length(); i++) {
                             ShardActionResult shardActionResult = shardsResponses.get(i);
@@ -138,7 +137,6 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
                                 sf = shardActionResult.shardResponse.getShardInfo();
                             }
                             total += sf.getTotal();
-                            pending += sf.getPending();
                             successful += sf.getSuccessful();
                             failureList.addAll(Arrays.asList(sf.getFailures()));
                         }
@@ -150,7 +148,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
                         } else {
                             failures = failureList.toArray(new Failure[failureList.size()]);
                         }
-                        listener.onResponse(newResponseInstance(request, responses, new ActionWriteResponse.ShardInfo(total, successful, pending, failures)));
+                        listener.onResponse(newResponseInstance(request, responses, new ActionWriteResponse.ShardInfo(total, successful, failures)));
                     }
                 }
 

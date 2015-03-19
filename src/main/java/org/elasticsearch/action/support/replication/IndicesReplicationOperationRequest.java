@@ -39,7 +39,6 @@ public abstract class IndicesReplicationOperationRequest<T extends IndicesReplic
     protected String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
 
-    protected ReplicationType replicationType = ReplicationType.DEFAULT;
     protected WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
     public TimeValue timeout() {
@@ -100,29 +99,6 @@ public abstract class IndicesReplicationOperationRequest<T extends IndicesReplic
         return (T) this;
     }
 
-    public ReplicationType replicationType() {
-        return this.replicationType;
-    }
-
-    /**
-     * Sets the replication type.
-     */
-    @SuppressWarnings("unchecked")
-    public final T replicationType(ReplicationType replicationType) {
-        if (replicationType == null) {
-            throw new IllegalArgumentException("ReplicationType must not be null");
-        }
-        this.replicationType = replicationType;
-        return (T) this;
-    }
-
-    /**
-     * Sets the replication type.
-     */
-    public final T replicationType(String replicationType) {
-        return replicationType(ReplicationType.fromString(replicationType));
-    }
-
     public WriteConsistencyLevel consistencyLevel() {
         return this.consistencyLevel;
     }
@@ -147,7 +123,6 @@ public abstract class IndicesReplicationOperationRequest<T extends IndicesReplic
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         indices = in.readStringArray();
@@ -157,7 +132,6 @@ public abstract class IndicesReplicationOperationRequest<T extends IndicesReplic
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeStringArrayNullable(indices);

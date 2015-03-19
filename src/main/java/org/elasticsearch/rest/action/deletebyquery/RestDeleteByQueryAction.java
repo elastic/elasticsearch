@@ -26,7 +26,6 @@ import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.ShardDeleteByQueryRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.QuerySourceBuilder;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -72,10 +71,6 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
         deleteByQueryRequest.timeout(request.paramAsTime("timeout", ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
 
         deleteByQueryRequest.routing(request.param("routing"));
-        String replicationType = request.param("replication");
-        if (replicationType != null) {
-            deleteByQueryRequest.replicationType(ReplicationType.fromString(replicationType));
-        }
         String consistencyLevel = request.param("consistency");
         if (consistencyLevel != null) {
             deleteByQueryRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));

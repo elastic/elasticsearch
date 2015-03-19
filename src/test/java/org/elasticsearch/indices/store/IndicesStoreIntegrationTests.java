@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.store;
 
 import com.google.common.base.Predicate;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterService;
@@ -39,7 +38,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.junit.Test;
 
 import java.io.File;
@@ -57,13 +56,11 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  *
  */
-@ClusterScope(scope= Scope.TEST, numDataNodes = 0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
     private static final Settings SETTINGS = settingsBuilder().put("gateway.type", "local").build();
 
     @Test
-    @TestLogging("indices:TRACE")
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/10018")
     public void indexCleanup() throws Exception {
         final String masterNode = internalCluster().startNode(ImmutableSettings.builder().put(SETTINGS).put("node.data", false));
         final String node_1 = internalCluster().startNode(ImmutableSettings.builder().put(SETTINGS).put("node.master", false));
@@ -99,6 +96,12 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(Files.exists(indexDirectory(node_3, "test")), equalTo(false));
 
         logger.info("--> move shard from node_1 to node_3, and wait for relocation to finish");
+        SlowClusterStateProcessing disruption = null;
+        if (randomBoolean()) {
+            disruption = new SlowClusterStateProcessing(node_3, getRandom(), 0, 0, 1000, 2000);
+            internalCluster().setDisruptionScheme(disruption);
+            disruption.startDisrupting();
+        }
         internalCluster().client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("test", 0), node_1, node_3)).get();
         clusterHealth = client().admin().cluster().prepareHealth()
                 .setWaitForNodes("4")
@@ -207,7 +210,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         logger.info("Node 2 has shards: {}", Arrays.toString(node2Shards));
         final long shardVersions[] = new long[numShards];
         final int shardIds[] = new int[numShards];
-        i=0;
+        i = 0;
         for (ShardRouting shardRouting : stateResponse.getState().getRoutingTable().allShards("test")) {
             shardVersions[i] = shardRouting.version();
             shardIds[i] = shardRouting.getId();
@@ -218,11 +221,11 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
             public ClusterState execute(ClusterState currentState) throws Exception {
                 IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder("test");
                 for (int i = 0; i < numShards; i++) {
-                   indexRoutingTableBuilder.addIndexShard(
-                           new IndexShardRoutingTable.Builder(new ShardId("test", i), false)
-                                   .addShard(new ImmutableShardRouting("test", i, node_1_id, true, ShardRoutingState.STARTED, shardVersions[shardIds[i]]))
-                                   .build()
-                   );
+                    indexRoutingTableBuilder.addIndexShard(
+                            new IndexShardRoutingTable.Builder(new ShardId("test", i), false)
+                                    .addShard(new ImmutableShardRouting("test", i, node_1_id, true, ShardRoutingState.STARTED, shardVersions[shardIds[i]]))
+                                    .build()
+                    );
                 }
                 return ClusterState.builder(currentState)
                         .routingTable(RoutingTable.builder().add(indexRoutingTableBuilder).build())
@@ -256,7 +259,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         return blah;
     }
 
-    private boolean waitForShardDeletion(final String server, final  String index, final int shard) throws InterruptedException {
+    private boolean waitForShardDeletion(final String server, final String index, final int shard) throws InterruptedException {
         awaitBusy(new Predicate<Object>() {
             public boolean apply(Object o) {
                 return !shardDirectory(server, index, shard).exists();
@@ -265,7 +268,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         return shardDirectory(server, index, shard).exists();
     }
 
-    private boolean waitForIndexDeletion(final String server, final  String index) throws InterruptedException {
+    private boolean waitForIndexDeletion(final String server, final String index) throws InterruptedException {
         awaitBusy(new Predicate<Object>() {
             @Override
             public boolean apply(Object o) {

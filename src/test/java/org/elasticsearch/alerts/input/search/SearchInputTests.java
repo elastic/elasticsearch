@@ -7,11 +7,19 @@ package org.elasticsearch.alerts.input.search;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.alerts.Alert;
 import org.elasticsearch.alerts.ExecutionContext;
+import org.elasticsearch.alerts.Payload;
+import org.elasticsearch.alerts.actions.Action;
+import org.elasticsearch.alerts.actions.Actions;
+import org.elasticsearch.alerts.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.alerts.input.Input;
 import org.elasticsearch.alerts.input.InputException;
+import org.elasticsearch.alerts.input.simple.SimpleInput;
+import org.elasticsearch.alerts.scheduler.schedule.IntervalSchedule;
 import org.elasticsearch.alerts.support.AlertUtils;
 import org.elasticsearch.alerts.support.Variables;
+import org.elasticsearch.alerts.support.clock.ClockMock;
 import org.elasticsearch.alerts.support.init.proxy.ClientProxy;
 import org.elasticsearch.alerts.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.common.joda.time.DateTime;
@@ -59,7 +67,17 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         SearchInput searchInput = new SearchInput(logger,
                 ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
                 ClientProxy.of(client()), request);
-        ExecutionContext ctx = new ExecutionContext("test-alert", null,
+        ExecutionContext ctx = new ExecutionContext("test-alert",
+                new Alert("test-alert",
+                        new ClockMock(),
+                        new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES)),
+                        new SimpleInput(logger, new Payload.Simple()),
+                        new AlwaysTrueCondition(logger),
+                        null,
+                        new Actions(new ArrayList<Action>()),
+                        null,
+                        null,
+                        new Alert.Status()),
                 new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
         SearchInput.Result result = searchInput.execute(ctx);
 
@@ -85,7 +103,17 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         SearchInput searchInput = new SearchInput(logger,
                 ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
                 ClientProxy.of(client()), request);
-        ExecutionContext ctx = new ExecutionContext("test-alert", null,
+        ExecutionContext ctx = new ExecutionContext("test-alert",
+                new Alert("test-alert",
+                        new ClockMock(),
+                        new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES)),
+                        new SimpleInput(logger, new Payload.Simple()),
+                        new AlwaysTrueCondition(logger),
+                        null,
+                        new Actions(new ArrayList<Action>()),
+                        null,
+                        null,
+                        new Alert.Status()),
                 new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
         SearchInput.Result result = searchInput.execute(ctx);
 

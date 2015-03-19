@@ -281,6 +281,12 @@ index.
 
 === Scripts
 
-Deprecated script parameters `id`, `file`, and `scriptField` have been removed 
-from all scriptable APIs. `script_id`, `script_file` and `script` should be used 
+Deprecated script parameters `id`, `file`, and `scriptField` have been removed
+from all scriptable APIs. `script_id`, `script_file` and `script` should be used
 in their place.
+
+=== Thrift and memcached transport
+
+The thrift and memcached transport plugins are no longer supported.  Instead, use
+either the HTTP transport (enabled by default) or the node or transport Java client.
+

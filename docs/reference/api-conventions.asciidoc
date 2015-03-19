@@ -3,11 +3,7 @@
 
 [partintro]
 --
-The *elasticsearch* REST APIs are exposed using:
-
-* <<modules-http,JSON over HTTP>>,
-* <<modules-thrift,thrift>>,
-* <<modules-memcached,memcached>>.
+The *elasticsearch* REST APIs are exposed using <<modules-http,JSON over HTTP>>.
 
 The conventions listed in this chapter can be applied throughout the REST
 API, unless otherwise specified.

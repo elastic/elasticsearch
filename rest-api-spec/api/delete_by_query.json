@@ -50,12 +50,6 @@
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         },
-        "replication": {
-          "type" : "enum",
-          "options" : ["sync","async"],
-          "default" : "sync",
-          "description" : "Specific replication type"
-        },
         "q": {
           "type" : "string",
           "description" : "Query in the Lucene query string syntax"

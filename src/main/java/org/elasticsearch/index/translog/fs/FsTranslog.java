@@ -358,7 +358,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             FsTranslogFile translog = translogForLocation(location);
             if (translog != null) {
                 byte[] data = translog.read(location);
-                try (BytesStreamInput in = new BytesStreamInput(data, false)) {
+                try (BytesStreamInput in = new BytesStreamInput(data)) {
                     // Return the Operation using the current version of the
                     // stream based on which translog is being read
                     return translog.getStream().read(in);

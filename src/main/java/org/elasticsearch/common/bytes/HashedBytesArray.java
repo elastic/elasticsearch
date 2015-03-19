@@ -67,7 +67,7 @@ public class HashedBytesArray implements BytesReference {
 
     @Override
     public StreamInput streamInput() {
-        return new BytesStreamInput(bytes, false);
+        return new BytesStreamInput(bytes);
     }
 
     @Override

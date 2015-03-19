@@ -627,7 +627,7 @@ public class ClusterState implements ToXContent {
          *                           (which is only introduced in version 1.1.1)
          */
         public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode, ClusterName defaultClusterName) throws IOException {
-            return readFrom(new BytesStreamInput(data, false), localNode, defaultClusterName);
+            return readFrom(new BytesStreamInput(data), localNode, defaultClusterName);
         }
 
         public static void writeTo(ClusterState state, StreamOutput out) throws IOException {

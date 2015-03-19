@@ -53,7 +53,7 @@ public class PropertiesSettingsLoader implements SettingsLoader {
     @Override
     public Map<String, String> load(byte[] source) throws IOException {
         Properties props = new Properties();
-        BytesStreamInput stream = new BytesStreamInput(source, false);
+        BytesStreamInput stream = new BytesStreamInput(source);
         try {
             props.load(stream);
             Map<String, String> result = newHashMap();

@@ -223,7 +223,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         Transports.assertTransportThread();
         try {
             transportServiceAdapter.received(data.length);
-            StreamInput stream = new BytesStreamInput(data, false);
+            StreamInput stream = new BytesStreamInput(data);
             stream = CachedStreamInput.cachedHandles(stream);
             stream.setVersion(version);
 

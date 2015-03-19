@@ -352,6 +352,8 @@ can perform the write.
 [[index-replication]]
 === Asynchronous Replication
 
+deprecated[1.5.0, The ability to specify `async` replication is deprecated and will be removed in version 2.0.0]
+
 By default, the index operation only returns after all shards within the
 replication group have indexed the document (sync replication). To
 enable asynchronous replication, causing the replication process to take
@@ -359,7 +361,7 @@ place in the background, set the `replication` parameter to `async`.
 When asynchronous replication is used, the index operation will return
 as soon as the operation succeeds on the primary shard.
 
-The default value for the `replication` setting is `sync` and this default can 
+The default value for the `replication` setting is `sync` and this default can
 be overridden on a node-by-node basis using the `action.replication_type`
 setting. Valid values for replication type are `sync` and `async`. To alter this
 behavior per-operation, the `replication` request parameter can be used.

@@ -92,6 +92,8 @@ redirected into the primary shard within that id group, and replicated
 [[delete-replication]]
 === Replication Type
 
+deprecated[1.5.0, The ability to specify `async` replication is deprecated and will be removed in version 2.0.0]
+
 The replication of the operation can be done in an asynchronous manner
 to the replicas (the operation will return once it has be executed on
 the primary shard). The `replication` parameter can be set to `async`

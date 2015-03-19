@@ -694,6 +694,6 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public Set<FieldMapper> aliasFields() {
-        throw new UnsupportedOperationException("percolator doesn't support alias fields");
+        return null;
     }
 }

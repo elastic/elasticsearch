@@ -1608,6 +1608,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "1b")
                 .put("script.indexed", "on")
                 .put("script.inline", "on")
+                // wait short time for other active shards before actually deleting, default 30s not needed in tests
+                .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(1, TimeUnit.SECONDS))
                 .build();
     }
 

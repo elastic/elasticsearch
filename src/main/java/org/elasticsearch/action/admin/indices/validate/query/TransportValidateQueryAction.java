@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
@@ -34,6 +36,8 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.MatchNoDocsFilter;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
@@ -191,8 +195,8 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
 
             valid = true;
             if (request.explain()) {
-                explanation = searchContext.query().rewrite(searcher.reader()).toString();
-            }
+                explanation = getExplanation(searcher.searcher(), searchContext.query());
+            }   
         } catch (QueryParsingException e) {
             valid = false;
             error = e.getDetailedMessage();
@@ -208,5 +212,14 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
         }
 
         return new ShardValidateQueryResponse(request.shardId(), valid, explanation, error);
+    }
+
+    private String getExplanation(IndexSearcher searcher, Query query) throws IOException {
+        Query queryRewrite = searcher.rewrite(query);
+        if (queryRewrite instanceof MatchNoDocsQuery || queryRewrite instanceof MatchNoDocsFilter) {
+            return query.toString();
+        } else {
+            return queryRewrite.toString();
+        }
     }
 }

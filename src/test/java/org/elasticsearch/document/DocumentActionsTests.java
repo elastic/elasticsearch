@@ -33,7 +33,6 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -124,7 +123,7 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
         }
 
         logger.info("Delete [type1/1]");
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "1").setReplicationType(ReplicationType.SYNC).execute().actionGet();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "1").execute().actionGet();
         assertThat(deleteResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(deleteResponse.getId(), equalTo("1"));
         assertThat(deleteResponse.getType(), equalTo("type1"));

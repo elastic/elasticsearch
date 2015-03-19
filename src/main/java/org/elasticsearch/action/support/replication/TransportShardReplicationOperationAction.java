@@ -70,7 +70,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     protected final ClusterService clusterService;
     protected final IndicesService indicesService;
     protected final ShardStateAction shardStateAction;
-    protected final ReplicationType defaultReplicationType;
     protected final WriteConsistencyLevel defaultWriteConsistencyLevel;
     protected final TransportRequestOptions transportOptions;
 
@@ -96,7 +95,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         this.transportOptions = transportOptions();
 
-        this.defaultReplicationType = ReplicationType.fromString(settings.get("action.replication_type", "sync"));
         this.defaultWriteConsistencyLevel = WriteConsistencyLevel.fromString(settings.get("action.write_consistency", "quorum"));
     }
 
@@ -310,18 +308,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         private final InternalRequest internalRequest;
         private volatile ShardIterator shardIt;
         private final AtomicBoolean primaryOperationStarted = new AtomicBoolean();
-        private final ReplicationType replicationType;
         private volatile ClusterStateObserver observer;
 
         AsyncShardOperationAction(Request request, ActionListener<Response> listener) {
             this.internalRequest = new InternalRequest(request);
             this.listener = listener;
-
-            if (request.replicationType() != ReplicationType.DEFAULT) {
-                replicationType = request.replicationType();
-            } else {
-                replicationType = defaultReplicationType;
-            }
         }
 
         public void start() {
@@ -584,10 +575,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 replicationState.forceFinish();
                 return;
             }
-            if (replicationType == ReplicationType.ASYNC) {
-                replicationState.forceFinish();
-            }
-
             IndexMetaData indexMetaData = observer.observedState().metaData().index(internalRequest.concreteIndex());
             if (newPrimaryShard != null) {
                 performOnReplica(replicationState, newPrimaryShard, newPrimaryShard.currentNodeId(), indexMetaData);
@@ -853,7 +840,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         new ActionWriteResponse.ShardInfo(
                                 numberOfShardInstances,
                                 success.get(),
-                                pending.get(),
                                 failuresArray
 
                         )

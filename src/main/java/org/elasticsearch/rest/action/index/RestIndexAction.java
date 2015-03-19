@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -98,10 +97,6 @@ public class RestIndexAction extends BaseRestHandler {
                     return;
                 }
             }
-        }
-        String replicationType = request.param("replication");
-        if (replicationType != null) {
-            indexRequest.replicationType(ReplicationType.fromString(replicationType));
         }
         String consistencyLevel = request.param("consistency");
         if (consistencyLevel != null) {

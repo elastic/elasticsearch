@@ -28,7 +28,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -106,7 +105,7 @@ public class ShardInfoTests extends ElasticsearchIntegrationTest {
         int numPrimaryShards = randomIntBetween(1, 2);
         prepareIndex(numPrimaryShards, true);
         DeleteResponse deleteResponse = client().prepareDelete("idx", "type", "1").get();
-        assertShardInfo(deleteResponse, numCopies * numPrimaryShards, numNodes * numPrimaryShards, 0);
+        assertShardInfo(deleteResponse, numCopies * numPrimaryShards, numNodes * numPrimaryShards);
     }
 
     @Test
@@ -116,18 +115,9 @@ public class ShardInfoTests extends ElasticsearchIntegrationTest {
         IndexDeleteByQueryResponse indexDeleteByQueryResponse = client().prepareDeleteByQuery("idx")
                 .setQuery(QueryBuilders.matchAllQuery())
                 .get().getIndex("idx");
-        assertShardInfo(indexDeleteByQueryResponse, numCopies * numPrimaryShards, numNodes * numPrimaryShards, 0);
+        assertShardInfo(indexDeleteByQueryResponse, numCopies * numPrimaryShards, numNodes * numPrimaryShards);
     }
 
-    @Test
-    public void testIndexWithAsyncReplication() throws Exception {
-        prepareIndex(1);
-        IndexResponse indexResponse = client().prepareIndex("idx", "type")
-                .setReplicationType(ReplicationType.ASYNC)
-                .setSource("{}")
-                .get();
-        assertShardInfo(indexResponse, numCopies, 1, numNodes - 1);
-    }
 
     private void prepareIndex(int numberOfPrimaryShards) throws Exception {
         prepareIndex(numberOfPrimaryShards, false);
@@ -152,13 +142,12 @@ public class ShardInfoTests extends ElasticsearchIntegrationTest {
     }
 
     private void assertShardInfo(ActionWriteResponse response) {
-        assertShardInfo(response, numCopies, numNodes, 0);
+        assertShardInfo(response, numCopies, numNodes);
     }
 
-    private void assertShardInfo(ActionWriteResponse response, int expectedTotal, int expectedSuccessful, int expectedPending) {
+    private void assertShardInfo(ActionWriteResponse response, int expectedTotal, int expectedSuccessful) {
         assertThat(response.getShardInfo().getTotal(), greaterThanOrEqualTo(expectedTotal));
         assertThat(response.getShardInfo().getSuccessful(), greaterThanOrEqualTo(expectedSuccessful));
-        assertThat(response.getShardInfo().getPending(), equalTo(expectedPending));
     }
 
     private void ensureActiveShardCopies(final int shardId, final int copyCount) throws Exception {

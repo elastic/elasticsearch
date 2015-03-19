@@ -126,7 +126,7 @@ public class UpdateHelper extends AbstractComponent {
                     .routing(request.routing())
                     .ttl(ttl)
                     .refresh(request.refresh())
-                    .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
+                    .consistencyLevel(request.consistencyLevel());
             indexRequest.operationThreaded(false);
             if (request.versionType() != VersionType.INTERNAL) {
                 // in all but the internal versioning mode, we want to create the new document using the given version.
@@ -228,7 +228,7 @@ public class UpdateHelper extends AbstractComponent {
             final IndexRequest indexRequest = Requests.indexRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .source(updatedSourceAsMap, updateSourceContentType)
                     .version(updateVersion).versionType(request.versionType())
-                    .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel())
+                    .consistencyLevel(request.consistencyLevel())
                     .timestamp(timestamp).ttl(ttl)
                     .refresh(request.refresh());
             indexRequest.operationThreaded(false);
@@ -236,7 +236,7 @@ public class UpdateHelper extends AbstractComponent {
         } else if ("delete".equals(operation)) {
             DeleteRequest deleteRequest = Requests.deleteRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .version(updateVersion).versionType(request.versionType())
-                    .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
+                    .consistencyLevel(request.consistencyLevel());
             deleteRequest.operationThreaded(false);
             return new Result(deleteRequest, Operation.DELETE, updatedSourceAsMap, updateSourceContentType);
         } else if ("none".equals(operation)) {

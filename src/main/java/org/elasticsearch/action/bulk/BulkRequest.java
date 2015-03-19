@@ -24,7 +24,6 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -58,7 +57,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     List<Object> payloads = null;
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
-    private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
     private boolean refresh = false;
 
@@ -411,18 +409,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     }
 
     /**
-     * Set the replication type for this operation.
-     */
-    public BulkRequest replicationType(ReplicationType replicationType) {
-        this.replicationType = replicationType;
-        return this;
-    }
-
-    public ReplicationType replicationType() {
-        return this.replicationType;
-    }
-
-    /**
      * A timeout to wait if the index operation can't be performed immediately. Defaults to <tt>1m</tt>.
      */
     public final BulkRequest timeout(TimeValue timeout) {
@@ -472,7 +458,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -498,7 +483,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
         out.writeVInt(requests.size());
         for (ActionRequest request : requests) {

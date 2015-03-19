@@ -256,7 +256,9 @@ public final class FieldSubsetReader extends FilterLeafReader {
         
         @Override
         public Terms terms(String field) throws IOException {
-            if (FieldNamesFieldMapper.NAME.equals(field)) {
+            if (!hasField(field)) {
+                return null;
+            } else if (FieldNamesFieldMapper.NAME.equals(field)) {
                 // for the _field_names field, fields for the document
                 // are encoded as postings, where term is the field.
                 // so we hide terms for fields we filter out.
@@ -265,10 +267,8 @@ public final class FieldSubsetReader extends FilterLeafReader {
                     terms = new FieldSubsetTerms(terms, fieldInfos);
                 }
                 return terms;
-            } else if (hasField(field)) {
-                return super.terms(field);
             } else {
-                return null;
+                return super.terms(field);
             }
         }
     }

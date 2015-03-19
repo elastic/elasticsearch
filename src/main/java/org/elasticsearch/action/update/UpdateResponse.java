@@ -45,7 +45,7 @@ public class UpdateResponse extends ActionWriteResponse {
      * For example: update script with operation set to none
      */
     public UpdateResponse(String index, String type, String id, long version, boolean created) {
-        this(new ShardInfo(0, 0, 0), index, type, id, version, created);
+        this(new ShardInfo(0, 0), index, type, id, version, created);
     }
 
     public UpdateResponse(ShardInfo shardInfo, String index, String type, String id, long version, boolean created) {

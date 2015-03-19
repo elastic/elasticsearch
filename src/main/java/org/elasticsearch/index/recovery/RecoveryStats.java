@@ -44,12 +44,11 @@ public class RecoveryStats implements ToXContent, Streamable {
     }
 
     public void add(RecoveryStats recoveryStats) {
-        if (recoveryStats == null) {
-            return;
+        if (recoveryStats != null) {
+            this.currentAsSource.addAndGet(recoveryStats.currentAsSource());
+            this.currentAsTarget.addAndGet(recoveryStats.currentAsTarget());
+            this.throttleTimeInNanos.addAndGet(recoveryStats.throttleTime().nanos());
         }
-        this.currentAsSource.addAndGet(recoveryStats.currentAsSource());
-        this.currentAsTarget.addAndGet(recoveryStats.currentAsTarget());
-        this.throttleTimeInNanos.addAndGet(recoveryStats.throttleTime().nanos());
     }
 
     /**
@@ -57,10 +56,9 @@ public class RecoveryStats implements ToXContent, Streamable {
      * deleted or relocated
      */
     public void addAsOld(RecoveryStats recoveryStats) {
-        if (recoveryStats == null) {
-            return;
+        if (recoveryStats != null) {
+            this.throttleTimeInNanos.addAndGet(recoveryStats.throttleTime().nanos());
         }
-        this.throttleTimeInNanos.addAndGet(recoveryStats.throttleTime().nanos());
     }
 
     /**

@@ -19,29 +19,55 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.junit.Before;
 import org.junit.Test;
+
+import java.util.IllegalFormatCodePointException;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ElasticsearchExceptionTests extends ElasticsearchTestCase {
 
+    public static final String EXCEPTION_MESSAGE = "Cable unplugged";
+    public static final String CLASSNAME = "org.elasticsearch.transport.RemoteTransportException";
+    private ElasticsearchException remoteTransportException;
+
+    @Before
+    public void setup() {
+        remoteTransportException = new RemoteTransportException(EXCEPTION_MESSAGE, new IllegalArgumentException());
+    }
+
     @Test
     public void testStatus() {
-        ElasticsearchException exception = new ElasticsearchException("test");
+        ElasticsearchException exception = new ElasticsearchException(EXCEPTION_MESSAGE);
+        assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+    }
+
+    @Test
+    public void restStatusShouldBeExceptionCode() {
+        ElasticsearchException exception = new ElasticsearchException(EXCEPTION_MESSAGE, new RuntimeException());
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
 
-        exception = new ElasticsearchException("test", new RuntimeException());
+        exception = new ElasticsearchException(EXCEPTION_MESSAGE, new IndexMissingException(new Index(EXCEPTION_MESSAGE)));
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
 
-        exception = new ElasticsearchException("test", new IndexMissingException(new Index("test")));
-        assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-
-        exception = new RemoteTransportException("test", new IndexMissingException(new Index("test")));
+        exception = new RemoteTransportException(EXCEPTION_MESSAGE, new IndexMissingException(new Index(EXCEPTION_MESSAGE)));
         assertThat(exception.status(), equalTo(RestStatus.NOT_FOUND));
+    }
+
+    @Test
+    public void restStatusShouldBeBadRequest() {
+        assertThat(remoteTransportException.status(), equalTo(RestStatus.BAD_REQUEST));
+    }
+
+    @Test
+    public void detailedMessageShouldBeExceptionMessage() {
+        assertThat(remoteTransportException.getDetailedMessage(), equalTo(CLASSNAME + ": "+EXCEPTION_MESSAGE+"; java.lang.IllegalArgumentException"));
     }
 }

@@ -153,7 +153,7 @@ public interface IndicesLifecycle {
          * @param shardId The shard id
          * @param indexSettings the shards index settings
          */
-        public void beforeIndexShardDeleted(ShardId shardId, Settings indexSettings) {
+        public void beforeIndexShardDeleted(ShardId shardId, @IndexSettings Settings indexSettings) {
         }
 
         /**
@@ -164,7 +164,7 @@ public interface IndicesLifecycle {
          * @param shardId The shard id
          * @param indexSettings the shards index settings
          */
-        public void afterIndexShardDeleted(ShardId shardId, Settings indexSettings) {
+        public void afterIndexShardDeleted(ShardId shardId, @IndexSettings Settings indexSettings) {
         }
 
         /**

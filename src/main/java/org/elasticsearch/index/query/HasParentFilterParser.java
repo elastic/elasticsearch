@@ -31,7 +31,7 @@ import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.HasParentQueryParser.createParentQuery;
+import static org.elasticsearch.index.query.HasParentQueryBuilder.createParentQuery;
 import static org.elasticsearch.index.query.QueryParserUtils.ensureNotDeleteByQuery;
 
 /**

@@ -66,46 +66,46 @@ public class IndicesQueriesModule extends AbstractModule {
         for (QueryParser queryParser : queryParsers) {
             qpBinders.addBinding().toInstance(queryParser);
         }
-        qpBinders.addBinding().to(MatchQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(MultiMatchQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(NestedQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(HasChildQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(HasParentQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(MatchQueryBuilder.class).asEagerSingleton();
+        qpBinders.addBinding().to(MultiMatchQueryBuilder.class).asEagerSingleton();
+        qpBinders.addBinding().to(NestedQueryBuilder.class).asEagerSingleton();
+        qpBinders.addBinding().to(HasChildQueryBuilder.class).asEagerSingleton();
+        qpBinders.addBinding().to(HasParentQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(TopChildrenQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(DisMaxQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(IdsQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(MatchAllQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(DisMaxQueryBuilder.class).asEagerSingleton();
+        qpBinders.addBinding().to(IdsQueryBuilder.class).asEagerSingleton();
+        qpBinders.addBinding().to(MatchAllQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(QueryStringQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(BoostingQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(BoolQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(BoostingQueryBuilder.class).asEagerSingleton();
+        qpBinders.addBinding().to(BoolQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(TermQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(TermsQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(FuzzyQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(FuzzyQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(RegexpQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(RangeQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(PrefixQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(PrefixQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(WildcardQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(FilteredQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(ConstantScoreQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(FilteredQueryBuilder.class).asEagerSingleton();
+        qpBinders.addBinding().to(ConstantScoreQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanTermQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanNotQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(FieldMaskingSpanQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(FieldMaskingSpanQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanFirstQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanNearQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanOrQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(MoreLikeThisQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(FuzzyLikeThisQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(FuzzyLikeThisFieldQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(MoreLikeThisQueryBuilder.class).asEagerSingleton();
+        qpBinders.addBinding().to(FuzzyLikeThisQueryBuilder.class).asEagerSingleton();
+        qpBinders.addBinding().to(FuzzyLikeThisFieldQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(WrapperQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(IndicesQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(CommonTermsQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(IndicesQueryBuilder.class).asEagerSingleton();
+        qpBinders.addBinding().to(CommonTermsQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanMultiTermQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(FunctionScoreQueryParser.class).asEagerSingleton();
         qpBinders.addBinding().to(SimpleQueryStringParser.class).asEagerSingleton();
         qpBinders.addBinding().to(TemplateQueryParser.class).asEagerSingleton();
 
         if (ShapesAvailability.JTS_AVAILABLE) {
-            qpBinders.addBinding().to(GeoShapeQueryParser.class).asEagerSingleton();
+            qpBinders.addBinding().to(GeoShapeQueryBuilder.class).asEagerSingleton();
         }
 
         Multibinder<FilterParser> fpBinders = Multibinder.newSetBinder(binder(), FilterParser.class);

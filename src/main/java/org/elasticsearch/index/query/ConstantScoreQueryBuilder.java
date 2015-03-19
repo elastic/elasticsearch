@@ -19,7 +19,15 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilterCachingPolicy;
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -29,13 +37,19 @@ import java.io.IOException;
  *
  *
  */
-public class ConstantScoreQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<ConstantScoreQueryBuilder> {
+public class ConstantScoreQueryBuilder extends BaseQueryBuilder implements QueryParser, BoostableQueryBuilder<ConstantScoreQueryBuilder> {
 
-    private final FilterBuilder filterBuilder;
-    private final QueryBuilder queryBuilder;
+    private FilterBuilder filterBuilder;
+    private QueryBuilder queryBuilder;
 
     private float boost = -1;
-    
+
+    public static String NAME = "constant_score";
+
+    @Inject
+    public ConstantScoreQueryBuilder() {
+    }
+
 
     /**
      * A query that wraps a filter and simply returns a constant score equal to the
@@ -56,7 +70,7 @@ public class ConstantScoreQueryBuilder extends BaseQueryBuilder implements Boost
     public ConstantScoreQueryBuilder(QueryBuilder queryBuilder) {
         this.filterBuilder = null;
         this.queryBuilder = queryBuilder;
-    }    
+    }
 
     /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
@@ -69,20 +83,88 @@ public class ConstantScoreQueryBuilder extends BaseQueryBuilder implements Boost
     }
 
     @Override
+    public String[] names() {
+        return new String[]{NAME, Strings.toCamelCase(NAME)};
+    }
+
+    @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(ConstantScoreQueryParser.NAME);
+        builder.startObject(ConstantScoreQueryBuilder.NAME);
         if (queryBuilder != null) {
             assert filterBuilder == null;
             builder.field("query");
             queryBuilder.toXContent(builder, params);
         } else {
             builder.field("filter");
-            filterBuilder.toXContent(builder, params);  
+            filterBuilder.toXContent(builder, params);
         }
-        
+
         if (boost != -1) {
             builder.field("boost", boost);
         }
         builder.endObject();
+    }
+
+    @Override
+    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        XContentParser parser = parseContext.parser();
+
+        Filter filter = null;
+        boolean filterFound = false;
+        Query query = null;
+        boolean queryFound = false;
+        float boost = 1.0f;
+        FilterCachingPolicy cache = parseContext.autoFilterCachePolicy();
+        HashedBytesRef cacheKey = null;
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if ("filter".equals(currentFieldName)) {
+                    filter = parseContext.parseInnerFilter();
+                    filterFound = true;
+                } else if ("query".equals(currentFieldName)) {
+                    query = parseContext.parseInnerQuery();
+                    queryFound = true;
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[constant_score] query does not support [" + currentFieldName + "]");
+                }
+            } else if (token.isValue()) {
+                if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
+                } else if ("_cache".equals(currentFieldName)) {
+                    cache = parseContext.parseFilterCachePolicy();
+                } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
+                    cacheKey = new HashedBytesRef(parser.text());
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[constant_score] query does not support [" + currentFieldName + "]");
+                }
+            }
+        }
+        if (!filterFound && !queryFound) {
+            throw new QueryParsingException(parseContext.index(), "[constant_score] requires either 'filter' or 'query' element");
+        }
+
+        if (query == null && filter == null) {
+            return null;
+        }
+
+        if (filter != null) {
+            // cache the filter if possible needed
+            if (cache != null) {
+                filter = parseContext.cacheFilter(filter, cacheKey, cache);
+            }
+
+            Query query1 = new ConstantScoreQuery(filter);
+            query1.setBoost(boost);
+            return query1;
+        }
+        // Query
+        query = new ConstantScoreQuery(query);
+        query.setBoost(boost);
+        return query;
     }
 }

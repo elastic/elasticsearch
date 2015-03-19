@@ -21,30 +21,107 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
+
 import org.apache.lucene.queries.TermsFilter;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 
 /**
- *
+ * A query that will return only documents matching specific ids (and a type).
  */
-public class IdsQueryParser implements QueryParser {
+public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, BoostableQueryBuilder<IdsQueryBuilder> {
+
+    private final List<String> types;
+
+    private List<String> values = new ArrayList<>();
+
+    private float boost = -1;
+
+    private String queryName;
 
     public static final String NAME = "ids";
 
     @Inject
-    public IdsQueryParser() {
+    public IdsQueryBuilder() {
+        this.types = null;
+    }
+
+    public IdsQueryBuilder(String... types) {
+        this.types = types == null ? null : Arrays.asList(types);
+    }
+
+    /**
+     * Adds ids to the filter.
+     */
+    public IdsQueryBuilder addIds(String... ids) {
+        values.addAll(Arrays.asList(ids));
+        return this;
+    }
+
+    /**
+     * Adds ids to the filter.
+     */
+    public IdsQueryBuilder ids(String... ids) {
+        return addIds(ids);
+    }
+
+    /**
+     * Sets the boost for this query.  Documents matching this query will (in addition to the normal
+     * weightings) have their score multiplied by the boost provided.
+     */
+    @Override
+    public IdsQueryBuilder boost(float boost) {
+        this.boost = boost;
+        return this;
+    }
+
+    /**
+     * Sets the query name for the filter that can be used when searching for matched_filters per hit.
+     */
+    public IdsQueryBuilder queryName(String queryName) {
+        this.queryName = queryName;
+        return this;
+    }
+
+    @Override
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject(IdsQueryBuilder.NAME);
+        if (types != null) {
+            if (types.size() == 1) {
+                builder.field("type", types.get(0));
+            } else {
+                builder.startArray("types");
+                for (Object type : types) {
+                    builder.value(type);
+                }
+                builder.endArray();
+            }
+        }
+        builder.startArray("values");
+        for (Object value : values) {
+            builder.value(value);
+        }
+        builder.endArray();
+        if (boost != -1) {
+            builder.field("boost", boost);
+        }
+        if (queryName != null) {
+            builder.field("_name", queryName);
+        }
+        builder.endObject();
     }
 
     @Override

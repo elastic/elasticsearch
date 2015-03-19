@@ -50,7 +50,7 @@ public class NestedFilterParser implements FilterParser {
     @Override
     public Filter parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
-        final NestedQueryParser.ToBlockJoinQueryBuilder builder = new NestedQueryParser.ToBlockJoinQueryBuilder(parseContext);
+        final NestedQueryBuilder.ToBlockJoinQueryBuilder builder = new NestedQueryBuilder.ToBlockJoinQueryBuilder(parseContext);
 
         float boost = 1.0f;
         boolean cache = false;

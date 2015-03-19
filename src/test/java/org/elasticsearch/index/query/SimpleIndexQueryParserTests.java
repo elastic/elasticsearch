@@ -1692,7 +1692,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testMoreLikeThisIds() throws Exception {
-        MoreLikeThisQueryParser parser = (MoreLikeThisQueryParser) queryParser.queryParser("more_like_this");
+        MoreLikeThisQueryBuilder parser = (MoreLikeThisQueryBuilder) queryParser.queryParser("more_like_this");
         parser.setFetchService(new MockMoreLikeThisFetchService());
 
         IndexQueryParserService queryParser = queryParser();
@@ -1718,7 +1718,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testMLTPercentTermsToMatch() throws Exception {
         // setup for mocking fetching items
-        MoreLikeThisQueryParser parser = (MoreLikeThisQueryParser) queryParser.queryParser("more_like_this");
+        MoreLikeThisQueryBuilder parser = (MoreLikeThisQueryBuilder) queryParser.queryParser("more_like_this");
         parser.setFetchService(new MockMoreLikeThisFetchService());
 
         // parsing the ES query

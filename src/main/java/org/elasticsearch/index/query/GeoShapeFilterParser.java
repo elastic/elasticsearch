@@ -178,19 +178,19 @@ public class GeoShapeFilterParser implements FilterParser {
         if (strategyName != null) {
             strategy = shapeFieldMapper.resolveStrategy(strategyName);
         }
-        
+
         Filter filter;
         if (strategy instanceof RecursivePrefixTreeStrategy && shapeRelation == ShapeRelation.DISJOINT) {
             // this strategy doesn't support disjoint anymore: but it did before, including creating lucene fieldcache (!)
             // in this case, execute disjoint as exists && !intersects
             XBooleanFilter bool = new XBooleanFilter();
             Filter exists = ExistsFilterParser.newFilter(parseContext, fieldName, null);
-            Filter intersects = strategy.makeFilter(GeoShapeQueryParser.getArgs(shape, ShapeRelation.INTERSECTS));
+            Filter intersects = strategy.makeFilter(GeoShapeQueryBuilder.getArgs(shape, ShapeRelation.INTERSECTS));
             bool.add(exists, BooleanClause.Occur.MUST);
             bool.add(intersects, BooleanClause.Occur.MUST_NOT);
             filter = bool;
         } else {
-            filter = strategy.makeFilter(GeoShapeQueryParser.getArgs(shape, shapeRelation));
+            filter = strategy.makeFilter(GeoShapeQueryBuilder.getArgs(shape, shapeRelation));
         }
 
         if (cache != null) {

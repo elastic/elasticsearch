@@ -19,13 +19,13 @@
 
 package org.elasticsearch.indices.recovery;
 
+import com.google.common.base.Predicate;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -114,17 +114,18 @@ public class RecoveryTarget extends AbstractComponent {
         });
     }
 
-    public RecoveryState recoveryState(IndexShard indexShard) {
-        try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.findRecoveryByShard(indexShard)) {
-            if (statusRef == null) {
-                return null;
-            }
-            final RecoveryStatus recoveryStatus = statusRef.status();
-            return recoveryStatus.state();
-        } catch (Exception e) {
-            // shouldn't really happen, but have to be here due to auto close
-            throw new ElasticsearchException("error while getting recovery state", e);
-        }
+    /**
+     * cancel all ongoing recoveries for the given shard, if their status match a predicate
+     *
+     * @param reason       reason for cancellation
+     * @param shardId      shardId for which to cancel recoveries
+     * @param shouldCancel a predicate to check if a recovery should be cancelled or not. Null means cancel without an extra check.
+     *                     note that the recovery state can change after this check, but before it is being cancelled via other
+     *                     already issued outstanding references.
+     * @return true if a recovery was cancelled
+     */
+    public boolean cancelRecoveriesForShard(ShardId shardId, String reason, @Nullable Predicate<RecoveryStatus> shouldCancel) {
+        return onGoingRecoveries.cancelRecoveriesForShard(shardId, reason, shouldCancel);
     }
 
     public void startRecovery(final IndexShard indexShard, final RecoveryState.Type recoveryType, final DiscoveryNode sourceNode, final RecoveryListener listener) {

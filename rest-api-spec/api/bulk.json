@@ -25,12 +25,6 @@
           "type" : "boolean",
           "description" : "Refresh the index after performing the operation"
         },
-        "replication": {
-          "type" : "enum",
-          "options" : ["sync","async"],
-          "default" : "sync",
-          "description" : "Explicitly set the replication type"
-        },
         "routing": {
           "type" : "string",
           "description" : "Specific routing value"

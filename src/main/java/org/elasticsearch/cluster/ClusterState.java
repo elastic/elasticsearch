@@ -605,7 +605,7 @@ public class ClusterState implements ToXContent {
          * @param localNode          used to set the local node in the cluster state.
          */
         public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode) throws IOException {
-            return readFrom(new BytesStreamInput(data, false), localNode);
+            return readFrom(new BytesStreamInput(data), localNode);
         }
 
         public static void writeTo(ClusterState state, StreamOutput out) throws IOException {

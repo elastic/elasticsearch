@@ -1,0 +1,41 @@
+# Configure a custom Greek analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "greek_stop": {
+          "type":       "stop",
+          "stopwords":  "_greek_"
+        },
+        "greek_lowercase": {
+          "type":       "lowercase",
+          "language":   "greek"
+        },
+        "greek_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   []
+        },
+        "greek_stemmer": {
+          "type":       "stemmer",
+          "language":   "greek"
+        }
+      },
+      "analyzer": {
+        "greek_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "greek_lowercase",
+            "greek_stop",
+            "greek_keywords",
+            "greek_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

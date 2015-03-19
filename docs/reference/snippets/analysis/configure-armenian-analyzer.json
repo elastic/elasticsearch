@@ -1,0 +1,37 @@
+# Configure a custom Armenian analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "armenian_stop": {
+          "type":       "stop",
+          "stopwords":  "_armenian_"
+        },
+        "armenian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   []
+        },
+        "armenian_stemmer": {
+          "type":       "stemmer",
+          "language":   "armenian"
+        }
+      },
+      "analyzer": {
+        "armenian_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "armenian_stop",
+            "armenian_keywords",
+            "armenian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

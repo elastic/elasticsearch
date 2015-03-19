@@ -1,0 +1,43 @@
+# Configure a `custom` analyzer
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+    "settings": {
+        "analysis": {
+            "analyzer": {
+                "my_custom_analyzer": {
+                    "type": "custom",
+                    "char_filter": ["my_html_filter"],
+                    "tokenizer": "my_standard_tokenizer",
+                    "filter": ["my_ascii_filter","my_stop_filter"]
+                }               
+            },
+            "char_filter": {
+                "my_html_filter": {
+                    "type": "html_strip",
+                    "escaped_tags": ["<strong>"],
+                    "read_ahead": 1024
+                }
+            },
+            "tokenizer": {
+                "my_standard_tokenizer": {
+                    "type": "standard",
+                    "max_token_length": 500
+                }
+            },
+            "filter": {
+                "my_ascii_filter": {
+                    "type": "asciifolding",
+                    "preserve_original": "true"
+                },
+                "my_stop_filter": {
+                    "type": "stop",
+                    "stopwords": ["a", "an", "the"]
+                }
+            }
+        }
+    }
+}
+
+POST /myindex/_open

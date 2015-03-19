@@ -1,14 +1,20 @@
 [[analysis-tokenizers]]
 == Tokenizers
 
-Tokenizers are used to break a string down into a stream of terms
-or tokens. A simple tokenizer might split the string up into terms 
-wherever it encounters whitespace or punctuation.
+A tokenizer splits the individual terms in a stream of text apart 
+on boundaries such as whitespace and punctuation, and then outputs 
+a set of tokens that can be indexed. A single tokenizer must be
+configured for each <<analysis-analyzers, analyzer>>. 
 
-Elasticsearch has a number of built in tokenizers which can be
-used to build <<analysis-custom-analyzer,custom analyzers>>.
+Each ready-to-use analyzer wraps one of the built-in tokenizers. 
+You can also use any of these tokenizers in a 
+<<analysis-custom-analyzer,custom analyzer>>.
 
-include::tokenizers/standard-tokenizer.asciidoc[]
+The <<analysis-standard-tokenizer, standard>> tokenizer is the recommended 
+general use tokenizer and is the one used by the <<analysis-standard-analyzer, standard>>
+analyzer. 
+
+include::tokenizers/classic-tokenizer.asciidoc[]
 
 include::tokenizers/edgengram-tokenizer.asciidoc[]
 
@@ -20,15 +26,17 @@ include::tokenizers/lowercase-tokenizer.asciidoc[]
 
 include::tokenizers/ngram-tokenizer.asciidoc[]
 
-include::tokenizers/whitespace-tokenizer.asciidoc[]
+include::tokenizers/pathhierarchy-tokenizer.asciidoc[]
 
 include::tokenizers/pattern-tokenizer.asciidoc[]
 
-include::tokenizers/uaxurlemail-tokenizer.asciidoc[]
-
-include::tokenizers/pathhierarchy-tokenizer.asciidoc[]
-
-include::tokenizers/classic-tokenizer.asciidoc[]
+include::tokenizers/standard-tokenizer.asciidoc[]
 
 include::tokenizers/thai-tokenizer.asciidoc[]
+
+include::tokenizers/uaxurlemail-tokenizer.asciidoc[]
+
+include::tokenizers/whitespace-tokenizer.asciidoc[]
+
+
 

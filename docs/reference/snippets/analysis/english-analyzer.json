@@ -1,0 +1,2 @@
+# Analyze text with the `english` analyzer
+GET /_analyze?analyzer=english&text=There is no way that writers can be tamed and rendered civilized

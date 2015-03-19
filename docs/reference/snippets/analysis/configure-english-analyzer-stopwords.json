@@ -1,0 +1,18 @@
+# Configure stopwords for the `english` analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+    "settings": {
+        "analysis": {
+            "analyzer": {
+                "my_english": {
+                    "type": "english",
+                    "stopwords": ["a", "an", "the"]
+                }
+            }
+        }
+    }
+}
+
+POST /myindex/_open

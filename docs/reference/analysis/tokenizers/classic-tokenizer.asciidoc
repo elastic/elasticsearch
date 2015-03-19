@@ -1,14 +1,17 @@
 [[analysis-classic-tokenizer]]
 === Classic Tokenizer
 
-A tokenizer of type `classic` providing grammar based tokenizer that is
-a good tokenizer for English language documents. This tokenizer has 
-heuristics for special treatment of acronyms, company names, email addresses,
-and internet host names. However, these rules don't always work, and 
-the tokenizer doesn't work well for most languages other than English.
+The `classic` tokenizer is a grammar based tokenizer that generally splits words
+at whitespace and punctuation characters, but treats email addresses, internet 
+hostnames and hyphenated strings that contain a number as single tokens. It also
+has heuristics for recognizing acronyms and company names. 
 
-The following are settings that can be set for a `classic` tokenizer
-type:
+This tokenizer is generally a good choice for English language documents. However,
+the tokenization rules don't always produce the desired results and it often
+doesn't work well for languages other than English. The <<analysis-standard-tokenizer, `standard`>>
+tokenizer is a better choice if you are working with other languages.
+
+You can configure the following settings for a `classic` tokenizer:
 
 [cols="<,<",options="header",]
 |=======================================================================
@@ -17,3 +20,13 @@ type:
 exceeds this length then it is discarded. Defaults to `255`.
 |=======================================================================
 
+For example, using the `classic` tokenizer to process the string 
+"Let the wild rumpus start! (bit.ly/1wsCiKv)" generates the following tokens:
+
+ `Let, the, wild, rumpus, start, bit.ly, 1wsCiKv`
+
+ [source,js]
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/classic-tokenizer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/classic-tokenizer.json

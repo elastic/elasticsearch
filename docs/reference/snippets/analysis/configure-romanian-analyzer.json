@@ -1,0 +1,37 @@
+# Configure a custom Romanian analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "romanian_stop": {
+          "type":       "stop",
+          "stopwords":  "_romanian_"
+        },
+        "romanian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   []
+        },
+        "romanian_stemmer": {
+          "type":       "stemmer",
+          "language":   "romanian"
+        }
+      },
+      "analyzer": {
+        "romanian_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "romanian_stop",
+            "romanian_keywords",
+            "romanian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

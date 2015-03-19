@@ -1,0 +1,18 @@
+# Configure keywords for the `english` analyzer to prevent terms from being stemmed.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+    "settings": {
+        "analysis": {
+            "analyzer": {
+                "my_english": {
+                    "type": "english",
+                    "stem_exclusion": ["civilized", "way"]
+                }
+            }
+        }
+    }
+}
+
+POST /myindex/_open

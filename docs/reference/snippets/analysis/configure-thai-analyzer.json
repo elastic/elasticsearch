@@ -1,0 +1,27 @@
+# Configure a custom Thai analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "thai_stop": {
+          "type":       "stop",
+          "stopwords":  "_thai_"
+        }
+      },
+      "analyzer": {
+        "thai_analyzer": {
+          "tokenizer":  "thai",
+          "filter": [
+            "lowercase",
+            "thai_stop"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

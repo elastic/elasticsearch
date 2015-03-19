@@ -1,8 +1,11 @@
 [[analysis-lang-analyzer]]
 === Language Analyzers
 
-A set of analyzers aimed at analyzing specific language text. The
-following types are supported:
+The language analyzers perform language-specific text processing, including stemming. 
+You can use the language analyzers as-is, or configure custom stopword lists and specify
+terms that should not be stemmed. 
+
+Elasticsearch provides the following language-specific analyzers:
 <<arabic-analyzer,`arabic`>>,
 <<armenian-analyzer,`armenian`>>,
 <<basque-analyzer,`basque`>>,
@@ -36,1481 +39,515 @@ following types are supported:
 <<turkish-analyzer,`turkish`>>,
 <<thai-analyzer,`thai`>>.
 
-==== Configuring language analyzers
+You can configure the following settings for language analyzers:
 
-===== Stopwords
+[cols="<,<",options="header",]
+|=======================================================================
+|Setting |Description
+|`stopwords` |A list of stopwords or the name of a predefined list. 
+For more information, see <<configuring-stopwords, 
+Configuring Stopwords>>.
+|`stopwords_path` |A path to a file that contains a list of stopwords. 
+Can be relative to the `config` location or an absolute path.
+|`stem_exclusion`|A list of words that should not be stemmed. Supported 
+by a subset of the language analyzers. For more information, see <<configuring-stemming, 
+Configuring Stemming>>.
+|=======================================================================
 
-All analyzers support setting custom `stopwords` either internally in
-the config, or by using an external stopwords file by setting
-`stopwords_path`. Check <<analysis-stop-analyzer,Stop Analyzer>> for
-more details.
+For example, using the `english` analyzer to process the string 
+"There is no way that writers can be tamed and rendered civilized" with the default 
+stop words generates the following tokens:
 
-===== Excluding words from stemming
+ `wai, writer, can, start, tame, render, civil`
 
-The `stem_exclusion` parameter allows you to specify an array
-of lowercase words that should not be stemmed.  Internally, this
-functionality is implemented by adding the
-<<analysis-keyword-marker-tokenfilter,`keyword_marker` token filter>>
-with the `keywords` set to the value of the `stem_exclusion` parameter.
+[source,js]
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/english-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/english-analyzer.json
 
-The following analyzers support setting custom `stem_exclusion` list:
+[[configuring-stopwords]]
+==== Configuring Stopwords
+
+All of the language analyzers support setting custom `stopwords`. Stopwords
+are frequently occurring terms that you want to exclude from the index, such
+as `a`, `and`, and `the`. You can specify stopwords directly in the analyzer
+configuration, specify one of the predefined stopword lists, or set the 
+`stopwords_path` to use an external stopwords file. See <<analysis-stop-tokenfilter,Stop Token Filter>> for the predefined stopword lists.
+
+For example, the following `english` analyzer configuration defines `a`, `and`, 
+and `the` as stopwords.
+
+[source,js]
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-english-analyzer-stopwords.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-english-analyzer-stopwords.json
+
+Using this analyzer to process the string "There is no way that writers can be 
+tamed and rendered civilized" generates the following tokens:
+
+`there, is, no, wai, that, writer, can, be, tame, and, render, civil`
+
+[source,js]
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/my-english-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/my-english-analyzer.json
+
+[[configuring-stemming]]
+==== Configuring Stemming
+
+Several language analyzers support disabling stemming for particular words.
+Stemming is the process of reducing words to the base or root form.
+You set the `stem_exclusion` parameter to specify which words should not be
+stemmed. This parameter takes an array of lowercase words.
+For more information, see <<analysis-keyword-marker-tokenfilter,Keyword Marker Token Filter>>.
+
+The following analyzers support the `stem_exclusion` parameter:
 `arabic`, `armenian`, `basque`, `catalan`, `bulgarian`, `catalan`,
 `czech`, `finnish`, `dutch`, `english`, `finnish`, `french`, `galician`,
 `german`, `irish`, `hindi`, `hungarian`, `indonesian`, `italian`, `latvian`, `norwegian`,
 `portuguese`, `romanian`, `russian`, `sorani`, `spanish`, `swedish`, `turkish`.
 
-==== Reimplementing language analyzers
+For example, the following `english` analyzer configuration prevents `civilized` and `way` from
+being stemmed. 
 
-The built-in language analyzers can be reimplemented as `custom` analyzers
-(as described below) in order to customize their behaviour.
+[source,js]
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-english-analyzer-keywords.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-english-analyzer-keywords.json
 
-NOTE: If you do not intend to exclude words from being stemmed (the
-equivalent of the `stem_exclusion` parameter above), then you should remove
-the `keyword_marker` token filter from the custom analyzer configuration.
+Using this analyzer to process the string  "There is no way that writers can be 
+tamed and rendered civilized" generates the following tokens:
+
+`there, is, no, way, that, writer, can, be, tame, and, render, civilized`
+
+[source,js]
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/my-english-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/my-english-analyzer.json
+
+==== Customizing Language Analyzers
+
+You can reimplement the built-in language analyzers as <<analysis-custom-analyzer, `custom`>> analyzers
+if you need to alter their behaviour. The following examples show how
+to replicate each language analyzer.
+
+NOTE: If you do not intend to exclude words from being stemmed, 
+omit the `keyword_marker` token filter from your custom analyzer configuration.
 
 [[arabic-analyzer]]
-===== `arabic` analyzer
+===== Arabic Analyzer
 
-The `arabic` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the  `arabic` analyzer
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you 
+don't need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "arabic_stop": {
-          "type":       "stop",
-          "stopwords":  "_arabic_" <1>
-        },
-        "arabic_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "arabic_stemmer": {
-          "type":       "stemmer",
-          "language":   "arabic"
-        }
-      },
-      "analyzer": {
-        "arabic": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "arabic_stop",
-            "arabic_normalization",
-            "arabic_keywords",
-            "arabic_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-arabic-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-arabic-analyzer.json
 
 [[armenian-analyzer]]
-===== `armenian` analyzer
+===== Armenian Analyzer
 
-The `armenian` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `armenian` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "armenian_stop": {
-          "type":       "stop",
-          "stopwords":  "_armenian_" <1>
-        },
-        "armenian_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "armenian_stemmer": {
-          "type":       "stemmer",
-          "language":   "armenian"
-        }
-      },
-      "analyzer": {
-        "armenian": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "armenian_stop",
-            "armenian_keywords",
-            "armenian_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-armenian-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-armenian-analyzer.json
 
 [[basque-analyzer]]
-===== `basque` analyzer
+===== Basque Analyzer
 
-The `basque` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `basque` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "basque_stop": {
-          "type":       "stop",
-          "stopwords":  "_basque_" <1>
-        },
-        "basque_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "basque_stemmer": {
-          "type":       "stemmer",
-          "language":   "basque"
-        }
-      },
-      "analyzer": {
-        "basque": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "basque_stop",
-            "basque_keywords",
-            "basque_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-basque-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-basque-analyzer.json
 
 [[brazilian-analyzer]]
-===== `brazilian` analyzer
+===== Brazilian Analyzer
 
-The `brazilian` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `brazilian` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "brazilian_stop": {
-          "type":       "stop",
-          "stopwords":  "_brazilian_" <1>
-        },
-        "brazilian_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "brazilian_stemmer": {
-          "type":       "stemmer",
-          "language":   "brazilian"
-        }
-      },
-      "analyzer": {
-        "brazilian": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "brazilian_stop",
-            "brazilian_keywords",
-            "brazilian_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-brazilian-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-brazilian-analyzer.json
 
 [[bulgarian-analyzer]]
-===== `bulgarian` analyzer
-
-The `bulgarian` analyzer could be reimplemented as a `custom` analyzer as follows:
+===== Bulgarian Analyzer
+The following example shows how to reimplement the `bulgarian` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "bulgarian_stop": {
-          "type":       "stop",
-          "stopwords":  "_bulgarian_" <1>
-        },
-        "bulgarian_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "bulgarian_stemmer": {
-          "type":       "stemmer",
-          "language":   "bulgarian"
-        }
-      },
-      "analyzer": {
-        "bulgarian": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "bulgarian_stop",
-            "bulgarian_keywords",
-            "bulgarian_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-bulgarian-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-bulgarian-analyzer.json
 
 [[catalan-analyzer]]
-===== `catalan` analyzer
-
-The `catalan` analyzer could be reimplemented as a `custom` analyzer as follows:
+===== Catalan Analyzer
+The following example shows how to reimplement the `catalan` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "catalan_elision": {
-        "type":         "elision",
-            "articles": [ "d", "l", "m", "n", "s", "t"]
-        },
-        "catalan_stop": {
-          "type":       "stop",
-          "stopwords":  "_catalan_" <1>
-        },
-        "catalan_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "catalan_stemmer": {
-          "type":       "stemmer",
-          "language":   "catalan"
-        }
-      },
-      "analyzer": {
-        "catalan": {
-          "tokenizer":  "standard",
-          "filter": [
-            "catalan_elision",
-            "lowercase",
-            "catalan_stop",
-            "catalan_keywords",
-            "catalan_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-catalan-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-catalan-analyzer.json
 
 [[cjk-analyzer]]
-===== `cjk` analyzer
-
-The `cjk` analyzer could be reimplemented as a `custom` analyzer as follows:
+===== CJK Analyzer
+The following example shows how to reimplement the `cjk` analyzer 
+as a `custom` analyzer.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "english_stop": {
-          "type":       "stop",
-          "stopwords":  "_english_" <1>
-        }
-      },
-      "analyzer": {
-        "cjk": {
-          "tokenizer":  "standard",
-          "filter": [
-            "cjk_width",
-            "lowercase",
-            "cjk_bigram",
-            "english_stop"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-cjk-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-cjk-analyzer.json
 
 [[czech-analyzer]]
-===== `czech` analyzer
-
-The `czech` analyzer could be reimplemented as a `custom` analyzer as follows:
+===== Czech Analyzer
+The following example shows how to reimplement the `czech` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "czech_stop": {
-          "type":       "stop",
-          "stopwords":  "_czech_" <1>
-        },
-        "czech_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "czech_stemmer": {
-          "type":       "stemmer",
-          "language":   "czech"
-        }
-      },
-      "analyzer": {
-        "czech": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "czech_stop",
-            "czech_keywords",
-            "czech_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-czech-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-czech-analyzer.json
 
 [[danish-analyzer]]
-===== `danish` analyzer
+===== Danish Analyzer
 
-The `danish` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `danish` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "danish_stop": {
-          "type":       "stop",
-          "stopwords":  "_danish_" <1>
-        },
-        "danish_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "danish_stemmer": {
-          "type":       "stemmer",
-          "language":   "danish"
-        }
-      },
-      "analyzer": {
-        "danish": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "danish_stop",
-            "danish_keywords",
-            "danish_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-danish-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-danish-analyzer.json
 
 [[dutch-analyzer]]
-===== `dutch` analyzer
+===== Dutch Analyzer
 
-The `dutch` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `dutch` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "dutch_stop": {
-          "type":       "stop",
-          "stopwords":  "_dutch_" <1>
-        },
-        "dutch_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "dutch_stemmer": {
-          "type":       "stemmer",
-          "language":   "dutch"
-        },
-        "dutch_override": {
-          "type":       "stemmer_override",
-          "rules": [
-            "fiets=>fiets",
-            "bromfiets=>bromfiets",
-            "ei=>eier",
-            "kind=>kinder"
-          ]
-        }
-      },
-      "analyzer": {
-        "dutch": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "dutch_stop",
-            "dutch_keywords",
-            "dutch_override",
-            "dutch_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-dutch-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-dutch-analyzer.json
 
 [[english-analyzer]]
-===== `english` analyzer
+===== English Analyzer
 
-The `english` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `english` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "english_stop": {
-          "type":       "stop",
-          "stopwords":  "_english_" <1>
-        },
-        "english_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "english_stemmer": {
-          "type":       "stemmer",
-          "language":   "english"
-        },
-        "english_possessive_stemmer": {
-          "type":       "stemmer",
-          "language":   "possessive_english"
-        }
-      },
-      "analyzer": {
-        "english": {
-          "tokenizer":  "standard",
-          "filter": [
-            "english_possessive_stemmer",
-            "lowercase",
-            "english_stop",
-            "english_keywords",
-            "english_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-english-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-english-analyzer.json
 
 [[finnish-analyzer]]
-===== `finnish` analyzer
+===== Finnish Analyzer
 
-The `finnish` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `finnish` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "finnish_stop": {
-          "type":       "stop",
-          "stopwords":  "_finnish_" <1>
-        },
-        "finnish_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "finnish_stemmer": {
-          "type":       "stemmer",
-          "language":   "finnish"
-        }
-      },
-      "analyzer": {
-        "finnish": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "finnish_stop",
-            "finnish_keywords",
-            "finnish_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-finnish-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-finnish-analyzer.json
 
 [[french-analyzer]]
-===== `french` analyzer
+===== French Analyzer
 
-The `french` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `french` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "french_elision": {
-        "type":         "elision",
-            "articles": [ "l", "m", "t", "qu", "n", "s",
-                          "j", "d", "c", "jusqu", "quoiqu",
-                          "lorsqu", "puisqu"
-                        ]
-        },
-        "french_stop": {
-          "type":       "stop",
-          "stopwords":  "_french_" <1>
-        },
-        "french_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "french_stemmer": {
-          "type":       "stemmer",
-          "language":   "light_french"
-        }
-      },
-      "analyzer": {
-        "french": {
-          "tokenizer":  "standard",
-          "filter": [
-            "french_elision",
-            "lowercase",
-            "french_stop",
-            "french_keywords",
-            "french_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-french-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-french-analyzer.json
+
 
 [[galician-analyzer]]
-===== `galician` analyzer
+===== Galician Analyzer
 
-The `galician` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `galician` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "galician_stop": {
-          "type":       "stop",
-          "stopwords":  "_galician_" <1>
-        },
-        "galician_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "galician_stemmer": {
-          "type":       "stemmer",
-          "language":   "galician"
-        }
-      },
-      "analyzer": {
-        "galician": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "galician_stop",
-            "galician_keywords",
-            "galician_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-galician-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-galician-analyzer.json
 
 [[german-analyzer]]
-===== `german` analyzer
+===== German Analyzer
 
-The `german` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `german` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "german_stop": {
-          "type":       "stop",
-          "stopwords":  "_german_" <1>
-        },
-        "german_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "german_stemmer": {
-          "type":       "stemmer",
-          "language":   "light_german"
-        }
-      },
-      "analyzer": {
-        "german": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "german_stop",
-            "german_keywords",
-            "german_normalization",
-            "german_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-german-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-german-analyzer.json
+
 
 [[greek-analyzer]]
-===== `greek` analyzer
+===== Greek Analyzer
 
-The `greek` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `greek` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "greek_stop": {
-          "type":       "stop",
-          "stopwords":  "_greek_" <1>
-        },
-        "greek_lowercase": {
-          "type":       "lowercase",
-          "language":   "greek"
-        },
-        "greek_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "greek_stemmer": {
-          "type":       "stemmer",
-          "language":   "greek"
-        }
-      },
-      "analyzer": {
-        "greek": {
-          "tokenizer":  "standard",
-          "filter": [
-            "greek_lowercase",
-            "greek_stop",
-            "greek_keywords",
-            "greek_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-greek-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-greek-analyzer.json
 
 [[hindi-analyzer]]
-===== `hindi` analyzer
+===== Hindi Analyzer
 
-The `hindi` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `hindi` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "hindi_stop": {
-          "type":       "stop",
-          "stopwords":  "_hindi_" <1>
-        },
-        "hindi_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "hindi_stemmer": {
-          "type":       "stemmer",
-          "language":   "hindi"
-        }
-      },
-      "analyzer": {
-        "hindi": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "indic_normalization",
-            "hindi_normalization",
-            "hindi_stop",
-            "hindi_keywords",
-            "hindi_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-hindi-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-hindi-analyzer.json
 
 [[hungarian-analyzer]]
-===== `hungarian` analyzer
+===== Hungarian Analyzer
 
-The `hungarian` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `hungarian` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "hungarian_stop": {
-          "type":       "stop",
-          "stopwords":  "_hungarian_" <1>
-        },
-        "hungarian_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "hungarian_stemmer": {
-          "type":       "stemmer",
-          "language":   "hungarian"
-        }
-      },
-      "analyzer": {
-        "hungarian": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "hungarian_stop",
-            "hungarian_keywords",
-            "hungarian_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-hungarian-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-hungarian-analyzer.json
 
 
 [[indonesian-analyzer]]
-===== `indonesian` analyzer
+===== Indonesian Analyzer
 
-The `indonesian` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `indonesian` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "indonesian_stop": {
-          "type":       "stop",
-          "stopwords":  "_indonesian_" <1>
-        },
-        "indonesian_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "indonesian_stemmer": {
-          "type":       "stemmer",
-          "language":   "indonesian"
-        }
-      },
-      "analyzer": {
-        "indonesian": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "indonesian_stop",
-            "indonesian_keywords",
-            "indonesian_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-indonesian-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-indonesian-analyzer.json
 
 [[irish-analyzer]]
-===== `irish` analyzer
+===== Irish Analyzer
 
-The `irish` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `irish` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "irish_elision": {
-          "type":       "elision",
-          "articles": [ "h", "n", "t" ]
-        },
-        "irish_stop": {
-          "type":       "stop",
-          "stopwords":  "_irish_" <1>
-        },
-        "irish_lowercase": {
-          "type":       "lowercase",
-          "language":   "irish"
-        },
-        "irish_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "irish_stemmer": {
-          "type":       "stemmer",
-          "language":   "irish"
-        }
-      },
-      "analyzer": {
-        "irish": {
-          "tokenizer":  "standard",
-          "filter": [
-            "irish_stop",
-            "irish_elision",
-            "irish_lowercase",
-            "irish_keywords",
-            "irish_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-irish-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-irish-analyzer.json
 
 [[italian-analyzer]]
-===== `italian` analyzer
+===== Italian Analyzer
 
-The `italian` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `italian` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "italian_elision": {
-        "type":         "elision",
-            "articles": [
-                "c", "l", "all", "dall", "dell",
-                "nell", "sull", "coll", "pell",
-                "gl", "agl", "dagl", "degl", "negl",
-                "sugl", "un", "m", "t", "s", "v", "d"
-            ]
-        },
-        "italian_stop": {
-          "type":       "stop",
-          "stopwords":  "_italian_" <1>
-        },
-        "italian_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "italian_stemmer": {
-          "type":       "stemmer",
-          "language":   "light_italian"
-        }
-      },
-      "analyzer": {
-        "italian": {
-          "tokenizer":  "standard",
-          "filter": [
-            "italian_elision",
-            "lowercase",
-            "italian_stop",
-            "italian_keywords",
-            "italian_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-italian-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-italian-analyzer.json
 
 [[latvian-analyzer]]
-===== `latvian` analyzer
+===== Latvian Analyzer
 
-The `latvian` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `latvian` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "latvian_stop": {
-          "type":       "stop",
-          "stopwords":  "_latvian_" <1>
-        },
-        "latvian_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "latvian_stemmer": {
-          "type":       "stemmer",
-          "language":   "latvian"
-        }
-      },
-      "analyzer": {
-        "latvian": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "latvian_stop",
-            "latvian_keywords",
-            "latvian_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-latvian-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-latvian-analyzer.json
 
 [[norwegian-analyzer]]
-===== `norwegian` analyzer
+===== Norwegian Analyzer
 
-The `norwegian` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `norwegian` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "norwegian_stop": {
-          "type":       "stop",
-          "stopwords":  "_norwegian_" <1>
-        },
-        "norwegian_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "norwegian_stemmer": {
-          "type":       "stemmer",
-          "language":   "norwegian"
-        }
-      },
-      "analyzer": {
-        "norwegian": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "norwegian_stop",
-            "norwegian_keywords",
-            "norwegian_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-norwegian-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-norwegian-analyzer.json
 
 [[persian-analyzer]]
-===== `persian` analyzer
+===== Persian Analyzer
 
-The `persian` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `persian` analyzer 
+as a `custom` analyzer. This analyzer uses a `mapping` character filter to
+replace zero-width non-joiners with an ASCII space.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "char_filter": {
-        "zero_width_spaces": {
-            "type":       "mapping",
-            "mappings": [ "\\u200C=> "] <1>
-        }
-      },
-      "filter": {
-        "persian_stop": {
-          "type":       "stop",
-          "stopwords":  "_persian_" <2>
-        }
-      },
-      "analyzer": {
-        "persian": {
-          "tokenizer":     "standard",
-          "char_filter": [ "zero_width_spaces" ],
-          "filter": [
-            "lowercase",
-            "arabic_normalization",
-            "persian_normalization",
-            "persian_stop"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> Replaces zero-width non-joiners with an ASCII space.
-<2> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-persian-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-persian-analyzer.json
 
 [[portuguese-analyzer]]
-===== `portuguese` analyzer
+===== Portuguese Analyzer
 
-The `portuguese` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `portuguese` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "portuguese_stop": {
-          "type":       "stop",
-          "stopwords":  "_portuguese_" <1>
-        },
-        "portuguese_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "portuguese_stemmer": {
-          "type":       "stemmer",
-          "language":   "light_portuguese"
-        }
-      },
-      "analyzer": {
-        "portuguese": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "portuguese_stop",
-            "portuguese_keywords",
-            "portuguese_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-portuguese-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-portuguese-analyzer.json
 
 [[romanian-analyzer]]
-===== `romanian` analyzer
+===== Romanian Analyzer
 
-The `romanian` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `romanian` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "romanian_stop": {
-          "type":       "stop",
-          "stopwords":  "_romanian_" <1>
-        },
-        "romanian_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "romanian_stemmer": {
-          "type":       "stemmer",
-          "language":   "romanian"
-        }
-      },
-      "analyzer": {
-        "romanian": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "romanian_stop",
-            "romanian_keywords",
-            "romanian_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
-
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-romanian-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-romanian-analyzer.json
 
 [[russian-analyzer]]
-===== `russian` analyzer
+===== Russian Analyzer
 
-The `russian` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `russian` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "russian_stop": {
-          "type":       "stop",
-          "stopwords":  "_russian_" <1>
-        },
-        "russian_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "russian_stemmer": {
-          "type":       "stemmer",
-          "language":   "russian"
-        }
-      },
-      "analyzer": {
-        "russian": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "russian_stop",
-            "russian_keywords",
-            "russian_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-russian-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-russian-analyzer.json
 
 [[sorani-analyzer]]
-===== `sorani` analyzer
+===== Sorani Analyzer
 
-The `sorani` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `sorani` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "sorani_stop": {
-          "type":       "stop",
-          "stopwords":  "_sorani_" <1>
-        },
-        "sorani_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "sorani_stemmer": {
-          "type":       "stemmer",
-          "language":   "sorani"
-        }
-      },
-      "analyzer": {
-        "sorani": {
-          "tokenizer":  "standard",
-          "filter": [
-            "sorani_normalization",
-            "lowercase",
-            "sorani_stop",
-            "sorani_keywords",
-            "sorani_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-sorani-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-sorani-analyzer.json
 
 [[spanish-analyzer]]
-===== `spanish` analyzer
+===== Spanish Analyzer
 
-The `spanish` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `spanish` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "spanish_stop": {
-          "type":       "stop",
-          "stopwords":  "_spanish_" <1>
-        },
-        "spanish_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "spanish_stemmer": {
-          "type":       "stemmer",
-          "language":   "light_spanish"
-        }
-      },
-      "analyzer": {
-        "spanish": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "spanish_stop",
-            "spanish_keywords",
-            "spanish_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-spanish-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-spanish-analyzer.json
 
 [[swedish-analyzer]]
-===== `swedish` analyzer
+===== Swedish Analyzer
 
-The `swedish` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `swedish` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "swedish_stop": {
-          "type":       "stop",
-          "stopwords":  "_swedish_" <1>
-        },
-        "swedish_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "swedish_stemmer": {
-          "type":       "stemmer",
-          "language":   "swedish"
-        }
-      },
-      "analyzer": {
-        "swedish": {
-          "tokenizer":  "standard",
-          "filter": [
-            "lowercase",
-            "swedish_stop",
-            "swedish_keywords",
-            "swedish_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-swedish-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-swedish-analyzer.json
 
 [[turkish-analyzer]]
-===== `turkish` analyzer
+===== Turkish Analyzer
 
-The `turkish` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `turkish` analyzer 
+as a `custom` analyzer. You can omit the `keyword_marker` filter if you don't 
+need to exclude words from stemming.
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "turkish_stop": {
-          "type":       "stop",
-          "stopwords":  "_turkish_" <1>
-        },
-        "turkish_lowercase": {
-          "type":       "lowercase",
-          "language":   "turkish"
-        },
-        "turkish_keywords": {
-          "type":       "keyword_marker",
-          "keywords":   [] <2>
-        },
-        "turkish_stemmer": {
-          "type":       "stemmer",
-          "language":   "turkish"
-        }
-      },
-      "analyzer": {
-        "turkish": {
-          "tokenizer":  "standard",
-          "filter": [
-            "apostrophe",
-            "turkish_lowercase",
-            "turkish_stop",
-            "turkish_keywords",
-            "turkish_stemmer"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
-<2> This filter should be removed unless there are words which should
-    be excluded from stemming.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-turkish-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-turkish-analyzer.json
 
 [[thai-analyzer]]
-===== `thai` analyzer
+===== Thai Analyzer
 
-The `thai` analyzer could be reimplemented as a `custom` analyzer as follows:
+The following example shows how to reimplement the `thai` analyzer 
+as a `custom` analyzer. 
 
 [source,js]
-----------------------------------------------------
-{
-  "settings": {
-    "analysis": {
-      "filter": {
-        "thai_stop": {
-          "type":       "stop",
-          "stopwords":  "_thai_" <1>
-        }
-      },
-      "analyzer": {
-        "thai": {
-          "tokenizer":  "thai",
-          "filter": [
-            "lowercase",
-            "thai_stop"
-          ]
-        }
-      }
-    }
-  }
-}
-----------------------------------------------------
-<1> The default stopwords can be overridden with the `stopwords`
-    or `stopwords_path` parameters.
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/configure-thai-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-thai-analyzer.json

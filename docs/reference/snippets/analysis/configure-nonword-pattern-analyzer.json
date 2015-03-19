@@ -1,0 +1,21 @@
+# Configure a pattern analyzer that tokenizes on non-word characters (anything but a-z, A-Z, 0-9, and _)
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+    "settings": {
+        "analysis": {
+            "analyzer": {
+                "my_nonword_pattern_analyzer": {
+                    "type": "pattern",
+                    "pattern": "[^\\w]+"
+                }
+            }
+        }
+    }
+}
+
+POST /myindex/_open
+
+# Analyze text with my_nonword_pattern_analyzer
+GET /myindex/_analyze?analyzer=my_nonword_pattern_analyzer&text=Let the wild rumpus start! (bit.ly/1wsCiKv)

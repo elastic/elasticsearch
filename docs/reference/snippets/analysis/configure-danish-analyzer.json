@@ -1,0 +1,37 @@
+# Configure a custom Danish analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "danish_stop": {
+          "type":       "stop",
+          "stopwords":  "_danish_"
+        },
+        "danish_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   []
+        },
+        "danish_stemmer": {
+          "type":       "stemmer",
+          "language":   "danish"
+        }
+      },
+      "analyzer": {
+        "danish_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "danish_stop",
+            "danish_keywords",
+            "danish_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

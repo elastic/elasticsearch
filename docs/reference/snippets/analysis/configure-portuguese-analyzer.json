@@ -1,0 +1,37 @@
+# Configure a custom Portuguese analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "portuguese_stop": {
+          "type":       "stop",
+          "stopwords":  "_portuguese_"
+        },
+        "portuguese_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   []
+        },
+        "portuguese_stemmer": {
+          "type":       "stemmer",
+          "language":   "light_portuguese"
+        }
+      },
+      "analyzer": {
+        "portuguese_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "portuguese_stop",
+            "portuguese_keywords",
+            "portuguese_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

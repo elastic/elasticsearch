@@ -1,26 +1,47 @@
 [[analysis-standard-analyzer]]
 === Standard Analyzer
 
-An analyzer of type `standard` is built using the
-<<analysis-standard-tokenizer,Standard
-Tokenizer>> with the
-<<analysis-standard-tokenfilter,Standard
-Token Filter>>,
-<<analysis-lowercase-tokenfilter,Lower
-Case Token Filter>>, and
-<<analysis-stop-tokenfilter,Stop
-Token Filter>>.
+The `standard` analyzer wraps the <<analysis-standard-tokenizer,`standard`
+>> tokenizer and the <<analysis-standard-tokenfilter,`standard`>>, 
+<<analysis-lowercase-tokenfilter,`lowercase`>>, and 
+<<analysis-stop-tokenfilter,`stop`>> token filters. The `standard` tokenizer 
+splits tokens on whitespace and drops most punctuation. Periods that are not 
+followed by whitespace, such as in a URL, are preserved. All tokens are 
+converted to lowercase by the `lowercase` token filter, and any specified
+stop words are removed by the `stop` token filter. The `standard` analyzer 
+does not use any character filters.
 
-The following are settings that can be set for a `standard` analyzer
-type:
+You can configure the following settings for a `standard` analyzer:
 
 [cols="<,<",options="header",]
 |=======================================================================
 |Setting |Description
-|`stopwords` |A list of stopwords to initialize the stop filter with.
-Defaults to an 'empty' stopword list Check
-<<analysis-stop-analyzer,Stop Analyzer>> for more details.
 |`max_token_length` |The maximum token length. If a token is seen that exceeds
 this length then it is split at `max_token_length` intervals. Defaults to `255`.
+|`max_token_length` |The maximum token length. If a token exceeds this length 
+it is split at `max_token_length` intervals. Defaults to `255`.
+|`stopwords` |A list of stopwords or the name of a predefined list. 
+Defaults to `_none_`. See <<analysis-stop-tokenfilter>>
+for the available predefined lists.
 |=======================================================================
 
+For example, using the `standard` analyzer to process the string 
+"Let the wild rumpus start! (bit.ly/1wsCiKv)" with the default 
+stop words generates the following tokens:
+
+ `let, the, wild, rumpus, start, bit.ly, 1wscikv`
+
+[source,js]
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/standard-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/standard-analyzer.json
+
+The following example configures stopwords for the `standard` analyzer and sets
+the max token length to 80 characters.
+
+[source,js]
+--------------------------------------------------
+include::../../snippets/analysis/configure-standard-analyzer.json[]
+--------------------------------------------------
+// SENSE: analysis/configure-standard-analyzer.json

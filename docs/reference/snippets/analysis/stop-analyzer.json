@@ -1,0 +1,2 @@
+# Analyze text with the `stop` analyzer
+GET /_analyze?analyzer=stop&text=Let the wild rumpus start! (bit.ly/1wsCiKv)

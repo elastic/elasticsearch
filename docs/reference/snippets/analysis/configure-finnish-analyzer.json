@@ -1,0 +1,37 @@
+# Configure a custom Finnish analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "finnish_stop": {
+          "type":       "stop",
+          "stopwords":  "_finnish_"
+        },
+        "finnish_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   []
+        },
+        "finnish_stemmer": {
+          "type":       "stemmer",
+          "language":   "finnish"
+        }
+      },
+      "analyzer": {
+        "finnish_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "finnish_stop",
+            "finnish_keywords",
+            "finnish_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

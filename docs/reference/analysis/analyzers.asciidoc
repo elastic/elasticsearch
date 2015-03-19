@@ -1,71 +1,147 @@
 [[analysis-analyzers]]
 == Analyzers
+* <<configuring-analyzers, Configuring Analyzers>>
+* <<default-analyzers, Configuring Default Analyzers>>
+* <<aliasing-analyzers, Aliasing Analyzers>>
+* <<backwards-compatibility, Backward Compatibility>>
 
-Analyzers are composed of a single <<analysis-tokenizers,Tokenizer>> 
-and zero or more <<analysis-tokenfilters,TokenFilters>>. The tokenizer may 
-be preceded by one or more <<analysis-charfilters,CharFilters>>.
-The analysis module allows you to register `Analyzers` under logical
-names which can then be referenced either in mapping definitions or in
-certain APIs. 
+Analyzers break text down into component parts that can be efficiently looked  
+up when you search your data. Analyzers process text fields during indexing 
+to determine what tokens are added to the index. When you perform a 
+full-text search, analyzers process the query string so that the
+search terms are represented in the same form as the indexed data.
 
-Elasticsearch comes with a number of prebuilt analyzers which are
-ready to use.  Alternatively, you can combine the built in
-character filters, tokenizers and token filters to create 
-<<analysis-custom-analyzer,custom analyzers>>.
+An analyzer contains one <<analysis-tokenizers,tokenizer>> and optional 
+<<analysis-charfilters,character>> and <<analysis-tokenfilters,token>> 
+filters. 
+
+image:images/AnalysisChain.png[]
+
+If present, _character filters_ preprocess the incoming text before
+passing it on to the tokenizer. For example, you can use character
+filters to strip out HTML tags or replace a particular character or 
+pattern of characters. 
+
+The _tokenizer_ splits the individual terms in the text apart on boundaries
+such as whitespace and punctuation and outputs a set of tokens that can be
+indexed. 
+
+If present, _token filters_ postprocess the set of tokens output by the 
+tokenizer. For example, you can use token filters to convert tokens to all lowercase,
+remove stopwords, perform stemming, inject synonyms, and generate bigrams for CJK characters.
+
+Elasticsearch provides several ready-to-use analyzers. 
+You can also construct <<analysis-custom-analyzer,custom analyzers>>
+from the built in character filters, tokenizers, and token filters. 
+
+You can specify which analyzer you want to use when configuring <<mapping, mappings>> and 
+<<search, searching>>. If you don't specify an analyzer, Elasticsearch uses the 
+appropriate <<default-analyzers,default analyzer>>.
+
+[float]
+[[configuring-analyzers]]
+=== Configuring Analyzers
+You can configure analyzers when you create an index and add analyzers to an 
+index with the <<indices-update-settings, `update settings`>> API. 
+
+TIP: While analyzers can also be configured at the node level, we recommend 
+configuring them at the index level to prevent the possibility of the configuration 
+getting out of sync across nodes. You need to tune your analysis options to suit the 
+content being analyzed, so analyzer configurations are naturally index-specific.
+
+To configure an analyzer when creating an index, you specify an analysis block
+in the index settings. For example, the following request creates the index
+`myindex` and configures the `standard` analyzer with the stopwords `a` and `an`.
+
+[source,js]
+--------------------------------------------------
+include::../snippets/analysis/configure-analyzer.json[]
+--------------------------------------------------
+// SENSE: analysis/configure-analyzer.json
+
+Similarly, you can add an analyzer to an existing index by updating the index
+settings. To do this, you need to close the index, add the analyzer, and then reopen the index.
+The following example adds a custom analyzer called `content` that
+uses the `whitespace` tokenizer.
+
+[source,js]
+--------------------------------------------------
+include::../snippets/analysis/add-analyzer.json[]
+--------------------------------------------------
+// SENSE: analysis/add-analyzer.json
+
+NOTE: While you can add analyzers to the index settings, you cannot use the 
+<<indices-update-settings, `update settings`>>  API to modify existing analyzers 
+if you have already indexed documents. If you were to change an existing analyzer, 
+data that had already been indexed wouldn't match the new configuration and your 
+searches would no longer work as expected. To update an analyzer or change which 
+analyzer is used for a particular field, you need to http://www.elasticsearch.org/guide/en/elasticsearch/guide/current/reindex.html[reindex] your data.
 
 [float]
 [[default-analyzers]]
-=== Default Analyzers
+=== Configuring Default Analyzers
+You can configure which analyzers to use by default by configuring either the 
+`default` analyzer or the `default_index` and `default_search` analyzers:
 
-An analyzer is registered under a logical name. It can then be
-referenced from mapping definitions or certain APIs. When none are
-defined, defaults are used. There is an option to define which analyzers
-will be used by default when none can be derived.
+* The `default` analyzer is used for both indexing and searching. 
+* The `default_index` analyzer is used only when indexing.
+* The `default_search` analyzer is be used only when searching.
 
-The `default` logical name allows one to configure an analyzer that will
-be used both for indexing and for searching APIs. The `default_index`
-logical name can be used to configure a default analyzer that will be
-used just when indexing, and the `default_search` can be used to
-configure a default analyzer that will be used just when searching.
+In most cases, you want to use the same analyzer for both indexing and searching,
+so setting the `default` analyzer is recommended. For example:
+
+[source,js]
+--------------------------------------------------
+include::../snippets/analysis/configure-default-analyzer.json[]
+--------------------------------------------------
+// SENSE: analysis/configure-default-analyzer.json
+
+If no default is configured and you don't specify an analyzer when configuring mappings
+or searching, Elasticsearch uses the <<analysis-standard-analyzer, `standard`>> analyzer.
 
 [float]
 [[aliasing-analyzers]]
 === Aliasing Analyzers
 
-Analyzers can be aliased to have several registered lookup names
-associated with them. For example, the following will allow 
-the `standard` analyzer to also be referenced with `alias1`
-and `alias2` values.
+You can define one or more aliases for an analyzer so you can reference it 
+by a custom name. 
 
+To configure an alias, specify the `alias` attribute in the `analyzer` configuration.
+For example, the following configuration enables you to reference the `standard` 
+analyzer configured with the stopwords `a` and `an` by either 
+`alias1` or `alias2`. 
 
 [source,js]
 --------------------------------------------------
-index :
-  analysis :
-    analyzer :
-      standard :
-        alias: [alias1, alias2]
-        type : standard
-        stopwords : [test1, test2, test3]
+include::../snippets/analysis/configure-analyzer-alias.json[]
 --------------------------------------------------
+// SENSE: analysis/configure-analyzer-alias-analyzer.json
 
-Below is a list of the built in analyzers.
+// ^^^ Why would you want to define multiple aliases?
 
-include::analyzers/standard-analyzer.asciidoc[]
+[float]
+[[backwards-compatibility]]
+=== Backward Compatibility
 
-include::analyzers/simple-analyzer.asciidoc[]
-
-include::analyzers/whitespace-analyzer.asciidoc[]
-
-include::analyzers/stop-analyzer.asciidoc[]
-
-include::analyzers/keyword-analyzer.asciidoc[]
-
-include::analyzers/pattern-analyzer.asciidoc[]
-
-include::analyzers/lang-analyzer.asciidoc[]
-
-include::analyzers/snowball-analyzer.asciidoc[]
+All analyzers, tokenizers, and token filters can be configured with a
+`version` parameter to control which Lucene version behavior they should
+use. Possible values are: `3.0` - `3.6`, `4.0` - `4.3` (the highest
+version number is the default option).
 
 include::analyzers/custom-analyzer.asciidoc[]
 
+include::analyzers/keyword-analyzer.asciidoc[]
+
+include::analyzers/lang-analyzer.asciidoc[]
+
+include::analyzers/pattern-analyzer.asciidoc[]
+
+include::analyzers/simple-analyzer.asciidoc[]
+
+include::analyzers/snowball-analyzer.asciidoc[]
+
+include::analyzers/standard-analyzer.asciidoc[]
+
+include::analyzers/stop-analyzer.asciidoc[]
+
+include::analyzers/whitespace-analyzer.asciidoc[]

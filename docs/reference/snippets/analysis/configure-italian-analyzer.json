@@ -1,0 +1,47 @@
+# Configure a custom Italian analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "italian_elision": {
+        "type":         "elision",
+            "articles": [
+                "c", "l", "all", "dall", "dell",
+                "nell", "sull", "coll", "pell",
+                "gl", "agl", "dagl", "degl", "negl",
+                "sugl", "un", "m", "t", "s", "v", "d"
+            ]
+        },
+        "italian_stop": {
+          "type":       "stop",
+          "stopwords":  "_italian_"
+        },
+        "italian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   []
+        },
+        "italian_stemmer": {
+          "type":       "stemmer",
+          "language":   "light_italian"
+        }
+      },
+      "analyzer": {
+        "italian_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "italian_elision",
+            "lowercase",
+            "italian_stop",
+            "italian_keywords",
+            "italian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

@@ -1,64 +1,51 @@
 [[analysis-snowball-analyzer]]
 === Snowball Analyzer
 
-An analyzer of type `snowball` that uses the
-<<analysis-standard-tokenizer,standard
-tokenizer>>, with
-<<analysis-standard-tokenfilter,standard
-filter>>,
-<<analysis-lowercase-tokenfilter,lowercase
-filter>>,
-<<analysis-stop-tokenfilter,stop
-filter>>, and
-<<analysis-snowball-tokenfilter,snowball
-filter>>.
+The `snowball` analyzer wraps the <<analysis-standard-tokenizer,`standard`>> 
+tokenizer and the <<analysis-standard-tokenfilter,`standard`>>,
+<<analysis-lowercase-tokenfilter,`lowercase`>>,
+<<analysis-stop-tokenfilter,`stop`>>, and
+<<analysis-snowball-tokenfilter,`snowball`>> token filters. The `standard` 
+tokenizer splits tokens on whitespace and drops most punctuation. Periods 
+that are not followed by whitespace, such as in a URL, are preserved. All 
+tokens are converted to lowercase by the `lowercase` token filter, and any 
+specified stop words are removed by the `stop` token filter. The `snowball` 
+token filter then stems the tokens using a language specific 
+https://github.com/snowballstem[Snowball] generated stemmer. The `snowball` 
+analyzer does not use any character filters.
 
-The Snowball Analyzer is a stemming analyzer from Lucene that is
-originally based on the snowball project from
-http://snowball.tartarus.org[snowball.tartarus.org].
+You can configure the following settings for a `snowball` analyzer:
 
-Sample usage:
+[cols="<,<",options="header",]
+|=======================================================================
+|Setting |Description
+|`language` |The language of the content being stemmed. Defaults to `English`.
+See the <<analysis-snowball-tokenfilter, Snowball Token Filter>> for the list
+of supported languages.
+|`stopwords` |A list of stopwords. Default stopwords are defined for many,
+but not all languages. You can use this attribute to specify stopwords for
+languages that have no defaults, or replace the default stopword list. See
+the https://github.com/apache/lucene-solr/tree/trunk/lucene/analysis/common/src/resources/org/apache/lucene/analysis/[Apache Lucene-Solr analysis 
+resources] for the stopword defaults for each language.
+|=======================================================================
 
-[source,js]
---------------------------------------------------
-{
-    "index" : {
-        "analysis" : {
-            "analyzer" : {
-                "my_analyzer" : {
-                    "type" : "snowball",
-                    "language" : "English"
-                }
-            }
-        }
-    }
-}
---------------------------------------------------
+For example, using the `snowball` analyzer to process the string 
+"There is no way that writers can be tamed and rendered civilized" with the 
+default stopwords generates the following tokens:
 
-The `language` parameter can have the same values as the
-<<analysis-snowball-tokenfilter,snowball
-filter>> and defaults to `English`. Note that not all the language
-analyzers have a default set of stopwords provided.
-
-The `stopwords` parameter can be used to provide stopwords for the
-languages that have no defaults, or to simply replace the default set
-with your custom list. Check <<analysis-stop-analyzer,Stop Analyzer>>
-for more details. A default set of stopwords for many of these
-languages is available from for instance
-https://github.com/apache/lucene-solr/tree/trunk/lucene/analysis/common/src/resources/org/apache/lucene/analysis/[here]
-and
-https://github.com/apache/lucene-solr/tree/trunk/lucene/analysis/common/src/resources/org/apache/lucene/analysis/snowball[here.]
-
-A sample configuration (in YAML format) specifying Swedish with
-stopwords:
+`way, writer, can, tame, render, civil`
 
 [source,js]
---------------------------------------------------
-index :
-    analysis :
-        analyzer :
-           my_analyzer:
-                type: snowball
-                language: Swedish
-                stopwords: "och,det,att,i,en,jag,hon,som,han,på,den,med,var,sig,för,så,till,är,men,ett,om,hade,de,av,icke,mig,du,henne,då,sin,nu,har,inte,hans,honom,skulle,hennes,där,min,man,ej,vid,kunde,något,från,ut,när,efter,upp,vi,dem,vara,vad,över,än,dig,kan,sina,här,ha,mot,alla,under,någon,allt,mycket,sedan,ju,denna,själv,detta,åt,utan,varit,hur,ingen,mitt,ni,bli,blev,oss,din,dessa,några,deras,blir,mina,samma,vilken,er,sådan,vår,blivit,dess,inom,mellan,sådant,varför,varje,vilka,ditt,vem,vilket,sitta,sådana,vart,dina,vars,vårt,våra,ert,era,vilkas"
---------------------------------------------------
+--------------------------------------------------------------------------------
+include::../../snippets/analysis/snowball-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/snowball-analyzer.json
+
+
+The following example defines a Swedish `snowball` analyzer.
+
+[source,js]
+-------------------------------------------------------
+include::../../snippets/analysis/configure-swedish-snowball-analyzer.json[]
+--------------------------------------------------------------------------------
+// SENSE: analysis/configure-swedish-snowball-analyzer.json

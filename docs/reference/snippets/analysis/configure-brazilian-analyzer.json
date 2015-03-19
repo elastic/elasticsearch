@@ -1,0 +1,37 @@
+# Configure a custom Brazilian analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "brazilian_stop": {
+          "type":       "stop",
+          "stopwords":  "_brazilian_"
+        },
+        "brazilian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   []
+        },
+        "brazilian_stemmer": {
+          "type":       "stemmer",
+          "language":   "brazilian"
+        }
+      },
+      "analyzer": {
+        "brazilian_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "brazilian_stop",
+            "brazilian_keywords",
+            "brazilian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

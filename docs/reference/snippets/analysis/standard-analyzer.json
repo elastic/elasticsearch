@@ -1,0 +1,2 @@
+# Analyze text with the standard analyzer
+GET /_analyze?analyzer=standard&text=Let the wild rumpus start!

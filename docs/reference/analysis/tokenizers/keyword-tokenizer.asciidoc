@@ -1,11 +1,10 @@
 [[analysis-keyword-tokenizer]]
 === Keyword Tokenizer
 
-A tokenizer of type `keyword` that emits the entire input as a single
-output.
+The `keyword` tokenizer outputs the entire text stream as a single
+token.
 
-The following are settings that can be set for a `keyword` tokenizer
-type:
+You can configure the following settings for a `keyword` tokenizer:
 
 [cols="<,<",options="header",]
 |=======================================================

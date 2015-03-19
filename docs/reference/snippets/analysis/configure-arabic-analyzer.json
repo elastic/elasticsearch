@@ -1,0 +1,38 @@
+# Configure a custom Arabic analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "arabic_stop": {
+          "type":       "stop",
+          "stopwords":  "_arabic_"
+        },
+        "arabic_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   []
+        },
+        "arabic_stemmer": {
+          "type":       "stemmer",
+          "language":   "arabic"
+        }
+      },
+      "analyzer": {
+        "arabic_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "arabic_stop",
+            "arabic_normalization",
+            "arabic_keywords",
+            "arabic_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

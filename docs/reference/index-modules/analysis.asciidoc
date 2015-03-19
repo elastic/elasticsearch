@@ -1,18 +1,15 @@
 [[index-modules-analysis]]
-== Analysis
+== Analysis Module
 
-The index analysis module acts as a configurable registry of Analyzers
-that can be used in order to break down indexed (analyzed) fields when a
-document is indexed as well as to process query strings. It maps to the Lucene
-`Analyzer`.
+The analysis module enables you to register <<analysis-analyzers,analyzers>>, 
+<<analysis-tokenizers,tokenizers>>, <<analysis-charfilters,character filters>>, 
+and <<analysis-tokenfilters,token filters>> under logical 
+names that you can reference in mapping definitions. You can 
+also reference them when using the `<<indices-analyze,analyze>>`
+and <<search, search>> APIs.  
 
-Analyzers are (generally) composed of a single `Tokenizer` and zero or
-more `TokenFilters`. A set of `CharFilters` can be associated with an
-analyzer to process the characters prior to other analysis steps. The
-analysis module allows one to register `TokenFilters`, `Tokenizers` and
-`Analyzers` under logical names that can then be referenced either in
-mapping definitions or in certain APIs. The Analysis module
-automatically registers (*if not explicitly defined*) built in
-analyzers, token filters, and tokenizers.
+The built in analyzers, tokenizers, character filters, and token filters are
+registered automatically. 
 
-See <<analysis>> for configuration details.
+See <<analysis>> for more information about configuring and using
+analyzers.

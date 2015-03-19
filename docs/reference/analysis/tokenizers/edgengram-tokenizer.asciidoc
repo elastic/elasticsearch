@@ -1,35 +1,27 @@
 [[analysis-edgengram-tokenizer]]
-=== Edge NGram Tokenizer
+=== Edge Ngram Tokenizer
 
-A tokenizer of type `edgeNGram`.
+The `edgeNgram` is an <<analysis-ngram-tokenizer,n-gram tokenizer>> that only 
+keeps the n-grams that start at the beginning of a token. 
 
-This tokenizer is very similar to `nGram` but only keeps n-grams which
-start at the beginning of a token.
-
-The following are settings that can be set for a `edgeNGram` tokenizer
-type:
+You can configure the following settings for an `edgeNgram` tokenizer:
 
 [cols="<,<,<",options="header",]
 |=======================================================================
-|Setting |Description |Default value
-|`min_gram` |Minimum size in codepoints of a single n-gram |`1`.
-
-|`max_gram` |Maximum size in codepoints of a single n-gram |`2`.
-
-|`token_chars` | Characters classes to keep in the
-tokens, Elasticsearch will split on characters that don't belong to any
-of these classes. |`[]` (Keep all characters)
+|Setting |Description 
+|`min_gram` |Minimum size of a single n-gram, in codepoints. Defaults to `1`.
+|`max_gram` |Maximum size of a single n-gram, in codepoints. Defaults to `2`.
+|`token_chars` | The types of characters to keep in the
+tokens. The `edgeNgram` tokenizer splits on characters that don't belong to any
+of these classes. Specified as an array of character classes. The supported
+character classes are: `letter` (for example `a`, `b`, `ï` or `京`), 
+`digit` (for example,  `3` or `7`),
+`whitespace`  (for example `" "` or `"\n"`), 
+`punctuation` (for example `!` or `"`), 
+`symbol`     (for example `$` or `√`).
+ Defaults to `[]` (Keep all characters).
 |=======================================================================
 
-
-`token_chars` accepts the following character classes:
-
-[horizontal]
-`letter`::      for example `a`, `b`, `ï` or `京`
-`digit`::       for example `3` or `7`
-`whitespace`::  for example `" "` or `"\n"`
-`punctuation`:: for example `!` or `"`
-`symbol`::      for example `$` or `√`
 
 [float]
 ==== Example

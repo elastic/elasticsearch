@@ -1,0 +1,14 @@
+# Configure an analyzer when creating the index.
+PUT /myindex
+{
+    "settings": {
+        "analysis": {
+            "analyzer": {
+                "standard": {
+                    "type": "standard",
+                    "stopwords": "a, an"
+                }
+            }
+        }
+    }
+}

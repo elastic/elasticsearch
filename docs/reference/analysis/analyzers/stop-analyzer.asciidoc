@@ -1,22 +1,44 @@
 [[analysis-stop-analyzer]]
 === Stop Analyzer
 
-An analyzer of type `stop` that is built using a
-<<analysis-lowercase-tokenizer,Lower
-Case Tokenizer>>, with
-<<analysis-stop-tokenfilter,Stop
-Token Filter>>.
+The `stop` analyzer wraps the <<analysis-lowercase-tokenizer, 
+`lowercase`>> tokenizer and the <<analysis-stop-tokenfilter,`stop`  
+>> token filter. The `lowercase` tokenizer splits tokens on 
+non-letter boundaries and converts them to lowercase. The `stop`
+token filter removes tokens that match any of the specified
+stopwords. 
 
-The following are settings that can be set for a `stop` analyzer type:
+You can configure the following settings for a `stop` analyzer:
 
 [cols="<,<",options="header",]
 |=======================================================================
 |Setting |Description
-|`stopwords` |A list of stopwords to initialize the stop filter with.
-Defaults to the english stop words.
-|`stopwords_path` |A path (either relative to `config` location, or
-absolute) to a stopwords file configuration.
+|`stopwords` |A list of stopwords or the name of a predefined list. 
+Defaults to the predefined `_english_` list. 
+Use `stopwords: _none_` to explicitly specify an empty stopword list.
+See <<analysis-stop-tokenfilter>>
+for the available predefined lists.
+|`stopwords_path` |A path to a file that contains a list of stopwords. 
+Can be relative to the `config` location or an absolute path.
 |=======================================================================
 
-Use `stopwords: _none_` to explicitly specify an 'empty' stopword list.
+For example, using the `stop` analyzer to process the string 
+"Let the wild rumpus start! (bit.ly/1wsCiKv)" with the default stop words generates
+the following tokens:
 
+ `let, wild, rumpus, start, bit, ly, wscikv`
+
+[source,js]
+------------------------------------------------------------
+include::../../snippets/analysis/stop-analyzer.json[]
+------------------------------------------------------------
+// SENSE: analysis/stop-analyzer.json
+
+The following example configures custom stopwords for a `stop` analyzer 
+from a file.
+
+[source,js]
+--------------------------------------------------
+include::../../snippets/analysis/configure-stop-analyzer.json[]
+--------------------------------------------------
+// SENSE: analysis/configure-stop-analyzer.json

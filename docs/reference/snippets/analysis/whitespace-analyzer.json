@@ -1,0 +1,3 @@
+# Analyze text with the `whitespace` analyzer
+GET /_analyze?analyzer=whitespace&text=Let the wild 
+rumpus start! (bit.ly/1wsCiKv)

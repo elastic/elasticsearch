@@ -1,0 +1,47 @@
+# Configure a custom Dutch analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "dutch_stop": {
+          "type":       "stop",
+          "stopwords":  "_dutch_" 
+        },
+        "dutch_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   [] 
+        },
+        "dutch_stemmer": {
+          "type":       "stemmer",
+          "language":   "dutch"
+        },
+        "dutch_override": {
+          "type":       "stemmer_override",
+          "rules": [
+            "fiets=>fiets",
+            "bromfiets=>bromfiets",
+            "ei=>eier",
+            "kind=>kinder"
+          ]
+        }
+      },
+      "analyzer": {
+        "dutch_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "dutch_stop",
+            "dutch_keywords",
+            "dutch_override",
+            "dutch_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

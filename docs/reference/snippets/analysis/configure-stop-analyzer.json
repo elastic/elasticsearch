@@ -1,0 +1,18 @@
+# Configure a stop analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+    "settings": {
+        "analysis": {
+            "analyzer": {
+                "my_stop_analyzer": {
+                    "type": "stop",
+                    "stopwords_path": "my_stopwords.txt"
+                }
+            }
+        }
+    }
+}
+
+POST /myindex/_open

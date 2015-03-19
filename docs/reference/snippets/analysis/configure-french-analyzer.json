@@ -1,0 +1,45 @@
+# Configure a custom French analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "french_elision": {
+        "type":         "elision",
+            "articles": [ "l", "m", "t", "qu", "n", "s",
+                          "j", "d", "c", "jusqu", "quoiqu",
+                          "lorsqu", "puisqu"
+                        ]
+        },
+        "french_stop": {
+          "type":       "stop",
+          "stopwords":  "_french_"
+        },
+        "french_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   []
+        },
+        "french_stemmer": {
+          "type":       "stemmer",
+          "language":   "light_french"
+        }
+      },
+      "analyzer": {
+        "french_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "french_elision",
+            "lowercase",
+            "french_stop",
+            "french_keywords",
+            "french_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

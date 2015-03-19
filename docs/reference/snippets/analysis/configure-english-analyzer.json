@@ -1,0 +1,42 @@
+# Configure a custom English analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "english_stop": {
+          "type":       "stop",
+          "stopwords":  "_english_"
+        },
+        "english_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   []
+        },
+        "english_stemmer": {
+          "type":       "stemmer",
+          "language":   "english"
+        },
+        "english_possessive_stemmer": {
+          "type":       "stemmer",
+          "language":   "possessive_english"
+        }
+      },
+      "analyzer": {
+        "english_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "english_possessive_stemmer",
+            "lowercase",
+            "english_stop",
+            "english_keywords",
+            "english_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

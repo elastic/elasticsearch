@@ -1,0 +1,19 @@
+# Configure the default analyzer. Alternatively, you can configure the default_index and default_search analyzers.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+    "settings": {
+        "analysis": {
+            "analyzer": {
+                "default": {
+                    "alias1" : "alias2",
+                    "type": "standard",
+                    "stopwords": "something"
+                }
+            }
+        }
+    }
+}
+
+POST /myindex/_open

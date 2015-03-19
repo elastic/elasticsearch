@@ -1,6 +1,19 @@
 [[analysis-whitespace-analyzer]]
 === Whitespace Analyzer
 
-An analyzer of type `whitespace` that is built using a
-<<analysis-whitespace-tokenizer,Whitespace
-Tokenizer>>.
+The `whitespace` analyzer wraps the <<analysis-whitespace-tokenizer,
+`whitespace`>> tokenizer, which splits tokens only on whitespace boundaries 
+such as spaces and tabs. 
+
+The `whitespace` analyzer has no configurable attributes.
+
+For example, using the `whitespace` analyzer to process the string 
+"Let the wild rumpus start! (bit.ly/1wsCiKv)" generates the following tokens:
+
+ `Let, the, wild, rumpus, start!, (bit.ly/1wsCiKv)`
+
+[source,js]
+------------------------------------------------------------------
+include::../../snippets/analysis/whitespace-analyzer.json[]
+------------------------------------------------------------------
+// SENSE: analysis/whitespace-analyzer.json

@@ -1,0 +1,37 @@
+# Configure a custom Hungarian analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "hungarian_stop": {
+          "type":       "stop",
+          "stopwords":  "_hungarian_"
+        },
+        "hungarian_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   []
+        },
+        "hungarian_stemmer": {
+          "type":       "stemmer",
+          "language":   "hungarian"
+        }
+      },
+      "analyzer": {
+        "hungarian_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "hungarian_stop",
+            "hungarian_keywords",
+            "hungarian_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

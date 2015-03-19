@@ -1,0 +1,38 @@
+# Configure a custom Sorani analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "sorani_stop": {
+          "type":       "stop",
+          "stopwords":  "_sorani_"
+        },
+        "sorani_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   []
+        },
+        "sorani_stemmer": {
+          "type":       "stemmer",
+          "language":   "sorani"
+        }
+      },
+      "analyzer": {
+        "sorani_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "sorani_normalization",
+            "lowercase",
+            "sorani_stop",
+            "sorani_keywords",
+            "sorani_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

@@ -1,0 +1,19 @@
+# Configure aliases for an analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+    "settings": {
+        "analysis": {
+            "analyzer": {
+                "standard-alias": {
+                    "alias1" : "alias2",
+                    "type": "standard",
+                    "stopwords": "a, an"
+                }
+            }
+        }
+    }
+}
+
+POST /myindex/_open

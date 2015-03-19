@@ -1,0 +1,16 @@
+# Add an analyzer with the update settings API
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "analysis": {
+    "analyzer": {
+        "content": {
+            "type": "custom",
+             "tokenizer":"whitespace"
+        }
+    }
+  }
+}
+
+POST /myindex/_open

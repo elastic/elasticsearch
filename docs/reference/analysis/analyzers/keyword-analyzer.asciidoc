@@ -1,7 +1,24 @@
 [[analysis-keyword-analyzer]]
 === Keyword Analyzer
 
-An analyzer of type `keyword` that "tokenizes" an entire stream as a
-single token. This is useful for data like zip codes, ids and so on.
-Note, when using mapping definitions, it might make more sense to simply
-mark the field as `not_analyzed`.
+The `keyword` analyzer simply treats the entire text stream as a
+single token. This is useful for data like zip codes, IDs, and so on.
+Note that you can also simply configure a field as `not_analyzed` in 
+your mappings.
+
+The `keyword` analyzer has no configurable attributes.
+
+For example, using the `keyword` analyzer to process the string 
+"bit.ly/1wsCiKv" generates one token:
+
+`bit.ly/1wsCiKv`
+
+[source,js]
+------------------------------------------------------------
+include::../../snippets/analysis/keyword-analyzer.json[]
+------------------------------------------------------------
+// SENSE: analysis/keyword-analyzer.json
+
+
+
+

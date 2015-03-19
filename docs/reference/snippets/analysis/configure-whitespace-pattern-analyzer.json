@@ -1,0 +1,21 @@
+# Configure a pattern analyzer that tokenizes on whitespace
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+    "settings": {
+        "analysis": {
+            "analyzer": {
+                "my_whitespace_pattern_analyzer": {
+                    "type": "pattern",
+                    "pattern": "\\s+"
+                }
+            }
+        }
+    }
+}
+
+POST /myindex/_open
+
+# Analyze text with my_whitespace_pattern_analyzer
+GET /myindex/_analyze?analyzer=my_whitespace_pattern_analyzer&text=Let the wild rumpus start! (bit.ly/1wsCiKv)

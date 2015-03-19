@@ -1,0 +1,37 @@
+# Configure a custom Swedish analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "swedish_stop": {
+          "type":       "stop",
+          "stopwords":  "_swedish_"
+        },
+        "swedish_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   []
+        },
+        "swedish_stemmer": {
+          "type":       "stemmer",
+          "language":   "swedish"
+        }
+      },
+      "analyzer": {
+        "swedish_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "swedish_stop",
+            "swedish_keywords",
+            "swedish_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

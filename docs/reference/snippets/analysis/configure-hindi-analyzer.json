@@ -1,0 +1,39 @@
+# Configure a custom Hindi analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "hindi_stop": {
+          "type":       "stop",
+          "stopwords":  "_hindi_"
+        },
+        "hindi_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   []
+        },
+        "hindi_stemmer": {
+          "type":       "stemmer",
+          "language":   "hindi"
+        }
+      },
+      "analyzer": {
+        "hindi_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "lowercase",
+            "indic_normalization",
+            "hindi_normalization",
+            "hindi_stop",
+            "hindi_keywords",
+            "hindi_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

@@ -1,0 +1,36 @@
+# Configure a custom Persian analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "char_filter": {
+        "zero_width_spaces": {
+            "type":       "mapping",
+            "mappings": [ "\\u200C=> "]
+        }
+      },
+      "filter": {
+        "persian_stop": {
+          "type":       "stop",
+          "stopwords":  "_persian_"
+        }
+      },
+      "analyzer": {
+        "persian_analyzer": {
+          "tokenizer":     "standard",
+          "char_filter": [ "zero_width_spaces" ],
+          "filter": [
+            "lowercase",
+            "arabic_normalization",
+            "persian_normalization",
+            "persian_stop"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

@@ -1,0 +1,29 @@
+# Configure a custom CJK analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "english_stop": {
+          "type":       "stop",
+          "stopwords":  "_english_"
+        }
+      },
+      "analyzer": {
+        "cjk_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "cjk_width",
+            "lowercase",
+            "cjk_bigram",
+            "english_stop"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

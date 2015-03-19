@@ -1,0 +1,21 @@
+# Configure a pattern analyzer that splits CamelCase words 
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+    "settings": {
+        "analysis": {
+            "analyzer": {
+                "my_camelcase_pattern_analyzer": {
+                    "type": "pattern",
+                    "pattern": "([^\\p{L}\\d]+)|(?<=\\D)(?=\\d)|(?<=\\d)(?=\\D)|(?<=[\\p{L}&&[^\\p{Lu}]])(?=\\p{Lu})|(?<=\\p{Lu})(?=\\p{Lu}[\\p{L}&&[^\\p{Lu}]])"
+                }
+            }
+        }
+    }
+}
+
+POST /myindex/_open
+
+# Analyze text with my_camelcase_pattern_analyzer
+GET /myindex/_analyze?analyzer=my_camelcase_pattern_analyzer&text=LetTheWildRumpusStart! (bit.ly/1wsCiKv)

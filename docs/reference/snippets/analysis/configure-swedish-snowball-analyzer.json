@@ -1,0 +1,19 @@
+# Configure a Swedish Snowball analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+    "settings" : {
+        "analysis" : {
+            "analyzer" : {
+                "swedish_snowball_analyzer" : {
+                    "type" : "snowball",
+                    "language" : "Swedish",
+                    "stopwords" : ["och","det","att"]
+                }
+            }
+        }
+    }
+}
+
+POST /myindex/_open

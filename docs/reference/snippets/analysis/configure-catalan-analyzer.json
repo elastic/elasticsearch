@@ -1,0 +1,42 @@
+# Configure a custom Catalan analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "filter": {
+        "catalan_elision": {
+        "type":         "elision",
+            "articles": [ "d", "l", "m", "n", "s", "t"]
+        },
+        "catalan_stop": {
+          "type":       "stop",
+          "stopwords":  "_catalan_"
+        },
+        "catalan_keywords": {
+          "type":       "keyword_marker",
+          "keywords":   []
+        },
+        "catalan_stemmer": {
+          "type":       "stemmer",
+          "language":   "catalan"
+        }
+      },
+      "analyzer": {
+        "catalan_analyzer": {
+          "tokenizer":  "standard",
+          "filter": [
+            "catalan_elision",
+            "lowercase",
+            "catalan_stop",
+            "catalan_keywords",
+            "catalan_stemmer"
+          ]
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open

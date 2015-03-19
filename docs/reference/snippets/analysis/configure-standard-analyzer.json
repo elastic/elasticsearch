@@ -1,0 +1,19 @@
+# Configure the standard analyzer.
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+    "settings": {
+        "analysis": {
+            "analyzer": {
+                "standard": {
+                    "type": "standard",
+                    "stopwords": "a, an",
+                     "max_token_length" : 80
+                }
+            }
+        }
+    }
+}
+
+POST /myindex/_open

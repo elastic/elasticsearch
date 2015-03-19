@@ -1,68 +1,35 @@
 [[analysis]]
-= Analysis
+= Text Analysis
 
 [partintro]
 --
-The index analysis module acts as a configurable registry of Analyzers
-that can be used in order to both break indexed (analyzed) fields when a
-document is indexed and process query strings. It maps to the Lucene
-`Analyzer`.
+An Elasticsearch index maps _terms_ to the documents in which they occur. To
+improve search results, most text fields are analyzed to
+determine what terms should be stored in the index. Similarly, at search time,
+the search query is analyzed to determine what terms to look up in the index.
 
+This text analysis process is performed by an _analyzer_. An analyzer breaks the
+text in a field down into individual terms and normalizes the terms so they can
+be stored in a standard form that facilitates matching and increases
+search result accuracy. For example, terms might be converted to lowercase and
+filtered to remove commonly-occuring or insignificant terms. Elasticsearch
+analyzers map to the
+https://lucene.apache.org/core/4_3_0/core/org/apache/lucene/analysis/Analyzer.html[Analyzer] class in Lucene.
 
-Analyzers are composed of a single <<analysis-tokenizers,Tokenizer>> 
-and zero or more <<analysis-tokenfilters,TokenFilters>>. The tokenizer may 
-be preceded by one or more <<analysis-charfilters,CharFilters>>. The
-analysis module allows one to register `TokenFilters`, `Tokenizers` and
-`Analyzers` under logical names that can then be referenced either in
-mapping definitions or in certain APIs. The Analysis module
-automatically registers (*if not explicitly defined*) built in
-analyzers, token filters, and tokenizers.
+Elasticsearch provides several ready-to-use analyzers. By default, the
+<<analysis-standard-analyzer, `standard`>> analyzer is used to split text
+on word boundaries, convert the tokens to lowercase, and remove stopwords. While
+the `standard` analyzer is a good choice for most Western languages, if you are
+indexing content that's in a particular language or need more control over the
+analysis process, you can use a different analyzer or configure a custom analyzer.
 
-Here is a sample configuration:
+You can configure analyzers on a per-index basis in the index settings.
+You control which analyzer is used to process each text field by specifying an
+analyzer in the field <<mapping, mapping>>. Similarly, you can specify which
+analyzer you want to use when you submit a <<search, search>> query. Normally, you want to
+use the same analyzer for both indexing and searching.
 
-[source,js]
---------------------------------------------------
-index :
-    analysis :
-        analyzer : 
-            standard : 
-                type : standard
-                stopwords : [stop1, stop2]
-            myAnalyzer1 :
-                type : standard
-                stopwords : [stop1, stop2, stop3]
-                max_token_length : 500
-            # configure a custom analyzer which is 
-            # exactly like the default standard analyzer
-            myAnalyzer2 :
-                tokenizer : standard
-                filter : [standard, lowercase, stop]
-        tokenizer :
-            myTokenizer1 :
-                type : standard
-                max_token_length : 900
-            myTokenizer2 :
-                type : keyword
-                buffer_size : 512
-        filter :
-            myTokenFilter1 :
-                type : stop
-                stopwords : [stop1, stop2, stop3, stop4]
-            myTokenFilter2 :
-                type : length
-                min : 0
-                max : 2000
---------------------------------------------------
-
-[float]
-[[backwards-compatibility]]
-=== Backwards compatibility
-
-All analyzers, tokenizers, and token filters can be configured with a
-`version` parameter to control which Lucene version behavior they should
-use. Possible values are: `3.0` - `3.6`, `4.0` - `4.3` (the highest
-version number is the default option).
-
+For more information about configuring and using analyzers, see <<analysis-analyzers, Analyzers>>.
 --
 
 include::analysis/analyzers.asciidoc[]
@@ -74,4 +41,3 @@ include::analysis/tokenfilters.asciidoc[]
 include::analysis/charfilters.asciidoc[]
 
 include::analysis/icu-plugin.asciidoc[]
-

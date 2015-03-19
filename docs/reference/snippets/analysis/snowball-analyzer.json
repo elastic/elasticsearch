@@ -1,0 +1,1 @@
+GET /_analyze?analyzer=snowball&text=There is no way that writers can be tamed and rendered civilized

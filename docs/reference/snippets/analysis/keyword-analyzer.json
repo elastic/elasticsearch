@@ -1,0 +1,2 @@
+# Analyze text with the `keyword` analyzer
+GET /_analyze?analyzer=keyword&text=bit.ly/1wsCiKv

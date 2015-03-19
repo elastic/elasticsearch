@@ -32,7 +32,7 @@ commands is:
 --------------------------------------------------
 {
     "_indices" : {
-        "twitter" : { 
+        "twitter" : {
             "_shards" : {
                 "total" : 5,
                 "successful" : 5,
@@ -129,6 +129,8 @@ executed on.
 [float]
 [[replication-type]]
 === Replication Type
+
+deprecated[1.5.0, The ability to specify `async` replication is deprecated and will be removed in version 2.0.0]
 
 The replication of the operation can be done in an asynchronous manner
 to the replicas (the operation will return once it has be executed on

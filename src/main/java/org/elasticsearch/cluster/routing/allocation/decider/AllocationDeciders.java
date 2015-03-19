@@ -157,4 +157,23 @@ public class AllocationDeciders extends AllocationDecider {
         }
         return ret;
     }
+
+    @Override
+    public Decision canRebalance(RoutingAllocation allocation) {
+        Decision.Multi ret = new Decision.Multi();
+        for (AllocationDecider allocationDecider : allocations) {
+            Decision decision = allocationDecider.canRebalance(allocation);
+            // short track if a NO is returned.
+            if (decision == Decision.NO) {
+                if (!allocation.debugDecision()) {
+                    return decision;
+                } else {
+                    ret.add(decision);
+                }
+            } else if (decision != Decision.ALWAYS) {
+                ret.add(decision);
+            }
+        }
+        return ret;
+    }
 }

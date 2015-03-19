@@ -20,7 +20,6 @@ package org.elasticsearch.index.store;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Lists;
 import com.carrotsearch.randomizedtesting.LifecycleScope;
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Charsets;
 import com.google.common.base.Predicate;
@@ -51,7 +50,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
@@ -123,19 +121,13 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         }
         assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(3));
 
-        final boolean failOnCorruption = randomBoolean();
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
                         .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
                         .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
-                        .put(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, failOnCorruption)
                         .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
                         .put("indices.recovery.concurrent_streams", 10)
         ));
-        if (failOnCorruption == false) { // test the dynamic setting
-            client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
-                    .put(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, true)).get();
-        }
         ensureGreen();
         disableAllocation("test");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
@@ -238,7 +230,6 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                         .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
                         .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
-                        .put(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, true)
                         .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
                         .put("indices.recovery.concurrent_streams", 10)
         ));
@@ -323,7 +314,6 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                        .put(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, true)
                         .put("index.routing.allocation.include._name", primariesNode.getNode().name())
                         .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)
 
@@ -387,7 +377,6 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(1, 4)) // don't go crazy here it must recovery fast
-                        .put(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, true)
                                 // This does corrupt files on the replica, so we can't check:
                         .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
                         .put("index.routing.allocation.include._name", primariesNode.getNode().name())
@@ -415,7 +404,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
                         if (truncate && req.length() > 1) {
                             BytesArray array = new BytesArray(req.content().array(), req.content().arrayOffset(), (int) req.length() - 1);
-                            request = new RecoveryFileChunkRequest(req.recoveryId(), req.shardId(), req.metadata(), req.position(), array, req.lastChunk());
+                            request = new RecoveryFileChunkRequest(req.recoveryId(), req.shardId(), req.metadata(), req.position(), array, req.lastChunk(), req.totalTranslogOps());
                         } else {
                             byte[] array = req.content().array();
                             int i = randomIntBetween(0, req.content().length() - 1);
@@ -472,7 +461,6 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                         .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0") // no replicas for this test
                         .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
                         .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
-                        .put(EngineConfig.INDEX_FAIL_ON_CORRUPTION_SETTING, true)
                         .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
                         .put("indices.recovery.concurrent_streams", 10)
         ));

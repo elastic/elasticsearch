@@ -20,14 +20,20 @@
 package org.elasticsearch.index.mapper.ip;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.bootstrap.Elasticsearch;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
@@ -74,6 +80,47 @@ public class SimpleIpMappingTests extends ElasticsearchSingleNodeTest {
             fail("Expected ip address parsing to fail but did not happen");
         } catch (ElasticsearchIllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("not a valid ipv4 address"));
+        }
+    }
+
+    @Test
+    public void testIgnoreMalformedOption() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties").startObject("field1")
+                .field("type", "ip").field("ignore_malformed", true).endObject().startObject("field2").field("type", "ip")
+                .field("ignore_malformed", false).endObject().startObject("field3").field("type", "ip").endObject().endObject().endObject()
+                .endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        ParsedDocument doc = defaultMapper.parse("type", "1",
+                XContentFactory.jsonBuilder().startObject().field("field1", "").field("field2", "10.20.30.40").endObject().bytes());
+        assertThat(doc.rootDoc().getField("field1"), nullValue());
+        assertThat(doc.rootDoc().getField("field2"), notNullValue());
+
+        try {
+            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject().field("field2", "").endObject().bytes());
+        } catch (MapperParsingException e) {
+            assertThat(e.getCause(), instanceOf(ElasticsearchIllegalArgumentException.class));
+        }
+
+        // Verify that the default is false
+        try {
+            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject().field("field3", "").endObject().bytes());
+        } catch (MapperParsingException e) {
+            assertThat(e.getCause(), instanceOf(ElasticsearchIllegalArgumentException.class));
+        }
+
+        // Unless the global ignore_malformed option is set to true
+        Settings indexSettings = settingsBuilder().put("index.mapping.ignore_malformed", true).build();
+        defaultMapper = createIndex("test2", indexSettings).mapperService().documentMapperParser().parse(mapping);
+        doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject().field("field3", "").endObject().bytes());
+        assertThat(doc.rootDoc().getField("field3"), nullValue());
+
+        // This should still throw an exception, since field2 is specifically set to ignore_malformed=false
+        try {
+            defaultMapper.parse("type", "1", XContentFactory.jsonBuilder().startObject().field("field2", "").endObject().bytes());
+        } catch (MapperParsingException e) {
+            assertThat(e.getCause(), instanceOf(ElasticsearchIllegalArgumentException.class));
         }
     }
 

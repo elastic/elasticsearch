@@ -77,6 +77,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     public static final String SETTING_PIPELINING_MAX_EVENTS = "http.pipelining.max_events";
     public static final String SETTING_HTTP_COMPRESSION = "http.compression";
     public static final String SETTING_HTTP_COMPRESSION_LEVEL = "http.compression_level";
+    public static final String SETTING_HTTP_DETAILED_ERRORS_ENABLED = "http.detailed_errors.enabled";
 
     public static final boolean DEFAULT_SETTING_PIPELINING = true;
     public static final int DEFAULT_SETTING_PIPELINING_MAX_EVENTS = 10000;
@@ -108,6 +109,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     protected final String bindHost;
 
     protected final String publishHost;
+
+    protected final boolean detailedErrorsEnabled;
 
     protected int publishPort;
 
@@ -162,6 +165,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.reuseAddress = settings.getAsBoolean("http.netty.reuse_address", settings.getAsBoolean(TCP_REUSE_ADDRESS, NetworkUtils.defaultReuseAddress()));
         this.tcpSendBufferSize = settings.getAsBytesSize("http.netty.tcp_send_buffer_size", settings.getAsBytesSize(TCP_SEND_BUFFER_SIZE, TCP_DEFAULT_SEND_BUFFER_SIZE));
         this.tcpReceiveBufferSize = settings.getAsBytesSize("http.netty.tcp_receive_buffer_size", settings.getAsBytesSize(TCP_RECEIVE_BUFFER_SIZE, TCP_DEFAULT_RECEIVE_BUFFER_SIZE));
+        this.detailedErrorsEnabled = settings.getAsBoolean(SETTING_HTTP_DETAILED_ERRORS_ENABLED, true);
 
         long defaultReceiverPredictor = 512 * 1024;
         if (JvmInfo.jvmInfo().mem().directMemoryMax().bytes() > 0) {
@@ -349,7 +353,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     }
 
     public ChannelPipelineFactory configureServerChannelPipelineFactory() {
-        return new HttpChannelPipelineFactory(this);
+        return new HttpChannelPipelineFactory(this, detailedErrorsEnabled);
     }
 
     protected static class HttpChannelPipelineFactory implements ChannelPipelineFactory {
@@ -357,9 +361,9 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         protected final NettyHttpServerTransport transport;
         protected final HttpRequestHandler requestHandler;
 
-        public HttpChannelPipelineFactory(NettyHttpServerTransport transport) {
+        public HttpChannelPipelineFactory(NettyHttpServerTransport transport, boolean detailedErrorsEnabled) {
             this.transport = transport;
-            this.requestHandler = new HttpRequestHandler(transport);
+            this.requestHandler = new HttpRequestHandler(transport, detailedErrorsEnabled);
         }
 
         @Override

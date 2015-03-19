@@ -80,4 +80,13 @@ public abstract class AllocationDecider extends AbstractComponent {
     public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
         return Decision.ALWAYS;
     }
+
+    /**
+     * Returns a {@link Decision} whether the cluster can execute
+     * re-balanced operations at all.
+     * {@link Decision#ALWAYS}.
+     */
+    public Decision canRebalance(RoutingAllocation allocation) {
+        return Decision.ALWAYS;
+    }
 }

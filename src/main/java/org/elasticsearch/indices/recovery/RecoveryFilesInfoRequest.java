@@ -41,17 +41,20 @@ class RecoveryFilesInfoRequest extends TransportRequest {
     List<String> phase1ExistingFileNames;
     List<Long> phase1ExistingFileSizes;
 
+    int totalTranslogOps;
+
     RecoveryFilesInfoRequest() {
     }
 
     RecoveryFilesInfoRequest(long recoveryId, ShardId shardId, List<String> phase1FileNames, List<Long> phase1FileSizes,
-                             List<String> phase1ExistingFileNames, List<Long> phase1ExistingFileSizes) {
+                             List<String> phase1ExistingFileNames, List<Long> phase1ExistingFileSizes, int totalTranslogOps) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.phase1FileNames = phase1FileNames;
         this.phase1FileSizes = phase1FileSizes;
         this.phase1ExistingFileNames = phase1ExistingFileNames;
         this.phase1ExistingFileSizes = phase1ExistingFileSizes;
+        this.totalTranslogOps = totalTranslogOps;
     }
 
     public long recoveryId() {
@@ -90,6 +93,7 @@ class RecoveryFilesInfoRequest extends TransportRequest {
         for (int i = 0; i < size; i++) {
             phase1ExistingFileSizes.add(in.readVLong());
         }
+        totalTranslogOps = in.readVInt();
     }
 
     @Override
@@ -117,5 +121,6 @@ class RecoveryFilesInfoRequest extends TransportRequest {
         for (Long phase1ExistingFileSize : phase1ExistingFileSizes) {
             out.writeVLong(phase1ExistingFileSize);
         }
+        out.writeVInt(totalTranslogOps);
     }
 }

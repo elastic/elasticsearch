@@ -333,7 +333,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             }
             final RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned().transactionBegin();
             boolean changed = initialize(routingNodes, unassigned);
-            if (!changed) {
+            if (!changed && allocation.deciders().canRebalance(allocation).type() == Type.YES) {
                 NodeSorter sorter = newNodeSorter();
                 if (nodes.size() > 1) { /* skip if we only have one node */
                     for (String index : buildWeightOrderedIndidces(Operation.BALANCE, sorter)) {

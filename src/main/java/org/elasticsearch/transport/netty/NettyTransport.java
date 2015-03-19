@@ -19,6 +19,7 @@
 
 package org.elasticsearch.transport.netty;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Lists;
@@ -220,59 +221,64 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        clientBootstrap = createClientBootstrap();
+        boolean success = false;
+        try {
+            clientBootstrap = createClientBootstrap();
+            if (settings.getAsBoolean("network.server", true)) {
+                final OpenChannelsHandler openChannels = new OpenChannelsHandler(logger);
+                this.serverOpenChannels = openChannels;
 
-        if (!settings.getAsBoolean("network.server", true)) {
-            return;
-        }
-
-        final OpenChannelsHandler openChannels = new OpenChannelsHandler(logger);
-        this.serverOpenChannels = openChannels;
-
-        // extract default profile first and create standard bootstrap
-        Map<String, Settings> profiles = settings.getGroups("transport.profiles", true);
-        if (!profiles.containsKey(DEFAULT_PROFILE)) {
-            profiles = Maps.newHashMap(profiles);
-            profiles.put(DEFAULT_PROFILE, ImmutableSettings.EMPTY);
-        }
-
-        Settings fallbackSettings = createFallbackSettings();
-        Settings defaultSettings = profiles.get(DEFAULT_PROFILE);
-
-        // loop through all profiles and strart them app, special handling for default one
-        for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
-            Settings profileSettings = entry.getValue();
-            String name = entry.getKey();
-
-            if (DEFAULT_PROFILE.equals(name)) {
-                profileSettings = settingsBuilder()
-                        .put(profileSettings)
-                        .put("port", profileSettings.get("port", settings.get("port", this.settings.get("transport.tcp.port", DEFAULT_PORT_RANGE))))
-                        .build();
-            } else {
-                // if profile does not have a port, skip it
-                if (profileSettings.get("port") == null) {
-                    logger.info("No port configured for profile [{}], not binding", name);
-                    continue;
+                // extract default profile first and create standard bootstrap
+                Map<String, Settings> profiles = settings.getGroups("transport.profiles", true);
+                if (!profiles.containsKey(DEFAULT_PROFILE)) {
+                    profiles = Maps.newHashMap(profiles);
+                    profiles.put(DEFAULT_PROFILE, ImmutableSettings.EMPTY);
                 }
+
+                Settings fallbackSettings = createFallbackSettings();
+                Settings defaultSettings = profiles.get(DEFAULT_PROFILE);
+
+                // loop through all profiles and strart them app, special handling for default one
+                for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
+                    Settings profileSettings = entry.getValue();
+                    String name = entry.getKey();
+
+                    if (DEFAULT_PROFILE.equals(name)) {
+                        profileSettings = settingsBuilder()
+                                .put(profileSettings)
+                                .put("port", profileSettings.get("port", this.settings.get("transport.tcp.port", DEFAULT_PORT_RANGE)))
+                                .build();
+                    } else {
+                        // if profile does not have a port, skip it
+                        if (profileSettings.get("port") == null) {
+                            logger.info("No port configured for profile [{}], not binding", name);
+                            continue;
+                        }
+                    }
+
+                    // merge fallback settings with default settings with profile settings so we have complete settings with default values
+                    Settings mergedSettings = settingsBuilder()
+                            .put(fallbackSettings)
+                            .put(defaultSettings)
+                            .put(profileSettings)
+                            .build();
+
+                    createServerBootstrap(name, mergedSettings);
+                    bindServerBootstrap(name, mergedSettings);
+                }
+
+                InetSocketAddress boundAddress = (InetSocketAddress) serverChannels.get(DEFAULT_PROFILE).getLocalAddress();
+                int publishPort = settings.getAsInt("transport.netty.publish_port", settings.getAsInt("transport.publish_port", boundAddress.getPort()));
+                String publishHost = settings.get("transport.netty.publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
+                InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
+                this.boundAddress = new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress));
             }
-
-            // merge fallback settings with default settings with profile settings so we have complete settings with default values
-            Settings mergedSettings = settingsBuilder()
-                    .put(fallbackSettings)
-                    .put(defaultSettings)
-                    .put(profileSettings)
-                    .build();
-
-            createServerBootstrap(name, mergedSettings);
-            bindServerBootstrap(name, mergedSettings);
+            success = true;
+        } finally {
+            if (success == false) {
+                doStop();
+            }
         }
-
-        InetSocketAddress boundAddress = (InetSocketAddress) serverChannels.get(DEFAULT_PROFILE).getLocalAddress();
-        int publishPort = settings.getAsInt("transport.netty.publish_port", settings.getAsInt("transport.publish_port", boundAddress.getPort()));
-        String publishHost = settings.get("transport.netty.publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
-        InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
-        this.boundAddress = new BoundTransportAddress(new InetSocketTransportAddress(boundAddress), new InetSocketTransportAddress(publishAddress));
     }
 
     @Override
@@ -604,6 +610,18 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             // close the channel as safe measure, which will cause a node to be disconnected if relevant
             ctx.getChannel().close();
             disconnectFromNodeChannel(ctx.getChannel(), e.getCause());
+        } else if (e.getCause() instanceof SizeHeaderFrameDecoder.HttpOnTransportException) {
+            // in case we are able to return data, serialize the exception content and sent it back to the client
+            if (ctx.getChannel().isOpen()) {
+                ChannelBuffer buffer = ChannelBuffers.wrappedBuffer(e.getCause().getMessage().getBytes(Charsets.UTF_8));
+                ChannelFuture channelFuture = ctx.getChannel().write(buffer);
+                channelFuture.addListener(new ChannelFutureListener() {
+                    @Override
+                    public void operationComplete(ChannelFuture future) throws Exception {
+                        future.getChannel().close();
+                    }
+                });
+            }
         } else {
             logger.warn("exception caught on transport layer [{}], closing connection", e.getCause(), ctx.getChannel());
             // close the channel, which will cause a node to be disconnected if relevant

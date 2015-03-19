@@ -64,9 +64,6 @@ settings API:
 `index.index_concurrency`::
     experimental[] Defaults to `8`.
 
-`index.fail_on_merge_failure`::
-    experimental[] Default to `true`.
-
 `index.translog.flush_threshold_ops`::
     When to flush based on operations.
 

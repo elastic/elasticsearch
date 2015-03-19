@@ -163,12 +163,10 @@ public class InnerHitsParseElement implements SearchParseElement {
         if (!childObjectMapper.nested().isNested()) {
             throw new ElasticsearchIllegalArgumentException("path [" + nestedPath +"] isn't nested");
         }
-        DocumentMapper childDocumentMapper = smartNameObjectMapper.docMapper();
-        parseContext.nestedScope().nextLevel(childObjectMapper);
+        ObjectMapper parentObjectMapper = parseContext.nestedScope().nextLevel(childObjectMapper);
         ParseResult parseResult = parseSubSearchContext(searchContext, parseContext, parser);
         parseContext.nestedScope().previousLevel();
 
-        ObjectMapper parentObjectMapper = childDocumentMapper.findParentObjectMapper(childObjectMapper);
         return new InnerHitsContext.NestedInnerHits(parseResult.context(), parseResult.query(), parseResult.childInnerHits(), parentObjectMapper, childObjectMapper);
     }
 

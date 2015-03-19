@@ -22,6 +22,8 @@ package org.elasticsearch.search.geo;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
@@ -485,14 +487,13 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
                 .endObject().endObject().string();
 
         assertAcked(prepareCreate(idxName+"2").addMapping("shape", mapping));
-        ensureGreen();
+        ensureGreen(idxName, idxName+"2");
 
-        // test mapper persistence through restart
         internalCluster().fullRestart();
-        ensureGreen();
+        ensureGreen(idxName, idxName+"2");
 
         // left orientation test
-        IndicesService indicesService = internalCluster().getInstance(IndicesService.class);
+        IndicesService indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName));
         IndexService indexService = indicesService.indexService(idxName);
         FieldMapper fieldMapper = indexService.mapperService().smartNameFieldMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
@@ -504,7 +505,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
 
         // right orientation test
-        indicesService = internalCluster().getInstance(IndicesService.class);
+        indicesService = internalCluster().getInstance(IndicesService.class, findNodeName(idxName+"2"));
         indexService = indicesService.indexService(idxName+"2");
         fieldMapper = indexService.mapperService().smartNameFieldMapper("location");
         assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
@@ -514,5 +515,12 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
         assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
+    }
+
+    private String findNodeName(String index) {
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        IndexShardRoutingTable shard = state.getRoutingTable().index(index).shard(0);
+        String nodeId = shard.assignedShards().get(0).currentNodeId();
+        return state.getNodes().get(nodeId).name();
     }
 }

@@ -61,6 +61,16 @@ setup:
   - is_true: indices.test2
 
 ---
+"Index - star, no match":
+  - do:
+      indices.stats: { index: 'bla*' }
+
+  - match: { _shards.total: 0 }
+  - is_true: _all
+  - is_false: indices.test1
+  - is_false: indices.test2
+
+---
 "Index - one index":
   - do:
       indices.stats: { index: 'test1' }

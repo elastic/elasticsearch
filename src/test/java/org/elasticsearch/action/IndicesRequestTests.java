@@ -44,10 +44,8 @@ import org.elasticsearch.action.admin.indices.optimize.OptimizeAction;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
-import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
@@ -124,7 +122,6 @@ import static org.hamcrest.Matchers.*;
 public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
     private final List<String> indices = new ArrayList<>();
-    private int totalNumShards = 0;
 
     @Override
     protected int minimumNumberOfShards() {
@@ -155,10 +152,8 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         }
         for (String index : indices) {
             assertAcked(prepareCreate(index).addAlias(new Alias(index + "-alias")));
-            this.totalNumShards += getNumShards(index).totalNumShards;
         }
         ensureGreen();
-
     }
 
     @After
@@ -439,24 +434,6 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
         clearInterceptedActions();
         assertSameIndices(refreshRequest, refreshShardAction);
-
-        refreshRequest = new RefreshRequest("v*");
-        RefreshResponse response = internalCluster().clientNodeClient().admin().indices().refresh(refreshRequest).actionGet();
-
-        clearInterceptedActions();
-        assertThat("'v*' should not match any indices, so no shard should be returned", response.getTotalShards(), equalTo(0));
-
-        refreshRequest = new RefreshRequest("_all");
-        response = internalCluster().clientNodeClient().admin().indices().refresh(refreshRequest).actionGet();
-
-        clearInterceptedActions();
-        assertThat("'_all' should match any index, so all shards should be returned", response.getTotalShards(), equalTo(this.totalNumShards));
-
-        refreshRequest = new RefreshRequest(Strings.EMPTY_ARRAY);
-        response = internalCluster().clientNodeClient().admin().indices().refresh(refreshRequest).actionGet();
-
-        clearInterceptedActions();
-        assertThat("Empty index arrays should match any index, so all shards should be returned", response.getTotalShards(), equalTo(this.totalNumShards));
     }
 
     @Test
@@ -481,12 +458,6 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
         clearInterceptedActions();
         assertSameIndices(recoveryRequest, recoveryAction);
-
-        recoveryRequest = new RecoveryRequest("v*");
-        RecoveryResponse response = internalCluster().clientNodeClient().admin().indices().recoveries(recoveryRequest).actionGet();
-
-        clearInterceptedActions();
-        assertThat("'v*' should not match any indices, so no shard should be returned", response.getTotalShards(), equalTo(0));
     }
 
     @Test
@@ -511,12 +482,6 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
         clearInterceptedActions();
         assertSameIndices(indicesStatsRequest, indicesStats);
-
-        indicesStatsRequest = new IndicesStatsRequest().indices("v*");
-        IndicesStatsResponse response = internalCluster().clientNodeClient().admin().indices().stats(indicesStatsRequest).actionGet();
-
-        clearInterceptedActions();
-        assertThat("'v*' should not match any indices, so no shard should be returned", response.getTotalShards(), equalTo(0));
     }
 
     @Test
@@ -944,8 +909,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         private final Map<String, List<TransportRequest>> requests = new HashMap<>();
 
         @Inject
-        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool,
-                                            NodeSettingsService nodeSettingsService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
+        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
             super(settings, transport, threadPool);
         }
 

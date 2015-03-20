@@ -74,9 +74,15 @@ public class XContentFactoryTests extends ElasticsearchTestCase {
     }
 
     public void testCBORBasedOnMajorObjectDetection() {
-        // for this {"foo"=> 5} perl encoder for example generates:
-        byte[] bytes = new byte[] {(byte) 0xA1, (byte) 0x43, (byte) 0x66, (byte) 6f, (byte) 6f, (byte) 5};
+        // for this {"f "=> 5} perl encoder for example generates:
+        byte[] bytes = new byte[] {(byte) 0xA1, (byte) 0x43, (byte) 0x66, (byte) 6f, (byte) 6f, (byte) 0x5};
         assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.CBOR));
+        //assertThat(((Number) XContentHelper.convertToMap(bytes, true).v2().get("foo")).intValue(), equalTo(5));
+
+        // this if for {"foo" : 5} in python CBOR
+        bytes = new byte[] {(byte) 0xA1, (byte) 0x63, (byte) 0x66, (byte) 0x6f, (byte) 0x6f, (byte) 0x5};
+        assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.CBOR));
+        assertThat(((Number) XContentHelper.convertToMap(bytes, true).v2().get("foo")).intValue(), equalTo(5));
 
         // also make sure major type check doesn't collide with SMILE and JSON, just in case
         assertThat(CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, SmileConstants.HEADER_BYTE_1), equalTo(false));

@@ -62,7 +62,7 @@ public class XContentFactoryTests extends ElasticsearchTestCase {
 
         assertThat(XContentFactory.xContentType(builder.bytes()), equalTo(type));
         BytesArray bytesArray = builder.bytes().toBytesArray();
-        assertThat(XContentFactory.xContentType(new BytesStreamInput(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length(), false)), equalTo(type));
+        assertThat(XContentFactory.xContentType(new BytesStreamInput(bytesArray.array(), bytesArray.arrayOffset(), bytesArray.length())), equalTo(type));
 
         // CBOR is binary, cannot use String
         if (type != XContentType.CBOR) {

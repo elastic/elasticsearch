@@ -19,7 +19,21 @@ package org.elasticsearch.common.lucene.index;
  * under the License.
  */
 
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
+import org.apache.lucene.index.Fields;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.index.Terms;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FilterIterator;
@@ -45,9 +59,14 @@ import java.util.Set;
 public final class FieldSubsetReader extends FilterLeafReader {
     
     /**
-     * Wraps a provided DirectoryReader. Note that for convenience, the returned reader
+     * Wraps a provided DirectoryReader, exposing a subset of fields. 
+     * <p>
+     * Note that for convenience, the returned reader
      * can be used normally (e.g. passed to {@link DirectoryReader#openIfChanged(DirectoryReader)})
      * and so on. 
+     * @param in reader to filter
+     * @param indexedFieldNames fields (lucene index names) to filter.
+     * @param fullFieldNames fields (es full names) to filter, used for _source.
      */
     public static DirectoryReader wrap(DirectoryReader in, Set<String> indexedFieldNames, Set<String> fullFieldNames) throws IOException {
         return new FieldSubsetDirectoryReader(in, indexedFieldNames, fullFieldNames);
@@ -58,7 +77,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
         final Set<String> fields;
         final Set<String> fullFieldNames;
         
-        public FieldSubsetDirectoryReader(DirectoryReader in, final Set<String> fields, final Set<String> fullFieldNames) throws IOException  {
+        FieldSubsetDirectoryReader(DirectoryReader in, final Set<String> fields, final Set<String> fullFieldNames) throws IOException  {
             super(in, new FilterDirectoryReader.SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
@@ -81,11 +100,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
     private final String[] fullFieldNames;
     
     /**
-     * Create a new FieldSubsetReader.
-     * 
-     * @param in reader to filter
-     * @param fields fields (lucene index names) to filter.
-     * @param fullFieldNames fields (es full names) to filter, used for _source.
+     * Wrap a single segment, exposing a subset of its fields.
      */
     FieldSubsetReader(LeafReader in, Set<String> fields, Set<String> fullFieldNames) {
         super(in);

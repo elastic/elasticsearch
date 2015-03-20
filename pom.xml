@@ -64,6 +64,11 @@
                     <groupId>edu.ucar</groupId>
                     <artifactId>netcdf</artifactId>
                 </exclusion>
+                <!-- Not Apache2 License compatible -->
+                <exclusion>
+                    <groupId>com.uwyn</groupId>
+                    <artifactId>jhighlight</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
 

@@ -131,6 +131,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
             @Override
             public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
                 if (SourceFieldMapper.NAME.equals(fieldInfo.name)) {
+                    // for _source, parse, filter out the fields we care about, and serialize back downstream
                     Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(value, true);
                     Map<String, Object> transformedSource = XContentMapValues.filter(result.v2(), fullFieldNames, null);
                     XContentBuilder xContentBuilder = XContentBuilder.builder(result.v1().xContent()).map(transformedSource);
@@ -273,6 +274,10 @@ public final class FieldSubsetReader extends FilterLeafReader {
         }
     }
     
+    /**
+     * Terms impl for _field_names (used by exists filter) that filters out terms
+     * representing fields that should not be visible in this reader.
+     */
     static class FieldSubsetTerms extends FilterTerms {
         final FieldInfos infos;
         
@@ -307,6 +312,10 @@ public final class FieldSubsetReader extends FilterLeafReader {
         }
     }
     
+    /**
+     * TermsEnum impl for _field_names (used by exists filter) that filters out terms
+     * representing fields that should not be visible in this reader.
+     */
     static class FieldSubsetTermsEnum extends FilterTermsEnum {
         final FieldInfos infos;
         

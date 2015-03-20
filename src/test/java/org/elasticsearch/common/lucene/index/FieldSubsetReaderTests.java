@@ -46,6 +46,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
 import org.elasticsearch.test.ElasticsearchLuceneTestCase;
@@ -84,6 +85,7 @@ public class FieldSubsetReaderTests extends ElasticsearchLuceneTestCase {
         }
         assertEquals(Collections.singleton("fieldA"), seenFields);
         
+        TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
     
@@ -110,6 +112,7 @@ public class FieldSubsetReaderTests extends ElasticsearchLuceneTestCase {
         assertEquals(1, d2.getFields().size());
         assertEquals("testA", d2.get("fieldA"));
         
+        TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
     
@@ -141,6 +144,7 @@ public class FieldSubsetReaderTests extends ElasticsearchLuceneTestCase {
         }
         assertEquals(Collections.singleton("fieldA"), seenFields);
         
+        TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
     
@@ -167,6 +171,7 @@ public class FieldSubsetReaderTests extends ElasticsearchLuceneTestCase {
         assertNotNull(segmentReader.getNormValues("fieldA"));
         assertNull(segmentReader.getNormValues("fieldB"));
         
+        TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
     
@@ -194,6 +199,7 @@ public class FieldSubsetReaderTests extends ElasticsearchLuceneTestCase {
         assertEquals(1, segmentReader.getNumericDocValues("fieldA").get(0));
         assertNull(segmentReader.getNumericDocValues("fieldB"));
         
+        TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
     
@@ -220,7 +226,8 @@ public class FieldSubsetReaderTests extends ElasticsearchLuceneTestCase {
         assertNotNull(segmentReader.getBinaryDocValues("fieldA"));
         assertEquals(new BytesRef("testA"), segmentReader.getBinaryDocValues("fieldA").get(0));
         assertNull(segmentReader.getBinaryDocValues("fieldB"));
-        
+
+        TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
     
@@ -248,6 +255,7 @@ public class FieldSubsetReaderTests extends ElasticsearchLuceneTestCase {
         assertEquals(new BytesRef("testA"), segmentReader.getSortedDocValues("fieldA").get(0));
         assertNull(segmentReader.getSortedDocValues("fieldB"));
         
+        TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
     
@@ -279,6 +287,7 @@ public class FieldSubsetReaderTests extends ElasticsearchLuceneTestCase {
         assertEquals(new BytesRef("testA"), dv.lookupOrd(0));
         assertNull(segmentReader.getSortedSetDocValues("fieldB"));
         
+        TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
     
@@ -309,6 +318,7 @@ public class FieldSubsetReaderTests extends ElasticsearchLuceneTestCase {
         assertEquals(1, dv.valueAt(0));
         assertNull(segmentReader.getSortedSetDocValues("fieldB"));
         
+        TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
     
@@ -337,6 +347,7 @@ public class FieldSubsetReaderTests extends ElasticsearchLuceneTestCase {
         assertNotNull(infos.fieldInfo("fieldA"));
         assertNull(infos.fieldInfo("fieldB"));
         
+        TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
     
@@ -367,6 +378,7 @@ public class FieldSubsetReaderTests extends ElasticsearchLuceneTestCase {
         assertEquals(1, d2.getFields().size());
         assertEquals("{\"fieldA\":\"testA\"}", d2.getBinaryValue(SourceFieldMapper.NAME).utf8ToString());
         
+        TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
     
@@ -399,6 +411,7 @@ public class FieldSubsetReaderTests extends ElasticsearchLuceneTestCase {
         assertEquals(new BytesRef("fieldA"), termsEnum.next());
         assertNull(termsEnum.next());
         
+        TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
     }
     
@@ -437,6 +450,7 @@ public class FieldSubsetReaderTests extends ElasticsearchLuceneTestCase {
         // this is kind of stupid, but for now its here
         assertNotSame(ir.leaves().get(0).reader().getCombinedCoreAndDeletesKey(), ir2.leaves().get(0).reader().getCombinedCoreAndDeletesKey());
         
+        TestUtil.checkReader(ir);
         IOUtils.close(ir, ir2, iw, dir);
     }
 }

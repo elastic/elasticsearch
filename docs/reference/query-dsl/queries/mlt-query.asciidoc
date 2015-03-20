@@ -51,8 +51,9 @@ similar to the one used in the <<docs-multi-get,Multi GET API>>.
 }
 --------------------------------------------------
 
-coming[1.5.0] Finally, users can also provide documents not necessarily present in the index 
-using a syntax is similar to <<docs-termvectors-artificial-doc,artificial documents>>.
+coming[1.5.0] Finally, users can also provide documents not necessarily
+present in the index using a syntax is similar to
+<<docs-termvectors-artificial-doc,artificial documents>>.
 
 [source,js]
 --------------------------------------------------
@@ -92,10 +93,11 @@ query. And the reason would be mostly, according to
 link:https://lucene.apache.org/core/4_9_0/core/org/apache/lucene/search/similarities/TFIDFSimilarity.html[Lucene scoring formula],
 due to the terms with the highest tf-idf. Therefore, the terms of the input
 document that have the highest tf-idf are good representatives of that
-document, and could be used within a disjunctive query (or `OR`) to retrieve similar
-documents. The MLT query simply extracts the text from the input document,
-analyzes it, usually using the same analyzer at the field, then selects the
-top K terms with highest tf-idf to form a disjunctive query of these terms.
+document, and could be used within a disjunctive query (or `OR`) to retrieve
+similar documents. The MLT query simply extracts the text from the input
+document, analyzes it, usually using the same analyzer at the field, then
+selects the top K terms with highest tf-idf to form a disjunctive query of
+these terms.
 
 IMPORTANT: The fields on which to perform MLT must be indexed and of type
 `string`. Additionally, when using `like` with documents, either `_source`
@@ -138,35 +140,37 @@ curl -s -XPUT 'http://localhost:9200/imdb/' -d '{
 
 ==== Parameters
 
-The only required parameters are either `docs`, `ids` or `like_text`, all other parameters have sensible
-defaults. There are three types of parameters: one to specify the document
-input, the other one for term selection and for query formation.
+The only required parameters are either `docs`, `ids` or `like_text`, all
+other parameters have sensible defaults. There are three types of parameters:
+one to specify the document input, the other one for term selection and for
+query formation.
 
 [float]
 ==== Document Input Parameters
 
 [horizontal]
 `docs`::
-The list of documents to find documents like it. The syntax to specify documents is similar 
-to the one used by the <<docs-multi-get,Multi GET API>>. 
-The text is fetched from `fields` unless overridden in
-each document request. The text is analyzed by the analyzer at the field, but
-could also be overridden. The syntax to override the analyzer at the field
-follows a similar syntax to the `per_field_analyzer` parameter of the
-<<docs-termvectors-per-field-analyzer,Term Vectors API>>.
-Additionally, to provide documents not necessarily present in the index,
+The list of documents to find documents like it. The syntax to specify
+documents is similar to the one used by the <<docs-multi-get,Multi GET API>>.
+The text is fetched from `fields` unless overridden in each document request.
+The text is analyzed by the analyzer at the field, but could also be
+overridden. The syntax to override the analyzer at the field follows a similar
+syntax to the `per_field_analyzer` parameter of the
+<<docs-termvectors-per-field-analyzer,Term Vectors API>>. Additionally, to
+provide documents not necessarily present in the index,
 <<docs-termvectors-artificial-doc,artificial documents>> are also supported.
 
-`ids`:: 
-A list of document ids, shortcut to `docs` if `_index` and `_type` are the same as the request.
+`ids`::
+A list of document ids, shortcut to `docs` if `_index` and `_type` are the
+same as the request.
 
 `like_text`::
-The text to find documents like it. *required* if `ids` or `docs` are not specified. 
+The text to find documents like it. *required* if `ids` or `docs` are not
+specified.
 
 `fields`::
-A list of the fields to run the more like this query against.
-Defaults to the `_all` field for `like_text` and to all possible fields
-for `ids` or `docs`.
+A list of the fields to run the more like this query against. Defaults to the
+`_all` field for `like_text` and to all possible fields for `ids` or `docs`.
 
 [float]
 ==== Term Selection Parameters
@@ -214,9 +218,8 @@ analyzer associated with the first field in `fields`.
 [horizontal]
 `minimum_should_match`::
 After the disjunctive query has been formed, this parameter controls the
-number of terms that must match.
-The syntax is the same as the <<query-dsl-minimum-should-match,minimum should match>>.
-(Defaults to `"30%"`).
+number of terms that must match. The syntax is the same as the
+<<query-dsl-minimum-should-match,minimum should match>>. (Defaults to `"30%"`).
 
 `percent_terms_to_match`:: deprecated[1.5.0,Replaced by `minimum_should_match`]
 From the generated query, the percentage of terms that must match (float value

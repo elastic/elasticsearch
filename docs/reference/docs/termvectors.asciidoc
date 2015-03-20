@@ -246,6 +246,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/1/_termvector?pretty=true' -d '{
 --------------------------------------------------
 
 [float]
+[[docs-termvectors-artificial-doc]]
 === Example 3
 
 Term vectors can also be generated for artificial documents,

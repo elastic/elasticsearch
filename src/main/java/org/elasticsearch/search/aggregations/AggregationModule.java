@@ -64,6 +64,7 @@ import org.elasticsearch.search.aggregations.reducers.bucketmetrics.sum.SumBucke
 import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeParser;
 import org.elasticsearch.search.aggregations.reducers.movavg.MovAvgParser;
 import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModelModule;
+import org.elasticsearch.search.aggregations.reducers.diff.DiffParser;
 
 import java.util.List;
 
@@ -114,6 +115,7 @@ public class AggregationModule extends AbstractModule implements SpawnModules{
         reducerParsers.add(AvgBucketParser.class);
         reducerParsers.add(SumBucketParser.class);
         reducerParsers.add(MovAvgParser.class);
+        reducerParsers.add(DiffParser.class);
     }
 
     /**

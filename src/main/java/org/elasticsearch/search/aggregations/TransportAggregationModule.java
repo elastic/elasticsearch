@@ -69,6 +69,7 @@ import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeReduc
 import org.elasticsearch.search.aggregations.reducers.derivative.InternalDerivative;
 import org.elasticsearch.search.aggregations.reducers.movavg.MovAvgReducer;
 import org.elasticsearch.search.aggregations.reducers.movavg.models.TransportMovAvgModelModule;
+import org.elasticsearch.search.aggregations.reducers.diff.DiffReducer;
 
 /**
  * A module that registers all the transport streams for the addAggregation
@@ -127,6 +128,7 @@ public class TransportAggregationModule extends AbstractModule implements SpawnM
         AvgBucketReducer.registerStreams();
         SumBucketReducer.registerStreams();
         MovAvgReducer.registerStreams();
+        DiffReducer.registerStreams();
     }
 
     @Override

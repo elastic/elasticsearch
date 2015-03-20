@@ -908,7 +908,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                 throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when started/relocated");
             }
         } else {
-            if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED) {
+            // NOCOMMIT
+            if (state != IndexShardState.STARTED && state != IndexShardState.RELOCATED && state != IndexShardState.POST_RECOVERY) {
                 throw new IllegalIndexShardStateException(shardId, state, "operations only allowed when started/relocated");
             }
         }

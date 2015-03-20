@@ -596,7 +596,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
      * test resolving _all pattern (null, empty arry or "_all") for random IndicesOptions
      */
     @Test
-    public void concreteIndicesAllpatternRandom() {
+    public void concreteIndicesAllPatternRandom() {
         for (int i = 0; i < 100; i++) {
             String[] allIndices = null;
             switch (randomIntBetween(0, 2)) {

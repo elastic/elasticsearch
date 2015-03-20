@@ -21,7 +21,6 @@ package org.elasticsearch.index.store;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Lists;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -35,6 +34,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.engine.MockInternalEngine;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
 import org.junit.Test;
@@ -42,11 +42,7 @@ import org.junit.Test;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.*;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -72,6 +68,7 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @TestLogging("index.translog:TRACE,index.gateway:TRACE")
     public void testCorruptTranslogFiles() throws Exception {
         internalCluster().startNodesAsync(1, ImmutableSettings.EMPTY).get();
 
@@ -161,7 +158,9 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
                     // rewrite
                     raf.position(filePointer);
                     raf.write(bb);
-                    logger.info("--> corrupting file {} --  flipping at position {} from {} to {} file: {}", fileToCorrupt, filePointer, Integer.toHexString(oldValue), Integer.toHexString(newValue), fileToCorrupt);
+                    logger.info("--> corrupting file {} --  flipping at position {} from {} to {} file: {}",
+                            fileToCorrupt, filePointer, Integer.toHexString(oldValue),
+                            Integer.toHexString(newValue), fileToCorrupt);
                 }
             }
         }

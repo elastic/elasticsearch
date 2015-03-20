@@ -522,7 +522,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
     }
 
-    class NotifyTimeout implements Runnable {
+    class NotifyTimeout extends AbstractRunnable {
         final TimeoutClusterStateListener listener;
         final TimeValue timeout;
         ScheduledFuture future;
@@ -537,7 +537,17 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
 
         @Override
-        public void run() {
+        public void onFailure(Throwable t) {
+          logger.warn("notifying cluster state listener on timeout failed ", t);
+        }
+
+        @Override
+        public void onRejection(Throwable t) {
+            // do nothing
+        }
+
+        @Override
+        protected void doRun() throws Exception {
             if (future.isCancelled()) {
                 return;
             }

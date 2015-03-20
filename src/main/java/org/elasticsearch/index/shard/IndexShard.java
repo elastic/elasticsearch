@@ -354,7 +354,6 @@ public class IndexShard extends AbstractIndexShardComponent {
                     synchronized (mutex) {
                         // do the check under a mutex, so we make sure to only change to STARTED if in POST_RECOVERY
                         if (state == IndexShardState.POST_RECOVERY) {
-                            logger.info("test exception", new Exception("test exception"));
                             changeState(IndexShardState.STARTED, "global state is [" + newRouting.state() + "]");
                             movedToStarted = true;
                         } else {

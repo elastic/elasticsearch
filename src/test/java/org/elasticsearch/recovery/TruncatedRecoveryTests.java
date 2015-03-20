@@ -109,11 +109,6 @@ public class TruncatedRecoveryTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).get();
         client().admin().indices().prepareOptimize().setMaxNumSegments(1).setFlush(true).get();
 
-        logger.info("--> bumping replicas to 1"); //
-        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("index.routing.allocation.include._name",  // now allow allocation on all nodes
-                        primariesNode.getNode().name() + "," + unluckyNode.getNode().name())).get();
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean truncate = new AtomicBoolean(true);
         for (NodeStats dataNode : dataNodeStats) {
@@ -133,6 +128,13 @@ public class TruncatedRecoveryTests extends ElasticsearchIntegrationTest {
                 }
             });
         }
+
+        logger.info("--> bumping replicas to 1"); //
+        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("index.routing.allocation.include._name",  // now allow allocation on all nodes
+                        primariesNode.getNode().name() + "," + unluckyNode.getNode().name())).get();
+
         latch.await();
 
         // at this point we got some truncated left overs on the replica on the unlucky node

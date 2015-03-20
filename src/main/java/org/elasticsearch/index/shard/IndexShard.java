@@ -57,6 +57,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.aliases.IndexAliasesService;
@@ -1005,6 +1006,17 @@ public class IndexShard extends AbstractIndexShardComponent {
         return flushOnClose;
     }
 
+    /**
+     * Deletes the shards metadata state. This method can only be executed if the shard is not active.
+     * @throws IOException if the delete fails
+     */
+    public void deleteShardState() throws IOException {
+        if (this.routingEntry() != null &&  this.routingEntry().active()) {
+            throw new ElasticsearchIllegalStateException("Can't delete shard state on a active shard");
+        }
+        MetaDataStateFormat.deleteMetaState(nodeEnv.shardPaths(shardId));
+    }
+
     private class ApplyRefreshSettings implements IndexSettingsService.Listener {
         @Override
         public void onRefreshSettings(Settings settings) {
@@ -1202,11 +1214,19 @@ public class IndexShard extends AbstractIndexShardComponent {
         // called by the current engine
         @Override
         public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable failure) {
-            for (Engine.FailedEngineListener listener : delegates) {
+            try {
+                for (Engine.FailedEngineListener listener : delegates) {
+                    try {
+                        listener.onFailedEngine(shardId, reason, failure);
+                    } catch (Exception e) {
+                        logger.warn("exception while notifying engine failure", e);
+                    }
+                }
+            } finally {
                 try {
-                    listener.onFailedEngine(shardId, reason, failure);
-                } catch (Exception e) {
-                    logger.warn("exception while notifying engine failure", e);
+                    deleteShardState();
+                } catch (IOException e) {
+                    logger.warn("failed to delete shard state", e);
                 }
             }
         }

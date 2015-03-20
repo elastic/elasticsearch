@@ -124,7 +124,8 @@ public class TruncatedRecoveryTests extends ElasticsearchIntegrationTest {
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
                     if (action.equals(RecoveryTarget.Actions.FILE_CHUNK)) {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                        if ((req.name().endsWith("cfs") || req.name().endsWith("fdt"))&& req.lastChunk() && truncate.get()) {
+                        logger.debug("file chunk [" + req.toString() + "] lastChunk: " + req.lastChunk());
+                        if ((req.name().endsWith("cfs") || req.name().endsWith("fdt")) && req.lastChunk() && truncate.get()) {
                             latch.countDown();
                             throw new RuntimeException("Caused some truncated files for fun and profit");
                         }

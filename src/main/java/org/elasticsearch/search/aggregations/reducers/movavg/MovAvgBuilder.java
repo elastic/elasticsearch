@@ -26,13 +26,12 @@ import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
-import static org.elasticsearch.search.aggregations.reducers.movavg.MovAvgModel.Weighting;
 
 public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
 
     private String format;
     private GapPolicy gapPolicy;
-    private Weighting weighting;
+    private String weighting;
     private Integer window;
     private Map<String, Object> settings;
 
@@ -50,8 +49,8 @@ public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
         return this;
     }
 
-    public MovAvgBuilder weighting(Weighting weightingType) {
-        this.weighting = weightingType;
+    public MovAvgBuilder weighting(String weighting) {
+        this.weighting = weighting;
         return this;
     }
 
@@ -74,7 +73,7 @@ public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
             builder.field(MovAvgParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
         }
         if (weighting != null) {
-            builder.field(MovAvgParser.WEIGHTING.getPreferredName(), weighting.getName());
+            builder.field(MovAvgParser.WEIGHTING.getPreferredName(), weighting);
         }
         if (window != null) {
             builder.field(MovAvgParser.WINDOW.getPreferredName(), window);

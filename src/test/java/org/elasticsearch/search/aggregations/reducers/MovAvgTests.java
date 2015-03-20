@@ -26,7 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
-import org.elasticsearch.search.aggregations.reducers.movavg.MovAvgModel;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModel;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -317,12 +317,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                                 .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
                                 .subAggregation(movavg("movavg")
                                         .window(windowSize)
-                                        .weighting(MovAvgModel.Weighting.SIMPLE)
+                                        .weighting("simple")
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
                                 .subAggregation(movavg("movavg_values")
                                         .window(windowSize)
-                                        .weighting(MovAvgModel.Weighting.SIMPLE)
+                                        .weighting("simple")
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("the_sum"))
                 ).execute().actionGet();
@@ -362,12 +362,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                                 .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
                                 .subAggregation(movavg("movavg")
                                         .window(windowSize)
-                                        .weighting(MovAvgModel.Weighting.LINEAR)
+                                        .weighting("linear")
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
                                 .subAggregation(movavg("movavg_values")
                                         .window(windowSize)
-                                        .weighting(MovAvgModel.Weighting.LINEAR)
+                                        .weighting("linear")
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("the_sum"))
                 ).execute().actionGet();
@@ -407,12 +407,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                                 .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
                                 .subAggregation(movavg("movavg")
                                         .window(windowSize)
-                                        .weighting(MovAvgModel.Weighting.SINGLE_EXP)
+                                        .weighting("single_exp")
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
                                 .subAggregation(movavg("movavg_values")
                                         .window(windowSize)
-                                        .weighting(MovAvgModel.Weighting.SINGLE_EXP)
+                                        .weighting("single_exp")
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("the_sum"))
                 ).execute().actionGet();
@@ -452,12 +452,12 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                                 .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
                                 .subAggregation(movavg("movavg")
                                         .window(windowSize)
-                                        .weighting(MovAvgModel.Weighting.DOUBLE_EXP)
+                                        .weighting("double_exp")
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
                                 .subAggregation(movavg("movavg_values")
                                         .window(windowSize)
-                                        .weighting(MovAvgModel.Weighting.DOUBLE_EXP)
+                                        .weighting("double_exp")
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("the_sum"))
                 ).execute().actionGet();

@@ -19,24 +19,25 @@
 
 package org.elasticsearch.search.aggregations.reducers.movavg;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModel;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModelParser;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModelParserMapper;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
-import static org.elasticsearch.search.aggregations.reducers.movavg.MovAvgModel.Weighting;
 
 public class MovAvgParser implements Reducer.Parser {
 
@@ -45,6 +46,13 @@ public class MovAvgParser implements Reducer.Parser {
     public static final ParseField WEIGHTING = new ParseField("weighting");
     public static final ParseField WINDOW = new ParseField("window");
     public static final ParseField SETTINGS = new ParseField("settings");
+
+    private final MovAvgModelParserMapper movAvgModelParserMapper;
+
+    @Inject
+    public MovAvgParser(MovAvgModelParserMapper movAvgModelParserMapper) {
+        this.movAvgModelParserMapper = movAvgModelParserMapper;
+    }
 
     @Override
     public String type() {
@@ -58,9 +66,9 @@ public class MovAvgParser implements Reducer.Parser {
         String[] bucketsPaths = null;
         String format = null;
         GapPolicy gapPolicy = GapPolicy.IGNORE;
-        Weighting weighting = Weighting.SIMPLE;
         int window = 5;
         Map<String, Object> settings = null;
+        String weighting = "simple";
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -80,7 +88,7 @@ public class MovAvgParser implements Reducer.Parser {
                 } else if (GAP_POLICY.match(currentFieldName)) {
                     gapPolicy = GapPolicy.parse(context, parser.text());
                 } else if (WEIGHTING.match(currentFieldName)) {
-                    weighting = Weighting.parse(context, parser.text());
+                    weighting = parser.text();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
                             + currentFieldName + "].");
@@ -119,41 +127,16 @@ public class MovAvgParser implements Reducer.Parser {
             formatter = ValueFormat.Patternable.Number.format(format).formatter();
         }
 
-        settings = getDefaultSettings(weighting, settings);
+        MovAvgModelParser modelParser = movAvgModelParserMapper.get(weighting);
+        if (modelParser == null) {
+            throw new SearchParseException(context, "Unknown weighting [" + weighting
+                    + "] specified.  Valid options are:" + movAvgModelParserMapper.getAllNames().toString());
+        }
+        MovAvgModel model = modelParser.parse(settings);
 
-        return new MovAvgReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy, weighting, window, settings);
+
+        return new MovAvgReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy, window, model);
     }
 
-    /**
-     * Provide some default values depending on the weighting type being used
-     *
-     * @param weightingType     Weighting being used for the agg (simple, linear, etc)
-     * @param settings          Map of settings provided by the user. May be null if no settings
-     * @return                  Return a map of settings if valid, otherwise null
-     */
-    private @Nullable Map<String, Object> getDefaultSettings(Weighting weightingType, @Nullable Map<String, Object> settings) {
-        // simple and linear have no settings
-        if (weightingType.equals(MovAvgModel.Weighting.SIMPLE) || weightingType.equals(MovAvgModel.Weighting.LINEAR)) {
-            return null;
-        }
-
-        Map<String, Object> newSettings = new HashMap<>(2);
-
-        if (weightingType.equals(MovAvgModel.Weighting.DOUBLE_EXP)) {
-            Double beta;
-            if (settings == null || (beta = (Double)settings.get("beta")) == null) {
-                beta = 0.5;
-            }
-            newSettings.put("beta", beta);
-        }
-
-        Double alpha;
-        if (settings == null || (alpha = (Double)settings.get("alpha")) == null) {
-            alpha = 0.5;
-        }
-        newSettings.put("alpha", alpha);
-
-        return newSettings;
-    }
 
 }

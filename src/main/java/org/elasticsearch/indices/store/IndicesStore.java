@@ -361,7 +361,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                         try {
                             channel.sendResponse(new ShardActiveResponse(shardActive(request), clusterService.localNode()));
                         } catch (IOException e) {
-                            logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", e, request.shardId, new Exception());
+                            logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", e, request.shardId);
                         }
                     }
 
@@ -370,7 +370,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                         try {
                             channel.sendResponse(new ShardActiveResponse(false, clusterService.localNode()));
                         } catch (IOException e) {
-                            logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", e, request.shardId, new Exception());
+                            logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", e, request.shardId);
                         }
                     }
 
@@ -380,7 +380,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                         try {
                             channel.sendResponse(new ShardActiveResponse(shardActive(request), clusterService.localNode()));
                         } catch (IOException e) {
-                            logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", e, request.shardId, new Exception());
+                            logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", e, request.shardId);
                         }
                     }
                 }, new ClusterStateObserver.ChangePredicate() {

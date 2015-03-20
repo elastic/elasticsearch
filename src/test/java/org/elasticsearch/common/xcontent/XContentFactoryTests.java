@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -87,5 +88,13 @@ public class XContentFactoryTests extends ElasticsearchTestCase {
     public void testCBORBasedOnMagicHeaderDetection() {
         byte[] bytes = new byte[] {(byte) 0xd9, (byte) 0xd9, (byte) 0xf7};
         assertThat(XContentFactory.xContentType(bytes), equalTo(XContentType.CBOR));
+    }
+
+    public void testEmptyStream() throws Exception {
+        ByteArrayInputStream is = new ByteArrayInputStream(new byte[0]);
+        assertNull(XContentFactory.xContentType(is));
+
+        is = new ByteArrayInputStream(new byte[] {(byte) 1});
+        assertNull(XContentFactory.xContentType(is));
     }
 }

@@ -208,16 +208,14 @@ public class XContentFactory {
      * Guesses the content type based on the provided input stream.
      */
     public static XContentType xContentType(InputStream si) throws IOException {
-        int iFirst = si.read();
-        if (iFirst == -1) {
+        byte first = (byte) si.read();
+        if (first == -1) {
             return null;
         }
-        byte first = (byte) iFirst;
-        int iSecond = si.read();
-        if (iSecond == -1) {
+        byte second = (byte) si.read();
+        if (second == -1) {
             return null;
         }
-        byte second = (byte) iSecond;
         if (first == SmileConstants.HEADER_BYTE_1 && second == SmileConstants.HEADER_BYTE_2) {
             int third = si.read();
             if (third == SmileConstants.HEADER_BYTE_3) {
@@ -239,11 +237,10 @@ public class XContentFactory {
         }
         if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_TAG, first)) {
             // Actually, specific "self-describe tag" is a very good indicator
-            int iThird = si.read();
-            if (iThird == -1) {
+            int third = si.read();
+            if (third == -1) {
                 return null;
             }
-            byte third = (byte) iThird;
             if (first == (byte) 0xD9 && second == (byte) 0xD9 && third == (byte) 0xF7) {
                 return XContentType.CBOR;
             }

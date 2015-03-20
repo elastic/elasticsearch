@@ -28,6 +28,7 @@ import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptB
 import org.elasticsearch.search.aggregations.pipeline.derivative.DerivativeBuilder;
 import org.elasticsearch.search.aggregations.pipeline.having.BucketSelectorBuilder;
 import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgBuilder;
+import org.elasticsearch.search.aggregations.pipeline.serialdiff.SerialDiffBuilder;
 
 public final class PipelineAggregatorBuilders {
 
@@ -68,5 +69,9 @@ public final class PipelineAggregatorBuilders {
 
     public static final CumulativeSumBuilder cumulativeSum(String name) {
         return new CumulativeSumBuilder(name);
+    }
+
+    public static final SerialDiffBuilder diff(String name) {
+        return new SerialDiffBuilder(name);
     }
 }

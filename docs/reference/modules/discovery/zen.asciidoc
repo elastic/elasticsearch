@@ -175,8 +175,11 @@ to 30 seconds and can be changed dynamically through the
 
 added[1.4.0.Beta1]
 
-For a node to be fully operational, it must have an active master. The `discovery.zen.no_master_block` settings controls
-what operations should be rejected when there is no active master.
+For the cluster to be fully operational, it must have an active master and the
+number of running master eligible nodes must satisfy the
+`discovery.zen.minimum_master_nodes` setting if set. The
+`discovery.zen.no_master_block` settings controls what operations should be
+rejected when there is no active master.
 
 The `discovery.zen.no_master_block` setting has two valid options:
 

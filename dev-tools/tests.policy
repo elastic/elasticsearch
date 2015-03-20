@@ -23,10 +23,10 @@
 
 grant {
   // permissions for file access, write access only to sandbox:
-  permission java.io.FilePermission "<<ALL FILES>>", "read,execute";
-  permission java.io.FilePermission "${junit4.childvm.cwd}", "read,execute,write";
-  permission java.io.FilePermission "${junit4.childvm.cwd}${/}-", "read,execute,write,delete";
-  permission java.io.FilePermission "${junit4.tempDir}${/}*", "read,execute,write,delete";
+  permission java.io.FilePermission "<<ALL FILES>>", "read";
+  permission java.io.FilePermission "${junit4.childvm.cwd}", "read,write";
+  permission java.io.FilePermission "${junit4.childvm.cwd}${/}-", "read,write,delete";
+  permission java.io.FilePermission "${junit4.tempDir}${/}*", "read,write,delete";
   permission java.nio.file.LinkPermission "symbolic";
   permission groovy.security.GroovyCodeSourcePermission "/groovy/script";
 
@@ -35,8 +35,69 @@ grant {
 
   // Basic permissions needed for Lucene / Elasticsearch to work:
   permission java.util.PropertyPermission "*", "read,write";
-  permission java.lang.reflect.ReflectPermission "*";
-  permission java.lang.RuntimePermission "*";
+
+  // needed by junit4's gson usage 
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
+  // needed by scripting engines, etc
+  permission java.lang.RuntimePermission "createClassLoader";
+
+  // needed by lucene SPI currently 
+  permission java.lang.RuntimePermission "getClassLoader";
+
+  // needed by GroovyScriptEngineService
+  permission java.lang.RuntimePermission "closeClassLoader";
+
+  // needed by ImmutableSettings
+  permission java.lang.RuntimePermission "getenv.*";
+
+  // needed by BootStrap, etc
+  permission java.lang.RuntimePermission "exitVM.*";
+
+  // needed by RandomizedTest.globalTempDir()
+  permission java.lang.RuntimePermission "shutdownHooks";
+
+  // needed by PluginManager
+  permission java.lang.RuntimePermission "setFactory";
+
+  // needed by LuceneTestCase/TestRuleLimitSysouts
+  permission java.lang.RuntimePermission "setIO";
+
+  // needed by junit4 ThreadLeakControl
+  permission java.lang.RuntimePermission "modifyThread";
+  permission java.lang.RuntimePermission "modifyThreadGroup";
+
+  // needed by groovy scripting
+  permission java.lang.RuntimePermission "getProtectionDomain";
+
+  // needed for natives calls
+  permission java.lang.RuntimePermission "loadLibrary.*";
+  permission java.lang.RuntimePermission "createSecurityManager";
+
+  // reflection hacks:
+  // needed for Striped64 (what is this doing), also enables unmap hack
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+  // needed for mock filesystems in tests (to capture implCloseChannel)
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.nio.ch";
+  // needed by groovy engine
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
+
+  permission java.lang.RuntimePermission "accessDeclaredMembers";
+  permission java.lang.RuntimePermission "getStackTrace";
+
+  // needed by RandomizedRunner
+  permission java.lang.RuntimePermission "setDefaultUncaughtExceptionHandler";
+
+  permission java.lang.RuntimePermission "usePolicy";
+
+  // needed by JMX instead of getFileSystemAttributes, seems like a bug...
+  permission java.lang.RuntimePermission "getFileStoreAttributes";
+
+  // needed by lucene mockfilesystems
+  permission java.lang.RuntimePermission "fileSystemProvider";
+
+  // needed by plugin manager to set unix permissions
+  permission java.lang.RuntimePermission "accessUserInformation";
 
   // These two *have* to be spelled out a separate
   permission java.lang.management.ManagementPermission "control";

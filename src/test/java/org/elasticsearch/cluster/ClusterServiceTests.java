@@ -176,6 +176,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             }
         });
 
+        ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(true));
@@ -247,6 +248,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             }
         });
 
+        ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(true));
@@ -373,6 +375,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             }
         });
 
+        ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(true));
@@ -447,6 +450,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             }
         });
 
+        ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(false));
@@ -653,6 +657,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
 
         // there should not be any master as the minimum number of required eligible masters is not met
         awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object obj) {
                 return clusterService1.state().nodes().masterNode() == null && clusterService1.state().status() == ClusterState.ClusterStateStatus.APPLIED;
             }

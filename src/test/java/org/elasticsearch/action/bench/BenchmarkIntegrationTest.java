@@ -65,6 +65,7 @@ public class BenchmarkIntegrationTest extends ElasticsearchIntegrationTest {
 
 
 
+    @Override
     protected synchronized Settings nodeSettings(int nodeOrdinal) {
         if (nodeOrdinal == 0) { // at least one
             return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))

@@ -16,6 +16,10 @@
         }
       },
       "params": {
+        "source": {
+          "type" : "string",
+          "description" : "The URL-encoded request definition"
+        },
         "ignore_unavailable": {
           "type": "boolean",
           "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"
@@ -26,7 +30,7 @@
         },
         "expand_wildcards": {
           "type": "enum",
-          "options": ["open", "closed"],
+          "options": ["open", "closed","none","all"],
           "default": "open",
           "description": "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         }

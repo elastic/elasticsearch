@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.support.values;
 
+import org.apache.lucene.search.Scorer;
+import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
 import org.elasticsearch.script.SearchScript;
@@ -29,7 +31,7 @@ import java.util.Collection;
 /**
  * {@link SortedBinaryDocValues} implementation that reads values from a script.
  */
-public class ScriptBytesValues extends SortingBinaryDocValues implements ScriptValues {
+public class ScriptBytesValues extends SortingBinaryDocValues implements ScriptValues, ScorerAware {
 
     private final SearchScript script;
 
@@ -77,5 +79,10 @@ public class ScriptBytesValues extends SortingBinaryDocValues implements ScriptV
             set(0, value);
         }
         sort();
+    }
+
+    @Override
+    public void setScorer(Scorer scorer) {
+        script.setScorer(scorer);
     }
 }

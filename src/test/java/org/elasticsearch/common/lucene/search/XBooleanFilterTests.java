@@ -79,6 +79,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
         reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(directory));
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         reader.close();
@@ -554,7 +555,7 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
         }
 
         @Override
-        public String toString() {
+        public String toString(String field) {
             return "SLOW(" + field + ":" + value + ")";
         }
     }
@@ -564,6 +565,11 @@ public class XBooleanFilterTests extends ElasticsearchLuceneTestCase {
         @Override
         public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
             return random().nextBoolean() ? new Empty() : null;
+        }
+
+        @Override
+        public String toString(String field) {
+            return "empty";
         }
 
         private class Empty extends DocIdSet {

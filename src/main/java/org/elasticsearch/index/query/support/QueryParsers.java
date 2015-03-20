@@ -92,31 +92,5 @@ public final class QueryParsers {
         }
         throw new ElasticsearchIllegalArgumentException("Failed to parse rewrite_method [" + rewriteMethod + "]");
     }
-
-    public static Query wrapSmartNameQuery(Query query, @Nullable MapperService.SmartNameFieldMappers smartFieldMappers,
-                                           QueryParseContext parseContext) {
-        if (query == null) {
-            return null;
-        }
-        if (smartFieldMappers == null) {
-            return query;
-        }
-        if (!smartFieldMappers.explicitTypeInNameWithDocMapper()) {
-            return query;
-        }
-        DocumentMapper docMapper = smartFieldMappers.docMapper();
-        return new FilteredQuery(query, parseContext.cacheFilter(docMapper.typeFilter(), null, parseContext.autoFilterCachePolicy()));
-    }
-
-    public static Filter wrapSmartNameFilter(Filter filter, @Nullable MapperService.SmartNameFieldMappers smartFieldMappers,
-                                             QueryParseContext parseContext) {
-        if (smartFieldMappers == null) {
-            return filter;
-        }
-        if (!smartFieldMappers.explicitTypeInNameWithDocMapper()) {
-            return filter;
-        }
-        DocumentMapper docMapper = smartFieldMappers.docMapper();
-        return new AndFilter(ImmutableList.of(parseContext.cacheFilter(docMapper.typeFilter(), null, parseContext.autoFilterCachePolicy()), filter));
-    }
+    
 }

@@ -58,6 +58,9 @@ import static org.hamcrest.Matchers.is;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 1)
 public class NettyTransportTests extends ElasticsearchIntegrationTest {
 
+    // static so we can use it in anonymous classes
+    private static String channelProfileName = null;
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
@@ -76,6 +79,7 @@ public class NettyTransportTests extends ElasticsearchIntegrationTest {
             fail("Expected exception, but didnt happen");
         } catch (ElasticsearchException e) {
             assertThat(e.getMessage(), containsString("MY MESSAGE"));
+            assertThat(channelProfileName, is(NettyTransport.DEFAULT_PROFILE));
         }
     }
 
@@ -100,15 +104,16 @@ public class NettyTransportTests extends ElasticsearchIntegrationTest {
                 this.logger = exceptionThrowingNettyTransport.logger;
             }
 
+            @Override
             public ChannelPipeline getPipeline() throws Exception {
                 ChannelPipeline pipeline = super.getPipeline();
-                pipeline.replace("dispatcher", "dispatcher", new MessageChannelHandler(nettyTransport, logger) {
+                pipeline.replace("dispatcher", "dispatcher", new MessageChannelHandler(nettyTransport, logger, NettyTransport.DEFAULT_PROFILE) {
 
                     @Override
                     protected String handleRequest(Channel channel, StreamInput buffer, long requestId, Version version) throws IOException {
                         final String action = buffer.readString();
 
-                        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, action, channel, requestId, version);
+                        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, transportServiceAdapter, action, channel, requestId, version, name);
                         try {
                             final TransportRequestHandler handler = transportServiceAdapter.handler(action);
                             if (handler == null) {
@@ -134,6 +139,7 @@ public class NettyTransportTests extends ElasticsearchIntegrationTest {
                                 logger.warn("Actual Exception", e1);
                             }
                         }
+                        channelProfileName = transportChannel.getProfileName();
                         return action;
                     }
 

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
@@ -32,6 +33,7 @@ import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.lucene.HashedBytesRef;
@@ -40,6 +42,7 @@ import org.elasticsearch.common.lucene.search.NoCacheQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.ResolvableFilter;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -52,6 +55,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -109,6 +113,8 @@ public class QueryParseContext {
 
     private boolean mapUnmappedFieldAsString;
 
+    private NestedScope nestedScope;
+
     public QueryParseContext(Index index, IndexQueryParserService indexQueryParser) {
         this(index, indexQueryParser, false);
     }
@@ -136,6 +142,7 @@ public class QueryParseContext {
         this.namedFilters.clear();
         this.requireCustomQueryWrappingFilter = false;
         this.propagateNoCache = false;
+        this.nestedScope = new NestedScope();
     }
 
     public Index index() {
@@ -234,6 +241,11 @@ public class QueryParseContext {
                     }
                     filter = indexQueryParser.indexCache.filter().cache(filter, cacheKey, cachePolicy);
                     return filter.getDocIdSet(atomicReaderContext, bits);
+                }
+
+                @Override
+                public String toString(String field) {
+                    return "AnonymousResolvableFilter"; // TODO: not sure what is going on here
                 }
             };
         } else {
@@ -413,7 +425,9 @@ public class QueryParseContext {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString){
             StringFieldMapper.Builder builder = MapperBuilders.stringField(name);
-            StringFieldMapper stringFieldMapper = builder.build(new Mapper.BuilderContext(ImmutableSettings.EMPTY, new ContentPath(1)));
+            // it would be better to pass the real index settings, but they are not easily accessible from here...
+            Settings settings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexQueryParser.getIndexCreatedVersion()).build();
+            StringFieldMapper stringFieldMapper = builder.build(new Mapper.BuilderContext(settings, new ContentPath(1)));
             return new MapperService.SmartNameFieldMappers(mapperService(), new FieldMappers(stringFieldMapper), null, false);
         } else {
             Version indexCreatedVersion = indexQueryParser.getIndexCreatedVersion();
@@ -462,5 +476,9 @@ public class QueryParseContext {
 
     public boolean requireCustomQueryWrappingFilter() {
         return requireCustomQueryWrappingFilter;
+    }
+
+    public NestedScope nestedScope() {
+        return nestedScope;
     }
 }

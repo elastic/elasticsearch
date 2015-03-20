@@ -46,6 +46,7 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
@@ -115,6 +116,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                     .endObject()
                 .endObject()
                 .endObject().endObject().endObject()));
+        ensureGreen("idx", "empty", "articles");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 50; i++) {
@@ -228,7 +230,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
     }
 
     private String key(Terms.Bucket bucket) {
-        return randomBoolean() ? bucket.getKey() : bucket.getKeyAsText().string();
+        return bucket.getKeyAsString();
     }
 
     @Test
@@ -557,7 +559,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
             // under an aggregation with collect_mode set to breadth_first as this would
             // require the buffering of scores alongside each document ID and that is a
             // a RAM cost we are not willing to pay 
-            assertThat(e.getMessage(), containsString("ElasticsearchParseException"));
+            assertThat(e.getMessage(), containsString("ElasticsearchIllegalStateException"));
         }
     }
 
@@ -777,13 +779,13 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testNestedFetchFeatures() {
         String hlType = randomFrom("plain", "fvh", "postings");
-        HighlightBuilder.Field hlField = new HighlightBuilder.Field("message")
+        HighlightBuilder.Field hlField = new HighlightBuilder.Field("comments.message")
                 .highlightQuery(matchQuery("comments.message", "comment"))
                 .forceSource(randomBoolean()) // randomly from stored field or _source
                 .highlighterType(hlType);
 
         SearchResponse searchResponse = client().prepareSearch("articles")
-                .setQuery(nestedQuery("comments", matchQuery("message", "comment").queryName("test")))
+                .setQuery(nestedQuery("comments", matchQuery("comments.message", "comment").queryName("test")))
                 .addAggregation(
                         nested("to-comments")
                                 .path("comments")
@@ -810,7 +812,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
         assertThat(searchHit.getNestedIdentity().getField().string(), equalTo("comments"));
         assertThat(searchHit.getNestedIdentity().getOffset(), equalTo(0));
 
-        HighlightField highlightField = searchHit.getHighlightFields().get("message");
+        HighlightField highlightField = searchHit.getHighlightFields().get("comments.message");
         assertThat(highlightField.getFragments().length, equalTo(1));
         assertThat(highlightField.getFragments()[0].string(), equalTo("some <em>comment</em>"));
 
@@ -848,7 +850,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                                         nested("to-comments")
                                                 .path("comments")
                                                 .subAggregation(topHits("comments")
-                                                        .addHighlightedField(new HighlightBuilder.Field("message").highlightQuery(matchQuery("comments.message", "text")))
+                                                        .addHighlightedField(new HighlightBuilder.Field("comments.message").highlightQuery(matchQuery("comments.message", "text")))
                                                         .addSort("comments.id", SortOrder.ASC))
                                 )
                 )
@@ -856,7 +858,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
 
         Histogram histogram = searchResponse.getAggregations().get("dates");
         for (int i = 0; i < numArticles; i += 5) {
-            Histogram.Bucket bucket = histogram.getBucketByKey(i);
+            Histogram.Bucket bucket = histogram.getBuckets().get(i / 5);
             assertThat(bucket.getDocCount(), equalTo(5l));
 
             long numNestedDocs = 10 + (5 * i);
@@ -871,7 +873,7 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
                 assertThat(searchHits.getAt(j).getNestedIdentity().getOffset(), equalTo(0));
                 assertThat((Integer) searchHits.getAt(j).sourceAsMap().get("id"), equalTo(0));
 
-                HighlightField highlightField = searchHits.getAt(j).getHighlightFields().get("message");
+                HighlightField highlightField = searchHits.getAt(j).getHighlightFields().get("comments.message");
                 assertThat(highlightField.getFragments().length, equalTo(1));
                 assertThat(highlightField.getFragments()[0].string(), equalTo("some <em>text</em>"));
             }

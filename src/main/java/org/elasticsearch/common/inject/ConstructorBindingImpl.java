@@ -50,21 +50,25 @@ class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBin
         factory.constructorInjector = injector.constructors.get(getKey().getTypeLiteral(), errors);
     }
 
+    @Override
     public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
         checkState(factory.constructorInjector != null, "not initialized");
         return visitor.visit(this);
     }
 
+    @Override
     public InjectionPoint getConstructor() {
         checkState(factory.constructorInjector != null, "Binding is not ready");
         return factory.constructorInjector.getConstructionProxy().getInjectionPoint();
     }
 
+    @Override
     public Set<InjectionPoint> getInjectableMembers() {
         checkState(factory.constructorInjector != null, "Binding is not ready");
         return factory.constructorInjector.getInjectableMembers();
     }
 
+    @Override
     public Set<Dependency<?>> getDependencies() {
         return Dependency.forInjectionPoints(new ImmutableSet.Builder<InjectionPoint>()
                 .add(getConstructor())
@@ -72,6 +76,7 @@ class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBin
                 .build());
     }
 
+    @Override
     public void applyTo(Binder binder) {
         throw new UnsupportedOperationException("This element represents a synthetic binding.");
     }
@@ -88,6 +93,7 @@ class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBin
     private static class Factory<T> implements InternalFactory<T> {
         private ConstructorInjector<T> constructorInjector;
 
+        @Override
         @SuppressWarnings("unchecked")
         public T get(Errors errors, InternalContext context, Dependency<?> dependency)
                 throws ErrorsException {

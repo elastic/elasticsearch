@@ -58,9 +58,9 @@ public class RecoveriesCollection {
      *
      * @return the id of the new recovery.
      */
-    public long startRecovery(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state,
+    public long startRecovery(IndexShard indexShard, DiscoveryNode sourceNode,
                               RecoveryTarget.RecoveryListener listener, TimeValue activityTimeout) {
-        RecoveryStatus status = new RecoveryStatus(indexShard, sourceNode, state, listener);
+        RecoveryStatus status = new RecoveryStatus(indexShard, sourceNode, listener);
         RecoveryStatus existingStatus = onGoingRecoveries.putIfAbsent(status.recoveryId(), status);
         assert existingStatus == null : "found two RecoveryStatus instances with the same id";
         logger.trace("{} started recovery from {}, id [{}]", indexShard.shardId(), sourceNode, status.recoveryId());
@@ -150,6 +150,10 @@ public class RecoveriesCollection {
         return null;
     }
 
+    /** the number of ongoing recoveries */
+    public int size() {
+        return onGoingRecoveries.size();
+    }
 
     /** cancel all ongoing recoveries for the given shard. typically because the shards is closed */
     public void cancelRecoveriesForShard(ShardId shardId, String reason) {
@@ -176,6 +180,7 @@ public class RecoveriesCollection {
          */
         public StatusRef(RecoveryStatus status) {
             this.status = status;
+            this.status.setLastAccessTime();
         }
 
         @Override

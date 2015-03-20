@@ -21,6 +21,7 @@ package org.elasticsearch.benchmark.search.aggregations;
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -38,7 +39,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 
@@ -69,7 +69,7 @@ public class SubAggregationSearchCollectModeBenchmark {
     static int STRING_TERM_SIZE = 5;
 
     static Client client;
-    static InternalNode[] nodes;
+    static Node[] nodes;
 
     public static void main(String[] args) throws Exception {
         Natives.tryMlockall();
@@ -82,9 +82,9 @@ public class SubAggregationSearchCollectModeBenchmark {
                 .build();
 
         String clusterName = SubAggregationSearchCollectModeBenchmark.class.getSimpleName();
-        nodes = new InternalNode[1];
+        nodes = new Node[1];
         for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = (InternalNode) nodeBuilder().clusterName(clusterName)
+            nodes[i] = nodeBuilder().clusterName(clusterName)
                     .settings(settingsBuilder().put(settings).put("name", "node" + i))
                     .node();
         }

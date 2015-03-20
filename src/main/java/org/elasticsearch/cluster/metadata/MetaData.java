@@ -320,9 +320,9 @@ public class MetaData implements Iterable<IndexMetaData> {
         return mapBuilder.build();
     }
 
-    private boolean matchAllAliases(final String[] aliases) {
+    private static boolean matchAllAliases(final String[] aliases) {
         for (String alias : aliases) {
-            if (alias.equals("_all")) {
+            if (alias.equals(ALL)) {
                 return true;
             }
         }

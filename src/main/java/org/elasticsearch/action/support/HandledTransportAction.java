@@ -54,6 +54,7 @@ public abstract class HandledTransportAction<Request extends ActionRequest, Resp
          * Call to get an instance of type Request
          * @return Request
          */
+        @Override
         public abstract Request newInstance();
 
         @Override

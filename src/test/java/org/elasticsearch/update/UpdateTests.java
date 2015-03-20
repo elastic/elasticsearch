@@ -19,10 +19,7 @@
 
 package org.elasticsearch.update;
 
-import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.util.LuceneTestCase.Slow;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -34,16 +31,13 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.merge.policy.AbstractMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
-import org.elasticsearch.index.store.Store;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
@@ -73,7 +67,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                         .startObject()
                         .startObject("type1")
                         .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
-                        .startObject("_ttl").field("enabled", true).field("store", "yes").endObject()
+                        .startObject("_ttl").field("enabled", true).endObject()
                         .endObject()
                         .endObject()));
     }
@@ -474,7 +468,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                         .startObject("subtype1")
                         .startObject("_parent").field("type", "type1").endObject()
                         .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
-                        .startObject("_ttl").field("enabled", true).field("store", "yes").endObject()
+                        .startObject("_ttl").field("enabled", true).endObject()
                         .endObject()
                         .endObject())
                 .execute().actionGet();
@@ -624,7 +618,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                         .startObject()
                         .startObject("type1")
                         .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
-                        .startObject("_ttl").field("enabled", true).field("store", "yes").endObject()
+                        .startObject("_ttl").field("enabled", true).endObject()
                         .endObject()
                         .endObject())
                 .setSettings(ImmutableSettings.builder().put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)));

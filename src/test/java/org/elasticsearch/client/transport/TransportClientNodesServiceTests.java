@@ -69,6 +69,7 @@ public class TransportClientNodesServiceTests extends ElasticsearchTestCase {
             transport.endConnectMode();
         }
 
+        @Override
         public void close() {
 
             transportService.stop();

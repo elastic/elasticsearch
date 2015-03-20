@@ -72,7 +72,7 @@ public abstract class NumericRangeFieldDataFilter<T> extends Filter {
     }
 
     @Override
-    public final String toString() {
+    public final String toString(String field) {
         final StringBuilder sb = new StringBuilder(indexFieldData.getFieldNames().indexName()).append(":");
         return sb.append(includeLower ? '[' : '{')
                 .append((lowerVal == null) ? "*" : lowerVal.toString())

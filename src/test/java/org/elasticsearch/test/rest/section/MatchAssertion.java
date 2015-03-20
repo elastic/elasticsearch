@@ -24,8 +24,7 @@ import org.elasticsearch.common.logging.Loggers;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -49,16 +48,18 @@ public class MatchAssertion extends Assertion {
         if (expectedValue instanceof String) {
             String expValue = ((String) expectedValue).trim();
             if (expValue.length() > 2 && expValue.startsWith("/") && expValue.endsWith("/")) {
+                assertThat("field [" + getField() + "] was expected to be of type String but is an instanceof [" + actualValue.getClass() + "]", actualValue, instanceOf(String.class));
+                String stringValue = (String) actualValue;
                 String regex = expValue.substring(1, expValue.length() - 1);
-                logger.trace("assert that [{}] matches [{}]", actualValue, regex);
+                logger.trace("assert that [{}] matches [{}]", stringValue, regex);
                 assertThat("field [" + getField() + "] was expected to match the provided regex but didn't",
-                        actualValue.toString(), matches(regex, Pattern.COMMENTS));
+                        stringValue, matches(regex, Pattern.COMMENTS));
                 return;
             }
         }
 
         assertThat(errorMessage(), actualValue, notNullValue());
-        logger.trace("assert that [{}] matches [{}]", actualValue, expectedValue);
+        logger.trace("assert that [{}] matches [{}] (field [{}])", actualValue, expectedValue, getField());
         if (!actualValue.getClass().equals(expectedValue.getClass())) {
             if (actualValue instanceof Number && expectedValue instanceof Number) {
                 //Double 1.0 is equal to Integer 1

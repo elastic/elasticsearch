@@ -77,6 +77,8 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
     private EnumSet<Flag> flagsEnum = EnumSet.of(Flag.Positions, Flag.Offsets, Flag.Payloads,
             Flag.FieldStatistics);
 
+    long startTime;
+
     public TermVectorsRequest() {
     }
 
@@ -100,13 +102,22 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
         super(other.index());
         this.id = other.id();
         this.type = other.type();
+        if (this.doc != null) {
+            this.doc = other.doc().copyBytesArray();
+        }
         this.flagsEnum = other.getFlags().clone();
         this.preference = other.preference();
         this.routing = other.routing();
         if (other.selectedFields != null) {
             this.selectedFields = new HashSet<>(other.selectedFields);
         }
+        if (other.perFieldAnalyzer != null) {
+            this.perFieldAnalyzer = new HashMap<>(other.perFieldAnalyzer);
+        }
         this.realtime = other.realtime();
+        this.version = other.version();
+        this.versionType = VersionType.fromValue(other.versionType().getValue());
+        this.startTime = other.startTime();
     }
 
     public TermVectorsRequest(MultiGetRequest.Item item) {
@@ -132,6 +143,7 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
     /**
      * Returns the type of document to get the term vector for.
      */
+    @Override
     public String type() {
         return type;
     }
@@ -139,6 +151,7 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
     /**
      * Returns the id of document the term vector is requested for.
      */
+    @Override
     public String id() {
         return id;
     }
@@ -180,10 +193,12 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
     /**
      * @return The routing for this request.
      */
+    @Override
     public String routing() {
         return routing;
     }
 
+    @Override
     public TermVectorsRequest routing(String routing) {
         this.routing = routing;
         return this;
@@ -385,6 +400,10 @@ public class TermVectorsRequest extends SingleShardOperationRequest<TermVectorsR
             flagsEnum.remove(flag);
             assert (!flagsEnum.contains(flag));
         }
+    }
+
+    public long startTime() {
+        return this.startTime;
     }
 
     @Override

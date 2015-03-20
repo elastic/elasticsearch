@@ -283,6 +283,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         return shardSize == null ? 0 : shardSize;
     }
 
+    @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
 
         // Always allow allocation if the decider is disabled
@@ -437,6 +438,7 @@ public class DiskThresholdDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, "enough disk for shard on node, free: [%s]", new ByteSizeValue(freeBytes));
     }
 
+    @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (!enabled) {
             return allocation.decision(Decision.YES, NAME, "disk threshold decider disabled");
@@ -519,6 +521,9 @@ public class DiskThresholdDecider extends AllocationDecider {
      * @return DiskUsage representing given node using the average disk usage
      */
     public DiskUsage averageUsage(RoutingNode node, Map<String, DiskUsage> usages) {
+        if (usages.size() == 0) {
+            return new DiskUsage(node.nodeId(), node.node().name(), 0, 0);
+        }
         long totalBytes = 0;
         long freeBytes = 0;
         for (DiskUsage du : usages.values()) {
@@ -537,7 +542,9 @@ public class DiskThresholdDecider extends AllocationDecider {
      */
     public double freeDiskPercentageAfterShardAssigned(DiskUsage usage, Long shardSize) {
         shardSize = (shardSize == null) ? 0 : shardSize;
-        return 100.0 - (((double)(usage.getUsedBytes() + shardSize) / usage.getTotalBytes()) * 100.0);
+        DiskUsage newUsage = new DiskUsage(usage.getNodeId(), usage.getNodeName(),
+                usage.getTotalBytes(), usage.getFreeBytes() - shardSize);
+        return newUsage.getFreeDiskAsPercentage();
     }
 
     /**

@@ -67,7 +67,7 @@ public interface Terms extends MultiBucketsAggregation {
         public abstract Number getKeyAsNumber();
 
         abstract int compareTerm(Terms.Bucket other);
-        
+
         public abstract long getDocCountError();
 
     }
@@ -75,6 +75,7 @@ public interface Terms extends MultiBucketsAggregation {
     /**
      * Return the sorted list of the buckets in this terms aggregation.
      */
+    @Override
     List<Bucket> getBuckets();
 
     /**

@@ -60,7 +60,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
     public void testBreakerWithRandomExceptions() throws IOException, InterruptedException, ExecutionException {
         for (NodeStats node : client().admin().cluster().prepareNodesStats()
                 .clear().setBreaker(true).execute().actionGet().getNodes()) {
-            assertThat("Breaker is not set to 0", node.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getEstimated(), equalTo(0L));
+            assertThat("Breaker is not set to 0", node.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
         }
 
         String mapping = XContentFactory.jsonBuilder()
@@ -146,7 +146,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
         NodesStatsResponse resp = client().admin().cluster().prepareNodesStats()
                 .clear().setBreaker(true).execute().actionGet();
         for (NodeStats stats : resp.getNodes()) {
-            assertThat("Breaker is set to 0", stats.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getEstimated(), equalTo(0L));
+            assertThat("Breaker is set to 0", stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
         }
 
         for (int i = 0; i < numSearches; i++) {
@@ -190,7 +190,7 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
                         .clear().setBreaker(true).execute().actionGet();
                 for (NodeStats stats : nodeStats.getNodes()) {
                     assertThat("Breaker reset to 0 last search success: " + success + " mapping: " + mapping,
-                            stats.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getEstimated(), equalTo(0L));
+                            stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
                 }
             }
         }
@@ -254,19 +254,20 @@ public class RandomExceptionCircuitBreakerTests extends ElasticsearchIntegration
                 }
             }
 
+            @Override
             public boolean wrapTerms(String field) {
                 return field.startsWith("test");
             }
         }
 
 
-        public RandomExceptionDirectoryReaderWrapper(DirectoryReader in, Settings settings) {
+        public RandomExceptionDirectoryReaderWrapper(DirectoryReader in, Settings settings) throws IOException {
             super(in, new ThrowingSubReaderWrapper(settings));
             this.settings = settings;
         }
 
         @Override
-        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) {
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
             return new RandomExceptionDirectoryReaderWrapper(in, settings);
         }
     }

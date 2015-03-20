@@ -71,14 +71,14 @@ public class SimpleTTLTests extends ElasticsearchIntegrationTest {
                         .startObject()
                         .startObject("type1")
                         .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
-                        .startObject("_ttl").field("enabled", true).field("store", "yes").endObject()
+                        .startObject("_ttl").field("enabled", true).endObject()
                         .endObject()
                         .endObject())
                 .addMapping("type2", XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("type2")
                         .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
-                        .startObject("_ttl").field("enabled", true).field("store", "yes").field("default", "1d").endObject()
+                        .startObject("_ttl").field("enabled", true).field("default", "1d").endObject()
                         .endObject()
                         .endObject()));
         ensureYellow("test");
@@ -165,7 +165,7 @@ public class SimpleTTLTests extends ElasticsearchIntegrationTest {
             @Override
             public boolean apply(Object input) {
                 if (rarely()) {
-                    client().admin().indices().prepareFlush("test").setFull(true).get();
+                    client().admin().indices().prepareFlush("test").get();
                 } else if (rarely()) {
                     client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).get();
                 }

@@ -3,13 +3,7 @@
 
 An aggregation that returns interesting or unusual occurrences of terms in a set.
 
-.Experimental!
-[IMPORTANT]
-=====
-This feature is marked as experimental, and may be subject to change in the
-future.  If you use this feature, please let us know your experience with it!
-=====
-
+experimental[]
 
 .Example use cases:
 * Suggesting "H5N1" when users search for "bird flu" in text
@@ -154,7 +148,6 @@ Now we have anomaly detection for each of the police forces using a single reque
 
 We can use other forms of top-level aggregations to segment our data, for example segmenting by geographic
 area to identify unusual hot-spots of a particular crime type:
-
 
 [source,js]
 --------------------------------------------------
@@ -326,6 +319,24 @@ Google normalized distance  as described in "The Google Similarity Distance", Ci
 
 `gnd` also accepts the `background_is_superset` parameter. 
 
+
+===== Percentage
+A simple calculation of the number of documents in the foreground sample with a term divided by the number of documents in the background with the term.
+By default this produces a score greater than zero and less than one.
+
+The benefit of this heuristic is that the scoring logic is simple to explain to anyone familiar with a "per capita" statistic. However, for fields with high cardinality there is a tendency for this heuristic to select the rarest terms such as typos that occur only once because they score 1/1 = 100%.
+
+It would be hard for a seasoned boxer to win a championship if the prize was awarded purely on the basis of percentage of fights won - by these rules a newcomer with only one fight under his belt would be impossible to beat.
+Multiple observations are typically required to reinforce a view so it is recommended in these cases to set both `min_doc_count` and `shard_min_doc_count` to a higher value such as 10 in order to filter out the low-frequency terms that otherwise take precedence.
+	
+[source,js]
+--------------------------------------------------
+
+	 "percentage": {
+	 }
+--------------------------------------------------
+
+
 ===== Which one is best?
 
 
@@ -333,9 +344,38 @@ Roughly, `mutual_information` prefers high frequent terms even if they occur als
 
 It is hard to say which one of the different heuristics will be the best choice as it depends on what the significant terms are used for (see for example [Yang and Pedersen, "A Comparative Study on Feature Selection in Text Categorization", 1997](http://courses.ischool.berkeley.edu/i256/f06/papers/yang97comparative.pdf) for a study on using significant terms for feature selection for text classification).
 
+If none of the above measures suits your usecase than another option is to implement a custom significance measure:
 
+===== scripted
+coming[1.5.0]
 
+Customized scores can be implemented via a script:
 	
+[source,js]
+--------------------------------------------------
+
+	    "script_heuristic": {
+              "script": "_subset_freq/(_superset_freq - _subset_freq + 1)"
+            }
+--------------------------------------------------
+
+Scripts can be inline (as in above example), indexed or stored on disk. For details on the options, see <<modules-scripting, script documentation>>. 
+Parameters need to be set as follows:
+
+[horizontal]
+`script`:: Inline script, name of script file or name of indexed script. Mandatory.
+`script_type`:: One of "inline" (default), "indexed" or "file".
+`lang`:: Script language (default "groovy")
+`params`:: Script parameters (default empty).
+
+Available parameters in the script are
+
+[horizontal]
+`_subset_freq`:: Number of documents the term appears in in the subset.
+`_superset_freq`:: Number of documents the term appears in in the superset.
+`_subset_size`:: Number of documents in the subset.
+`_superset_size`:: Number of documents in the superset.
+
 ===== Size & Shard Size
 
 The `size` parameter can be set to define how many term buckets should be returned out of the overall terms list. By

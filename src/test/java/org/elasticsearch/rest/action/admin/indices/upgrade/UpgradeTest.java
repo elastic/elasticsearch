@@ -34,11 +34,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.engine.Segment;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -160,7 +157,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         logger.info("--> Single index upgrade complete");
         
         logger.info("--> Running upgrade on the rest of the indexes");
-        runUpgrade(httpClient, null, "wait_for_completion", "true");
+        runUpgrade(httpClient, null);
         logSegmentsState();
         logger.info("--> Full upgrade complete");
         assertUpgraded(httpClient, null);
@@ -246,6 +243,7 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         assertEquals(200, rsp.getStatusCode());
     }
 
+    @SuppressWarnings("unchecked")
     static List<UpgradeStatus> getUpgradeStatus(HttpRequestBuilder httpClient, String path) throws Exception {
         HttpResponse rsp = httpClient.method("GET").path(path).execute();
         Map<String,Object> data = validateAndParse(rsp);
@@ -258,11 +256,12 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
             assertTrue("missing key size_to_upgrade_in_bytes for index " + index, status.containsKey("size_to_upgrade_in_bytes"));
             Object toUpgradeBytes = status.get("size_to_upgrade_in_bytes");
             assertTrue("size_to_upgrade_in_bytes for index " + index + " is not an integer", toUpgradeBytes instanceof Integer);
-            ret.add(new UpgradeStatus(index, ((Integer)totalBytes).intValue(), ((Integer)toUpgradeBytes).intValue()));
+            ret.add(new UpgradeStatus(index, (Integer)totalBytes, (Integer)toUpgradeBytes));
         }
         return ret;
     }
-    
+
+    @SuppressWarnings("unchecked")
     static Map<String, Object> validateAndParse(HttpResponse rsp) throws Exception {
         assertNotNull(rsp);
         assertEquals(200, rsp.getStatusCode());
@@ -279,6 +278,6 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
-            .put(InternalNode.HTTP_ENABLED, true).build();
+            .put(Node.HTTP_ENABLED, true).build();
     }
 }

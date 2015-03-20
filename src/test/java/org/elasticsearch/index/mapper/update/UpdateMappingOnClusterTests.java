@@ -65,7 +65,7 @@ public class UpdateMappingOnClusterTests extends ElasticsearchIntegrationTest {
                 "[_all] has different store_term_vector_offsets values",
                 "[_all] has different store_term_vector_positions values",
                 "[_all] has different store_term_vector_payloads values",
-                "[_all] has different index_analyzer",
+                "[_all] has different analyzer",
                 "[_all] has different similarity"};
         // auto_boost and fielddata and search_analyzer should not report conflict
         testConflict(mapping, mappingUpdate, errorMessage);

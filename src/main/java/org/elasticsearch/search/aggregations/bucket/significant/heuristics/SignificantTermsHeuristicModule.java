@@ -21,6 +21,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 
@@ -32,10 +33,13 @@ public class SignificantTermsHeuristicModule extends AbstractModule {
     private List<Class<? extends SignificanceHeuristicParser>> parsers = Lists.newArrayList();
 
     public SignificantTermsHeuristicModule() {
+
         registerParser(JLHScore.JLHScoreParser.class);
+        registerParser(PercentageScore.PercentageScoreParser.class);
         registerParser(MutualInformation.MutualInformationParser.class);
         registerParser(GND.GNDParser.class);
         registerParser(ChiSquare.ChiSquareParser.class);
+        registerParser(ScriptHeuristic.ScriptHeuristicParser.class);
     }
 
     public void registerParser(Class<? extends SignificanceHeuristicParser> parser) {

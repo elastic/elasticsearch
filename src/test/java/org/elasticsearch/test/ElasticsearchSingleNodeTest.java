@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -39,11 +40,9 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Ignore;
+import org.junit.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
@@ -55,21 +54,29 @@ import static org.hamcrest.Matchers.*;
 @Ignore
 public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase {
 
-    private static class Holder {
-        // lazy init on first access
-        private static Node NODE = newNode();
+    private static Node NODE = null;
 
-        private static void reset() {
-            assert NODE != null;
-            node().stop();
-            Holder.NODE = newNode();
-        }
+    private static void reset() {
+        assert NODE != null;
+        stopNode();
+        startNode();
+    }
+
+    private static void startNode() {
+        assert NODE == null;
+        NODE = newNode();
+    }
+
+    private static void stopNode() {
+        Node node = NODE;
+        NODE = null;
+        Releasables.close(node);
     }
 
     static void cleanup(boolean resetNode) {
         assertAcked(client().admin().indices().prepareDelete("*").get());
         if (resetNode) {
-            Holder.reset();
+            reset();
         }
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(),
@@ -79,8 +86,20 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
     }
 
     @After
-    public void after() {
+    public void tearDown() throws Exception {
+        super.tearDown();
         cleanup(resetNodeAfterTest());
+    }
+
+    @BeforeClass
+    public static void setUpClass() throws Exception {
+        stopNode();
+        startNode();
+    }
+
+    @AfterClass
+    public static void tearDownClass() {
+        stopNode();
     }
 
     /**
@@ -94,10 +113,11 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     private static Node newNode() {
         Node build = NodeBuilder.nodeBuilder().local(true).data(true).settings(ImmutableSettings.builder()
-                .put(ClusterName.SETTING, nodeName())
+                .put(ClusterName.SETTING, clusterName())
                 .put("node.name", nodeName())
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("script.disable_dynamic", false)
                 .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
                 .put("http.enabled", false)
                 .put("config.ignore_system_properties", true) // make sure we get what we set :)
@@ -111,35 +131,35 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
      * Returns a client to the single-node cluster.
      */
     public static Client client() {
-        return Holder.NODE.client();
+        return NODE.client();
     }
 
     /**
      * Returns the single test nodes name.
      */
     public static String nodeName() {
-        return ElasticsearchSingleNodeTest.class.getName();
+        return "node_s_0";
     }
 
     /**
      * Returns the name of the cluster used for the single test node.
      */
     public static String clusterName() {
-        return ElasticsearchSingleNodeTest.class.getName();
+        return InternalTestCluster.clusterName("single-node", Integer.toString(CHILD_JVM_ID), randomLong());
     }
 
     /**
      * Return a reference to the singleton node.
      */
     protected static Node node() {
-        return Holder.NODE;
+        return NODE;
     }
 
     /**
      * Get an instance for a particular class using the injector of the singleton node.
      */
     protected static <T> T getInstanceFromNode(Class<T> clazz) {
-        return ((InternalNode) Holder.NODE).injector().getInstance(clazz);
+        return NODE.injector().getInstance(clazz);
     }
 
     /**

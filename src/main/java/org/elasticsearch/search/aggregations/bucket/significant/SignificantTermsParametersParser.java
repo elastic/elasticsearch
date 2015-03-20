@@ -51,6 +51,7 @@ public class SignificantTermsParametersParser extends AbstractTermsParametersPar
 
     private SignificanceHeuristic significanceHeuristic;
 
+    @Override
     public TermsAggregator.BucketCountThresholds getDefaultBucketCountThresholds() {
         return new TermsAggregator.BucketCountThresholds(DEFAULT_BUCKET_COUNT_THRESHOLDS);
     }

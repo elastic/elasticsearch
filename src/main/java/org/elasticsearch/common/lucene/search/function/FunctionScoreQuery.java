@@ -90,21 +90,20 @@ public class FunctionScoreQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
-        Weight subQueryWeight = subQuery.createWeight(searcher);
-        return new CustomBoostFactorWeight(subQueryWeight);
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+        // TODO: needsScores
+        // if we don't need scores, just return the underlying weight?
+        Weight subQueryWeight = subQuery.createWeight(searcher, needsScores);
+        return new CustomBoostFactorWeight(this, subQueryWeight);
     }
 
     class CustomBoostFactorWeight extends Weight {
 
         final Weight subQueryWeight;
 
-        public CustomBoostFactorWeight(Weight subQueryWeight) throws IOException {
+        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight) throws IOException {
+            super(parent);
             this.subQueryWeight = subQueryWeight;
-        }
-
-        public Query getQuery() {
-            return FunctionScoreQuery.this;
         }
 
         @Override
@@ -121,9 +120,6 @@ public class FunctionScoreQuery extends Query {
 
         @Override
         public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
-            // we ignore scoreDocsInOrder parameter, because we need to score in
-            // order if documents are scored with a script. The
-            // ShardLookup depends on in order scoring.
             Scorer subQueryScorer = subQueryWeight.scorer(context, acceptDocs);
             if (subQueryScorer == null) {
                 return null;
@@ -162,6 +158,7 @@ public class FunctionScoreQuery extends Query {
         }
     }
 
+    @Override
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
         sb.append("function score (").append(subQuery.toString(field)).append(",function=").append(function).append(')');
@@ -169,6 +166,7 @@ public class FunctionScoreQuery extends Query {
         return sb.toString();
     }
 
+    @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass())
             return false;
@@ -177,6 +175,7 @@ public class FunctionScoreQuery extends Query {
                 && this.maxBoost == other.maxBoost;
     }
 
+    @Override
     public int hashCode() {
         return subQuery.hashCode() + 31 * function.hashCode() ^ Float.floatToIntBits(getBoost());
     }

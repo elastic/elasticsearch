@@ -19,13 +19,11 @@
 
 package org.elasticsearch.index.store.fs;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.apache.lucene.store.*;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -58,7 +56,7 @@ public abstract class FsDirectoryService extends DirectoryService implements Sto
     }
 
     protected final LockFactory buildLockFactory() throws IOException {
-        String fsLock = componentSettings.get("lock", componentSettings.get("fs_lock", "native"));
+        String fsLock = indexSettings.get("index.store.fs.lock", indexSettings.get("index.store.fs.fs_lock", "native"));
         LockFactory lockFactory;
         if (fsLock.equals("native")) {
             lockFactory = NativeFSLockFactory.INSTANCE;

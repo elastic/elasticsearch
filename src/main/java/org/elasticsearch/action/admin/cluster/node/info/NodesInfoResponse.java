@@ -37,8 +37,6 @@ import java.util.Map;
  */
 public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implements ToXContent {
 
-    private SettingsFilter settingsFilter;
-
     public NodesInfoResponse() {
     }
 
@@ -62,11 +60,6 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implemen
         for (NodeInfo node : nodes) {
             node.writeTo(out);
         }
-    }
-
-    public NodesInfoResponse settingsFilter(SettingsFilter settingsFilter) {
-        this.settingsFilter = settingsFilter;
-        return this;
     }
 
     @Override
@@ -102,7 +95,7 @@ public class NodesInfoResponse extends NodesOperationResponse<NodeInfo> implemen
 
             if (nodeInfo.getSettings() != null) {
                 builder.startObject("settings");
-                Settings settings = settingsFilter != null ? settingsFilter.filterSettings(nodeInfo.getSettings()) : nodeInfo.getSettings();
+                Settings settings = nodeInfo.getSettings();
                 settings.toXContent(builder, params);
                 builder.endObject();
             }

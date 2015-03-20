@@ -42,7 +42,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.XCollector;
+import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.StringText;
@@ -58,11 +58,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
@@ -88,8 +85,6 @@ import java.util.Map;
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 import static org.elasticsearch.percolator.QueryCollector.*;
 
-/**
- */
 public class PercolatorService extends AbstractComponent {
 
     public final static float NO_SCORE = Float.NEGATIVE_INFINITY;
@@ -164,9 +159,15 @@ public class PercolatorService extends AbstractComponent {
         shardPercolateService.prePercolate();
         long startTime = System.nanoTime();
 
+        String[] filteringAliases = clusterService.state().getMetaData().filteringAliases(
+                indexShard.shardId().index().name(),
+                request.indices()
+        );
+        Filter aliasFilter = percolateIndexService.aliasesService().aliasFilter(filteringAliases);
+
         SearchShardTarget searchShardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         final PercolateContext context = new PercolateContext(
-                request, searchShardTarget, indexShard, percolateIndexService, pageCacheRecycler, bigArrays, scriptService
+                request, searchShardTarget, indexShard, percolateIndexService, pageCacheRecycler, bigArrays, scriptService, aliasFilter
         );
         try {
             ParsedDocument parsedDocument = parseRequest(percolateIndexService, request, context);
@@ -180,7 +181,7 @@ public class PercolatorService extends AbstractComponent {
                 throw new ElasticsearchIllegalArgumentException("Nothing to percolate");
             }
 
-            if (context.percolateQuery() == null && (context.trackScores() || context.doSort || context.aggregations() != null)) {
+            if (context.percolateQuery() == null && (context.trackScores() || context.doSort || context.aggregations() != null) || context.aliasFilter() != null) {
                 context.percolateQuery(new MatchAllDocsQuery());
             }
 
@@ -730,18 +731,18 @@ public class PercolatorService extends AbstractComponent {
                     hls = new ArrayList<>(topDocs.scoreDocs.length);
                 }
 
-                final FieldMapper<?> idMapper = context.mapperService().smartNameFieldMapper(IdFieldMapper.NAME);
-                final IndexFieldData<?> idFieldData = context.fieldData().getForField(idMapper);
+                final FieldMapper<?> uidMapper = context.mapperService().smartNameFieldMapper(UidFieldMapper.NAME);
+                final IndexFieldData<?> uidFieldData = context.fieldData().getForField(uidMapper);
                 int i = 0;
                 for (ScoreDoc scoreDoc : topDocs.scoreDocs) {
                     int segmentIdx = ReaderUtil.subIndex(scoreDoc.doc, percolatorSearcher.reader().leaves());
                     LeafReaderContext atomicReaderContext = percolatorSearcher.reader().leaves().get(segmentIdx);
-                    SortedBinaryDocValues values = idFieldData.load(atomicReaderContext).getBytesValues();
+                    SortedBinaryDocValues values = uidFieldData.load(atomicReaderContext).getBytesValues();
                     final int localDocId = scoreDoc.doc - atomicReaderContext.docBase;
                     values.setDocument(localDocId);
                     final int numValues = values.count();
                     assert numValues == 1;
-                    BytesRef bytes = values.valueAt(0);
+                    BytesRef bytes = Uid.splitUidIntoTypeAndId(values.valueAt(0))[1];
                     matches.add(BytesRef.deepCopyOf(bytes));
                     if (hls != null) {
                         Query query = context.percolateQueries().get(bytes);
@@ -769,14 +770,21 @@ public class PercolatorService extends AbstractComponent {
 
     private void queryBasedPercolating(Engine.Searcher percolatorSearcher, PercolateContext context, QueryCollector percolateCollector) throws IOException {
         Filter percolatorTypeFilter = context.indexService().mapperService().documentMapper(TYPE_NAME).typeFilter();
-        percolatorTypeFilter = context.indexService().cache().filter().cache(percolatorTypeFilter, null, context.indexService().queryParserService().autoFilterCachePolicy());
-        FilteredQuery query = new FilteredQuery(context.percolateQuery(), percolatorTypeFilter);
-        percolatorSearcher.searcher().search(query, percolateCollector);
-        for (Collector queryCollector : percolateCollector.aggregatorCollector) {
-            if (queryCollector instanceof XCollector) {
-                ((XCollector) queryCollector).postCollection();
-            }
+        percolatorTypeFilter = context.indexService().cache().filter().cache(percolatorTypeFilter, null, context.queryParserService().autoFilterCachePolicy());
+
+        final Filter filter;
+        if (context.aliasFilter() != null) {
+            XBooleanFilter booleanFilter = new XBooleanFilter();
+            booleanFilter.add(context.aliasFilter(), BooleanClause.Occur.MUST);
+            booleanFilter.add(percolatorTypeFilter, BooleanClause.Occur.MUST);
+            filter = booleanFilter;
+        } else {
+            filter = percolatorTypeFilter;
         }
+
+        FilteredQuery query = new FilteredQuery(context.percolateQuery(), filter);
+        percolatorSearcher.searcher().search(query, percolateCollector);
+        percolateCollector.aggregatorCollector.postCollection();
         if (context.aggregations() != null) {
             aggregationPhase.execute(context);
         }

@@ -32,6 +32,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.nio.file.FileVisitResult.CONTINUE;
@@ -203,15 +204,32 @@ public final class FileSystemUtils {
 
                 if (!Files.exists(path)) {
                     // We just move the new file to new dir
-                    Files.move(file, path);
+                    move(file, path);
                 } else if (suffix != null) {
-                    // If it already exists we try to copy this new version appending suffix to its name
-                    path = Paths.get(path.toString().concat(suffix));
-                    // We just move the file to new dir but with a new name (appended with suffix)
-                    Files.move(file, path, StandardCopyOption.REPLACE_EXISTING);
+                    if (!isSameFile(file, path)) {
+                        // If it already exists we try to copy this new version appending suffix to its name
+                        path = Paths.get(path.toString().concat(suffix));
+                        // We just move the file to new dir but with a new name (appended with suffix)
+                        Files.move(file, path, StandardCopyOption.REPLACE_EXISTING);
+                    }
                 }
 
                 return FileVisitResult.CONTINUE;
+            }
+
+            /**
+             * Compares the content of two paths by comparing them
+             */
+            private boolean isSameFile(Path first, Path second) throws IOException {
+                // do quick file size comparison before hashing
+                boolean sameFileSize = Files.size(first) == Files.size(second);
+                if (!sameFileSize) {
+                    return false;
+                }
+
+                byte[] firstBytes = Files.readAllBytes(first);
+                byte[] secondBytes = Files.readAllBytes(second);
+                return Arrays.equals(firstBytes, secondBytes);
             }
         });
     }
@@ -278,8 +296,8 @@ public final class FileSystemUtils {
             Path newFile = target.resolve(source.relativize(file));
             try {
                 Files.copy(file, newFile);
-                if ((delete) && (Files.exists(newFile))) {
-                    Files.delete(file);
+                if (delete) {
+                    Files.deleteIfExists(file);
                 }
             } catch (IOException x) {
                 // We ignore this

@@ -19,9 +19,9 @@
 package org.elasticsearch.percolator;
 
 import com.google.common.collect.ImmutableList;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Counter;
@@ -31,6 +31,7 @@ import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
@@ -43,7 +44,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
@@ -90,6 +90,7 @@ public class PercolateContext extends SearchContext {
     private final ScriptService scriptService;
     private final ConcurrentMap<BytesRef, Query> percolateQueries;
     private final int numberOfShards;
+    private final Filter aliasFilter;
     private String[] types;
 
     private Engine.Searcher docSearcher;
@@ -109,7 +110,7 @@ public class PercolateContext extends SearchContext {
 
     public PercolateContext(PercolateShardRequest request, SearchShardTarget searchShardTarget, IndexShard indexShard,
                             IndexService indexService, PageCacheRecycler pageCacheRecycler,
-                            BigArrays bigArrays, ScriptService scriptService) {
+                            BigArrays bigArrays, ScriptService scriptService, Filter aliasFilter) {
         this.indexShard = indexShard;
         this.indexService = indexService;
         this.fieldDataService = indexService.fieldData();
@@ -123,6 +124,7 @@ public class PercolateContext extends SearchContext {
         this.searcher = new ContextIndexSearcher(this, engineSearcher);
         this.scriptService = scriptService;
         this.numberOfShards = request.getNumberOfShards();
+        this.aliasFilter = aliasFilter;
     }
 
     public IndexSearcher docSearcher() {
@@ -148,6 +150,7 @@ public class PercolateContext extends SearchContext {
         );
     }
 
+    @Override
     public IndexShard indexShard() {
         return indexShard;
     }
@@ -276,7 +279,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public Filter searchFilter(String[] types) {
-        throw new UnsupportedOperationException();
+        return aliasFilter();
     }
 
     @Override
@@ -508,7 +511,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public Filter aliasFilter() {
-        throw new UnsupportedOperationException();
+        return aliasFilter;
     }
 
     @Override
@@ -664,6 +667,11 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
+    public FieldMapper smartNameFieldMapperFromAnyType(String name) {
+        return mapperService().smartNameFieldMapper(name);
+    }
+
+    @Override
     public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
         throw new UnsupportedOperationException();
     }
@@ -682,4 +690,5 @@ public class PercolateContext extends SearchContext {
     public InnerHitsContext innerHits() {
         throw new UnsupportedOperationException();
     }
+
 }

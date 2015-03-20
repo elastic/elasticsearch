@@ -30,6 +30,8 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.RoaringDocIdSet;
 import org.apache.lucene.util.SparseFixedBitSet;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.XDocIdSetIterator;
 
@@ -109,11 +111,16 @@ public class DocIdSets {
     }
 
     /**
-     * Gets a set to bits.
+     * Get a build a {@link Bits} instance that will match all documents
+     * contained in {@code set}. Note that this is a potentially heavy
+     * operation as this might require to consume an iterator of this set
+     * entirely and to load it into a {@link BitSet}. Prefer using
+     * {@link #asSequentialAccessBits} if you only need to consume the
+     * {@link Bits} once and in order.
      */
-    public static Bits toSafeBits(LeafReader reader, @Nullable DocIdSet set) throws IOException {
+    public static Bits toSafeBits(int maxDoc, @Nullable DocIdSet set) throws IOException {
         if (set == null) {
-            return new Bits.MatchNoBits(reader.maxDoc());
+            return new Bits.MatchNoBits(maxDoc);
         }
         Bits bits = set.bits();
         if (bits != null) {
@@ -121,9 +128,56 @@ public class DocIdSets {
         }
         DocIdSetIterator iterator = set.iterator();
         if (iterator == null) {
-            return new Bits.MatchNoBits(reader.maxDoc());
+            return new Bits.MatchNoBits(maxDoc);
         }
-        return toBitSet(iterator, reader.maxDoc());
+        return toBitSet(iterator, maxDoc);
+    }
+
+    /**
+     * Given a {@link DocIdSet}, return a {@link Bits} instance that will match
+     * all documents contained in the set. Note that the returned {@link Bits}
+     * instance should only be consumed once and in order.
+     */
+    public static Bits asSequentialAccessBits(final int maxDoc, @Nullable DocIdSet set) throws IOException {
+        if (set == null) {
+            return new Bits.MatchNoBits(maxDoc);
+        }
+        Bits bits = set.bits();
+        if (bits != null) {
+            return bits;
+        }
+        final DocIdSetIterator iterator = set.iterator();
+        if (iterator == null) {
+            return new Bits.MatchNoBits(maxDoc);
+        }
+        return new Bits() {
+
+            int previous = 0;
+
+            @Override
+            public boolean get(int index) {
+                if (index < previous) {
+                    throw new ElasticsearchIllegalArgumentException("This Bits instance can only be consumed in order. "
+                            + "Got called on [" + index + "] while previously called on [" + previous + "]");
+                }
+                previous = index;
+
+                int doc = iterator.docID();
+                if (doc < index) {
+                    try {
+                        doc = iterator.advance(index);
+                    } catch (IOException e) {
+                        throw new ElasticsearchIllegalStateException("Cannot advance iterator", e);
+                    }
+                }
+                return index == doc;
+            }
+
+            @Override
+            public int length() {
+                return maxDoc;
+            }
+        };
     }
 
     /**

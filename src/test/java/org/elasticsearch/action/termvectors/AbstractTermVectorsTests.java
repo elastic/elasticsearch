@@ -347,8 +347,8 @@ public abstract class AbstractTermVectorsTests extends ElasticsearchIntegrationT
                 assertNotNull(luceneTermEnum.next());
 
                 assertThat(esTermEnum.totalTermFreq(), equalTo(luceneTermEnum.totalTermFreq()));
-                DocsAndPositionsEnum esDocsPosEnum = esTermEnum.docsAndPositions(null, null, 0);
-                DocsAndPositionsEnum luceneDocsPosEnum = luceneTermEnum.docsAndPositions(null, null, 0);
+                PostingsEnum esDocsPosEnum = esTermEnum.postings(null, null, PostingsEnum.POSITIONS);
+                PostingsEnum luceneDocsPosEnum = luceneTermEnum.postings(null, null, PostingsEnum.POSITIONS);
                 if (luceneDocsPosEnum == null) {
                     // test we expect that...
                     assertFalse(field.storedOffset);

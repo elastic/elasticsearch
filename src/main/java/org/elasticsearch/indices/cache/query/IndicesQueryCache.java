@@ -32,8 +32,6 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -41,8 +39,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -50,15 +46,12 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
@@ -82,7 +75,7 @@ import static org.elasticsearch.common.Strings.hasLength;
  * There are still several TODOs left in this class, some easily addressable, some more complex, but the support
  * is functional.
  */
-public class IndicesQueryCache extends AbstractComponent implements RemovalListener<IndicesQueryCache.Key, BytesReference> {
+public class IndicesQueryCache extends AbstractComponent implements RemovalListener<IndicesQueryCache.Key, IndicesQueryCache.Value> {
 
     /**
      * A setting to enable or disable query caching on an index level. Its dynamic by default
@@ -110,7 +103,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
     private final TimeValue expire;
     private final int concurrencyLevel;
 
-    private volatile Cache<Key, BytesReference> cache;
+    private volatile Cache<Key, Value> cache;
 
     @Inject
     public IndicesQueryCache(Settings settings, ClusterService clusterService, ThreadPool threadPool) {
@@ -135,7 +128,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
     private void buildCache() {
         long sizeInBytes = MemorySizeValue.parseBytesSizeValueOrHeapRatio(size).bytes();
 
-        CacheBuilder<Key, BytesReference> cacheBuilder = CacheBuilder.newBuilder()
+        CacheBuilder<Key, Value> cacheBuilder = CacheBuilder.newBuilder()
                 .maximumWeight(sizeInBytes).weigher(new QueryCacheWeigher()).removalListener(this);
         cacheBuilder.concurrencyLevel(concurrencyLevel);
 
@@ -146,12 +139,11 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         cache = cacheBuilder.build();
     }
 
-    private static class QueryCacheWeigher implements Weigher<Key, BytesReference> {
+    private static class QueryCacheWeigher implements Weigher<Key, Value> {
 
         @Override
-        public int weigh(Key key, BytesReference value) {
-            // TODO add sizeInBytes to BytesReference, since it might be paged.... (Accountable)
-            return (int) (key.ramBytesUsed() + value.length());
+        public int weigh(Key key, Value value) {
+            return (int) (key.ramBytesUsed() + value.ramBytesUsed());
         }
     }
 
@@ -170,7 +162,7 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
     }
 
     @Override
-    public void onRemoval(RemovalNotification<Key, BytesReference> notification) {
+    public void onRemoval(RemovalNotification<Key, Value> notification) {
         if (notification.getKey() == null) {
             return;
         }
@@ -214,15 +206,16 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
     }
 
     /**
-     * Loads the cache result, computing it if needed by executing the query phase. The combination of load + compute allows
+     * Loads the cache result, computing it if needed by executing the query phase and otherwise deserializing the cached
+     * value into the {@link SearchContext#queryResult() context's query result}. The combination of load + compute allows
      * to have a single load operation that will cause other requests with the same key to wait till its loaded an reuse
      * the same cache.
      */
-    public QuerySearchResultProvider load(final ShardSearchRequest request, final SearchContext context, final QueryPhase queryPhase) throws Exception {
+    public void loadIntoContext(final ShardSearchRequest request, final SearchContext context, final QueryPhase queryPhase) throws Exception {
         assert canCache(request, context);
         Key key = buildKey(request, context);
         Loader loader = new Loader(queryPhase, context, key);
-        BytesReference value = cache.get(key, loader);
+        Value value = cache.get(key, loader);
         if (loader.isLoaded()) {
             key.shard.queryCache().onMiss();
             // see if its the first time we see this reader, and make sure to register a cleanup key
@@ -235,13 +228,14 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
             }
         } else {
             key.shard.queryCache().onHit();
+            // restore the cached query result into the context
+            final QuerySearchResult result = context.queryResult();
+            result.readFromWithId(context.id(), value.reference.streamInput());
+            result.shardTarget(context.shardTarget());
         }
-
-        // try and be smart, and reuse an already loaded and constructed QueryResult of in VM execution
-        return new BytesQuerySearchResult(context.id(), context.shardTarget(), value, loader.isLoaded() ? context.queryResult() : null);
     }
 
-    private static class Loader implements Callable<BytesReference> {
+    private static class Loader implements Callable<Value> {
 
         private final QueryPhase queryPhase;
         private final SearchContext context;
@@ -259,17 +253,47 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         }
 
         @Override
-        public BytesReference call() throws Exception {
+        public Value call() throws Exception {
             queryPhase.execute(context);
-            BytesStreamOutput out = new BytesStreamOutput();
-            context.queryResult().writeToNoId(out);
-            // for now, keep the paged data structure, which might have unused bytes to fill a page, but better to keep
-            // the memory properly paged instead of having varied sized bytes
-            BytesReference value = out.bytes();
-            assert verifyCacheSerializationSameAsQueryResult(value, context, context.queryResult());
-            loaded = true;
-            key.shard.queryCache().onCached(key, value);
-            return value;
+
+            /* BytesStreamOutput allows to pass the expected size but by default uses
+             * BigArrays.PAGE_SIZE_IN_BYTES which is 16k. A common cached result ie.
+             * a date histogram with 3 buckets is ~100byte so 16k might be very wasteful
+             * since we don't shrink to the actual size once we are done serializing.
+             * By passing 512 as the expected size we will resize the byte array in the stream
+             * slowly until we hit the page size and don't waste too much memory for small query
+             * results.*/
+            final int expectedSizeInBytes = 512;
+            try (BytesStreamOutput out = new BytesStreamOutput(expectedSizeInBytes)) {
+                context.queryResult().writeToNoId(out);
+                // for now, keep the paged data structure, which might have unused bytes to fill a page, but better to keep
+                // the memory properly paged instead of having varied sized bytes
+                final BytesReference reference = out.bytes();
+                loaded = true;
+                Value value = new Value(reference, out.ramBytesUsed());
+                key.shard.queryCache().onCached(key, value);
+                return value;
+            }
+        }
+    }
+
+    public static class Value implements Accountable {
+        final BytesReference reference;
+        final long ramBytesUsed;
+
+        public Value(BytesReference reference, long ramBytesUsed) {
+            this.reference = reference;
+            this.ramBytesUsed = ramBytesUsed;
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return ramBytesUsed;
+        }
+
+        @Override
+        public Collection<Accountable> getChildResources() {
+            return Collections.emptyList();
         }
     }
 
@@ -425,89 +449,11 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         }
     }
 
-    private static boolean verifyCacheSerializationSameAsQueryResult(BytesReference cacheData, SearchContext context, QuerySearchResult result) throws Exception {
-        BytesStreamOutput out1 = new BytesStreamOutput();
-        new BytesQuerySearchResult(context.id(), context.shardTarget(), cacheData).writeTo(out1);
-        BytesStreamOutput out2 = new BytesStreamOutput();
-        result.writeTo(out2);
-        return out1.bytes().equals(out2.bytes());
-    }
-
     private static Key buildKey(ShardSearchRequest request, SearchContext context) throws Exception {
         // TODO: for now, this will create different keys for different JSON order
         // TODO: tricky to get around this, need to parse and order all, which can be expensive
         return new Key(context.indexShard(),
                 ((DirectoryReader) context.searcher().getIndexReader()).getVersion(),
                 request.cacheKey());
-    }
-
-    /**
-     * this class aim is to just provide an on the wire *write* format that is the same as {@link QuerySearchResult}
-     * and also provide a nice wrapper for in node communication for an already constructed {@link QuerySearchResult}.
-     */
-    private static class BytesQuerySearchResult extends QuerySearchResultProvider {
-
-        private long id;
-        private SearchShardTarget shardTarget;
-        private BytesReference data;
-
-        private transient QuerySearchResult result;
-
-        private BytesQuerySearchResult(long id, SearchShardTarget shardTarget, BytesReference data) {
-            this(id, shardTarget, data, null);
-        }
-
-        private BytesQuerySearchResult(long id, SearchShardTarget shardTarget, BytesReference data, QuerySearchResult result) {
-            this.id = id;
-            this.shardTarget = shardTarget;
-            this.data = data;
-            this.result = result;
-        }
-
-        @Override
-        public boolean includeFetch() {
-            return false;
-        }
-
-        @Override
-        public QuerySearchResult queryResult() {
-            if (result == null) {
-                result = new QuerySearchResult(id, shardTarget);
-                try {
-                    result.readFromWithId(id, data.streamInput());
-                } catch (Exception e) {
-                    throw new ElasticsearchParseException("failed to parse a cached query", e);
-                }
-            }
-            return result;
-        }
-
-        @Override
-        public long id() {
-            return id;
-        }
-
-        @Override
-        public SearchShardTarget shardTarget() {
-            return shardTarget;
-        }
-
-        @Override
-        public void shardTarget(SearchShardTarget shardTarget) {
-            this.shardTarget = shardTarget;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            throw new ElasticsearchIllegalStateException("readFrom should not be called");
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeLong(id);
-//          shardTarget.writeTo(out); not needed
-            data.writeTo(out); // we need to write teh bytes as is, to be the same as QuerySearchResult
-        }
     }
 }

@@ -256,6 +256,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         this.analyzers = ImmutableMap.copyOf(analyzers);
     }
 
+    @Override
     public void close() {
         for (NamedAnalyzer analyzer : analyzers.values()) {
             if (analyzer.scope() == AnalyzerScope.INDEX) {

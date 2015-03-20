@@ -47,10 +47,12 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
         super(settings);
     }
 
+    @Override
     public void addListener(Listener listener) {
         listeners.add(listener);
     }
 
+    @Override
     public void removeListener(Listener listener) {
         listeners.remove(listener);
     }
@@ -61,6 +63,17 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
                 listener.shardRoutingChanged(indexShard, oldRouting, newRouting);
             } catch (Throwable t) {
                 logger.warn("{} failed to invoke shard touring changed callback", t, indexShard.shardId());
+            }
+        }
+    }
+
+    public void beforeIndexAddedToCluster(Index index, @IndexSettings Settings indexSettings) {
+        for (Listener listener : listeners) {
+            try {
+                listener.beforeIndexAddedToCluster(index, indexSettings);
+            } catch (Throwable t) {
+                logger.warn("[{}] failed to invoke before index added to cluster callback", t, index.name());
+                throw t;
             }
         }
     }
@@ -194,6 +207,30 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
                 listener.afterIndexShardClosed(shardId, indexShard, indexSettings);
             } catch (Throwable t) {
                 logger.warn("{} failed to invoke after shard closed callback", t, shardId);
+                throw t;
+            }
+        }
+    }
+
+    public void beforeIndexShardDeleted(ShardId shardId,
+                                       @IndexSettings Settings indexSettings) {
+        for (Listener listener : listeners) {
+            try {
+                listener.beforeIndexShardDeleted(shardId, indexSettings);
+            } catch (Throwable t) {
+                logger.warn("{} failed to invoke before shard deleted callback", t, shardId);
+                throw t;
+            }
+        }
+    }
+
+    public void afterIndexShardDeleted(ShardId shardId,
+                                      @IndexSettings Settings indexSettings) {
+        for (Listener listener : listeners) {
+            try {
+                listener.afterIndexShardDeleted(shardId, indexSettings);
+            } catch (Throwable t) {
+                logger.warn("{} failed to invoke after shard deleted callback", t, shardId);
                 throw t;
             }
         }

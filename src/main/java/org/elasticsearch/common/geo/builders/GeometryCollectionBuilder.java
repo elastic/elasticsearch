@@ -20,7 +20,8 @@
 package org.elasticsearch.common.geo.builders;
 
 import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.ShapeCollection;
+import org.elasticsearch.common.geo.XShapeCollection;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -86,6 +87,18 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
         return this;
     }
 
+    public ShapeBuilder getShapeAt(int i) {
+        if (i >= this.shapes.size() || i < 0) {
+            throw new ElasticsearchException("GeometryCollection contains " + this.shapes.size() + " shapes. + " +
+                    "No shape found at index " + i);
+        }
+        return this.shapes.get(i);
+    }
+
+    public int numShapes() {
+        return this.shapes.size();
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -115,7 +128,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
         if (shapes.size() == 1)
             return shapes.get(0);
         else
-            return new ShapeCollection<>(shapes, SPATIAL_CONTEXT);
+            return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
         //note: ShapeCollection is probably faster than a Multi* geom.
     }
 

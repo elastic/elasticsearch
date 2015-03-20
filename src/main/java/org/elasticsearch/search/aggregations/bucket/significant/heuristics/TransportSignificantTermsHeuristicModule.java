@@ -21,6 +21,7 @@
 package org.elasticsearch.search.aggregations.bucket.significant.heuristics;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.common.inject.AbstractModule;
 
 import java.util.List;
@@ -32,9 +33,11 @@ public class TransportSignificantTermsHeuristicModule extends AbstractModule {
 
     public TransportSignificantTermsHeuristicModule() {
         registerStream(JLHScore.STREAM);
+        registerStream(PercentageScore.STREAM);
         registerStream(MutualInformation.STREAM);
         registerStream(GND.STREAM);
         registerStream(ChiSquare.STREAM);
+        registerStream(ScriptHeuristic.STREAM);
     }
 
     public void registerStream(SignificanceHeuristicStreams.Stream stream) {

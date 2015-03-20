@@ -47,6 +47,7 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -68,6 +69,8 @@ import static org.hamcrest.Matchers.*;
  */
 public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
+    @TestLogging("action.search.type:TRACE")
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9421")
     public void testIssue8226() {
         int numIndices = between(5, 10);
         final boolean useMapping = randomBoolean();
@@ -87,6 +90,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client().prepareSearch()
                 .addSort(new FieldSortBuilder("entry").order(SortOrder.DESC).unmappedType(useMapping ? null : "long"))
                 .setSize(10).get();
+        logClusterState();
         assertSearchResponse(searchResponse);
 
         for (int j = 1; j < searchResponse.getHits().hits().length; j++) {
@@ -99,6 +103,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch()
                 .addSort(new FieldSortBuilder("entry").order(SortOrder.ASC).unmappedType(useMapping ? null : "long"))
                 .setSize(10).get();
+        logClusterState();
         assertSearchResponse(searchResponse);
 
         for (int j = 1; j < searchResponse.getHits().hits().length; j++) {
@@ -150,7 +155,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
     public void testIssue6639() throws ExecutionException, InterruptedException {
         assertAcked(prepareCreate("$index")
-                .addMapping("$type","{\"$type\": {\"_boost\": {\"name\": \"boost\", \"null_value\": 1.0}, \"properties\": {\"grantee\": {\"index\": \"not_analyzed\", \"term_vector\": \"with_positions_offsets\", \"type\": \"string\", \"analyzer\": \"snowball\", \"boost\": 1.0, \"store\": \"yes\"}}}}"));
+                .addMapping("$type","{\"$type\": {\"properties\": {\"grantee\": {\"index\": \"not_analyzed\", \"term_vector\": \"with_positions_offsets\", \"type\": \"string\", \"analyzer\": \"snowball\", \"boost\": 1.0, \"store\": \"yes\"}}}}"));
         indexRandom(true,
                 client().prepareIndex("$index", "$type", "data.activity.5").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 1\"}"),
                 client().prepareIndex("$index", "$type", "data.activity.6").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 2\"}"));
@@ -795,7 +800,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("min", "retval = Long.MAX_VALUE; for (v in doc['lvalue'].values){ retval = min(v, retval) }; retval")
-                .addSort("ord", SortOrder.ASC).setSize(10)
+                .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long")).setSize(10)
                 .execute().actionGet();
 
         assertNoFailures(searchResponse);
@@ -808,7 +813,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("min", "retval = Double.MAX_VALUE; for (v in doc['dvalue'].values){ retval = min(v, retval) }; retval")
-                .addSort("ord", SortOrder.ASC).setSize(10)
+                .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long")).setSize(10)
                 .execute().actionGet();
 
         assertNoFailures(searchResponse);
@@ -822,7 +827,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("min", "retval = Integer.MAX_VALUE; for (v in doc['svalue'].values){ retval = min(Integer.parseInt(v), retval) }; retval")
-                .addSort("ord", SortOrder.ASC).setSize(10)
+                .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long")).setSize(10)
                 .execute().actionGet();
 
         assertNoFailures(searchResponse);
@@ -836,7 +841,7 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addScriptField("min", "retval = Double.MAX_VALUE; for (v in doc['gvalue'].values){ retval = min(v.lon, retval) }; retval")
-                .addSort("ord", SortOrder.ASC).setSize(10)
+                .addSort(SortBuilders.fieldSort("ord").order(SortOrder.ASC).unmappedType("long")).setSize(10)
                 .execute().actionGet();
 
         assertNoFailures(searchResponse);
@@ -1556,16 +1561,14 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
         final boolean idDocValues = maybeDocValues();
         final boolean timestampDocValues = maybeDocValues();
         assertAcked(prepareCreate("test")
-            .addMapping("typ", XContentFactory.jsonBuilder().startObject().startObject("typ")
-                        .startObject("_uid").startObject("fielddata").field("format", maybeDocValues() ? "doc_values" : null).endObject().endObject()
-                        .startObject("_id").field("index", !idDocValues || randomBoolean() ? "not_analyzed" : "no").startObject("fielddata").field("format", idDocValues ? "doc_values" : null).endObject().endObject()
+            .addMapping("type", XContentFactory.jsonBuilder().startObject().startObject("type")
                         .startObject("_timestamp").field("enabled", true).field("store", true).field("index", !timestampDocValues || randomBoolean() ? "not_analyzed" : "no").startObject("fielddata").field("format", timestampDocValues ? "doc_values" : null).endObject().endObject()
                         .endObject().endObject()));
         ensureGreen();
         final int numDocs = randomIntBetween(10, 20);
         IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; ++i) {
-            indexReqs[i] = client().prepareIndex("test", "typ", Integer.toString(i)).setTimestamp(Integer.toString(randomInt(1000))).setSource();
+            indexReqs[i] = client().prepareIndex("test", "type", Integer.toString(i)).setTimestamp(Integer.toString(randomInt(1000))).setSource();
         }
         indexRandom(true, indexReqs);
 
@@ -1584,7 +1587,8 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
             previous = uid;
         }
 
-        /*searchResponse = client().prepareSearch()
+        /*
+        searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .setSize(randomIntBetween(1, numDocs + 5))
                 .addSort("_id", order)

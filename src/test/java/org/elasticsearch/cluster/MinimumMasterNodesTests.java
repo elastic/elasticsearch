@@ -100,6 +100,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
         internalCluster().stopCurrentMasterNode();
         awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object obj) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
                 return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
@@ -137,6 +138,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
         internalCluster().stopRandomNonMasterNode();
         assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object obj) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
                 return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
@@ -183,6 +185,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         ClusterState state;
 
         awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object obj) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
                 return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
@@ -190,6 +193,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         });
 
         awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object obj) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
                 return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
@@ -295,6 +299,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
     private void assertNoMasterBlockOnAllNodes() throws InterruptedException {
         assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object obj) {
                 boolean success = true;
                 for (Client client : internalCluster()) {

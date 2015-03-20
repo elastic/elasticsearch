@@ -1,6 +1,8 @@
 [[index-modules-store]]
 == Store
 
+experimental[]
+
 The store module allows you to control how index data is stored.
 
 The index can either be stored in-memory (no persistence) or on-disk

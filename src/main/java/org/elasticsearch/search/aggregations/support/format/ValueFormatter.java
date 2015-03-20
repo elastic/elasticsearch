@@ -28,12 +28,14 @@ import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
+import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.util.Locale;
+import java.util.TimeZone;
 
 /**
  * A strategy for formatting time represented as millis long value to string
@@ -101,6 +103,7 @@ public interface ValueFormatter extends Streamable {
     public static class DateTime implements ValueFormatter {
 
         public static final ValueFormatter DEFAULT = new ValueFormatter.DateTime(DateFieldMapper.Defaults.DATE_TIME_FORMATTER);
+        private DateTimeZone timeZone = DateTimeZone.UTC;
 
         public static DateTime mapper(DateFieldMapper mapper) {
             return new DateTime(mapper.dateTimeFormatter());
@@ -122,9 +125,14 @@ public interface ValueFormatter extends Streamable {
 
         @Override
         public String format(long time) {
-            return formatter.printer().print(time);
+            return formatter.printer().withZone(timeZone).print(time);
         }
-        
+
+        public void setTimeZone(DateTimeZone timeZone) {
+            this.timeZone = timeZone;
+        }
+
+        @Override
         public String format(double value) {
             return format((long) value);
         }
@@ -137,11 +145,13 @@ public interface ValueFormatter extends Streamable {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             formatter = Joda.forPattern(in.readString());
+            timeZone = DateTimeZone.forID(in.readString());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(formatter.format());
+            out.writeString(timeZone.getID());
         }
     }
 

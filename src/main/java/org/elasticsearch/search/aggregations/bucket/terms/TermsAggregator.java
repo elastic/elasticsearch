@@ -131,15 +131,15 @@ public abstract class TermsAggregator extends BucketsAggregator {
     }
 
     protected final BucketCountThresholds bucketCountThresholds;
-    protected Terms.Order order;
-    protected Set<Aggregator> aggsUsedForSorting = new HashSet<>();
-    protected SubAggCollectionMode subAggCollectMode;
+    protected final Terms.Order order;
+    protected final Set<Aggregator> aggsUsedForSorting = new HashSet<>();
+    protected final SubAggCollectionMode collectMode;
 
-    public TermsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent, BucketCountThresholds bucketCountThresholds, Terms.Order order, SubAggCollectionMode subAggCollectMode, Map<String, Object> metaData) throws IOException {
+    public TermsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent, BucketCountThresholds bucketCountThresholds, Terms.Order order, SubAggCollectionMode collectMode, Map<String, Object> metaData) throws IOException {
         super(name, factories, context, parent, metaData);
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = InternalOrder.validate(order, this);
-        this.subAggCollectMode = subAggCollectMode;
+        this.collectMode = collectMode;
         // Don't defer any child agg if we are dependent on it for pruning results
         if (order instanceof Aggregation){
             AggregationPath path = ((Aggregation) order).path();
@@ -157,7 +157,7 @@ public abstract class TermsAggregator extends BucketsAggregator {
 
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
-        return (subAggCollectMode == SubAggCollectionMode.BREADTH_FIRST) && (!aggsUsedForSorting.contains(aggregator));
+        return (collectMode == SubAggCollectionMode.BREADTH_FIRST) && (!aggsUsedForSorting.contains(aggregator));
     }
     
 }

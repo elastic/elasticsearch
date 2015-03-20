@@ -445,6 +445,45 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testInnerHitsOnHasParent() throws Exception {
+        assertAcked(prepareCreate("stack")
+                        .addMapping("question", "body", "type=string")
+                        .addMapping("answer", "_parent", "type=question", "body", "type=string")
+        );
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        requests.add(client().prepareIndex("stack", "question", "1").setSource("body", "I'm using HTTPS + Basic authentication to protect a resource. How can I throttle authentication attempts to protect against brute force attacks?"));
+        requests.add(client().prepareIndex("stack", "answer", "1").setParent("1").setSource("body", "install fail2ban and enable rules for apache"));
+        requests.add(client().prepareIndex("stack", "question", "2").setSource("body", "I have firewall rules set up and also denyhosts installed.\\ndo I also need to install fail2ban?"));
+        requests.add(client().prepareIndex("stack", "answer", "2").setParent("2").setSource("body", "Denyhosts protects only ssh; Fail2Ban protects all daemons."));
+        indexRandom(true, requests);
+
+        SearchResponse response = client().prepareSearch("stack")
+                .setTypes("answer")
+                .addSort("_uid", SortOrder.ASC)
+                .setQuery(
+                        boolQuery()
+                                .must(matchQuery("body", "fail2ban"))
+                                .must(hasParentQuery("question", matchAllQuery()).innerHit(new QueryInnerHitBuilder()))
+                ).get();
+        assertNoFailures(response);
+        assertHitCount(response, 2);
+
+        SearchHit searchHit = response.getHits().getAt(0);
+        assertThat(searchHit.getId(), equalTo("1"));
+        assertThat(searchHit.getType(), equalTo("answer"));
+        assertThat(searchHit.getInnerHits().get("question").getTotalHits(), equalTo(1l));
+        assertThat(searchHit.getInnerHits().get("question").getAt(0).getType(), equalTo("question"));
+        assertThat(searchHit.getInnerHits().get("question").getAt(0).id(), equalTo("1"));
+
+        searchHit = response.getHits().getAt(1);
+        assertThat(searchHit.getId(), equalTo("2"));
+        assertThat(searchHit.getType(), equalTo("answer"));
+        assertThat(searchHit.getInnerHits().get("question").getTotalHits(), equalTo(1l));
+        assertThat(searchHit.getInnerHits().get("question").getAt(0).getType(), equalTo("question"));
+        assertThat(searchHit.getInnerHits().get("question").getAt(0).id(), equalTo("2"));
+    }
+
+    @Test
     public void testParentChildMultipleLayers() throws Exception {
         assertAcked(prepareCreate("articles")
                         .addMapping("article", "title", "type=string")
@@ -579,13 +618,30 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
         assertThat(innerHits.getAt(0).getNestedIdentity().getChild().getField().string(), equalTo("remarks"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getChild().getOffset(), equalTo(0));
 
+        // Directly refer to the second level:
+        response = client().prepareSearch("articles")
+                .setQuery(nestedQuery("comments.remarks", matchQuery("comments.remarks.message", "bad")).innerHit(new QueryInnerHitBuilder()))
+                .get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertSearchHit(response, 1, hasId("2"));
+        assertThat(response.getHits().getAt(0).getInnerHits().size(), equalTo(1));
+        innerHits = response.getHits().getAt(0).getInnerHits().get("comments.remarks");
+        assertThat(innerHits.totalHits(), equalTo(1l));
+        assertThat(innerHits.getHits().length, equalTo(1));
+        assertThat(innerHits.getAt(0).getId(), equalTo("2"));
+        assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
+        assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
+        assertThat(innerHits.getAt(0).getNestedIdentity().getChild().getField().string(), equalTo("remarks"));
+        assertThat(innerHits.getAt(0).getNestedIdentity().getChild().getOffset(), equalTo(0));
+
         response = client().prepareSearch("articles")
                 .setQuery(nestedQuery("comments", nestedQuery("comments.remarks", matchQuery("comments.remarks.message", "bad"))))
                 .addInnerHit("comment", new InnerHitsBuilder.InnerHit()
                                 .setPath("comments")
                                 .setQuery(nestedQuery("comments.remarks", matchQuery("comments.remarks.message", "bad")))
-                                .addInnerHit("remark", new InnerHitsBuilder.InnerHit().setPath("comments.remarks").setQuery(matchQuery("comments.remarks.message", "bad")))
-                ).get();
+                                .addInnerHit("remark", new InnerHitsBuilder.InnerHit().setPath("comments.remarks").setQuery(matchQuery("comments.remarks.message", "bad"))))
+                .get();
         assertNoFailures(response);
         assertHitCount(response, 1);
         assertSearchHit(response, 1, hasId("2"));
@@ -604,6 +660,31 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
         assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
         assertThat(innerHits.getAt(0).getNestedIdentity().getChild().getField().string(), equalTo("remarks"));
         assertThat(innerHits.getAt(0).getNestedIdentity().getChild().getOffset(), equalTo(0));
+    }
+
+    @Test
+    // https://github.com/elasticsearch/elasticsearch/issues/9723
+    public void testNestedDefinedAsObject() throws Exception {
+        assertAcked(prepareCreate("articles").addMapping("article", "comments", "type=nested", "title", "type=string"));
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        requests.add(client().prepareIndex("articles", "article", "1").setSource(jsonBuilder().startObject()
+                .field("title", "quick brown fox")
+                .startObject("comments").field("message", "fox eat quick").endObject()
+                .endObject()));
+        indexRandom(true, requests);
+
+        SearchResponse response = client().prepareSearch("articles")
+                .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox")).innerHit(new QueryInnerHitBuilder()))
+                .get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getTotalHits(), equalTo(1l));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).id(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getChild(), nullValue());
     }
 
 }

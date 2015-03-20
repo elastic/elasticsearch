@@ -6,13 +6,15 @@ your application to Elasticsearch 2.0.
 
 === Indices API
 
-The <<alias-retrieving, get alias api>> will, by default produce an error response 
-if a requested index does not exist. This change brings the defaults for this API in 
-line with the other Indices APIs. The <<multi-index>> options can be used on a request 
+The <<alias-retrieving, get alias api>> will, by default produce an error response
+if a requested index does not exist. This change brings the defaults for this API in
+line with the other Indices APIs. The <<multi-index>> options can be used on a request
 to change this behavior
 
-`GetIndexRequest.features()` now returns an array of Feature Enums instrad of an array of String values.
+`GetIndexRequest.features()` now returns an array of Feature Enums instead of an array of String values.
+
 The following deprecated methods have been removed:
+
 * `GetIndexRequest.addFeatures(String[])` - Please use `GetIndexRequest.addFeatures(Feature[])` instead
 * `GetIndexRequest.features(String[])` - Please use `GetIndexRequest.features(Feature[])` instead
 * `GetIndexRequestBuilder.addFeatures(String[])` - Please use `GetIndexRequestBuilder.addFeatures(Feature[])` instead
@@ -48,6 +50,13 @@ In addition, the following node settings related to routing have been deprecated
   This was an undocumented setting that allowed to take the `_type` of the
   document into account when computing its shard (default: `false`). `false` is
   now enforced on new indices.
+
+=== Async replication
+
+The `replication` parameter has been removed from all CRUD operations (index,
+update, delete, bulk, delete-by-query).  These operations are now synchronous
+only, and a request will only return once the changes have been replicated to
+all active shards in the shard group.
 
 === Store
 
@@ -107,6 +116,29 @@ Some query builders have been removed or renamed:
 * `filtered(...)` removed. Use `filteredQuery(...)` instead.
 * `inQuery(...)` removed.
 
+=== Aggregations
+
+The `date_histogram` aggregation now returns a `Histogram` object in the response, and the `DateHistogram` class has been removed. Similarly
+the `date_range`, `ipv4_range`, and `geo_distance` aggregations all return a `Range` object in the response, and the `IPV4Range`, `DateRange`,
+and `GeoDistance` classes have been removed. The motivation for this is to have a single response API for the Range and Histogram aggregations
+regardless of the type of data being queried.  To support this some changes were made in the `MultiBucketAggregation` interface which applies
+to all bucket aggregations:
+
+* The `getKey()` method now returns `Object` instead of `String`. The actual object type returned depends on the type of aggregation requested
+(e.g. the `date_histogram` will return a `DateTime` object for this method whereas a `histogram` will return a `Number`).
+* A `getKeyAsString()` method has been added to return the String representation of the key.
+* All other `getKeyAsX()` methods have been removed.
+* The `getBucketAsKey(String)` methods have been removed on all aggregations except the `filters` and `terms` aggregations.
+
+The `histogram` and the `date_histogram` aggregation now support a simplified `offset` option that replaces the previous `pre_offset` and
+`post_offset` rounding options. Instead of having to specify two separate offset shifts of the underlying buckets, the `offset` option
+moves the bucket boundaries in positive or negative direction depending on its argument.
+
+The `date_histogram` options for `pre_zone` and `post_zone` are replaced by the `time_zone` option. The behavior of `time_zone` is
+equivalent to the former `pre_zone` option. Setting `time_zone` to a value like "+01:00" now will lead to the bucket calculations
+being applied in the specified time zone but In addition to this, also the `pre_zone_adjust_large_interval` is removed because we
+now always return dates and bucket keys in UTC.
+
 === Terms filter lookup caching
 
 The terms filter lookup mechanism does not support the `cache` option anymore
@@ -121,7 +153,7 @@ The `parent` parameter has been removed from the update request. Before 2.x it j
 `routing` setting should be used instead. The `parent` setting was confusing, because it had the impression that the parent
 a child documents points to can be changed but this is not true.
 
-==== Delete by query
+=== Delete by query
 
 The meaning of the `_shards` headers in the delete by query response has changed. Before version 2.0 the `total`,
 `successful` and `failed` fields in the header are based on the number of primary shards. The failures on replica
@@ -131,4 +163,130 @@ primary shards.
 
 === Mappings
 
-The setting `index.mapping.allow_type_wrapper` has been removed.  Documents should always be sent without the type as the root element.
+* The setting `index.mapping.allow_type_wrapper` has been removed.  Documents should always be sent without the type as the root element.
+
+==== Removed type prefix on field names in queries
+Types can no longer be specified on fields within queries.  Instead, specify type restrictions in the search request.
+
+The following is an example query in 1.x over types `t1` and `t2`:
+
+[source,json]
+---------------
+curl -XGET 'localhost:9200/index/_search'
+{
+  "query": {
+    "bool": {
+      "should": [
+        {"match": { "t1.field_only_in_t1": "foo" }},
+        {"match": { "t2.field_only_in_t2": "bar" }}
+      ]
+    }
+  }
+}
+---------------
+
+In 2.0, the query should look like the following:
+
+[source,json]
+---------------
+curl -XGET 'localhost:9200/index/t1,t2/_search'
+{
+  "query": {
+    "bool": {
+      "should": [
+        {"match": { "field_only_in_t1": "foo" }},
+        {"match": { "field_only_in_t2": "bar" }}
+      ]
+    }
+  }
+}
+---------------
+
+==== Removed short name field access
+Field names in queries, aggregations, etc. must now use the complete name.  Use of the short name
+caused ambiguities in field lookups when the same name existed within multiple object mappings.
+
+The following example illustrates the difference between 1.x and 2.0.
+
+Given these mappings:
+
+[source,json]
+---------------
+curl -XPUT 'localhost:9200/index'
+{
+  "mappings": {
+    "type": {
+      "properties": {
+        "name": {
+          "type": "object",
+          "properties": {
+            "first": {"type": "string"},
+            "last": {"type": "string"}
+          }
+        }
+      }
+    }
+  }
+}
+---------------
+
+The following query was possible in 1.x:
+
+[source,json]
+---------------
+curl -XGET 'localhost:9200/index/type/_search'
+{
+  "query": {
+    "match": { "first": "foo" }
+  }
+}
+---------------
+
+In 2.0, the same query should now be:
+
+[source,json]
+---------------
+curl -XGET 'localhost:9200/index/type/_search'
+{
+  "query": {
+    "match": { "name.first": "foo" }
+  }
+}
+---------------
+
+==== Meta fields have limited configuration
+Meta fields (those beginning with underscore) are fields used by elasticsearch
+to provide special features.  They now have limited configuration options.
+
+* `_id` configuration can no longer be changed.  If you need to sort, use `_uid` instead.
+* `_type` configuration can no longer be changed.
+* `_index` configuration is limited to enabling the field.
+* `_routing` configuration is limited to requiring the field.
+* `_boost` has been removed.
+* `_field_names` configuration is limited to disabling the field.
+* `_size` configuration is limited to enabling the field.
+
+=== Codecs
+
+It is no longer possible to specify per-field postings and doc values formats
+in the mappings. This setting will be ignored on indices created before
+elasticsearch 2.0 and will cause mapping parsing to fail on indices created on
+or after 2.0. For old indices, this means that new segments will be written
+with the default postings and doc values formats of the current codec.
+
+It is still possible to change the whole codec by using the `index.codec`
+setting. Please however note that using a non-default codec is discouraged as
+it could prevent future versions of Elasticsearch from being able to read the
+index.
+
+=== Scripts
+
+Deprecated script parameters `id`, `file`, and `scriptField` have been removed
+from all scriptable APIs. `script_id`, `script_file` and `script` should be used
+in their place.
+
+=== Thrift and memcached transport
+
+The thrift and memcached transport plugins are no longer supported.  Instead, use
+either the HTTP transport (enabled by default) or the node or transport Java client.
+

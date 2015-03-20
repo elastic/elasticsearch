@@ -38,7 +38,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     private final AtomicLong trippedCount;
     private final ESLogger logger;
     private final HierarchyCircuitBreakerService parent;
-    private final Name name;
+    private final String name;
 
     /**
      * Create a circuit breaker that will break if the number of estimated
@@ -49,7 +49,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * @param name the name of the breaker
      */
     public ChildMemoryCircuitBreaker(BreakerSettings settings, ESLogger logger,
-                                     HierarchyCircuitBreakerService parent, Name name) {
+                                     HierarchyCircuitBreakerService parent, String name) {
         this(settings, null, logger, parent, name);
     }
 
@@ -64,7 +64,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * @param oldBreaker the previous circuit breaker to inherit the used value from (starting offset)
      */
     public ChildMemoryCircuitBreaker(BreakerSettings settings, ChildMemoryCircuitBreaker oldBreaker,
-                                     ESLogger logger, HierarchyCircuitBreakerService parent, Name name) {
+                                     ESLogger logger, HierarchyCircuitBreakerService parent, String name) {
         this.name = name;
         this.settings = settings;
         this.memoryBytesLimit = settings.getLimit();
@@ -141,7 +141,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
                             newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead));
                 }
                 if (memoryBytesLimit > 0 && newUsedWithOverhead > memoryBytesLimit) {
-                    logger.warn("[{}] New used memory {} [{}] from field [{}] would be larger than configured breaker: {} [{}], breaking",
+                    logger.warn("[{}] New used memory {} [{}] for data of [{}] would be larger than configured breaker: {} [{}], breaking",
                             this.name,
                             newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead), label,
                             memoryBytesLimit, new ByteSizeValue(memoryBytesLimit));
@@ -220,7 +220,8 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
     /**
      * @return the name of the breaker
      */
-    public Name getName() {
+    @Override
+    public String getName() {
         return this.name;
     }
 }

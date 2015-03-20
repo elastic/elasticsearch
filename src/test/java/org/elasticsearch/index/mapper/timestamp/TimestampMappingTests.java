@@ -85,7 +85,7 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
 
         assertThat(doc.rootDoc().getField("_timestamp").fieldType().stored(), equalTo(true));
         assertNotSame(IndexOptions.NONE, doc.rootDoc().getField("_timestamp").fieldType().indexOptions());
-        assertThat(doc.rootDoc().getField("_timestamp").tokenStream(docMapper.indexAnalyzer(), null), notNullValue());
+        assertThat(doc.rootDoc().getField("_timestamp").tokenStream(docMapper.mappers().indexAnalyzer(), null), notNullValue());
     }
 
     @Test
@@ -101,7 +101,6 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 assertThat(docMapper.timestampFieldMapper().path(), equalTo(TimestampFieldMapper.Defaults.PATH));
                 assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo(TimestampFieldMapper.DEFAULT_DATE_TIME_FORMAT));
                 assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(false));
-                assertThat(docMapper.timestampFieldMapper().docValuesFormatProvider(), equalTo(null));
                 assertAcked(client().admin().indices().prepareDelete("test").execute().get());
             }
         }
@@ -115,7 +114,6 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
                 .field("enabled", "yes").field("store", "no").field("index", "no")
                 .field("path", "timestamp").field("format", "year")
                 .field("doc_values", true)
-                .field("doc_values_format", Lucene.LATEST_DOC_VALUES_FORMAT)
                 .endObject()
                 .endObject().endObject().string();
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -125,7 +123,6 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(docMapper.timestampFieldMapper().path(), equalTo("timestamp"));
         assertThat(docMapper.timestampFieldMapper().dateTimeFormatter().format(), equalTo("year"));
         assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(true));
-        assertThat(docMapper.timestampFieldMapper().docValuesFormatProvider().name(), equalTo(Lucene.LATEST_DOC_VALUES_FORMAT));
     }
 
     @Test

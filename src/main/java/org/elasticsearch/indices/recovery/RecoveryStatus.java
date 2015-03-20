@@ -57,7 +57,6 @@ public class RecoveryStatus extends AbstractRefCounted {
     private final ShardId shardId;
     private final long recoveryId;
     private final IndexShard indexShard;
-    private final RecoveryState state;
     private final DiscoveryNode sourceNode;
     private final String tempFilePrefix;
     private final Store store;
@@ -73,7 +72,7 @@ public class RecoveryStatus extends AbstractRefCounted {
     // last time this status was accessed
     private volatile long lastAccessTime = System.nanoTime();
 
-    public RecoveryStatus(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryState state, RecoveryTarget.RecoveryListener listener) {
+    public RecoveryStatus(IndexShard indexShard, DiscoveryNode sourceNode, RecoveryTarget.RecoveryListener listener) {
 
         super("recovery_status");
         this.recoveryId = idGenerator.incrementAndGet();
@@ -82,9 +81,7 @@ public class RecoveryStatus extends AbstractRefCounted {
         this.indexShard = indexShard;
         this.sourceNode = sourceNode;
         this.shardId = indexShard.shardId();
-        this.state = state;
-        this.state.getTimer().startTime(System.currentTimeMillis());
-        this.tempFilePrefix = RECOVERY_PREFIX + this.state.getTimer().startTime() + ".";
+        this.tempFilePrefix = RECOVERY_PREFIX + indexShard.recoveryState().getTimer().startTime() + ".";
         this.store = indexShard.store();
         // make sure the store is not released until we are done.
         store.incRef();
@@ -110,7 +107,7 @@ public class RecoveryStatus extends AbstractRefCounted {
     }
 
     public RecoveryState state() {
-        return state;
+        return indexShard.recoveryState();
     }
 
     public CancellableThreads CancellableThreads() {
@@ -132,12 +129,8 @@ public class RecoveryStatus extends AbstractRefCounted {
         return store;
     }
 
-    public void stage(RecoveryState.Stage stage) {
-        state.setStage(stage);
-    }
-
     public RecoveryState.Stage stage() {
-        return state.getStage();
+        return state().getStage();
     }
 
     public Store.LegacyChecksums legacyChecksums() {
@@ -147,7 +140,7 @@ public class RecoveryStatus extends AbstractRefCounted {
     /** renames all temporary files to their true name, potentially overriding existing files */
     public void renameAllTempFiles() throws IOException {
         ensureRefCount();
-        store.renameFilesSafe(tempFileNames);
+        store.renameTempFilesSafe(tempFileNames);
     }
 
     /**
@@ -178,7 +171,7 @@ public class RecoveryStatus extends AbstractRefCounted {
     public void fail(RecoveryFailedException e, boolean sendShardFailure) {
         if (finished.compareAndSet(false, true)) {
             try {
-                listener.onRecoveryFailure(state, e, sendShardFailure);
+                listener.onRecoveryFailure(state(), e, sendShardFailure);
             } finally {
                 try {
                     cancellableThreads.cancel("failed recovery [" + e.getMessage() + "]");
@@ -194,9 +187,10 @@ public class RecoveryStatus extends AbstractRefCounted {
     public void markAsDone() {
         if (finished.compareAndSet(false, true)) {
             assert tempFileNames.isEmpty() : "not all temporary files are renamed";
+            indexShard.postRecovery("peer recovery done");
             // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
             decRef();
-            listener.onRecoveryDone(state);
+            listener.onRecoveryDone(state());
         }
     }
 

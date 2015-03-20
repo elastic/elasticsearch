@@ -204,7 +204,10 @@ public class XContentHelper {
      */
     public static String toString(ToXContent toXContent, Params params) {
         try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+            XContentBuilder builder = XContentFactory.jsonBuilder();
+            if (params.paramAsBoolean("pretty", true)) {
+                builder.prettyPrint();
+            }
             builder.startObject();
             toXContent.toXContent(builder, params);
             builder.endObject();

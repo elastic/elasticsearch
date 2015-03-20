@@ -357,6 +357,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             this.origin = origin;
         }
 
+        @Override
         public void setNextReader(LeafReaderContext context) {
             this.doubleValues = this.fieldData.load(context).getDoubleValues();
         }

@@ -176,15 +176,6 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeOptionalSharedString(@Nullable String str) throws IOException {
-        if (str == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writeSharedString(str);
-        }
-    }
-
     public void writeOptionalText(@Nullable Text text) throws IOException {
         if (text == null) {
             writeInt(-1);
@@ -208,17 +199,6 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeTextArray(Text[] array) throws IOException {
-        writeVInt(array.length);
-        for (Text t : array) {
-            writeText(t);
-        }
-    }
-
-    public void writeSharedText(Text text) throws IOException {
-        writeText(text);
-    }
-
     public void writeString(String str) throws IOException {
         int charCount = str.length();
         writeVInt(charCount);
@@ -236,10 +216,6 @@ public abstract class StreamOutput extends OutputStream {
                 writeByte((byte) (0x80 | c >> 0 & 0x3F));
             }
         }
-    }
-
-    public void writeSharedString(String str) throws IOException {
-        writeString(str);
     }
 
     public void writeFloat(float v) throws IOException {
@@ -273,11 +249,13 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Forces any buffered output to be written.
      */
+    @Override
     public abstract void flush() throws IOException;
 
     /**
      * Closes this stream to further operations.
      */
+    @Override
     public abstract void close() throws IOException;
 
     public abstract void reset() throws IOException;
@@ -368,7 +346,7 @@ public abstract class StreamOutput extends OutputStream {
             Map<String, Object> map = (Map<String, Object>) value;
             writeVInt(map.size());
             for (Map.Entry<String, Object> entry : map.entrySet()) {
-                writeSharedString(entry.getKey());
+                writeString(entry.getKey());
                 writeGenericValue(entry.getValue());
             }
         } else if (type == Byte.class) {

@@ -24,7 +24,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -73,7 +72,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     private boolean refresh = false;
 
-    private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
     private IndexRequest upsertRequest;
@@ -133,6 +131,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     /**
      * The type of the indexed document.
      */
+    @Override
     public String type() {
         return type;
     }
@@ -148,6 +147,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     /**
      * The id of the indexed document.
      */
+    @Override
     public String id() {
         return id;
     }
@@ -164,6 +164,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */
+    @Override
     public UpdateRequest routing(String routing) {
         if (routing != null && routing.length() == 0) {
             this.routing = null;
@@ -177,6 +178,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */
+    @Override
     public String routing() {
         return this.routing;
     }
@@ -352,21 +354,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     public boolean refresh() {
         return this.refresh;
-    }
-
-    /**
-     * The replication type.
-     */
-    public ReplicationType replicationType() {
-        return this.replicationType;
-    }
-
-    /**
-     * Sets the replication type.
-     */
-    public UpdateRequest replicationType(ReplicationType replicationType) {
-        this.replicationType = replicationType;
-        return this;
     }
 
     public WriteConsistencyLevel consistencyLevel() {
@@ -629,9 +616,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
-        type = in.readSharedString();
+        type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
         script = in.readOptionalString();
@@ -667,9 +653,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
-        out.writeSharedString(type);
+        out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(script);

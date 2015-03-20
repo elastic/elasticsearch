@@ -247,6 +247,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     /**
      * The type of the indexed document.
      */
+    @Override
     public String type() {
         return type;
     }
@@ -262,6 +263,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     /**
      * The id of the indexed document. If not set, will be automatically generated.
      */
+    @Override
     public String id() {
         return id;
     }
@@ -278,6 +280,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */
+    @Override
     public IndexRequest routing(String routing) {
         if (routing != null && routing.length() == 0) {
             this.routing = null;
@@ -291,6 +294,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */
+    @Override
     public String routing() {
         return this.routing;
     }
@@ -676,7 +680,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        type = in.readSharedString();
+        type = in.readString();
         id = in.readOptionalString();
         routing = in.readOptionalString();
         parent = in.readOptionalString();
@@ -695,7 +699,7 @@ public class IndexRequest extends ShardReplicationOperationRequest<IndexRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeSharedString(type);
+        out.writeString(type);
         out.writeOptionalString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);

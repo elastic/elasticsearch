@@ -12,6 +12,10 @@
         }
       },
       "params": {
+        "source": {
+          "type" : "string",
+          "description" : "The URL-encoded request definition"
+        },
         "analyzer": {
           "type" : "string",
           "description" : "The name of the analyzer to use"

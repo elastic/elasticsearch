@@ -120,9 +120,11 @@ public class FiltersFunctionScoreQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
-        Weight subQueryWeight = subQuery.createWeight(searcher);
-        return new CustomBoostFactorWeight(subQueryWeight, filterFunctions.length);
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+        // TODO: needsScores
+        // if we dont need scores, just return the underlying Weight?
+        Weight subQueryWeight = subQuery.createWeight(searcher, needsScores);
+        return new CustomBoostFactorWeight(this, subQueryWeight, filterFunctions.length);
     }
 
     class CustomBoostFactorWeight extends Weight {
@@ -130,13 +132,10 @@ public class FiltersFunctionScoreQuery extends Query {
         final Weight subQueryWeight;
         final Bits[] docSets;
 
-        public CustomBoostFactorWeight(Weight subQueryWeight, int filterFunctionLength) throws IOException {
+        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight, int filterFunctionLength) throws IOException {
+            super(parent);
             this.subQueryWeight = subQueryWeight;
             this.docSets = new Bits[filterFunctionLength];
-        }
-
-        public Query getQuery() {
-            return FiltersFunctionScoreQuery.this;
         }
 
         @Override
@@ -163,7 +162,7 @@ public class FiltersFunctionScoreQuery extends Query {
             for (int i = 0; i < filterFunctions.length; i++) {
                 FilterFunction filterFunction = filterFunctions[i];
                 filterFunction.function.setNextReader(context);
-                docSets[i] = DocIdSets.toSafeBits(context.reader(), filterFunction.filter.getDocIdSet(context, acceptDocs));
+                docSets[i] = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(), filterFunction.filter.getDocIdSet(context, acceptDocs));
             }
             return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, docSets, combineFunction, minScore);
         }
@@ -186,7 +185,7 @@ public class FiltersFunctionScoreQuery extends Query {
                     weightSum++;
                 }
 
-                Bits docSet = DocIdSets.toSafeBits(context.reader(),
+                Bits docSet = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(),
                         filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));
                 if (docSet.get(doc)) {
                     filterFunction.function.setNextReader(context);
@@ -328,6 +327,7 @@ public class FiltersFunctionScoreQuery extends Query {
         }
     }
 
+    @Override
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
         sb.append("function score (").append(subQuery.toString(field)).append(", functions: [");
@@ -339,6 +339,7 @@ public class FiltersFunctionScoreQuery extends Query {
         return sb.toString();
     }
 
+    @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass())
             return false;
@@ -351,6 +352,7 @@ public class FiltersFunctionScoreQuery extends Query {
         return Arrays.equals(this.filterFunctions, other.filterFunctions);
     }
 
+    @Override
     public int hashCode() {
         return subQuery.hashCode() + 31 * Arrays.hashCode(filterFunctions) ^ Float.floatToIntBits(getBoost());
     }

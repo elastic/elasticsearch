@@ -49,8 +49,8 @@ public class ResidentQueryParserCache extends AbstractIndexComponent implements 
     public ResidentQueryParserCache(Index index, @IndexSettings Settings indexSettings) {
         super(index, indexSettings);
 
-        this.maxSize = componentSettings.getAsInt("max_size", 100);
-        this.expire = componentSettings.getAsTime("expire", null);
+        this.maxSize = indexSettings.getAsInt("index.cache.query.parser.resident.max_size", 100);
+        this.expire = indexSettings.getAsTime("index.cache.query.parser.resident.expire", null);
         logger.debug("using [resident] query cache with max_size [{}], expire [{}]", maxSize, expire);
 
         CacheBuilder cacheBuilder = CacheBuilder.newBuilder().maximumSize(maxSize);

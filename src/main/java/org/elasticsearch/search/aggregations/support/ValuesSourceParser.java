@@ -152,7 +152,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             return config;
         }
 
-        FieldMapper<?> mapper = context.smartNameFieldMapper(input.field);
+        FieldMapper<?> mapper = context.smartNameFieldMapperFromAnyType(input.field);
         if (mapper == null) {
             Class<VS> valuesSourceType = valueType != null ? (Class<VS>) valueType.getValuesSourceType() : this.valuesSourceType;
             ValuesSourceConfig<VS> config = new ValuesSourceConfig<>(valuesSourceType);

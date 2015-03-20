@@ -26,6 +26,7 @@ import com.google.common.cache.RemovalNotification;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
@@ -112,6 +113,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         loadedFilters.invalidate(ownerCoreCacheKey);
     }
 
+    @Override
     public void close() throws ElasticsearchException {
         indicesWarmer.removeListener(warmer);
         clear("close");
@@ -142,7 +144,11 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
                 } else {
                     BitDocIdSet.Builder builder = new BitDocIdSet.Builder(context.reader().maxDoc());
                     if (docIdSet != null && docIdSet != DocIdSet.EMPTY) {
-                        builder.or(docIdSet.iterator());
+                        DocIdSetIterator iterator = docIdSet.iterator();
+                        // some filters (QueryWrapperFilter) return not null or DocIdSet.EMPTY if there no matching docs
+                        if (iterator != null) {
+                            builder.or(iterator);
+                        }
                     }
                     BitDocIdSet bits = builder.build();
                     // code expects this to be non-null
@@ -217,15 +223,18 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
             }
         }
 
-        public String toString() {
+        @Override
+        public String toString(String field) {
             return "random_access(" + filter + ")";
         }
 
+        @Override
         public boolean equals(Object o) {
             if (!(o instanceof BitDocIdSetFilterWrapper)) return false;
             return this.filter.equals(((BitDocIdSetFilterWrapper) o).filter);
         }
 
+        @Override
         public int hashCode() {
             return filter.hashCode() ^ 0x1117BF26;
         }

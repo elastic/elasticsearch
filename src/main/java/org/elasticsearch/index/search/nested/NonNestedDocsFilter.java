@@ -63,6 +63,11 @@ public class NonNestedDocsFilter extends Filter {
         return obj == INSTANCE;
     }
 
+    @Override
+    public String toString(String field) {
+        return "NonNestedDocsFilter";
+    }
+
     /**
      * @return a filter that returns all nested documents.
      */

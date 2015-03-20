@@ -95,6 +95,7 @@ public class ExplainResponse extends ActionResponse {
         return getResult;
     }
 
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         index = in.readString();
@@ -109,6 +110,7 @@ public class ExplainResponse extends ActionResponse {
         }
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(index);

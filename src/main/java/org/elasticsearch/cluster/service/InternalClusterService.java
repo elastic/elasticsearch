@@ -32,8 +32,8 @@ import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -117,7 +117,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
         this.nodeSettingsService.setClusterService(this);
 
-        this.reconnectInterval = componentSettings.getAsTime("reconnect_interval", TimeValue.timeValueSeconds(10));
+        this.reconnectInterval = this.settings.getAsTime("cluster.service.reconnect_interval", TimeValue.timeValueSeconds(10));
 
         localNodeMasterListeners = new LocalNodeMasterListeners(threadPool);
 
@@ -128,6 +128,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         return this.nodeSettingsService;
     }
 
+    @Override
     public void addInitialStateBlock(ClusterBlock block) throws ElasticsearchIllegalStateException {
         if (lifecycle.started()) {
             throw new ElasticsearchIllegalStateException("can't set initial block when started");
@@ -165,12 +166,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             onGoingTimeout.cancel();
             onGoingTimeout.listener.onClose();
         }
-        updateTasksExecutor.shutdown();
-        try {
-            updateTasksExecutor.awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // ignore
-        }
+        ThreadPool.terminate(updateTasksExecutor, 10, TimeUnit.SECONDS);
         remove(localNodeMasterListeners);
     }
 
@@ -188,22 +184,27 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         return operationRouting;
     }
 
+    @Override
     public ClusterState state() {
         return this.clusterState;
     }
 
+    @Override
     public void addFirst(ClusterStateListener listener) {
         priorityClusterStateListeners.add(listener);
     }
 
+    @Override
     public void addLast(ClusterStateListener listener) {
         lastClusterStateListeners.add(listener);
     }
 
+    @Override
     public void add(ClusterStateListener listener) {
         clusterStateListeners.add(listener);
     }
 
+    @Override
     public void remove(ClusterStateListener listener) {
         clusterStateListeners.remove(listener);
         priorityClusterStateListeners.remove(listener);
@@ -228,6 +229,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         localNodeMasterListeners.remove(listener);
     }
 
+    @Override
     public void add(final TimeValue timeout, final TimeoutClusterStateListener listener) {
         if (lifecycle.stoppedOrClosed()) {
             listener.onClose();
@@ -235,7 +237,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
         // call the post added notification on the same event thread
         try {
-            updateTasksExecutor.execute(new PrioritizedRunnable(Priority.HIGH) {
+            updateTasksExecutor.execute(new TimedPrioritizedRunnable(Priority.HIGH, "_add_listener_") {
                 @Override
                 public void run() {
                     NotifyTimeout notifyTimeout = new NotifyTimeout(listener, timeout);
@@ -254,10 +256,12 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
     }
 
+    @Override
     public void submitStateUpdateTask(final String source, final ClusterStateUpdateTask updateTask) {
         submitStateUpdateTask(source, Priority.NORMAL, updateTask);
     }
 
+    @Override
     public void submitStateUpdateTask(final String source, Priority priority, final ClusterStateUpdateTask updateTask) {
         if (!lifecycle.started()) {
             return;
@@ -272,7 +276,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         threadPool.generic().execute(new Runnable() {
                             @Override
                             public void run() {
-                                timeoutUpdateTask.onFailure(task.source, new ProcessClusterEventTimeoutException(timeoutUpdateTask.timeout(), task.source));
+                                timeoutUpdateTask.onFailure(task.source(), new ProcessClusterEventTimeoutException(timeoutUpdateTask.timeout(), task.source()));
                             }
                         });
                     }
@@ -291,19 +295,23 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     @Override
     public List<PendingClusterTask> pendingTasks() {
-        long now = System.currentTimeMillis();
         PrioritizedEsThreadPoolExecutor.Pending[] pendings = updateTasksExecutor.getPending();
         List<PendingClusterTask> pendingClusterTasks = new ArrayList<>(pendings.length);
         for (PrioritizedEsThreadPoolExecutor.Pending pending : pendings) {
             final String source;
             final long timeInQueue;
-            if (pending.task instanceof UpdateTask) {
-                UpdateTask updateTask = (UpdateTask) pending.task;
-                source = updateTask.source;
-                timeInQueue = now - updateTask.addedAt;
+            // we have to capture the task as it will be nulled after execution and we don't want to change while we check things here.
+            final Object task = pending.task;
+            if (task == null) {
+                continue;
+            } else if (task instanceof TimedPrioritizedRunnable) {
+                TimedPrioritizedRunnable runnable = (TimedPrioritizedRunnable) task;
+                source = runnable.source();
+                timeInQueue = runnable.timeSinceCreatedInMillis();
             } else {
+                assert false : "expected TimedPrioritizedRunnable got " + task.getClass();
                 source = "unknown";
-                timeInQueue = -1;
+                timeInQueue = 0;
             }
 
             pendingClusterTasks.add(new PendingClusterTask(pending.insertionOrder, pending.priority, new StringText(source), timeInQueue, pending.executing));
@@ -311,15 +319,40 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         return pendingClusterTasks;
     }
 
-    class UpdateTask extends PrioritizedRunnable {
+    @Override
+    public int numberOfPendingTasks() {
+        return updateTasksExecutor.getNumberOfPendingTasks();
+    }
 
-        public final String source;
-        public final ClusterStateUpdateTask updateTask;
-        public final long addedAt = System.currentTimeMillis();
 
-        UpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
+    static abstract class TimedPrioritizedRunnable extends PrioritizedRunnable {
+        private final long creationTime;
+        protected final String source;
+
+        protected TimedPrioritizedRunnable(Priority priority, String source) {
             super(priority);
             this.source = source;
+            this.creationTime = System.currentTimeMillis();
+        }
+
+        public long timeSinceCreatedInMillis() {
+            // max with 0 to make sure we always return a non negative number
+            // even if time shifts.
+            return Math.max(0, System.currentTimeMillis() - creationTime);
+        }
+
+        public String source() {
+            return source;
+        }
+    }
+
+    class UpdateTask extends TimedPrioritizedRunnable {
+
+        public final ClusterStateUpdateTask updateTask;
+
+
+        UpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
+            super(priority, source);
             this.updateTask = updateTask;
         }
 

@@ -148,6 +148,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      */
     public abstract InternalAggregation reduce(ReduceContext reduceContext);
 
+    @Override
     public Object getProperty(String path) {
         AggregationPath aggPath = AggregationPath.parse(path);
         return getProperty(aggPath.getPathElementsAsStringList());
@@ -173,6 +174,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         out.writeVInt(size);
     }
 
+    @Override
     public Map<String, Object> getMetaData() {
         return metaData;
     }
@@ -191,6 +193,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
     public abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
+    @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeString(name);
         out.writeGenericValue(metaData);
@@ -199,6 +202,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
     protected abstract void doWriteTo(StreamOutput out) throws IOException;
 
+    @Override
     public final void readFrom(StreamInput in) throws IOException {
         name = in.readString();
         metaData = in.readMap();

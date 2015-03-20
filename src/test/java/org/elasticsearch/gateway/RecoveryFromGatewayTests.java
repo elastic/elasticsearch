@@ -296,6 +296,9 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
                 if (numNodes == 1) {
                     logger.info("--> one node is closed - start indexing data into the second one");
                     client.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).execute().actionGet();
+                    // TODO: remove once refresh doesn't fail immediately if there a master block:
+                    // https://github.com/elasticsearch/elasticsearch/issues/9997
+                    client.admin().cluster().prepareHealth("test").setWaitForYellowStatus().get();
                     client.admin().indices().prepareRefresh().execute().actionGet();
 
                     for (int i = 0; i < 10; i++) {
@@ -367,7 +370,7 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
         }
         logger.info("Running Cluster Health");
         ensureGreen();
-        client().admin().indices().prepareOptimize("test").setWaitForMerge(true).setMaxNumSegments(100).get(); // just wait for merges
+        client().admin().indices().prepareOptimize("test").setMaxNumSegments(100).get(); // just wait for merges
         client().admin().indices().prepareFlush().setWaitIfOngoing(true).setForce(true).get();
 
         logger.info("--> disabling allocation while the cluster is shut down");
@@ -401,18 +404,18 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
             if (!recoveryState.getPrimary()) {
                 logger.info("--> replica shard {} recovered from {} to {}, recovered {}, reuse {}",
                         response.getShardId(), recoveryState.getSourceNode().name(), recoveryState.getTargetNode().name(),
-                        recoveryState.getIndex().recoveredTotalSize(), recoveryState.getIndex().reusedByteCount());
-                assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredByteCount(), equalTo(0l));
-                assertThat("data should have been reused", recoveryState.getIndex().reusedByteCount(), greaterThan(0l));
-                assertThat("all bytes should be reused", recoveryState.getIndex().reusedByteCount(), equalTo(recoveryState.getIndex().totalByteCount()));
+                        recoveryState.getIndex().recoveredBytes(), recoveryState.getIndex().reusedBytes());
+                assertThat("no bytes should be recovered", recoveryState.getIndex().recoveredBytes(), equalTo(0l));
+                assertThat("data should have been reused", recoveryState.getIndex().reusedBytes(), greaterThan(0l));
+                assertThat("all bytes should be reused", recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes()));
                 assertThat("no files should be recovered", recoveryState.getIndex().recoveredFileCount(), equalTo(0));
                 assertThat("all files should be reused", recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));
                 assertThat("> 0 files should be reused", recoveryState.getIndex().reusedFileCount(), greaterThan(0));
-                assertThat("all bytes should be reused bytes",
-                        recoveryState.getIndex().reusedByteCount(), greaterThan(recoveryState.getIndex().numberOfRecoveredBytes()));
             } else {
-                assertThat(recoveryState.getIndex().recoveredByteCount(), equalTo(recoveryState.getIndex().reusedByteCount()));
-                assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(recoveryState.getIndex().reusedFileCount()));
+                assertThat(recoveryState.getIndex().recoveredBytes(), equalTo(0l));
+                assertThat(recoveryState.getIndex().reusedBytes(), equalTo(recoveryState.getIndex().totalBytes()));
+                assertThat(recoveryState.getIndex().recoveredFileCount(), equalTo(0));
+                assertThat(recoveryState.getIndex().reusedFileCount(), equalTo(recoveryState.getIndex().totalFileCount()));
             }
         }
 

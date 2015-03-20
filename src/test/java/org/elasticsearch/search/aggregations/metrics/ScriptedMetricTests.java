@@ -24,6 +24,7 @@ import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
@@ -91,11 +92,11 @@ public class ScriptedMetricTests extends ElasticsearchIntegrationTest {
                     jsonBuilder().startObject().field("value", i * 2).endObject()));
         }
 
-        PutIndexedScriptResponse indexScriptResponse = client().preparePutIndexedScript("groovy", "initScript_indexed", "{\"script\":\"vars.multiplier = 3\"}").get();
+        PutIndexedScriptResponse indexScriptResponse = client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "initScript_indexed", "{\"script\":\"vars.multiplier = 3\"}").get();
         assertThat(indexScriptResponse.isCreated(), equalTo(true));
-        indexScriptResponse = client().preparePutIndexedScript("groovy", "mapScript_indexed", "{\"script\":\"_agg.add(vars.multiplier)\"}").get();
+        indexScriptResponse = client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "mapScript_indexed", "{\"script\":\"_agg.add(vars.multiplier)\"}").get();
         assertThat(indexScriptResponse.isCreated(), equalTo(true));
-        indexScriptResponse = client().preparePutIndexedScript("groovy", "combineScript_indexed",
+        indexScriptResponse = client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "combineScript_indexed",
                 "{\"script\":\"newaggregation = []; sum = 0;for (a in _agg) { sum += a}; newaggregation.add(sum); return newaggregation\"}")
                 .get();
         assertThat(indexScriptResponse.isCreated(), equalTo(true));
@@ -719,7 +720,7 @@ public class ScriptedMetricTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, notNullValue());
-        Histogram.Bucket bucket = histo.getBucketByKey(1l);
+        Histogram.Bucket bucket = histo.getBuckets().get(1);
         assertThat(bucket, notNullValue());
 
         ScriptedMetric scriptedMetric = bucket.getAggregations().get("scripted");

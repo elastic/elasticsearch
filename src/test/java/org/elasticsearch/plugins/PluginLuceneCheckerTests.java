@@ -45,9 +45,9 @@ public class PluginLuceneCheckerTests extends ElasticsearchIntegrationTest {
     @Test
     public void testDisableLuceneVersionCheckingPlugin() throws URISyntaxException {
         String serverNodeId = SimpleNodesInfoTests.startNodeWithPlugins(
-                settingsBuilder().put("plugins.check_lucene", false)
-                        .put("plugins." + PluginsService.ES_PLUGIN_PROPERTIES_FILE_KEY, "es-plugin-test.properties")
-                        .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true).build(),
+                settingsBuilder().put(PluginsService.PLUGINS_CHECK_LUCENE_KEY, false)
+                        .put(PluginsService.ES_PLUGIN_PROPERTIES_FILE_KEY, "es-plugin-test.properties")
+                        .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true).build(),
                 "/org/elasticsearch/plugins/lucene/");
         logger.info("--> server {} started" + serverNodeId);
 
@@ -70,9 +70,9 @@ public class PluginLuceneCheckerTests extends ElasticsearchIntegrationTest {
     @Test
     public void testEnableLuceneVersionCheckingPlugin() throws URISyntaxException {
         String serverNodeId = SimpleNodesInfoTests.startNodeWithPlugins(
-                settingsBuilder().put("plugins.check_lucene", true)
-                        .put("plugins." + PluginsService.ES_PLUGIN_PROPERTIES_FILE_KEY, "es-plugin-test.properties")
-                        .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true).build(),
+                settingsBuilder().put(PluginsService.PLUGINS_CHECK_LUCENE_KEY, true)
+                        .put(PluginsService.ES_PLUGIN_PROPERTIES_FILE_KEY, "es-plugin-test.properties")
+                        .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true).build(),
                 "/org/elasticsearch/plugins/lucene/");
         logger.info("--> server {} started" + serverNodeId);
 

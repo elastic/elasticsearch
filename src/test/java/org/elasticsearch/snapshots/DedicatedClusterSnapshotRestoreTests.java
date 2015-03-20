@@ -25,7 +25,6 @@ import com.carrotsearch.randomizedtesting.LifecycleScope;
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
-
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
@@ -93,6 +92,8 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         internalCluster().startNode(nodeSettings);
         Client client = client();
         String secondNode = internalCluster().startNode(nodeSettings);
+        logger.info("--> wait for the second node to join the cluster");
+        assertThat(client.admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut(), equalTo(false));
 
         int random = randomIntBetween(10, 42);
 
@@ -566,7 +567,7 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
 
         IntSet reusedShards = IntOpenHashSet.newInstance();
         for (ShardRecoveryResponse response : client().admin().indices().prepareRecoveries("test-idx").get().shardResponses().get("test-idx")) {
-            if (response.recoveryState().getIndex().reusedByteCount() > 0) {
+            if (response.recoveryState().getIndex().reusedBytes() > 0) {
                 reusedShards.add(response.getShardId());
             }
         }

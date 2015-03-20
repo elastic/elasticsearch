@@ -39,6 +39,7 @@ class InternalFactoryToProviderAdapter<T> implements InternalFactory<T> {
         this.source = checkNotNull(source, "source");
     }
 
+    @Override
     public T get(Errors errors, InternalContext context, Dependency<?> dependency)
             throws ErrorsException {
         try {

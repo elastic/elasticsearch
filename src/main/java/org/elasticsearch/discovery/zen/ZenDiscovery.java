@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -47,6 +46,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -69,6 +69,7 @@ import org.elasticsearch.transport.*;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -101,7 +102,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private final ClusterService clusterService;
     private AllocationService allocationService;
     private final ClusterName clusterName;
-    private final DiscoveryNodeService discoveryNodeService;
     private final DiscoverySettings discoverySettings;
     private final ZenPingService pingService;
     private final MasterFaultDetection masterFD;
@@ -148,20 +148,17 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
                         TransportService transportService, final ClusterService clusterService, NodeSettingsService nodeSettingsService,
-                        DiscoveryNodeService discoveryNodeService, ZenPingService pingService, ElectMasterService electMasterService,
+                        ZenPingService pingService, ElectMasterService electMasterService,
                         DiscoverySettings discoverySettings, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
         super(settings);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
         this.transportService = transportService;
-        this.discoveryNodeService = discoveryNodeService;
         this.discoverySettings = discoverySettings;
         this.pingService = pingService;
         this.electMaster = electMasterService;
-
-        // keep using componentSettings for BWC, in case this class gets extended.
-        TimeValue pingTimeout = componentSettings.getAsTime("initial_ping_timeout", timeValueSeconds(3));
-        pingTimeout = componentSettings.getAsTime("ping_timeout", pingTimeout);
+        TimeValue pingTimeout = this.settings.getAsTime("discovery.zen.initial_ping_timeout", timeValueSeconds(3));
+        pingTimeout = this.settings.getAsTime("discovery.zen.ping_timeout", pingTimeout);
         pingTimeout = settings.getAsTime("discovery.zen.ping_timeout", pingTimeout);
         this.pingTimeout = settings.getAsTime(SETTING_PING_TIMEOUT, pingTimeout);
 
@@ -192,7 +189,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.nodesFD = new NodesFaultDetection(settings, threadPool, transportService, clusterName);
         this.nodesFD.addListener(new NodeFaultDetectionListener());
 
-        this.publishClusterState = new PublishClusterStateAction(settings, transportService, this, new NewClusterStateListener(), discoverySettings, clusterName);
+        this.publishClusterState = new PublishClusterStateAction(settings, transportService, this, new NewClusterStateListener(), discoverySettings);
         this.pingService.setPingContextProvider(this);
         this.membership = new MembershipAction(settings, clusterService, transportService, this, new MembershipListener());
 
@@ -744,7 +741,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 final ProcessClusterState processClusterState = new ProcessClusterState(newClusterState, newStateProcessed);
                 processNewClusterStates.add(processClusterState);
 
-
                 assert newClusterState.nodes().masterNode() != null : "received a cluster state without a master";
                 assert !newClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock()) : "received a cluster state with a master block";
 
@@ -761,49 +757,18 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         // to figure out if we need to use it or not, and only once we picked the latest one, parse the whole state
 
 
-                        // try and get the state with the highest version out of all the ones with the same master node id
-                        ProcessClusterState stateToProcess = processNewClusterStates.poll();
-                        if (stateToProcess == null) {
-                            return currentState;
+                        ClusterState updatedState = selectNextStateToProcess(processNewClusterStates);
+                        if (updatedState == null) {
+                            updatedState = currentState;
                         }
-                        stateToProcess.processed = true;
-                        while (true) {
-                            ProcessClusterState potentialState = processNewClusterStates.peek();
-                            // nothing else in the queue, bail
-                            if (potentialState == null) {
-                                break;
-                            }
-                            // if its not from the same master, then bail
-                            if (!Objects.equal(stateToProcess.clusterState.nodes().masterNodeId(), potentialState.clusterState.nodes().masterNodeId())) {
-                                break;
-                            }
-
-                            // we are going to use it for sure, poll (remove) it
-                            potentialState = processNewClusterStates.poll();
-                            if (potentialState == null) {
-                                // might happen if the queue is drained
-                                break;
-                            }
-
-                            potentialState.processed = true;
-
-                            if (potentialState.clusterState.version() > stateToProcess.clusterState.version()) {
-                                // we found a new one
-                                stateToProcess = potentialState;
-                            }
-                        }
-
-                        ClusterState updatedState = stateToProcess.clusterState;
-
-                        // if the new state has a smaller version, and it has the same master node, then no need to process it
-                        if (updatedState.version() < currentState.version() && Objects.equal(updatedState.nodes().masterNodeId(), currentState.nodes().masterNodeId())) {
+                        if (shouldIgnoreOrRejectNewClusterState(logger, currentState, updatedState)) {
                             return currentState;
                         }
 
                         // we don't need to do this, since we ping the master, and get notified when it has moved from being a master
                         // because it doesn't have enough master nodes...
                         //if (!electMaster.hasEnoughMasterNodes(newState.nodes())) {
-                        //    return disconnectFromCluster(newState, "not enough master nodes on new cluster state received from [" + newState.nodes().masterNode() + "]");
+                        //    return disconnectFromCluster(newState, "not enough master nodes on new cluster state wreceived from [" + newState.nodes().masterNode() + "]");
                         //}
 
                         // check to see that we monitor the correct master of the cluster
@@ -836,10 +801,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                             MetaData.Builder metaDataBuilder = MetaData.builder(updatedState.metaData()).removeAllIndices();
                             for (IndexMetaData indexMetaData : updatedState.metaData()) {
                                 IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.index());
-                                if (currentIndexMetaData == null || currentIndexMetaData.version() != indexMetaData.version()) {
-                                    metaDataBuilder.put(indexMetaData, false);
-                                } else {
+                                if (currentIndexMetaData != null && currentIndexMetaData.isSameUUID(indexMetaData.uuid()) &&
+                                        currentIndexMetaData.version() == indexMetaData.version()) {
+                                    // safe to reuse
                                     metaDataBuilder.put(currentIndexMetaData, false);
+                                } else {
+                                    metaDataBuilder.put(indexMetaData, false);
                                 }
                             }
                             builder.metaData(metaDataBuilder);
@@ -861,6 +828,66 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     }
                 });
             }
+        }
+    }
+
+    /**
+     * Picks the cluster state with highest version with the same master from the queue. All cluster states with
+     * lower versions are ignored. If a cluster state with a different master is seen the processing logic stops and the
+     * last processed state is returned.
+     */
+    static ClusterState selectNextStateToProcess(Queue<ProcessClusterState> processNewClusterStates) {
+        // try and get the state with the highest version out of all the ones with the same master node id
+        ProcessClusterState stateToProcess = processNewClusterStates.poll();
+        if (stateToProcess == null) {
+            return null;
+        }
+        stateToProcess.processed = true;
+        while (true) {
+            ProcessClusterState potentialState = processNewClusterStates.peek();
+            // nothing else in the queue, bail
+            if (potentialState == null) {
+                break;
+            }
+            // if its not from the same master, then bail
+            if (!Objects.equal(stateToProcess.clusterState.nodes().masterNodeId(), potentialState.clusterState.nodes().masterNodeId())) {
+                break;
+            }
+            // we are going to use it for sure, poll (remove) it
+            potentialState = processNewClusterStates.poll();
+            if (potentialState == null) {
+                // might happen if the queue is drained
+                break;
+            }
+            potentialState.processed = true;
+
+            if (potentialState.clusterState.version() > stateToProcess.clusterState.version()) {
+                // we found a new one
+                stateToProcess = potentialState;
+            }
+        }
+        return stateToProcess.clusterState;
+    }
+
+    /**
+     * In the case we follow an elected master the new cluster state needs to have the same elected master and
+     * the new cluster state version needs to be equal or higher than our cluster state version.
+     * If the first condition fails we reject the cluster state and throw an error.
+     * If the second condition fails we ignore the cluster state.
+     */
+    static boolean shouldIgnoreOrRejectNewClusterState(ESLogger logger, ClusterState currentState, ClusterState newClusterState) {
+        if (currentState.nodes().masterNodeId() == null) {
+            return false;
+        }
+        if (!currentState.nodes().masterNodeId().equals(newClusterState.nodes().masterNodeId())) {
+            logger.warn("received a cluster state from a different master then the current one, rejecting (received {}, current {})", newClusterState.nodes().masterNode(), currentState.nodes().masterNode());
+            throw new ElasticsearchIllegalStateException("cluster state from a different master then the current one, rejecting (received " + newClusterState.nodes().masterNode() + ", current " + currentState.nodes().masterNode() + ")");
+        } else if (newClusterState.version() < currentState.version()) {
+            // if the new state has a smaller version, and it has the same master node, then no need to process it
+            logger.debug("received a cluster state that has a lower version than the current one, ignoring (received {}, current {})", newClusterState.version(), currentState.version());
+            return true;
+        } else {
+            return false;
         }
     }
 

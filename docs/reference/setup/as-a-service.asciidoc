@@ -26,6 +26,7 @@ Each package features a configuration file, which allows you to set the followin
 `CONF_FILE`::             Path to configuration file, defaults to `/etc/elasticsearch/elasticsearch.yml`
 `ES_JAVA_OPTS`::          Any additional java options you may want to apply. This may be useful, if you need to set the `node.name` property, but do not want to change the `elasticsearch.yml` configuration file, because it is distributed via a provisioning system like puppet or chef. Example: `ES_JAVA_OPTS="-Des.node.name=search-01"`
 `RESTART_ON_UPGRADE`::    Configure restart on package upgrade, defaults to `false`. This means you will have to restart your elasticsearch instance after installing a package manually. The reason for this is to ensure, that upgrades in a cluster do not result in a continuous shard reallocation resulting in high network traffic and reducing the response times of your cluster.
+`ES_GC_LOG_FILE` ::       The absolute log file path for creating a garbage collection logfile, which is done by the JVM. Note that this logfile can grow pretty quick and thus is disabled by default.
 
 [float]
 ==== Debian/Ubuntu

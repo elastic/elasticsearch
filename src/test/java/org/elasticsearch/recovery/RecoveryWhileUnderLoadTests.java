@@ -57,7 +57,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
         int numberOfShards = numberOfShards();
         assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
-        final int totalNumDocs = scaledRandomIntBetween(200, 20000);
+        final int totalNumDocs = scaledRandomIntBetween(200, 10000);
         int waitFor = totalNumDocs / 10;
         int extraDocs = waitFor;
         try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), extraDocs)) {
@@ -112,7 +112,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
         int numberOfShards = numberOfShards();
         assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
-        final int totalNumDocs = scaledRandomIntBetween(200, 20000);
+        final int totalNumDocs = scaledRandomIntBetween(200, 10000);
         int waitFor = totalNumDocs / 10;
         int extraDocs = waitFor;
         try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), extraDocs)) {
@@ -166,7 +166,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
         int numberOfShards = numberOfShards();
         assertAcked(prepareCreate("test", 2, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
-        final int totalNumDocs = scaledRandomIntBetween(200, 20000);
+        final int totalNumDocs = scaledRandomIntBetween(200, 10000);
         int waitFor = totalNumDocs / 10;
         int extraDocs = waitFor;
         try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), extraDocs)) {
@@ -241,7 +241,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
         int allowNodes = 2;
         assertAcked(prepareCreate("test", 3, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numShards).put(SETTING_NUMBER_OF_REPLICAS, numReplicas)));
 
-        final int numDocs = scaledRandomIntBetween(200, 50000);
+        final int numDocs = scaledRandomIntBetween(200, 20000);
 
         try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), numDocs)) {
 
@@ -326,6 +326,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
 
     private void refreshAndAssert() throws InterruptedException {
         assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object o) {
                 try {
                     RefreshResponse actionGet = client().admin().indices().prepareRefresh().execute().actionGet();

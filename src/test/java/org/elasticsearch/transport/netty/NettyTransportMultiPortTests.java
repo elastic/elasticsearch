@@ -30,9 +30,11 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.junit.rule.RepeatOnExceptionRule;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
+import org.elasticsearch.transport.BindTransportException;
+import org.junit.Rule;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -42,26 +44,14 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.is;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes = 1)
 public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
 
-    private NettyTransport nettyTransport;
-    private ThreadPool threadPool;
+    private static final int MAX_RETRIES = 10;
 
-    @After
-    public void shutdownNettyTransport() {
-        if (nettyTransport != null) {
-            nettyTransport.stop();
-        }
-        if (threadPool != null) {
-            threadPool.shutdownNow();
-        }
-
-    }
+    @Rule
+    public RepeatOnExceptionRule repeatOnBindExceptionRule = new RepeatOnExceptionRule(logger, MAX_RETRIES, BindTransportException.class);
 
     @Test
     public void testThatNettyCanBindToMultiplePorts() throws Exception {
@@ -74,11 +64,14 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
                 .put("transport.profiles.client1.port", ports[2])
                 .build();
 
-        startNettyTransport(settings);
-
-        assertConnectionRefused(ports[0]);
-        assertPortIsBound(ports[1]);
-        assertPortIsBound(ports[2]);
+        ThreadPool threadPool = new ThreadPool("tst");
+        try (NettyTransport ignored = startNettyTransport(settings, threadPool)) {
+            assertConnectionRefused(ports[0]);
+            assertPortIsBound(ports[1]);
+            assertPortIsBound(ports[2]);
+        } finally {
+            terminate(threadPool);
+        }
     }
 
     @Test
@@ -91,10 +84,13 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
                 .put("transport.profiles.client1.port", ports[1])
                 .build();
 
-        startNettyTransport(settings);
-
-        assertPortIsBound(ports[0]);
-        assertPortIsBound(ports[1]);
+        ThreadPool threadPool = new ThreadPool("tst");
+        try (NettyTransport ignored = startNettyTransport(settings, threadPool)) {
+            assertPortIsBound(ports[0]);
+            assertPortIsBound(ports[1]);
+        } finally {
+            terminate(threadPool);
+        }
     }
 
     @Test
@@ -107,9 +103,12 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
                 .put("transport.profiles.client1.whatever", "foo")
                 .build();
 
-        startNettyTransport(settings);
-
-        assertPortIsBound(ports[0]);
+        ThreadPool threadPool = new ThreadPool("tst");
+        try (NettyTransport ignored = startNettyTransport(settings, threadPool)) {
+            assertPortIsBound(ports[0]);
+        } finally {
+            terminate(threadPool);
+        }
     }
 
     @Test
@@ -123,18 +122,21 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
                 .put("transport.profiles.default.port", ports[2])
                 .build();
 
-        startNettyTransport(settings);
-
-        assertConnectionRefused(ports[0]);
-        assertConnectionRefused(ports[1]);
-        assertPortIsBound(ports[2]);
+        ThreadPool threadPool = new ThreadPool("tst");
+        try (NettyTransport ignored = startNettyTransport(settings, threadPool)) {
+            assertConnectionRefused(ports[0]);
+            assertConnectionRefused(ports[1]);
+            assertPortIsBound(ports[2]);
+        } finally {
+            terminate(threadPool);
+        }
     }
 
     @Test
     public void testThatBindingOnDifferentHostsWorks() throws Exception {
         int[] ports = getRandomPorts(2);
         InetAddress firstNonLoopbackAddress = NetworkUtils.getFirstNonLoopbackAddress(NetworkUtils.StackType.IPv4);
-
+        assumeTrue("No IP-v4 non-loopback address available - are you on a plane?", firstNonLoopbackAddress != null);
         Settings settings = settingsBuilder()
                 .put("network.host", "127.0.0.1")
                 .put("transport.tcp.port", ports[0])
@@ -143,11 +145,14 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
                 .put("transport.profiles.client1.port", ports[1])
                 .build();
 
-        startNettyTransport(settings);
-
-        assertPortIsBound("127.0.0.1", ports[0]);
-        assertPortIsBound(firstNonLoopbackAddress.getHostAddress(), ports[1]);
-        assertConnectionRefused(ports[1]);
+        ThreadPool threadPool = new ThreadPool("tst");
+        try (NettyTransport ignored = startNettyTransport(settings, threadPool)) {
+            assertPortIsBound("127.0.0.1", ports[0]);
+            assertPortIsBound(firstNonLoopbackAddress.getHostAddress(), ports[1]);
+            assertConnectionRefused(ports[1]);
+        } finally {
+            terminate(threadPool);
+        }
     }
 
     private int[] getRandomPorts(int numberOfPorts) {
@@ -164,14 +169,14 @@ public class NettyTransportMultiPortTests extends ElasticsearchTestCase {
         return ports.toArray();
     }
 
-    private void startNettyTransport(Settings settings) {
-        threadPool = new ThreadPool("tst");
+    private NettyTransport startNettyTransport(Settings settings, ThreadPool threadPool) {
         BigArrays bigArrays = new MockBigArrays(settings, new PageCacheRecycler(settings, threadPool), new NoneCircuitBreakerService());
 
-        nettyTransport = new NettyTransport(settings, threadPool, new NetworkService(settings), bigArrays, Version.CURRENT);
+        NettyTransport nettyTransport = new NettyTransport(settings, threadPool, new NetworkService(settings), bigArrays, Version.CURRENT);
         nettyTransport.start();
 
         assertThat(nettyTransport.lifecycleState(), is(Lifecycle.State.STARTED));
+        return nettyTransport;
     }
 
     private void assertConnectionRefused(int port) throws Exception {

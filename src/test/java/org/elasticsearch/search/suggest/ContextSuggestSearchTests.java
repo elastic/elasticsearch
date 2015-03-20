@@ -167,8 +167,7 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         mapping.endObject();
         mapping.startObject(FIELD);
         mapping.field("type", "completion");
-        mapping.field("index_analyzer", "simple");
-        mapping.field("search_analyzer", "simple");
+        mapping.field("analyzer", "simple");
 
         mapping.startObject("context");
         mapping.value(ContextBuilder.location("st", 5, true).field("pin").build());
@@ -968,11 +967,10 @@ public class ContextSuggestSearchTests extends ElasticsearchIntegrationTest {
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject();
         mapping.startObject(type);
-        mapping.startObject("_type").field("index", "not_analyzed").endObject(); // Forcefully configure the _type field, since it can be randomized and if used as context it needs to be enabled
         mapping.startObject("properties");
         mapping.startObject(FIELD);
         mapping.field("type", "completion");
-        mapping.field("index_analyzer", indexAnalyzer);
+        mapping.field("analyzer", indexAnalyzer);
         mapping.field("search_analyzer", searchAnalyzer);
         mapping.field("payloads", payloads);
         mapping.field("preserve_separators", preserveSeparators);

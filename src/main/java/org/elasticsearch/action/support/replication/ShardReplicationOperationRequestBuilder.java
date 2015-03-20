@@ -69,24 +69,6 @@ public abstract class ShardReplicationOperationRequestBuilder<Request extends Sh
     }
 
     /**
-     * Sets the replication type.
-     */
-    @SuppressWarnings("unchecked")
-    public RequestBuilder setReplicationType(ReplicationType replicationType) {
-        request.replicationType(replicationType);
-        return (RequestBuilder) this;
-    }
-
-    /**
-     * Sets the replication type.
-     */
-    @SuppressWarnings("unchecked")
-    public RequestBuilder setReplicationType(String replicationType) {
-        request.replicationType(replicationType);
-        return (RequestBuilder) this;
-    }
-
-    /**
      * Sets the consistency level of write. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}
      */
     @SuppressWarnings("unchecked")

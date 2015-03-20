@@ -34,8 +34,10 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -48,10 +50,11 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.DiscoveryService;
+import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -443,6 +446,98 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @TestLogging("cluster.service:TRACE,indices.recovery:TRACE")
+    public void testRelocationWithBusyClusterUpdateThread() throws Exception {
+        final String indexName = "test";
+        final Settings settings = ImmutableSettings.builder()
+                .put("gateway.type", "local")
+                .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s")
+                .put("indices.recovery.internal_action_timeout", "1s").build();
+        String master = internalCluster().startNode(settings);
+        ensureGreen();
+        List<String> nodes = internalCluster().startNodesAsync(2, settings).get();
+        final String node1 = nodes.get(0);
+        final String node2 = nodes.get(1);
+        ClusterHealthResponse response = client().admin().cluster().prepareHealth().setWaitForNodes("3").get();
+        assertThat(response.isTimedOut(), is(false));
+
+
+        client().admin().indices().prepareCreate(indexName)
+                .setSettings(
+                        ImmutableSettings.builder()
+                                .put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "_name", node1)
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                ).get();
+
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        int numDocs = scaledRandomIntBetween(25, 250);
+        for (int i = 0; i < numDocs; i++) {
+            requests.add(client().prepareIndex(indexName, "type").setCreate(true).setSource("{}"));
+        }
+        indexRandom(true, requests);
+        ensureSearchable(indexName);
+
+        // capture the incoming state indicate that the replicas have upgraded and assigned
+
+        final CountDownLatch allReplicasAssigned = new CountDownLatch(1);
+        final CountDownLatch releaseClusterState = new CountDownLatch(1);
+        final CountDownLatch unassignedShardsAfterReplicasAssigned = new CountDownLatch(1);
+        try {
+            internalCluster().getInstance(ClusterService.class, node1).addLast(new ClusterStateListener() {
+                @Override
+                public void clusterChanged(ClusterChangedEvent event) {
+                    ClusterState state = event.state();
+                    if (state.routingTable().allShards().size() == 1 || state.routingNodes().hasUnassignedShards()) {
+                        // we have no replicas or they are not assigned yet
+                        return;
+                    }
+
+                    allReplicasAssigned.countDown();
+                    try {
+                        releaseClusterState.await();
+                    } catch (InterruptedException e) {
+                        //
+                    }
+                }
+
+            });
+
+            internalCluster().getInstance(ClusterService.class, master).addLast(new ClusterStateListener() {
+                @Override
+                public void clusterChanged(ClusterChangedEvent event) {
+                    if (event.state().routingNodes().hasUnassigned() && allReplicasAssigned.getCount() == 0) {
+                        unassignedShardsAfterReplicasAssigned.countDown();
+                    }
+                }
+            });
+
+            logger.info("--> starting replica recovery");
+            // we don't expect this to be acknowledge by node1 where we block the cluster state thread
+            assertFalse(client().admin().indices().prepareUpdateSettings(indexName)
+                    .setSettings(ImmutableSettings.builder()
+                                    .put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "_name", node1 + "," + node2)
+                                    .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+
+                    ).setTimeout("200ms")
+                    .get().isAcknowledged());
+
+            logger.info("--> waiting for node1 to process replica existence");
+            allReplicasAssigned.await();
+            logger.info("--> waiting for recovery to fail");
+            unassignedShardsAfterReplicasAssigned.await();
+        } finally {
+            logger.info("--> releasing cluster state update thread");
+            releaseClusterState.countDown();
+        }
+        logger.info("--> waiting for recovery to succeed");
+        // force a move.
+        client().admin().cluster().prepareReroute().get();
+        ensureGreen();
+    }
+
+    @Test
     @Slow
     public void testCancellationCleansTempFiles() throws Exception {
         final String indexName = "test";
@@ -548,4 +643,3 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
         }
     }
 }
-

@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
-import org.apache.lucene.index.DocsEnum;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.BytesRef;
@@ -32,6 +32,7 @@ import org.elasticsearch.common.lucene.index.FreqTermsEnum;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
@@ -67,11 +68,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 return new SignificantStringTermsAggregator(name, factories, valuesSource, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggregatorFactory, metaData);
             }
 
-            @Override
-            boolean needsGlobalOrdinals() {
-                return false;
-            }
-
         },
         GLOBAL_ORDINALS(new ParseField("global_ordinals")) {
 
@@ -81,13 +77,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory, Map<String, Object> metaData) throws IOException {
                 ValuesSource.Bytes.WithOrdinals valueSourceWithOrdinals = (ValuesSource.Bytes.WithOrdinals) valuesSource;
                 IndexSearcher indexSearcher = aggregationContext.searchContext().searcher();
-                long maxOrd = valueSourceWithOrdinals.globalMaxOrd(indexSearcher);
-                return new GlobalOrdinalsSignificantTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, maxOrd, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggregatorFactory, metaData);
-            }
-
-            @Override
-            boolean needsGlobalOrdinals() {
-                return true;
+                return new GlobalOrdinalsSignificantTermsAggregator(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggregatorFactory, metaData);
             }
 
         },
@@ -98,11 +88,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
                               AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory, Map<String, Object> metaData) throws IOException {
                 return new GlobalOrdinalsSignificantTermsAggregator.WithHash(name, factories, (ValuesSource.Bytes.WithOrdinals.FieldData) valuesSource, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggregatorFactory, metaData);
-            }
-
-            @Override
-            boolean needsGlobalOrdinals() {
-                return true;
             }
         };
 
@@ -124,8 +109,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         abstract Aggregator create(String name, AggregatorFactories factories, ValuesSource valuesSource,
                                    TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
                                    AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggregatorFactory, Map<String, Object> metaData) throws IOException;
-
-        abstract boolean needsGlobalOrdinals();
 
         @Override
         public String toString() {
@@ -196,7 +179,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 }
             }
             assert execution != null;
-            valuesSource.setNeedsGlobalOrdinals(execution.needsGlobalOrdinals());
             return execution.create(name, factories, valuesSource, bucketCountThresholds, includeExclude, aggregationContext, parent, this, metaData);
         }
 
@@ -237,7 +219,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         try {
             if (numberOfAggregatorsCreated == 1) {
                 // Setup a termsEnum for sole use by one aggregator
-                termsEnum = new FilterableTermsEnum(reader, indexedFieldName, DocsEnum.FLAG_NONE, filter);
+                termsEnum = new FilterableTermsEnum(reader, indexedFieldName, PostingsEnum.NONE, filter);
             } else {
                 // When we have > 1 agg we have possibility of duplicate term frequency lookups 
                 // and so use a TermsEnum that caches results of all term lookups

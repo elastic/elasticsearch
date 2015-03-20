@@ -101,6 +101,11 @@ public class ScanContext {
         }
 
         @Override
+        public boolean needsScores() {
+            return trackScores;
+        }
+
+        @Override
         public void setScorer(Scorer scorer) throws IOException {
             this.scorer = scorer;
         }
@@ -161,6 +166,11 @@ public class ScanContext {
                 return null;
             }
             return BitsFilteredDocIdSet.wrap(new AllDocIdSet(context.reader().maxDoc()), acceptedDocs);
+        }
+
+        @Override
+        public String toString(String field) {
+            return "ScanFilter";
         }
     }
 

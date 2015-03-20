@@ -44,8 +44,8 @@ public class PluginServiceTests extends ElasticsearchIntegrationTest {
     public void testPluginLoadingFromClassName() throws URISyntaxException {
         Settings settings = settingsBuilder()
                                 // Defines a plugin in classpath
-                                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
-                                .put("plugins." + PluginsService.ES_PLUGIN_PROPERTIES_FILE_KEY, "es-plugin-test.properties")
+                                .put(PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
+                                .put(PluginsService.ES_PLUGIN_PROPERTIES_FILE_KEY, "es-plugin-test.properties")
                                 // Defines a plugin in settings
                                 .put("plugin.types", InSettingsPlugin.class.getName())
                             .build();

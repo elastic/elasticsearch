@@ -22,10 +22,7 @@ package org.elasticsearch.index.mapper;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
@@ -34,7 +31,6 @@ import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Preconditions;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -45,11 +41,26 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.common.xcontent.smile.SmileXContent;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.mapper.internal.*;
+import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
+import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.internal.SizeFieldMapper;
+import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
+import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.script.ExecutableScript;
@@ -57,7 +68,14 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.google.common.collect.Lists.newArrayList;
@@ -143,12 +161,6 @@ public class DocumentMapper implements ToXContent {
 
         private Map<Class<? extends RootMapper>, RootMapper> rootMappers = new LinkedHashMap<>();
 
-        private NamedAnalyzer indexAnalyzer;
-
-        private NamedAnalyzer searchAnalyzer;
-
-        private NamedAnalyzer searchQuoteAnalyzer;
-
         private List<SourceTransform> sourceTransforms;
 
         private final String index;
@@ -166,30 +178,20 @@ public class DocumentMapper implements ToXContent {
             this.indexSettings = indexSettings;
             this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
             this.rootObjectMapper = builder.build(builderContext);
-            IdFieldMapper idFieldMapper = new IdFieldMapper();
-            if (indexSettings != null) {
-                String idIndexed = indexSettings.get("index.mapping._id.indexed");
-                if (idIndexed != null && Booleans.parseBoolean(idIndexed, false)) {
-                    FieldType fieldType = new FieldType(IdFieldMapper.Defaults.FIELD_TYPE);
-                    fieldType.setTokenized(false);
-                    idFieldMapper = new IdFieldMapper(fieldType);
-                }
-            }
+
             // UID first so it will be the first stored field to load (so will benefit from "fields: []" early termination
-            this.rootMappers.put(UidFieldMapper.class, new UidFieldMapper());
-            this.rootMappers.put(IdFieldMapper.class, idFieldMapper);
-            this.rootMappers.put(RoutingFieldMapper.class, new RoutingFieldMapper());
+            this.rootMappers.put(UidFieldMapper.class, new UidFieldMapper(indexSettings));
+            this.rootMappers.put(IdFieldMapper.class, new IdFieldMapper(indexSettings));
+            this.rootMappers.put(RoutingFieldMapper.class, new RoutingFieldMapper(indexSettings));
             // add default mappers, order is important (for example analyzer should come before the rest to set context.analyzer)
             this.rootMappers.put(SizeFieldMapper.class, new SizeFieldMapper(indexSettings));
-            this.rootMappers.put(IndexFieldMapper.class, new IndexFieldMapper());
+            this.rootMappers.put(IndexFieldMapper.class, new IndexFieldMapper(indexSettings));
             this.rootMappers.put(SourceFieldMapper.class, new SourceFieldMapper(indexSettings));
-            this.rootMappers.put(TypeFieldMapper.class, new TypeFieldMapper());
-            this.rootMappers.put(AnalyzerMapper.class, new AnalyzerMapper());
-            this.rootMappers.put(AllFieldMapper.class, new AllFieldMapper());
-            this.rootMappers.put(BoostFieldMapper.class, new BoostFieldMapper(indexSettings));
+            this.rootMappers.put(TypeFieldMapper.class, new TypeFieldMapper(indexSettings));
+            this.rootMappers.put(AllFieldMapper.class, new AllFieldMapper(indexSettings));
             this.rootMappers.put(TimestampFieldMapper.class, new TimestampFieldMapper(indexSettings));
             this.rootMappers.put(TTLFieldMapper.class, new TTLFieldMapper(indexSettings));
-            this.rootMappers.put(VersionFieldMapper.class, new VersionFieldMapper());
+            this.rootMappers.put(VersionFieldMapper.class, new VersionFieldMapper(indexSettings));
             this.rootMappers.put(ParentFieldMapper.class, new ParentFieldMapper(indexSettings));
             // _field_names last so that it can see all other fields
             this.rootMappers.put(FieldNamesFieldMapper.class, new FieldNamesFieldMapper(indexSettings));
@@ -206,36 +208,6 @@ public class DocumentMapper implements ToXContent {
             return this;
         }
 
-        public Builder indexAnalyzer(NamedAnalyzer indexAnalyzer) {
-            this.indexAnalyzer = indexAnalyzer;
-            return this;
-        }
-
-        public boolean hasIndexAnalyzer() {
-            return indexAnalyzer != null;
-        }
-
-        public Builder searchAnalyzer(NamedAnalyzer searchAnalyzer) {
-            this.searchAnalyzer = searchAnalyzer;
-            if (this.searchQuoteAnalyzer == null) {
-                this.searchQuoteAnalyzer = searchAnalyzer;
-            }
-            return this;
-        }
-
-        public Builder searchQuoteAnalyzer(NamedAnalyzer searchQuoteAnalyzer) {
-            this.searchQuoteAnalyzer = searchQuoteAnalyzer;
-            return this;
-        }
-
-        public boolean hasSearchAnalyzer() {
-            return searchAnalyzer != null;
-        }
-
-        public boolean hasSearchQuoteAnalyzer() {
-            return searchQuoteAnalyzer != null;
-        }
-
         public Builder transform(ScriptService scriptService, String script, ScriptType scriptType, String language, Map<String, Object> parameters) {
             if (sourceTransforms == null) {
                 sourceTransforms = new ArrayList<>();
@@ -246,8 +218,7 @@ public class DocumentMapper implements ToXContent {
 
         public DocumentMapper build(DocumentMapperParser docMapperParser) {
             Preconditions.checkNotNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
-            return new DocumentMapper(index, indexSettings, docMapperParser, rootObjectMapper, meta,
-                    indexAnalyzer, searchAnalyzer, searchQuoteAnalyzer, rootMappers, sourceTransforms);
+            return new DocumentMapper(index, indexSettings, docMapperParser, rootObjectMapper, meta, rootMappers, sourceTransforms);
         }
     }
 
@@ -278,11 +249,6 @@ public class DocumentMapper implements ToXContent {
     private final RootMapper[] rootMappersOrdered;
     private final RootMapper[] rootMappersNotIncludedInObject;
 
-    private final NamedAnalyzer indexAnalyzer;
-
-    private final NamedAnalyzer searchAnalyzer;
-    private final NamedAnalyzer searchQuoteAnalyzer;
-
     private volatile DocumentFieldMappers fieldMappers;
 
     private volatile ImmutableMap<String, ObjectMapper> objectMappers = ImmutableMap.of();
@@ -302,7 +268,6 @@ public class DocumentMapper implements ToXContent {
     public DocumentMapper(String index, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
                           RootObjectMapper rootObjectMapper,
                           ImmutableMap<String, Object> meta,
-                          NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer, NamedAnalyzer searchQuoteAnalyzer,
                           Map<Class<? extends RootMapper>, RootMapper> rootMappers, List<SourceTransform> sourceTransforms) {
         this.index = index;
         this.indexSettings = indexSettings;
@@ -322,10 +287,6 @@ public class DocumentMapper implements ToXContent {
             }
         }
         this.rootMappersNotIncludedInObject = rootMappersNotIncludedInObjectLst.toArray(new RootMapper[rootMappersNotIncludedInObjectLst.size()]);
-
-        this.indexAnalyzer = indexAnalyzer;
-        this.searchAnalyzer = searchAnalyzer;
-        this.searchQuoteAnalyzer = searchQuoteAnalyzer != null ? searchQuoteAnalyzer : searchAnalyzer;
 
         this.typeFilter = typeMapper().termFilter(type, null);
 
@@ -348,7 +309,7 @@ public class DocumentMapper implements ToXContent {
         // now traverse and get all the statically defined ones
         rootObjectMapper.traverse(fieldMappersAgg);
 
-        this.fieldMappers = new DocumentFieldMappers(this).copyAndAllAll(fieldMappersAgg.mappers);
+        this.fieldMappers = new DocumentFieldMappers(docMapperParser.analysisService).copyAndAllAll(fieldMappersAgg.mappers);
 
         final Map<String, ObjectMapper> objectMappers = Maps.newHashMap();
         rootObjectMapper.traverse(new ObjectMapperListener() {
@@ -408,10 +369,6 @@ public class DocumentMapper implements ToXContent {
         return rootMapper(SourceFieldMapper.class);
     }
 
-    public AnalyzerMapper analyzerMapper() {
-        return rootMapper(AnalyzerMapper.class);
-    }
-
     public AllFieldMapper allFieldMapper() {
         return rootMapper(AllFieldMapper.class);
     }
@@ -446,22 +403,6 @@ public class DocumentMapper implements ToXContent {
 
     public SizeFieldMapper SizeFieldMapper() {
         return rootMapper(SizeFieldMapper.class);
-    }
-
-    public BoostFieldMapper boostFieldMapper() {
-        return rootMapper(BoostFieldMapper.class);
-    }
-
-    public Analyzer indexAnalyzer() {
-        return this.indexAnalyzer;
-    }
-
-    public Analyzer searchAnalyzer() {
-        return this.searchAnalyzer;
-    }
-
-    public Analyzer searchQuotedAnalyzer() {
-        return this.searchQuoteAnalyzer;
     }
 
     public Filter typeFilter() {
@@ -578,7 +519,7 @@ public class DocumentMapper implements ToXContent {
             }
         }
 
-        ParsedDocument doc = new ParsedDocument(context.uid(), context.version(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(), context.analyzer(),
+        ParsedDocument doc = new ParsedDocument(context.uid(), context.version(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(),
                 context.source(), context.mappingsModified()).parent(source.parent());
         // reset the context to free up memory
         context.reset(null, null, null, null);
@@ -747,23 +688,6 @@ public class DocumentMapper implements ToXContent {
         rootObjectMapper.toXContent(builder, params, new ToXContent() {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                if (indexAnalyzer != null && searchAnalyzer != null && indexAnalyzer.name().equals(searchAnalyzer.name()) && !indexAnalyzer.name().startsWith("_")) {
-                    if (!indexAnalyzer.name().equals("default")) {
-                        // same analyzers, output it once
-                        builder.field("analyzer", indexAnalyzer.name());
-                    }
-                } else {
-                    if (indexAnalyzer != null && !indexAnalyzer.name().startsWith("_")) {
-                        if (!indexAnalyzer.name().equals("default")) {
-                            builder.field("index_analyzer", indexAnalyzer.name());
-                        }
-                    }
-                    if (searchAnalyzer != null && !searchAnalyzer.name().startsWith("_")) {
-                        if (!searchAnalyzer.name().equals("default")) {
-                            builder.field("search_analyzer", searchAnalyzer.name());
-                        }
-                    }
-                }
                 if (sourceTransforms != null) {
                     if (sourceTransforms.size() == 1) {
                         builder.field("transform");
@@ -830,6 +754,7 @@ public class DocumentMapper implements ToXContent {
             this.parameters = parameters;
         }
 
+        @Override
         @SuppressWarnings("unchecked")
         public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
             try {

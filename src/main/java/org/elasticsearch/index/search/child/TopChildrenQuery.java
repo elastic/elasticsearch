@@ -20,6 +20,7 @@ package org.elasticsearch.index.search.child;
 
 import com.carrotsearch.hppc.IntObjectOpenHashMap;
 import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
+
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.*;
@@ -115,7 +116,7 @@ public class TopChildrenQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs = new ObjectObjectOpenHashMap<>();
         SearchContext searchContext = SearchContext.current();
 
@@ -160,7 +161,7 @@ public class TopChildrenQuery extends Query {
             }
         }
 
-        ParentWeight parentWeight =  new ParentWeight(rewrittenChildQuery.createWeight(searcher), parentDocs);
+        ParentWeight parentWeight =  new ParentWeight(this, rewrittenChildQuery.createWeight(searcher, needsScores), parentDocs);
         searchContext.addReleasable(parentWeight, Lifetime.COLLECTION);
         return parentWeight;
     }
@@ -199,12 +200,12 @@ public class TopChildrenQuery extends Query {
                 if (!termsEnum.seekExact(Uid.createUidAsBytes(parentType, parentId))) {
                     continue;
                 }
-                DocsEnum docsEnum = termsEnum.docs(indexReader.getLiveDocs(), null, DocsEnum.FLAG_NONE);
+                PostingsEnum docsEnum = termsEnum.postings(indexReader.getLiveDocs(), null, PostingsEnum.NONE);
                 int parentDocId = docsEnum.nextDoc();
                 if (nonNestedDocs != null && !nonNestedDocs.get(parentDocId)) {
                     parentDocId = nonNestedDocs.nextSetBit(parentDocId);
                 }
-                if (parentDocId != DocsEnum.NO_MORE_DOCS) {
+                if (parentDocId != DocIdSetIterator.NO_MORE_DOCS) {
                     // we found a match, add it and break
                     IntObjectOpenHashMap<ParentDoc> readerParentDocs = parentDocsPerReader.get(indexReader.getCoreCacheKey());
                     if (readerParentDocs == null) {
@@ -285,6 +286,7 @@ public class TopChildrenQuery extends Query {
         return result;
     }
 
+    @Override
     public String toString(String field) {
         StringBuilder sb = new StringBuilder();
         sb.append("score_child[").append(childType).append("/").append(parentType).append("](").append(originalChildQuery.toString(field)).append(')');
@@ -297,13 +299,10 @@ public class TopChildrenQuery extends Query {
         private final Weight queryWeight;
         private final ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs;
 
-        public ParentWeight(Weight queryWeight, ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs) throws IOException {
+        public ParentWeight(Query query, Weight queryWeight, ObjectObjectOpenHashMap<Object, ParentDoc[]> parentDocs) throws IOException {
+            super(query);
             this.queryWeight = queryWeight;
             this.parentDocs = parentDocs;
-        }
-
-        public Query getQuery() {
-            return TopChildrenQuery.this;
         }
 
         @Override
@@ -325,6 +324,9 @@ public class TopChildrenQuery extends Query {
         @Override
         public Scorer scorer(LeafReaderContext context, Bits acceptDocs) throws IOException {
             ParentDoc[] readerParentDocs = parentDocs.get(context.reader().getCoreCacheKey());
+            // We ignore the needsScores parameter here because there isn't really anything that we
+            // can improve by ignoring scores. Actually this query does not really make sense
+            // with needsScores=false...
             if (readerParentDocs != null) {
                 if (scoreType == ScoreType.MIN) {
                     return new ParentScorer(this, readerParentDocs) {

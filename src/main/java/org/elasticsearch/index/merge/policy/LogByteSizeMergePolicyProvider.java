@@ -29,9 +29,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.store.Store;
 
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArraySet;
-
 /**
  *
  */
@@ -41,8 +38,8 @@ public class LogByteSizeMergePolicyProvider extends AbstractMergePolicyProvider<
     private final ApplySettings applySettings = new ApplySettings();
     private final LogByteSizeMergePolicy mergePolicy = new LogByteSizeMergePolicy();
 
-    private static final ByteSizeValue DEFAULT_MIN_MERGE_SIZE = new ByteSizeValue((long) (LogByteSizeMergePolicy.DEFAULT_MIN_MERGE_MB * 1024 * 1024), ByteSizeUnit.BYTES);
-    private static final ByteSizeValue DEFAULT_MAX_MERGE_SIZE = new ByteSizeValue((long) LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_MB, ByteSizeUnit.MB);
+    public static final ByteSizeValue DEFAULT_MIN_MERGE_SIZE = new ByteSizeValue((long) (LogByteSizeMergePolicy.DEFAULT_MIN_MERGE_MB * 1024 * 1024), ByteSizeUnit.BYTES);
+    public static final ByteSizeValue DEFAULT_MAX_MERGE_SIZE = new ByteSizeValue((long) LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_MB, ByteSizeUnit.MB);
 
     @Inject
     public LogByteSizeMergePolicyProvider(Store store, IndexSettingsService indexSettingsService) {
@@ -50,11 +47,11 @@ public class LogByteSizeMergePolicyProvider extends AbstractMergePolicyProvider<
         Preconditions.checkNotNull(store, "Store must be provided to merge policy");
         this.indexSettingsService = indexSettingsService;
 
-        ByteSizeValue minMergeSize = componentSettings.getAsBytesSize("min_merge_size", DEFAULT_MIN_MERGE_SIZE);
-        ByteSizeValue maxMergeSize = componentSettings.getAsBytesSize("max_merge_size", DEFAULT_MAX_MERGE_SIZE);
-        int mergeFactor = componentSettings.getAsInt("merge_factor", LogByteSizeMergePolicy.DEFAULT_MERGE_FACTOR);
-        int maxMergeDocs = componentSettings.getAsInt("max_merge_docs", LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_DOCS);
-        boolean calibrateSizeByDeletes = componentSettings.getAsBoolean("calibrate_size_by_deletes", true);
+        ByteSizeValue minMergeSize = indexSettings.getAsBytesSize("index.merge.policy.min_merge_size", DEFAULT_MIN_MERGE_SIZE);
+        ByteSizeValue maxMergeSize = indexSettings.getAsBytesSize("index.merge.policy.max_merge_size", DEFAULT_MAX_MERGE_SIZE);
+        int mergeFactor = indexSettings.getAsInt("index.merge.policy.merge_factor", LogByteSizeMergePolicy.DEFAULT_MERGE_FACTOR);
+        int maxMergeDocs = indexSettings.getAsInt("index.merge.policy.max_merge_docs", LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_DOCS);
+        boolean calibrateSizeByDeletes = indexSettings.getAsBoolean("index.merge.policy.calibrate_size_by_deletes", true);
 
         mergePolicy.setMinMergeMB(minMergeSize.mbFrac());
         mergePolicy.setMaxMergeMB(maxMergeSize.mbFrac());
@@ -88,35 +85,35 @@ public class LogByteSizeMergePolicyProvider extends AbstractMergePolicyProvider<
         @Override
         public void onRefreshSettings(Settings settings) {
             double oldMinMergeSizeMB = mergePolicy.getMinMergeMB();
-            ByteSizeValue minMergeSize = settings.getAsBytesSize(INDEX_MERGE_POLICY_MIN_MERGE_SIZE, DEFAULT_MIN_MERGE_SIZE);
-            if (minMergeSize.mbFrac() != oldMinMergeSizeMB) {
+            ByteSizeValue minMergeSize = settings.getAsBytesSize(INDEX_MERGE_POLICY_MIN_MERGE_SIZE, null);
+            if (minMergeSize != null && minMergeSize.mbFrac() != oldMinMergeSizeMB) {
                 logger.info("updating min_merge_size from [{}mb] to [{}]", oldMinMergeSizeMB, minMergeSize);
                 mergePolicy.setMinMergeMB(minMergeSize.mbFrac());
             }
 
             double oldMaxMergeSizeMB = mergePolicy.getMaxMergeMB();
-            ByteSizeValue maxMergeSize = settings.getAsBytesSize(INDEX_MERGE_POLICY_MAX_MERGE_SIZE, DEFAULT_MAX_MERGE_SIZE);
-            if (maxMergeSize.mbFrac() != oldMaxMergeSizeMB) {
+            ByteSizeValue maxMergeSize = settings.getAsBytesSize(INDEX_MERGE_POLICY_MAX_MERGE_SIZE, null);
+            if (maxMergeSize != null && maxMergeSize.mbFrac() != oldMaxMergeSizeMB) {
                 logger.info("updating max_merge_size from [{}mb] to [{}]", oldMaxMergeSizeMB, maxMergeSize);
                 mergePolicy.setMaxMergeMB(maxMergeSize.mbFrac());
             }
 
             int oldMaxMergeDocs = mergePolicy.getMaxMergeDocs();
-            int maxMergeDocs = settings.getAsInt(INDEX_MERGE_POLICY_MAX_MERGE_DOCS, LogByteSizeMergePolicy.DEFAULT_MAX_MERGE_DOCS);
+            int maxMergeDocs = settings.getAsInt(INDEX_MERGE_POLICY_MAX_MERGE_DOCS, oldMaxMergeDocs);
             if (maxMergeDocs != oldMaxMergeDocs) {
                 logger.info("updating max_merge_docs from [{}] to [{}]", oldMaxMergeDocs, maxMergeDocs);
                 mergePolicy.setMaxMergeDocs(maxMergeDocs);
             }
 
             int oldMergeFactor = mergePolicy.getMergeFactor();
-            int mergeFactor = settings.getAsInt(INDEX_MERGE_POLICY_MERGE_FACTOR, LogByteSizeMergePolicy.DEFAULT_MERGE_FACTOR);
+            int mergeFactor = settings.getAsInt(INDEX_MERGE_POLICY_MERGE_FACTOR, oldMergeFactor);
             if (mergeFactor != oldMergeFactor) {
                 logger.info("updating merge_factor from [{}] to [{}]", oldMergeFactor, mergeFactor);
                 mergePolicy.setMergeFactor(mergeFactor);
             }
 
             boolean oldCalibrateSizeByDeletes = mergePolicy.getCalibrateSizeByDeletes();
-            boolean calibrateSizeByDeletes = settings.getAsBoolean(INDEX_MERGE_POLICY_CALIBRATE_SIZE_BY_DELETES, true);
+            boolean calibrateSizeByDeletes = settings.getAsBoolean(INDEX_MERGE_POLICY_CALIBRATE_SIZE_BY_DELETES, oldCalibrateSizeByDeletes);
             if (calibrateSizeByDeletes != oldCalibrateSizeByDeletes) {
                 logger.info("updating calibrate_size_by_deletes from [{}] to [{}]", oldCalibrateSizeByDeletes, calibrateSizeByDeletes);
                 mergePolicy.setCalibrateSizeByDeletes(calibrateSizeByDeletes);

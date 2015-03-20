@@ -123,19 +123,19 @@ public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
     public ShardSlowLogSearchService(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService) {
         super(shardId, indexSettings);
 
-        this.reformat = componentSettings.getAsBoolean("reformat", true);
+        this.reformat = indexSettings.getAsBoolean(INDEX_SEARCH_SLOWLOG_REFORMAT, true);
 
-        this.queryWarnThreshold = componentSettings.getAsTime("threshold.query.warn", TimeValue.timeValueNanos(-1)).nanos();
-        this.queryInfoThreshold = componentSettings.getAsTime("threshold.query.info", TimeValue.timeValueNanos(-1)).nanos();
-        this.queryDebugThreshold = componentSettings.getAsTime("threshold.query.debug", TimeValue.timeValueNanos(-1)).nanos();
-        this.queryTraceThreshold = componentSettings.getAsTime("threshold.query.trace", TimeValue.timeValueNanos(-1)).nanos();
+        this.queryWarnThreshold = indexSettings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_WARN, TimeValue.timeValueNanos(-1)).nanos();
+        this.queryInfoThreshold = indexSettings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_INFO, TimeValue.timeValueNanos(-1)).nanos();
+        this.queryDebugThreshold = indexSettings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_DEBUG, TimeValue.timeValueNanos(-1)).nanos();
+        this.queryTraceThreshold = indexSettings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_QUERY_TRACE, TimeValue.timeValueNanos(-1)).nanos();
 
-        this.fetchWarnThreshold = componentSettings.getAsTime("threshold.fetch.warn", TimeValue.timeValueNanos(-1)).nanos();
-        this.fetchInfoThreshold = componentSettings.getAsTime("threshold.fetch.info", TimeValue.timeValueNanos(-1)).nanos();
-        this.fetchDebugThreshold = componentSettings.getAsTime("threshold.fetch.debug", TimeValue.timeValueNanos(-1)).nanos();
-        this.fetchTraceThreshold = componentSettings.getAsTime("threshold.fetch.trace", TimeValue.timeValueNanos(-1)).nanos();
+        this.fetchWarnThreshold = indexSettings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_WARN, TimeValue.timeValueNanos(-1)).nanos();
+        this.fetchInfoThreshold = indexSettings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_INFO, TimeValue.timeValueNanos(-1)).nanos();
+        this.fetchDebugThreshold = indexSettings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_DEBUG, TimeValue.timeValueNanos(-1)).nanos();
+        this.fetchTraceThreshold = indexSettings.getAsTime(INDEX_SEARCH_SLOWLOG_THRESHOLD_FETCH_TRACE, TimeValue.timeValueNanos(-1)).nanos();
 
-        this.level = componentSettings.get("level", "TRACE").toUpperCase(Locale.ROOT);
+        this.level = indexSettings.get(INDEX_SEARCH_SLOWLOG_LEVEL, "TRACE").toUpperCase(Locale.ROOT);
 
         this.queryLogger = Loggers.getLogger(logger, ".query");
         this.fetchLogger = Loggers.getLogger(logger, ".fetch");

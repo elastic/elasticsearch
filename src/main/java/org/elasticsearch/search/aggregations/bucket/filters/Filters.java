@@ -21,7 +21,6 @@ package org.elasticsearch.search.aggregations.bucket.filters;
 
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
-import java.util.Collection;
 import java.util.List;
 
 /**
@@ -39,9 +38,9 @@ public interface Filters extends MultiBucketsAggregation {
     /**
      * The buckets created by this aggregation.
      */
+    @Override
     List<? extends Bucket> getBuckets();
 
-    @Override
     Bucket getBucketByKey(String key);
 
 }

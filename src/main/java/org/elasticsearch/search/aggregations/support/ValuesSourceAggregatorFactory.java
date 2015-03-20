@@ -53,7 +53,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
         if (config.unmapped()) {
             return createUnmapped(context, parent, metaData);
         }
-        VS vs = context.valuesSource(config, parent == null ? 0 : 1 + parent.depth());
+        VS vs = context.valuesSource(config);
         return doCreateInternal(vs, context, parent, collectsFromSingleBucket, metaData);
     }
 

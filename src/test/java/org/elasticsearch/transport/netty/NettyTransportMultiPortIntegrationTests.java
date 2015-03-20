@@ -20,10 +20,13 @@ package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.transport.TransportModule;
 import org.junit.Test;
 
@@ -32,7 +35,7 @@ import java.util.Locale;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1, enableRandomBenchNodes = false, numClientNodes = 0)
 public class NettyTransportMultiPortIntegrationTests extends ElasticsearchIntegrationTest {
@@ -52,6 +55,8 @@ public class NettyTransportMultiPortIntegrationTests extends ElasticsearchIntegr
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName())
                 .put("node.mode", "network")
                 .put("transport.profiles.client1.port", randomPortRange)
+                .put("transport.profiles.client1.publish_host", "127.0.0.7")
+                .put("transport.profiles.client1.publish_port", "4321")
                 .put("transport.profiles.client1.reuse_address", true)
                 .build();
     }
@@ -66,6 +71,27 @@ public class NettyTransportMultiPortIntegrationTests extends ElasticsearchIntegr
             transportClient.addTransportAddress(new InetSocketTransportAddress("127.0.0.1", randomPort));
             ClusterHealthResponse response = transportClient.admin().cluster().prepareHealth().get();
             assertThat(response.getStatus(), is(ClusterHealthStatus.GREEN));
+        }
+    }
+
+    @Test
+    @Network
+    public void testThatInfosAreExposed() throws Exception {
+        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear().setTransport(true).get();
+        for (NodeInfo nodeInfo : response.getNodes()) {
+            assertThat(nodeInfo.getTransport().getProfileAddresses().keySet(), hasSize(1));
+            assertThat(nodeInfo.getTransport().getProfileAddresses(), hasKey("client1"));
+            assertThat(nodeInfo.getTransport().getProfileAddresses().get("client1").boundAddress(), instanceOf(InetSocketTransportAddress.class));
+
+            // bound address
+            InetSocketTransportAddress inetSocketTransportAddress = (InetSocketTransportAddress) nodeInfo.getTransport().getProfileAddresses().get("client1").boundAddress();
+            assertThat(inetSocketTransportAddress.address().getPort(), is(allOf(greaterThanOrEqualTo(randomPort), lessThanOrEqualTo(randomPort + 10))));
+
+            // publish address
+            assertThat(nodeInfo.getTransport().getProfileAddresses().get("client1").publishAddress(), instanceOf(InetSocketTransportAddress.class));
+            InetSocketTransportAddress publishAddress = (InetSocketTransportAddress) nodeInfo.getTransport().getProfileAddresses().get("client1").publishAddress();
+            assertThat(publishAddress.address().getHostName(), is("127.0.0.7"));
+            assertThat(publishAddress.address().getPort(), is(4321));
         }
     }
 }

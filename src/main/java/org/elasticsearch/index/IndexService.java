@@ -73,6 +73,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogModule;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ShardsPluginsModule;
@@ -122,6 +123,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private final IndexSettingsService settingsService;
 
     private final NodeEnvironment nodeEnv;
+    private final IndicesService indicesServices;
 
     private volatile ImmutableMap<Integer, Tuple<IndexShard, Injector>> shards = ImmutableMap.of();
 
@@ -133,7 +135,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                         AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
                         SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache,
                         IndexStore indexStore, IndexSettingsService settingsService,
-                        IndexFieldDataService indexFieldData, BitsetFilterCache bitSetFilterCache) {
+                        IndexFieldDataService indexFieldData, BitsetFilterCache bitSetFilterCache, IndicesService indicesServices) {
         super(index, indexSettings);
         this.injector = injector;
         this.indexSettings = indexSettings;
@@ -149,6 +151,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         this.bitsetFilterCache = bitSetFilterCache;
 
         this.pluginsService = injector.getInstance(PluginsService.class);
+        this.indicesServices = indicesServices;
         this.indicesLifecycle = (InternalIndicesLifecycle) injector.getInstance(IndicesLifecycle.class);
 
         // inject workarounds for cyclic dep
@@ -160,6 +163,10 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     public int numberOfShards() {
         return shards.size();
+    }
+
+    public InternalIndicesLifecycle indicesLifecycle() {
+        return this.indicesLifecycle;
     }
 
     @Override
@@ -275,7 +282,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         return indexSettings.get(IndexMetaData.SETTING_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
     }
 
-    public synchronized IndexShard createShard(int sShardId) throws ElasticsearchException {
+    public synchronized IndexShard createShard(int sShardId, boolean primary) throws ElasticsearchException {
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
          * be able to serialize the execution via the cluster state in the future. for now we just
@@ -297,15 +304,17 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             indicesLifecycle.beforeIndexShardCreated(shardId, indexSettings);
 
             logger.debug("creating shard_id {}", shardId);
-
+            // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
+            final boolean canDeleteShardContent = IndexMetaData.isOnSharedFilesystem(indexSettings) == false ||
+                    (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new ShardsPluginsModule(indexSettings, pluginsService));
-            modules.add(new IndexShardModule(shardId, indexSettings));
+            modules.add(new IndexShardModule(shardId, primary, indexSettings));
             modules.add(new ShardIndexingModule());
             modules.add(new ShardSearchModule());
             modules.add(new ShardGetModule());
             modules.add(new StoreModule(indexSettings, injector.getInstance(IndexStore.class), lock,
-                    new StoreCloseListener(shardId)));
+                    new StoreCloseListener(shardId, canDeleteShardContent)));
             modules.add(new DeletionPolicyModule(indexSettings));
             modules.add(new MergePolicyModule(indexSettings));
             modules.add(new MergeSchedulerModule(indexSettings));
@@ -367,35 +376,40 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private void closeShardInjector(String reason, ShardId sId, Injector shardInjector, IndexShard indexShard) {
         final int shardId = sId.id();
         try {
-            indicesLifecycle.beforeIndexShardClosed(sId, indexShard, indexSettings);
-            for (Class<? extends Closeable> closeable : pluginsService.shardServices()) {
-                try {
-                    shardInjector.getInstance(closeable).close();
-                } catch (Throwable e) {
-                    logger.debug("[{}] failed to clean plugin shard service [{}]", e, shardId, closeable);
+            try {
+                indicesLifecycle.beforeIndexShardClosed(sId, indexShard, indexSettings);
+            } finally {
+                // close everything else even if the beforeIndexShardClosed threw an exception
+                for (Class<? extends Closeable> closeable : pluginsService.shardServices()) {
+                    try {
+                        shardInjector.getInstance(closeable).close();
+                    } catch (Throwable e) {
+                        logger.debug("[{}] failed to clean plugin shard service [{}]", e, shardId, closeable);
+                    }
                 }
-            }
-            // now we can close the translog service, we need to close it before the we close the shard
-            closeInjectorResource(sId, shardInjector, TranslogService.class);
-            // this logic is tricky, we want to close the engine so we rollback the changes done to it
-            // and close the shard so no operations are allowed to it
-            if (indexShard != null) {
-                try {
-                    indexShard.close(reason);
-                } catch (Throwable e) {
-                    logger.debug("[{}] failed to close index shard", e, shardId);
-                    // ignore
+                // now we can close the translog service, we need to close it before the we close the shard
+                closeInjectorResource(sId, shardInjector, TranslogService.class);
+                // this logic is tricky, we want to close the engine so we rollback the changes done to it
+                // and close the shard so no operations are allowed to it
+                if (indexShard != null) {
+                    try {
+                        final boolean flushEngine = deleted.get() == false && closed.get(); // only flush we are we closed (closed index or shutdown) and if we are not deleted
+                        indexShard.close(reason, flushEngine);
+                    } catch (Throwable e) {
+                        logger.debug("[{}] failed to close index shard", e, shardId);
+                        // ignore
+                    }
                 }
-            }
-            closeInjectorResource(sId, shardInjector,
-                    MergeSchedulerProvider.class,
-                    MergePolicyProvider.class,
-                    IndexShardGatewayService.class,
-                    Translog.class,
-                    PercolatorQueriesRegistry.class);
+                closeInjectorResource(sId, shardInjector,
+                        MergeSchedulerProvider.class,
+                        MergePolicyProvider.class,
+                        IndexShardGatewayService.class,
+                        Translog.class,
+                        PercolatorQueriesRegistry.class);
 
-            // call this before we close the store, so we can release resources for it
-            indicesLifecycle.afterIndexShardClosed(sId, indexShard, indexSettings);
+                // call this before we close the store, so we can release resources for it
+                indicesLifecycle.afterIndexShardClosed(sId, indexShard, indexSettings);
+            }
         } finally {
             try {
                 shardInjector.getInstance(Store.class).close();
@@ -423,27 +437,41 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         }
     }
 
-    private void onShardClose(ShardLock lock) {
+    private void onShardClose(ShardLock lock, boolean ownsShard) {
         if (deleted.get()) { // we remove that shards content if this index has been deleted
             try {
-                nodeEnv.deleteShardDirectoryUnderLock(lock, indexSettings);
+                if (ownsShard) {
+                    try {
+                        indicesLifecycle.beforeIndexShardDeleted(lock.getShardId(), indexSettings);
+                    } finally {
+                        indicesServices.deleteShardStore("delete index", lock, indexSettings);
+                        indicesLifecycle.afterIndexShardDeleted(lock.getShardId(), indexSettings);
+                    }
+                }
             } catch (IOException e) {
-                logger.warn("{} failed to delete shard content", e, lock.getShardId());
+                indicesServices.addPendingDelete(lock.getShardId(), indexSettings);
+                logger.debug("{} failed to delete shard content - scheduled a retry", e, lock.getShardId().id());
             }
         }
     }
 
     private class StoreCloseListener implements Store.OnClose {
         private final ShardId shardId;
+        private final boolean ownsShard;
 
-        public StoreCloseListener(ShardId shardId) {
+        public StoreCloseListener(ShardId shardId, boolean ownsShard) {
             this.shardId = shardId;
+            this.ownsShard = ownsShard;
         }
 
         @Override
         public void handle(ShardLock lock) {
             assert lock.getShardId().equals(shardId) : "shard Id mismatch, expected: "  + shardId + " but got: " + lock.getShardId();
-            onShardClose(lock);
+            onShardClose(lock, ownsShard);
         }
+    }
+
+    public Settings getIndexSettings() {
+        return indexSettings;
     }
 }

@@ -113,6 +113,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         return (CompositeTestCluster) cluster();
     }
 
+    @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         TestCluster cluster = super.buildTestCluster(scope, seed);
         ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new SettingsSource() {
@@ -157,6 +158,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         return ExternalNode.REQUIRED_SETTINGS;
     }
 
+    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put(requiredSettings())
                 .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName()) // run same transport  / disco as external

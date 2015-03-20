@@ -22,8 +22,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -99,24 +97,29 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             this.term = term;
         }
 
-        @Override
-        public Text getKeyAsText() {
-            return new StringText(String.valueOf(term));
+        public Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, long term, InternalAggregations aggregations, double score) {
+            this(subsetDf, subsetSize, supersetDf, supersetSize, term, aggregations, null);
+            this.score = score;
         }
 
         @Override
-        public Number getKeyAsNumber() {
+        public Object getKey() {
             return term;
         }
 
         @Override
         int compareTerm(SignificantTerms.Bucket other) {
-            return Long.compare(term, other.getKeyAsNumber().longValue());
+            return Long.compare(term, ((Number) other.getKey()).longValue());
         }
 
         @Override
-        public String getKey() {
+        public String getKeyAsString() {
             return Long.toString(term);
+        }
+
+        @Override
+        public Number getKeyAsNumber() {
+            return term;
         }
 
         @Override
@@ -129,7 +132,9 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             subsetDf = in.readVLong();
             supersetDf = in.readVLong();
             term = in.readLong();
+            score = in.readDouble();
             aggregations = InternalAggregations.readAggregations(in);
+
         }
 
         @Override
@@ -137,6 +142,7 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             out.writeVLong(subsetDf);
             out.writeVLong(supersetDf);
             out.writeLong(term);
+            out.writeDouble(getSignificanceScore());
             aggregations.writeTo(out);
         }
 
@@ -193,8 +199,8 @@ public class SignificantLongTerms extends InternalSignificantTerms {
         for (int i = 0; i < size; i++) {
             Bucket bucket = new Bucket(subsetSize, supersetSize, formatter);
             bucket.readFrom(in);
-            bucket.updateScore(significanceHeuristic);
             buckets.add(bucket);
+
         }
         this.buckets = buckets;
         this.bucketMap = null;
@@ -210,6 +216,7 @@ public class SignificantLongTerms extends InternalSignificantTerms {
         significanceHeuristic.writeTo(out);
         out.writeVInt(buckets.size());
         for (InternalSignificantTerms.Bucket bucket : buckets) {
+
             bucket.writeTo(out);
         }
     }

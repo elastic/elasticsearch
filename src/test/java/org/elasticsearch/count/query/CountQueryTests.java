@@ -20,9 +20,13 @@
 package org.elasticsearch.count.query;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder.Operator;
@@ -223,7 +227,8 @@ public class CountQueryTests extends ElasticsearchIntegrationTest {
     }
 
     private void typeFilterTests(String index) throws Exception {
-        assertAcked(prepareCreate("test")
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        assertAcked(prepareCreate("test").setSettings(indexSettings)
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
                         .startObject("_type").field("index", index).endObject()
                         .endObject().endObject())
@@ -256,10 +261,11 @@ public class CountQueryTests extends ElasticsearchIntegrationTest {
     }
 
     private void idsFilterTests(String index) throws Exception {
-        assertAcked(prepareCreate("test")
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1")
-                        .startObject("_id").field("index", index).endObject()
-                        .endObject().endObject()));
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
+        assertAcked(prepareCreate("test").setSettings(indexSettings)
+            .addMapping("type1", jsonBuilder().startObject().startObject("type1")
+                .startObject("_id").field("index", index).endObject()
+                .endObject().endObject()));
 
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "value1"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "value2"),
@@ -825,14 +831,11 @@ public class CountQueryTests extends ElasticsearchIntegrationTest {
         CountResponse response = client().prepareCount("test")
                 .setQuery(QueryBuilders.spanOrQuery().clause(QueryBuilders.spanTermQuery("description", "bar"))).get();
         assertHitCount(response, 1l);
-        response = client().prepareCount("test")
-                .setQuery(QueryBuilders.spanOrQuery().clause(QueryBuilders.spanTermQuery("test.description", "bar"))).get();
-        assertHitCount(response, 1l);
 
         response = client().prepareCount("test").setQuery(
                 QueryBuilders.spanNearQuery()
                         .clause(QueryBuilders.spanTermQuery("description", "foo"))
-                        .clause(QueryBuilders.spanTermQuery("test.description", "other"))
+                        .clause(QueryBuilders.spanTermQuery("description", "other"))
                         .slop(3)).get();
         assertHitCount(response, 3l);
     }

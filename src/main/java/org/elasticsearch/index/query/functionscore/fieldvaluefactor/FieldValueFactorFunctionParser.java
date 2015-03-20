@@ -80,6 +80,8 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
                 } else {
                     throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not support [" + currentFieldName + "]");
                 }
+            } else if("factor".equals(currentFieldName) && (token == XContentParser.Token.START_ARRAY || token == XContentParser.Token.START_OBJECT)) {
+                throw new QueryParsingException(parseContext.index(), "[" + NAMES[0] + "] field 'factor' does not support lists or objects");
             }
         }
 

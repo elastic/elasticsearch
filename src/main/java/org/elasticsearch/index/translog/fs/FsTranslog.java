@@ -23,7 +23,7 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
@@ -43,12 +43,7 @@ import org.elasticsearch.index.translog.TranslogStreams;
 
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
-import java.nio.file.DirectoryStream;
-import java.nio.file.Files;
-import java.nio.file.OpenOption;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.*;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ThreadLocalRandom;
@@ -108,9 +103,9 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
             Files.createDirectories(location);
         }
 
-        this.type = FsTranslogFile.Type.fromString(componentSettings.get("type", FsTranslogFile.Type.BUFFERED.name()));
-        this.bufferSize = (int) componentSettings.getAsBytesSize("buffer_size", ByteSizeValue.parseBytesSizeValue("64k")).bytes(); // Not really interesting, updated by IndexingMemoryController...
-        this.transientBufferSize = (int) componentSettings.getAsBytesSize("transient_buffer_size", ByteSizeValue.parseBytesSizeValue("8k")).bytes();
+        this.type = FsTranslogFile.Type.fromString(indexSettings.get("index.translog.fs.type", FsTranslogFile.Type.BUFFERED.name()));
+        this.bufferSize = (int) indexSettings.getAsBytesSize("index.translog.fs.buffer_size", ByteSizeValue.parseBytesSizeValue("64k")).bytes(); // Not really interesting, updated by IndexingMemoryController...
+        this.transientBufferSize = (int) indexSettings.getAsBytesSize("index.translog.fs.transient_buffer_size", ByteSizeValue.parseBytesSizeValue("8k")).bytes();
 
         indexSettingsService.addListener(applySettings);
     }
@@ -122,8 +117,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         Files.createDirectories(location);
         this.bigArrays = BigArrays.NON_RECYCLING_INSTANCE;
 
-        this.type = FsTranslogFile.Type.fromString(componentSettings.get("type", FsTranslogFile.Type.BUFFERED.name()));
-        this.bufferSize = (int) componentSettings.getAsBytesSize("buffer_size", ByteSizeValue.parseBytesSizeValue("64k")).bytes();
+        this.type = FsTranslogFile.Type.fromString(indexSettings.get("index.translog.fs.type", FsTranslogFile.Type.BUFFERED.name()));
+        this.bufferSize = (int) indexSettings.getAsBytesSize("index.translog.fs.buffer_size", ByteSizeValue.parseBytesSizeValue("64k")).bytes();
     }
 
     @Override
@@ -200,8 +195,9 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
     }
 
     @Override
-    public void clearUnreferenced() {
+    public int clearUnreferenced() {
         rwl.writeLock().lock();
+        int deleted = 0;
         try {
             for (Path location : locations) {
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(location, TRANSLOG_FILE_PREFIX + "[0-9]*")) {
@@ -210,6 +206,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                             try {
                                 logger.trace("delete unreferenced translog file: " + file);
                                 Files.delete(file);
+                                deleted++;
                             } catch (Exception ex) {
                                 logger.debug("failed to delete " + file, ex);
                             }
@@ -222,6 +219,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         } finally {
             rwl.writeLock().unlock();
         }
+        return deleted;
     }
 
     @Override
@@ -352,7 +350,7 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         try {
             out = new ReleasableBytesStreamOutput(bigArrays);
             TranslogStreams.writeTranslogOperation(out, operation);
-            ReleasableBytesReference bytes = out.bytes();
+            ReleasablePagedBytesReference bytes = out.bytes();
             Location location = current.add(bytes);
             if (syncOnEachOperation) {
                 current.sync();
@@ -441,7 +439,12 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
 
     @Override
     public TranslogStats stats() {
-        return new TranslogStats(estimatedNumberOfOperations(), translogSizeInBytes());
+        FsTranslogFile current = this.current;
+        if (current == null) {
+            return new TranslogStats(0, 0);
+        }
+
+        return new TranslogStats(current.estimatedNumberOfOperations(), current.translogSizeInBytes());
     }
 
     @Override

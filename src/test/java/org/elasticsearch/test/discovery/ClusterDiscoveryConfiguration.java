@@ -20,6 +20,7 @@ package org.elasticsearch.test.discovery;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.google.common.primitives.Ints;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -27,9 +28,10 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.SettingsSource;
 import org.elasticsearch.transport.local.LocalTransport;
 
+import java.io.IOException;
+import java.net.ServerSocket;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class ClusterDiscoveryConfiguration extends SettingsSource {
 
@@ -61,24 +63,26 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
 
     public static class UnicastZen extends ClusterDiscoveryConfiguration {
 
-        private static final AtomicInteger portCounter = new AtomicInteger();
+        // this variable is incremented on each bind attempt and will maintain the next port that should be tried
+        private static int nextPort = calcBasePort();
 
         private final int[] unicastHostOrdinals;
-        private final int basePort;
+        private final int[] unicastHostPorts;
+        private final boolean localMode;
 
-        public UnicastZen(int numOfNodes, ElasticsearchIntegrationTest.Scope scope) {
-            this(numOfNodes, numOfNodes, scope);
+        public UnicastZen(int numOfNodes) {
+            this(numOfNodes, numOfNodes);
         }
 
-        public UnicastZen(int numOfNodes, Settings extraSettings, ElasticsearchIntegrationTest.Scope scope) {
-            this(numOfNodes, numOfNodes, extraSettings, scope);
+        public UnicastZen(int numOfNodes, Settings extraSettings) {
+            this(numOfNodes, numOfNodes, extraSettings);
         }
 
-        public UnicastZen(int numOfNodes, int numOfUnicastHosts, ElasticsearchIntegrationTest.Scope scope) {
-            this(numOfNodes, numOfUnicastHosts, ImmutableSettings.EMPTY, scope);
+        public UnicastZen(int numOfNodes, int numOfUnicastHosts) {
+            this(numOfNodes, numOfUnicastHosts, ImmutableSettings.EMPTY);
         }
 
-        public UnicastZen(int numOfNodes, int numOfUnicastHosts, Settings extraSettings, ElasticsearchIntegrationTest.Scope scope) {
+        public UnicastZen(int numOfNodes, int numOfUnicastHosts, Settings extraSettings) {
             super(numOfNodes, extraSettings);
             if (numOfUnicastHosts == numOfNodes) {
                 unicastHostOrdinals = new int[numOfNodes];
@@ -92,39 +96,27 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
                 }
                 unicastHostOrdinals = Ints.toArray(ordinals);
             }
-            this.basePort = calcBasePort(scope);
+            this.localMode = nodeSettings.get("node.mode", InternalTestCluster.NODE_MODE).equals("local");
+            this.unicastHostPorts = localMode ? new int[0] : unicastHostPorts(numOfNodes);
+            assert localMode || unicastHostOrdinals.length <= unicastHostPorts.length;
         }
 
-        public UnicastZen(int numOfNodes, int[] unicastHostOrdinals, ElasticsearchIntegrationTest.Scope scope) {
-            this(numOfNodes, ImmutableSettings.EMPTY, unicastHostOrdinals, scope);
+        public UnicastZen(int numOfNodes, int[] unicastHostOrdinals) {
+            this(numOfNodes, ImmutableSettings.EMPTY, unicastHostOrdinals);
         }
 
-        public UnicastZen(int numOfNodes, Settings extraSettings, int[] unicastHostOrdinals, ElasticsearchIntegrationTest.Scope scope) {
+        public UnicastZen(int numOfNodes, Settings extraSettings, int[] unicastHostOrdinals) {
             super(numOfNodes, extraSettings);
             this.unicastHostOrdinals = unicastHostOrdinals;
-            this.basePort = calcBasePort(scope);
+            this.localMode = nodeSettings.get("node.mode", InternalTestCluster.NODE_MODE).equals("local");
+            this.unicastHostPorts = localMode ? new int[0] : unicastHostPorts(numOfNodes);
+            assert localMode || unicastHostOrdinals.length <= unicastHostPorts.length;
         }
 
-        private static int calcBasePort(ElasticsearchIntegrationTest.Scope scope) {
+        private static int calcBasePort() {
             // note that this has properly co-exist with the port logic at InternalTestCluster's constructor
             return 30000 +
-                    1000 * (ElasticsearchIntegrationTest.CHILD_JVM_ID) + // up to 30 jvms
-                    //up to 100 nodes per cluster
-                    100 * scopeId(scope);
-        }
-
-        private static int scopeId(ElasticsearchIntegrationTest.Scope scope) {
-            switch(scope) {
-                case GLOBAL:
-                    //we reserve a special base port for global clusters, as they stick around
-                    //the assumption is that no counter is needed as there's only one global cluster per jvm
-                    return 0;
-                default:
-                    //ports can be reused as suite or test clusters are never run concurrently
-                    //we don't reuse the same port immediately though but leave some time to make sure ports are freed
-                    //reserve 0 to global cluster, prevent conflicts between jvms by never going above 9
-                    return 1 + portCounter.incrementAndGet() % 9;
-            }
+                    1000 * (ElasticsearchIntegrationTest.CHILD_JVM_ID);
         }
 
         @Override
@@ -133,22 +125,55 @@ public class ClusterDiscoveryConfiguration extends SettingsSource {
                     .put("discovery.zen.ping.multicast.enabled", false);
 
             String[] unicastHosts = new String[unicastHostOrdinals.length];
-            String mode = nodeSettings.get("node.mode", InternalTestCluster.NODE_MODE);
-            if (mode.equals("local")) {
+            if (localMode) {
                 builder.put(LocalTransport.TRANSPORT_LOCAL_ADDRESS, "node_" + nodeOrdinal);
                 for (int i = 0; i < unicastHosts.length; i++) {
                     unicastHosts[i] = "node_" + unicastHostOrdinals[i];
                 }
+            } else if (nodeOrdinal >= unicastHostPorts.length) {
+                throw new ElasticsearchException("nodeOrdinal [" + nodeOrdinal + "] is greater than the number unicast ports [" + unicastHostPorts.length + "]");
             } else {
                 // we need to pin the node port & host so we'd know where to point things
-                builder.put("transport.tcp.port", basePort + nodeOrdinal);
+                builder.put("transport.tcp.port", unicastHostPorts[nodeOrdinal]);
                 builder.put("transport.host", "localhost");
-                for (int i = 0; i < unicastHosts.length; i++) {
-                    unicastHosts[i] = "localhost:" + (basePort + unicastHostOrdinals[i]);
+                for (int i = 0; i < unicastHostOrdinals.length; i++) {
+                    unicastHosts[i] = "localhost:" + (unicastHostPorts[unicastHostOrdinals[i]]);
                 }
             }
             builder.putArray("discovery.zen.ping.unicast.hosts", unicastHosts);
             return builder.put(super.node(nodeOrdinal)).build();
+        }
+
+        protected synchronized static int[] unicastHostPorts(int numHosts) {
+            int[] unicastHostPorts = new int[numHosts];
+
+            final int basePort = calcBasePort();
+            final int maxPort = basePort + 1000;
+            int tries = 0;
+            for (int i = 0; i < unicastHostPorts.length; i++) {
+                boolean foundPortInRange = false;
+                while (tries < 1000 && !foundPortInRange) {
+                    try (ServerSocket socket = new ServerSocket(nextPort)) {
+                        // bind was a success
+                        foundPortInRange = true;
+                        unicastHostPorts[i] = nextPort;
+                    } catch (IOException e) {
+                        // Do nothing
+                    }
+
+                    nextPort++;
+                    if (nextPort >= maxPort) {
+                        // Roll back to the beginning of the range and do not go into another JVM's port range
+                        nextPort = basePort;
+                    }
+                    tries++;
+                }
+
+                if (!foundPortInRange) {
+                    throw new ElasticsearchException("could not find enough open ports in range [" + basePort + "-" + maxPort + "]. required [" + unicastHostPorts.length + "] ports");
+                }
+            }
+            return unicastHostPorts;
         }
     }
 }

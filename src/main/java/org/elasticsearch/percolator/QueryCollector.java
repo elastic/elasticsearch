@@ -19,20 +19,26 @@
 package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.FloatArrayList;
-import com.google.common.collect.ImmutableList;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SimpleCollector;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.internal.IdFieldMapper;
+import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.highlight.HighlightField;
@@ -48,7 +54,7 @@ import java.util.concurrent.ConcurrentMap;
  */
 abstract class QueryCollector extends SimpleCollector {
 
-    final IndexFieldData<?> idFieldData;
+    final IndexFieldData<?> uidFieldData;
     final IndexSearcher searcher;
     final ConcurrentMap<BytesRef, Query> queries;
     final ESLogger logger;
@@ -59,65 +65,54 @@ abstract class QueryCollector extends SimpleCollector {
 
     SortedBinaryDocValues values;
 
-    final List<Collector> aggregatorCollector;
-
-    List<LeafCollector> aggregatorLeafCollectors;
+    final BucketCollector aggregatorCollector;
+    LeafCollector aggregatorLeafCollector;
 
     QueryCollector(ESLogger logger, PercolateContext context, boolean isNestedDoc) throws IOException {
         this.logger = logger;
         this.queries = context.percolateQueries();
         this.searcher = context.docSearcher();
-        final FieldMapper<?> idMapper = context.mapperService().smartNameFieldMapper(IdFieldMapper.NAME);
-        this.idFieldData = context.fieldData().getForField(idMapper);
+        final FieldMapper<?> uidMapper = context.mapperService().smartNameFieldMapper(UidFieldMapper.NAME);
+        this.uidFieldData = context.fieldData().getForField(uidMapper);
         this.isNestedDoc = isNestedDoc;
 
-        ImmutableList.Builder<Collector> aggCollectorBuilder = ImmutableList.builder();
+        List<Aggregator> aggregatorCollectors = new ArrayList<>();
 
         if (context.aggregations() != null) {
             AggregationContext aggregationContext = new AggregationContext(context);
             context.aggregations().aggregationContext(aggregationContext);
 
-            List<Aggregator> aggregatorCollectors = new ArrayList<>();
             Aggregator[] aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
             for (int i = 0; i < aggregators.length; i++) {
                 if (!(aggregators[i] instanceof GlobalAggregator)) {
                     Aggregator aggregator = aggregators[i];
-                    if (aggregator.shouldCollect()) {
-                        aggregatorCollectors.add(aggregator);
-                    }
+                    aggregatorCollectors.add(aggregator);
                 }
             }
             context.aggregations().aggregators(aggregators);
-            if (!aggregatorCollectors.isEmpty()) {
-                aggCollectorBuilder.add(new AggregationPhase.AggregationsCollector(aggregatorCollectors, aggregationContext));
-            }
-            aggregationContext.setNextReader(context.searcher().getIndexReader().getContext());
         }
-        aggregatorCollector = aggCollectorBuilder.build();
-        aggregatorLeafCollectors = new ArrayList<>(aggregatorCollector.size());
+        aggregatorCollector = BucketCollector.wrap(aggregatorCollectors);
     }
 
     public void postMatch(int doc) throws IOException {
-        for (LeafCollector collector : aggregatorLeafCollectors) {
-            collector.collect(doc);
-        }
+        aggregatorLeafCollector.collect(doc);
     }
 
     @Override
     public void setScorer(Scorer scorer) throws IOException {
-        for (LeafCollector collector : aggregatorLeafCollectors) {
-            collector.setScorer(scorer);
-        }
+        aggregatorLeafCollector.setScorer(scorer);
+    }
+
+    @Override
+    public boolean needsScores() {
+        return aggregatorCollector.needsScores();
     }
 
     @Override
     public void doSetNextReader(LeafReaderContext context) throws IOException {
         // we use the UID because id might not be indexed
-        values = idFieldData.load(context).getBytesValues();
-        aggregatorLeafCollectors.clear();
-        for (Collector collector : aggregatorCollector) {
-            aggregatorLeafCollectors.add(collector.getLeafCollector(context));
-        }
+        values = uidFieldData.load(context).getBytesValues();
+        aggregatorLeafCollector = aggregatorCollector.getLeafCollector(context);
     }
 
     static Match match(ESLogger logger, PercolateContext context, HighlightPhase highlightPhase, boolean isNestedDoc) throws IOException {
@@ -144,7 +139,7 @@ abstract class QueryCollector extends SimpleCollector {
             return null;
         }
         assert numValues == 1;
-        current = values.valueAt(0);
+        current = Uid.splitUidIntoTypeAndId(values.valueAt(0))[1];
         return queries.get(current);
     }
 
@@ -229,6 +224,11 @@ abstract class QueryCollector extends SimpleCollector {
         }
 
         @Override
+        public boolean needsScores() {
+            return super.needsScores() || topDocsCollector.needsScores();
+        }
+
+        @Override
         public void collect(int doc) throws IOException {
             final Query query = getQuery(doc);
             if (query == null) {
@@ -289,6 +289,11 @@ abstract class QueryCollector extends SimpleCollector {
             this.size = context.size();
             this.context = context;
             this.highlightPhase = highlightPhase;
+        }
+
+        @Override
+        public boolean needsScores() {
+            return true;
         }
 
         @Override

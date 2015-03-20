@@ -147,7 +147,7 @@ public class NettyHttpServerPipeliningTest extends ElasticsearchTestCase {
         private final ExecutorService executorService;
 
         public CustomHttpChannelPipelineFactory(NettyHttpServerTransport transport, ExecutorService executorService) {
-            super(transport);
+            super(transport, randomBoolean());
             this.executorService = executorService;
         }
 

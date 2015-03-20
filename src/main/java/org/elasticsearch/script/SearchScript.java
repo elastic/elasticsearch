@@ -20,8 +20,6 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.lucene.ScorerAware;
-import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Map;
 
@@ -39,36 +37,4 @@ public interface SearchScript extends ExecutableScript, ReaderContextAware, Scor
     long runAsLong();
 
     double runAsDouble();
-
-    public static class Builder {
-
-        private String script;
-        private ScriptService.ScriptType scriptType;
-        private String lang;
-        private Map<String, Object> params;
-
-        public Builder script(String script, ScriptService.ScriptType scriptType) {
-            this.script = script;
-            this.scriptType = scriptType;
-            return this;
-        }
-
-        public Builder lang(String lang) {
-            this.lang = lang;
-            return this;
-        }
-
-        public Builder params(Map<String, Object> params) {
-            this.params = params;
-            return this;
-        }
-
-        public SearchScript build(SearchContext context) {
-            return build(context.scriptService(), context.lookup());
-        }
-
-        public SearchScript build(ScriptService service, SearchLookup lookup) {
-            return service.search(lookup, lang, script, scriptType, params);
-        }
-    }
 }

@@ -25,42 +25,6 @@ broadcasted to all shards if no routing value is provided and `_routing`
 is required.
 
 [float]
-==== path
-
-The routing value can be provided as an external value when indexing
-(and still stored as part of the document, in much the same way
-`_source` is stored). But, it can also be automatically extracted from
-the index doc based on a `path`. For example, having the following
-mapping:
-
-[source,js]
---------------------------------------------------
-{
-    "comment" : {
-        "_routing" : {
-            "required" : true,
-            "path" : "blog.post_id"
-        }
-    }
-}
---------------------------------------------------
-
-Will cause the following doc to be routed based on the `111222` value:
-
-[source,js]
---------------------------------------------------
-{
-    "text" : "the comment text"
-    "blog" : {
-        "post_id" : "111222"
-    }
-}
---------------------------------------------------
-
-Note, using `path` without explicit routing value provided required an
-additional (though quite fast) parsing phase.
-
-[float]
 ==== id uniqueness
 
 When indexing documents specifying a custom `_routing`, the uniqueness

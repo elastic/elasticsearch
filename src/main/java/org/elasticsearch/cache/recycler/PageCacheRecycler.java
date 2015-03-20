@@ -38,10 +38,9 @@ import static org.elasticsearch.common.recycler.Recyclers.*;
 /** A recycler of fixed-size pages. */
 public class PageCacheRecycler extends AbstractComponent {
 
-    public static final String TYPE = "page.type";
-    public static final String LIMIT_HEAP = "page.limit.heap";
-    public static final String LIMIT_PER_THREAD = "page.limit.per_thread";
-    public static final String WEIGHT = "page.weight";
+    public static final String TYPE = "recycler.page.type";
+    public static final String LIMIT_HEAP = "recycler.page.limit.heap";
+    public static final String WEIGHT = "recycler.page.weight";
 
     private final Recycler<byte[]> bytePage;
     private final Recycler<int[]> intPage;
@@ -67,20 +66,11 @@ public class PageCacheRecycler extends AbstractComponent {
         }
     }
 
-    // return the maximum number of pages that may be cached depending on
-    //  - limit: the total amount of memory available
-    //  - pageSize: the size of a single page
-    //  - weight: the weight for this data type
-    //  - totalWeight: the sum of all weights
-    private static int maxCount(long limit, long pageSize, double weight, double totalWeight) {
-        return (int) (weight / totalWeight * limit / pageSize);
-    }
-
     @Inject
     public PageCacheRecycler(Settings settings, ThreadPool threadPool) {
         super(settings);
-        final Type type = Type.parse(componentSettings.get(TYPE));
-        final long limit = componentSettings.getAsMemory(LIMIT_HEAP, "10%").bytes();
+        final Type type = Type.parse(settings.get(TYPE));
+        final long limit = settings.getAsMemory(LIMIT_HEAP, "10%").bytes();
         final int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
         final int searchThreadPoolSize = maximumSearchThreadPoolSize(threadPool, settings);
 
@@ -97,15 +87,17 @@ public class PageCacheRecycler extends AbstractComponent {
         // to direct ByteBuffers or sun.misc.Unsafe on a byte[] but this would have other issues
         // that would need to be addressed such as garbage collection of native memory or safety
         // of Unsafe writes.
-        final double bytesWeight = componentSettings.getAsDouble(WEIGHT + ".bytes", 1d);
-        final double intsWeight = componentSettings.getAsDouble(WEIGHT + ".ints", 1d);
-        final double longsWeight = componentSettings.getAsDouble(WEIGHT + ".longs", 1d);
+        final double bytesWeight = settings.getAsDouble(WEIGHT + ".bytes", 1d);
+        final double intsWeight = settings.getAsDouble(WEIGHT + ".ints", 1d);
+        final double longsWeight = settings.getAsDouble(WEIGHT + ".longs", 1d);
         // object pages are less useful to us so we give them a lower weight by default
-        final double objectsWeight = componentSettings.getAsDouble(WEIGHT + ".objects", 0.1d);
+        final double objectsWeight = settings.getAsDouble(WEIGHT + ".objects", 0.1d);
 
         final double totalWeight = bytesWeight + intsWeight + longsWeight + objectsWeight;
+        final int maxPageCount = (int) Math.min(Integer.MAX_VALUE, limit / BigArrays.PAGE_SIZE_IN_BYTES);
 
-        bytePage = build(type, maxCount(limit, BigArrays.BYTE_PAGE_SIZE, bytesWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<byte[]>() {
+        final int maxBytePageCount = (int) (bytesWeight * maxPageCount / totalWeight);
+        bytePage = build(type, maxBytePageCount, searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<byte[]>() {
             @Override
             public byte[] newInstance(int sizing) {
                 return new byte[BigArrays.BYTE_PAGE_SIZE];
@@ -115,7 +107,9 @@ public class PageCacheRecycler extends AbstractComponent {
                 // nothing to do
             }
         });
-        intPage = build(type, maxCount(limit, BigArrays.INT_PAGE_SIZE, intsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<int[]>() {
+
+        final int maxIntPageCount = (int) (intsWeight * maxPageCount / totalWeight);
+        intPage = build(type, maxIntPageCount, searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<int[]>() {
             @Override
             public int[] newInstance(int sizing) {
                 return new int[BigArrays.INT_PAGE_SIZE];
@@ -125,17 +119,21 @@ public class PageCacheRecycler extends AbstractComponent {
                 // nothing to do
             }
         });
-        longPage = build(type, maxCount(limit, BigArrays.LONG_PAGE_SIZE, longsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<long[]>() {
+
+        final int maxLongPageCount = (int) (longsWeight * maxPageCount / totalWeight);
+        longPage = build(type, maxLongPageCount, searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<long[]>() {
             @Override
             public long[] newInstance(int sizing) {
                 return new long[BigArrays.LONG_PAGE_SIZE];
             }
             @Override
             public void recycle(long[] value) {
-                // nothing to do               
+                // nothing to do
             }
         });
-        objectPage = build(type, maxCount(limit, BigArrays.OBJECT_PAGE_SIZE, objectsWeight, totalWeight), searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<Object[]>() {
+
+        final int maxObjectPageCount = (int) (objectsWeight * maxPageCount / totalWeight);
+        objectPage = build(type, maxObjectPageCount, searchThreadPoolSize, availableProcessors, new AbstractRecyclerC<Object[]>() {
             @Override
             public Object[] newInstance(int sizing) {
                 return new Object[BigArrays.OBJECT_PAGE_SIZE];
@@ -145,6 +143,8 @@ public class PageCacheRecycler extends AbstractComponent {
                 Arrays.fill(value, null); // we need to remove the strong refs on the objects stored in the array
             }
         });
+
+        assert BigArrays.PAGE_SIZE_IN_BYTES * (maxBytePageCount + maxIntPageCount + maxLongPageCount + maxObjectPageCount) <= limit;
     }
 
     public Recycler.V<byte[]> bytePage(boolean clear) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.fetch.innerhits;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
@@ -29,7 +30,9 @@ import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AndFilter;
+import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -37,6 +40,7 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
+import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.FilteredSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -88,7 +92,7 @@ public final class InnerHitsContext {
             return new ParsedQuery(query, ImmutableMap.<String, Filter>of());
         }
 
-        public abstract TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext);
+        public abstract TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException;
 
         @Override
         public InnerHitsContext innerHits() {
@@ -109,7 +113,7 @@ public final class InnerHitsContext {
         }
 
         @Override
-        public TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) {
+        public TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException {
             TopDocsCollector topDocsCollector;
             int topN = from() + size();
             if (sort() != null) {
@@ -130,12 +134,8 @@ public final class InnerHitsContext {
             }
             BitDocIdSetFilter parentFilter = context.bitsetFilterCache().getBitDocIdSetFilter(rawParentFilter);
             Filter childFilter = context.filterCache().cache(childObjectMapper.nestedTypeFilter(), null, context.queryParserService().autoFilterCachePolicy());
-            try {
-                Query q = new FilteredQuery(query, new NestedChildrenFilter(parentFilter, childFilter, hitContext));
-                context.searcher().search(q, topDocsCollector);
-            } catch (IOException e) {
-                throw ExceptionsHelper.convertToElastic(e);
-            }
+            Query q = new FilteredQuery(query, new NestedChildrenFilter(parentFilter, childFilter, hitContext));
+            context.searcher().search(q, topDocsCollector);
             return topDocsCollector.topDocs(from(), size());
         }
 
@@ -152,6 +152,11 @@ public final class InnerHitsContext {
                 this.childFilter = childFilter;
                 this.docId = hitContext.docId();
                 this.atomicReader = hitContext.readerContext().reader();
+            }
+
+            @Override
+            public String toString(String field) {
+                return "NestedChildren(parent=" + parentFilter + ",child=" + childFilter + ")";
             }
 
             @Override
@@ -244,39 +249,42 @@ public final class InnerHitsContext {
         }
 
         @Override
-        public TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) {
+        public TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException {
             TopDocsCollector topDocsCollector;
             int topN = from() + size();
             if (sort() != null) {
-                try {
-                    topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores());
-                } catch (IOException e) {
-                    throw ExceptionsHelper.convertToElastic(e);
-                }
+                topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores());
             } else {
                 topDocsCollector = TopScoreDocCollector.create(topN);
             }
 
-            String field;
-            ParentFieldMapper hitParentFieldMapper = documentMapper.parentFieldMapper();
-            if (hitParentFieldMapper.active()) {
-                // Hit has a active _parent field and it is a child doc, so we want a parent doc as inner hits.
+            final String term;
+            final String field;
+            if (documentMapper.parentFieldMapper().active()) {
+                // Active _parent field has been selected, so we want a children doc as inner hits.
                 field = ParentFieldMapper.NAME;
+                term = Uid.createUid(hitContext.hit().type(), hitContext.hit().id());
             } else {
-                // Hit has no active _parent field and it is a parent doc, so we want children docs as inner hits.
+                // No active _parent field has been selected, so we want parent docs as inner hits.
                 field = UidFieldMapper.NAME;
+                SearchHitField parentField = hitContext.hit().field(ParentFieldMapper.NAME);
+                if (parentField != null) {
+                    term = parentField.getValue();
+                } else {
+                    SingleFieldsVisitor fieldsVisitor = new SingleFieldsVisitor(ParentFieldMapper.NAME);
+                    hitContext.reader().document(hitContext.docId(), fieldsVisitor);
+                    if (fieldsVisitor.fields().isEmpty()) {
+                        return Lucene.EMPTY_TOP_DOCS;
+                    }
+                    term = (String) fieldsVisitor.fields().get(ParentFieldMapper.NAME).get(0);
+                }
             }
-            String term = Uid.createUid(hitContext.hit().type(), hitContext.hit().id());
             Filter filter = new TermFilter(new Term(field, term)); // Only include docs that have the current hit as parent
             Filter typeFilter = documentMapper.typeFilter(); // Only include docs that have this inner hits type.
-            try {
-                context.searcher().search(
-                        new FilteredQuery(query, new AndFilter(Arrays.asList(filter, typeFilter))),
-                        topDocsCollector
-                );
-            } catch (IOException e) {
-                throw ExceptionsHelper.convertToElastic(e);
-            }
+            context.searcher().search(
+                    new FilteredQuery(query, new AndFilter(Arrays.asList(filter, typeFilter))),
+                    topDocsCollector
+            );
             return topDocsCollector.topDocs(from(), size());
         }
     }

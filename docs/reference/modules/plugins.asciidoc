@@ -259,8 +259,6 @@ You can disable that check using `plugins.check_lucene: false`.
 ==== Transport Plugins
 
 .Supported by Elasticsearch
-* https://github.com/elasticsearch/elasticsearch-transport-memcached[Memcached transport plugin]
-* https://github.com/elasticsearch/elasticsearch-transport-thrift[Thrift Transport]
 * https://github.com/elasticsearch/elasticsearch-transport-wares[Servlet transport]
 
 .Supported by the community

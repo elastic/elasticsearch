@@ -22,6 +22,7 @@ import com.google.common.collect.Lists;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -238,6 +239,33 @@ public class PrioritizedExecutorsTests extends ElasticsearchTestCase {
         Thread.sleep(100); // sleep a bit to double check that execute on the timed out update task is not called...
         assertThat(executeCalled.get(), equalTo(false));
         assertTrue(terminate(timer, executor));
+    }
+
+    @Test
+    public void testTimeoutCleanup() throws Exception {
+        ThreadPool threadPool = new ThreadPool("test");
+        ScheduledThreadPoolExecutor timer = (ScheduledThreadPoolExecutor) threadPool.scheduler();
+        final AtomicBoolean timeoutCalled = new AtomicBoolean();
+        PrioritizedEsThreadPoolExecutor executor = EsExecutors.newSinglePrioritizing(EsExecutors.daemonThreadFactory(getTestName()));
+        final CountDownLatch invoked = new CountDownLatch(1);
+        executor.execute(new Runnable() {
+                             @Override
+                             public void run() {
+                                 invoked.countDown();
+                             }
+                         }, timer, TimeValue.timeValueMillis(1000), new Runnable() {
+                    @Override
+                    public void run() {
+                        // We should never get here
+                        timeoutCalled.set(true);
+                    }
+                }
+        );
+        invoked.await();
+        assertThat(timer.getQueue().size(), equalTo(0));
+        assertThat(timeoutCalled.get(), equalTo(false));
+        assertTrue(terminate(executor));
+        assertTrue(terminate(threadPool));
     }
 
     static class AwaitingJob extends PrioritizedRunnable {

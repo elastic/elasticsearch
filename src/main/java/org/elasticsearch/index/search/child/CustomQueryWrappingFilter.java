@@ -68,7 +68,7 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
             this.searcher = searcher;
             searchContext.addReleasable(this, Lifetime.COLLECTION);
 
-            final Weight weight = searcher.createNormalizedWeight(query);
+            final Weight weight = searcher.createNormalizedWeight(query, false);
             for (final LeafReaderContext leaf : searcher.getTopReaderContext().leaves()) {
                 final DocIdSet set = new DocIdSet() {
                     @Override
@@ -101,7 +101,7 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
     }
 
     @Override
-    public String toString() {
+    public String toString(String field) {
         return "CustomQueryWrappingFilter(" + query + ")";
     }
 

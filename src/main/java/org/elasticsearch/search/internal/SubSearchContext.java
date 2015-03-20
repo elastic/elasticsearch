@@ -71,6 +71,8 @@ public class SubSearchContext extends FilteredSearchContext {
     private boolean trackScores;
     private boolean version;
 
+    private InnerHitsContext innerHitsContext;
+
     public SubSearchContext(SearchContext context) {
         super(context);
         this.fetchSearchResult = new FetchSearchResult();
@@ -110,10 +112,12 @@ public class SubSearchContext extends FilteredSearchContext {
         throw new UnsupportedOperationException("Not supported");
     }
 
+    @Override
     public SearchContextHighlight highlight() {
         return highlight;
     }
 
+    @Override
     public void highlight(SearchContextHighlight highlight) {
         this.highlight = highlight;
     }
@@ -349,8 +353,6 @@ public class SubSearchContext extends FilteredSearchContext {
     public Counter timeEstimateCounter() {
         throw new UnsupportedOperationException("Not supported");
     }
-
-    private InnerHitsContext innerHitsContext;
 
     @Override
     public void innerHits(InnerHitsContext innerHitsContext) {

@@ -29,10 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.CachedStreamInput;
-import org.elasticsearch.common.io.stream.HandlesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -40,24 +37,11 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.ActionNotFoundTransportException;
-import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.NodeNotConnectedException;
-import org.elasticsearch.transport.RemoteTransportException;
-import org.elasticsearch.transport.ResponseHandlerFailureTransportException;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
-import org.elasticsearch.transport.TransportResponseHandler;
-import org.elasticsearch.transport.TransportSerializationException;
-import org.elasticsearch.transport.TransportServiceAdapter;
-import org.elasticsearch.transport.Transports;
+import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStatus;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadFactory;
@@ -154,6 +138,11 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
+    public Map<String, BoundTransportAddress> profileBoundAddresses() {
+        return Collections.EMPTY_MAP;
+    }
+
+    @Override
     public boolean nodeConnected(DiscoveryNode node) {
         return connectedNodes.containsKey(node);
     }
@@ -197,35 +186,35 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
         final Version version = Version.smallest(node.version(), this.version);
 
-        BytesStreamOutput bStream = new BytesStreamOutput();
-        StreamOutput stream = new HandlesStreamOutput(bStream);
-        stream.setVersion(version);
+        try (BytesStreamOutput stream = new BytesStreamOutput()) {
+            stream.setVersion(version);
 
-        stream.writeLong(requestId);
-        byte status = 0;
-        status = TransportStatus.setRequest(status);
-        stream.writeByte(status); // 0 for request, 1 for response.
+            stream.writeLong(requestId);
+            byte status = 0;
+            status = TransportStatus.setRequest(status);
+            stream.writeByte(status); // 0 for request, 1 for response.
 
-        stream.writeString(action);
-        request.writeTo(stream);
+            stream.writeString(action);
+            request.writeTo(stream);
 
-        stream.close();
+            stream.close();
 
-        final LocalTransport targetTransport = connectedNodes.get(node);
-        if (targetTransport == null) {
-            throw new NodeNotConnectedException(node, "Node not connected");
-        }
-
-        final byte[] data = bStream.bytes().toBytes();
-
-        transportServiceAdapter.sent(data.length);
-
-        targetTransport.workers().execute(new Runnable() {
-            @Override
-            public void run() {
-                targetTransport.messageReceived(data, action, LocalTransport.this, version, requestId);
+            final LocalTransport targetTransport = connectedNodes.get(node);
+            if (targetTransport == null) {
+                throw new NodeNotConnectedException(node, "Node not connected");
             }
-        });
+
+            final byte[] data = stream.bytes().toBytes();
+
+            transportServiceAdapter.sent(data.length);
+            transportServiceAdapter.onRequestSent(node, requestId, action, request, options);
+            targetTransport.workers().execute(new Runnable() {
+                @Override
+                public void run() {
+                    targetTransport.messageReceived(data, action, LocalTransport.this, version, requestId);
+                }
+            });
+        }
     }
 
     ThreadPoolExecutor workers() {
@@ -237,7 +226,6 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         try {
             transportServiceAdapter.received(data.length);
             StreamInput stream = new BytesStreamInput(data, false);
-            stream = CachedStreamInput.cachedHandles(stream);
             stream.setVersion(version);
 
             long requestId = stream.readLong();
@@ -247,6 +235,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             if (isRequest) {
                 handleRequest(stream, requestId, sourceTransport, version);
             } else {
+                // notify with response before we process it and before we remove information about it.
+                transportServiceAdapter.onResponseReceived(requestId);
                 final TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
                 // ignore if its null, the adapter logs it
                 if (handler != null) {
@@ -271,7 +261,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
     private void handleRequest(StreamInput stream, long requestId, LocalTransport sourceTransport, Version version) throws Exception {
         final String action = stream.readString();
-        final LocalTransportChannel transportChannel = new LocalTransportChannel(this, sourceTransport, action, requestId, version);
+        transportServiceAdapter.onRequestReceived(requestId, action);
+        final LocalTransportChannel transportChannel = new LocalTransportChannel(this, transportServiceAdapter, sourceTransport, action, requestId, version);
         try {
             final TransportRequestHandler handler = transportServiceAdapter.handler(action);
             if (handler == null) {

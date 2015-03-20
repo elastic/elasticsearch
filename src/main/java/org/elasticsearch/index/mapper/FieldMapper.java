@@ -30,8 +30,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -278,10 +276,6 @@ public interface FieldMapper<T> extends Mapper {
     Filter nullValueFilter();
 
     FieldDataType fieldDataType();
-
-    PostingsFormatProvider postingsFormatProvider();
-
-    DocValuesFormatProvider docValuesFormatProvider();
 
     boolean isNumeric();
 

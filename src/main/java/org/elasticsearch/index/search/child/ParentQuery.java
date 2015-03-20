@@ -21,6 +21,7 @@ package org.elasticsearch.index.search.child;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.ToStringUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
@@ -122,7 +123,7 @@ public class ParentQuery extends Query {
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher) throws IOException {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
         SearchContext sc = SearchContext.current();
         ChildWeight childWeight;
         boolean releaseCollectorResource = true;
@@ -130,7 +131,7 @@ public class ParentQuery extends Query {
         IndexParentChildFieldData globalIfd = parentChildIndexFieldData.loadGlobal(searcher.getIndexReader());
         if (globalIfd == null) {
             // No docs of the specified type don't exist on this shard
-            return Queries.newMatchNoDocsQuery().createWeight(searcher);
+            return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
         }
 
         try {
@@ -142,9 +143,9 @@ public class ParentQuery extends Query {
             indexSearcher.setSimilarity(searcher.getSimilarity());
             indexSearcher.search(parentQuery, collector);
             if (collector.parentCount() == 0) {
-                return Queries.newMatchNoDocsQuery().createWeight(searcher);
+                return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
             }
-            childWeight = new ChildWeight(parentQuery.createWeight(searcher), childrenFilter, collector, globalIfd);
+            childWeight = new ChildWeight(this, parentQuery.createWeight(searcher, needsScores), childrenFilter, collector, globalIfd);
             releaseCollectorResource = false;
         } finally {
             if (releaseCollectorResource) {
@@ -221,7 +222,8 @@ public class ParentQuery extends Query {
         private final FloatArray scores;
         private final IndexParentChildFieldData globalIfd;
 
-        private ChildWeight(Weight parentWeight, Filter childrenFilter, ParentOrdAndScoreCollector collector, IndexParentChildFieldData globalIfd) {
+        private ChildWeight(Query query, Weight parentWeight, Filter childrenFilter, ParentOrdAndScoreCollector collector, IndexParentChildFieldData globalIfd) {
+            super(query);
             this.parentWeight = parentWeight;
             this.childrenFilter = childrenFilter;
             this.parentIdxs = collector.parentIdxs;
@@ -232,11 +234,6 @@ public class ParentQuery extends Query {
         @Override
         public Explanation explain(LeafReaderContext context, int doc) throws IOException {
             return new Explanation(getBoost(), "not implemented yet...");
-        }
-
-        @Override
-        public Query getQuery() {
-            return ParentQuery.this;
         }
 
         @Override

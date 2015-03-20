@@ -95,6 +95,7 @@ public class BigArrays extends AbstractComponent {
             this.size = size;
         }
 
+        @Override
         public final long size() {
             return size;
         }
@@ -384,7 +385,7 @@ public class BigArrays extends AbstractComponent {
      */
     void adjustBreaker(long delta) {
         if (this.breakerService != null) {
-            CircuitBreaker breaker = this.breakerService.getBreaker(CircuitBreaker.Name.REQUEST);
+            CircuitBreaker breaker = this.breakerService.getBreaker(CircuitBreaker.REQUEST);
             if (this.checkBreaker == true) {
                 // checking breaker means potentially tripping, but it doesn't
                 // have to if the delta is negative

@@ -86,7 +86,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.createIndexAction = createIndexAction;
 
         this.autoCreateIndex = new AutoCreateIndex(settings);
-        this.allowIdGeneration = componentSettings.getAsBoolean("action.allow_id_generation", true);
+        this.allowIdGeneration = this.settings.getAsBoolean("action.bulk.action.allow_id_generation", true);
     }
 
     @Override
@@ -307,7 +307,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             final ShardId shardId = entry.getKey();
             final List<BulkItemRequest> requests = entry.getValue();
             BulkShardRequest bulkShardRequest = new BulkShardRequest(bulkRequest, shardId.index().name(), shardId.id(), bulkRequest.refresh(), requests.toArray(new BulkItemRequest[requests.size()]));
-            bulkShardRequest.replicationType(bulkRequest.replicationType());
             bulkShardRequest.consistencyLevel(bulkRequest.consistencyLevel());
             bulkShardRequest.timeout(bulkRequest.timeout());
             shardBulkAction.execute(bulkShardRequest, new ActionListener<BulkShardResponse>() {

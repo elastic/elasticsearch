@@ -21,14 +21,17 @@ package org.elasticsearch.index.mapper.internal;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 
@@ -53,6 +56,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         public static final FieldType SIZE_FIELD_TYPE = new FieldType(IntegerFieldMapper.Defaults.FIELD_TYPE);
 
         static {
+            SIZE_FIELD_TYPE.setStored(true);
             SIZE_FIELD_TYPE.freeze();
         }
     }
@@ -73,7 +77,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
 
         @Override
         public SizeFieldMapper build(BuilderContext context) {
-            return new SizeFieldMapper(enabledState, fieldType, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+            return new SizeFieldMapper(enabledState, fieldType, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -88,7 +92,7 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
                 if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode) ? EnabledAttributeMapper.ENABLED : EnabledAttributeMapper.DISABLED);
                     iterator.remove();
-                } else if (fieldName.equals("store")) {
+                } else if (fieldName.equals("store") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                     builder.store(parseStore(fieldName, fieldNode.toString()));
                     iterator.remove();
                 }
@@ -100,13 +104,12 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     private EnabledAttributeMapper enabledState;
 
     public SizeFieldMapper(Settings indexSettings) {
-        this(Defaults.ENABLED_STATE, new FieldType(Defaults.SIZE_FIELD_TYPE), null, null, null, indexSettings);
+        this(Defaults.ENABLED_STATE, new FieldType(Defaults.SIZE_FIELD_TYPE), null, indexSettings);
     }
 
-    public SizeFieldMapper(EnabledAttributeMapper enabled, FieldType fieldType, PostingsFormatProvider postingsProvider,
-                           DocValuesFormatProvider docValuesProvider, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+    public SizeFieldMapper(EnabledAttributeMapper enabled, FieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(Defaults.NAME), Defaults.PRECISION_STEP_32_BIT, Defaults.BOOST, fieldType, null, Defaults.NULL_VALUE,
-                Defaults.IGNORE_MALFORMED,  Defaults.COERCE, postingsProvider, docValuesProvider, null, null, fieldDataSettings, 
+                Defaults.IGNORE_MALFORMED,  Defaults.COERCE, null, null, fieldDataSettings, 
                 indexSettings, MultiFields.empty(), null);
         this.enabledState = enabled;
     }
@@ -161,14 +164,14 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // all are defaults, no need to write it at all
-        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE && fieldType().stored() == Defaults.SIZE_FIELD_TYPE.stored()) {
+        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE && (writePre2xSettings == false || fieldType().stored() == false)) {
             return builder;
         }
         builder.startObject(contentType());
         if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (includeDefaults || fieldType().stored() != Defaults.SIZE_FIELD_TYPE.stored()) {
+        if (writePre2xSettings && (includeDefaults || fieldType().stored() == true)) {
             builder.field("store", fieldType().stored());
         }
         builder.endObject();

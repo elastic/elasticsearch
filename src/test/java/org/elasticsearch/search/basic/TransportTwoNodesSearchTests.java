@@ -60,9 +60,6 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
 public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -113,13 +110,27 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
                 .field("name", nameValue + id)
                 .field("age", age)
                 .field("multi", multi.toString())
-                .field("_boost", age * 10)
                 .endObject();
     }
 
     @Test
     public void testDfsQueryThenFetch() throws Exception {
-        prepareData();
+        ImmutableSettings.Builder settingsBuilder = settingsBuilder()
+            .put(indexSettings())
+            .put("routing.hash.type", "simple");
+        client().admin().indices().create(createIndexRequest("test")
+            .settings(settingsBuilder))
+            .actionGet();
+        ensureGreen();
+        
+        // we need to have age (ie number of repeats of "test" term) high enough
+        // to produce the same 8-bit norm for all docs here, so that
+        // the tf is basically the entire score (assuming idf is fixed, which
+        // it should be if dfs is working correctly)
+        for (int i = 1024; i < 1124; i++) {
+            index(Integer.toString(i - 1024), "test", i);
+        }
+        refresh();
 
         int total = 0;
         SearchResponse searchResponse = client().prepareSearch("test").setSearchType(DFS_QUERY_THEN_FETCH).setQuery(termQuery("multi", "test")).setSize(60).setExplain(true).setScroll(TimeValue.timeValueSeconds(30)).get();
@@ -133,7 +144,7 @@ public class TransportTwoNodesSearchTests extends ElasticsearchIntegrationTest {
             for (int i = 0; i < hits.length; ++i) {
                 SearchHit hit = hits[i];
                 assertThat(hit.explanation(), notNullValue());
-                assertThat("id[" + hit.id() + "]", hit.id(), equalTo(Integer.toString(100 - total - i - 1)));
+                assertThat("id[" + hit.id() + "] -> " + hit.explanation().toString(), hit.id(), equalTo(Integer.toString(100 - total - i - 1)));
             }
             total += hits.length;
             searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll(TimeValue.timeValueSeconds(30)).get();

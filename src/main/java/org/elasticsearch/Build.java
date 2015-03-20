@@ -93,4 +93,9 @@ public class Build {
         out.writeString(build.hashShort());
         out.writeString(build.timestamp());
     }
+
+    @Override
+    public String toString() {
+        return "[" + hash + "][" + timestamp + "]";
+    }
 }

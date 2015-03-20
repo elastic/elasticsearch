@@ -37,7 +37,7 @@ import java.util.Map;
 /**
  *
  */
-public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> implements DateRange {
+public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> {
 
     public final static Type TYPE = new Type("date_range", "drange");
 
@@ -74,7 +74,7 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> i
 
     public static final Factory FACTORY = new Factory();
 
-    public static class Bucket extends InternalRange.Bucket implements DateRange.Bucket {
+    public static class Bucket extends InternalRange.Bucket {
 
         public Bucket(boolean keyed, @Nullable ValueFormatter formatter) {
             super(keyed, formatter);
@@ -89,13 +89,13 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket> i
         }
 
         @Override
-        public DateTime getFromAsDate() {
-            return Double.isInfinite(getFrom().doubleValue()) ? null : new DateTime(getFrom().longValue(), DateTimeZone.UTC);
+        public Object getFrom() {
+            return Double.isInfinite(((Number) from).doubleValue()) ? null : new DateTime(((Number) from).longValue(), DateTimeZone.UTC);
         }
 
         @Override
-        public DateTime getToAsDate() {
-            return Double.isInfinite(getTo().doubleValue()) ? null : new DateTime(getTo().longValue(), DateTimeZone.UTC);
+        public Object getTo() {
+            return Double.isInfinite(((Number) to).doubleValue()) ? null : new DateTime(((Number) to).longValue(), DateTimeZone.UTC);
         }
 
         @Override

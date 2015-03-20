@@ -31,7 +31,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.Version;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -564,8 +567,8 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             StoreFileMetaData legacy = new StoreFileMetaData("legacy.bin", legacyFileLength, Store.digestToString(adler32LegacyChecksum));
             assertTrue(legacy.hasLegacyChecksum());
             assertFalse(lucene.hasLegacyChecksum());
-            assertTrue(Store.checkIntegrity(lucene, dir));
-            assertTrue(Store.checkIntegrity(legacy, dir));
+            assertTrue(Store.checkIntegrityNoException(lucene, dir));
+            assertTrue(Store.checkIntegrityNoException(legacy, dir));
         }
 
         { // negative check - wrong checksum
@@ -573,8 +576,8 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             StoreFileMetaData legacy = new StoreFileMetaData("legacy.bin", legacyFileLength, Store.digestToString(adler32LegacyChecksum+1));
             assertTrue(legacy.hasLegacyChecksum());
             assertFalse(lucene.hasLegacyChecksum());
-            assertFalse(Store.checkIntegrity(lucene, dir));
-            assertFalse(Store.checkIntegrity(legacy, dir));
+            assertFalse(Store.checkIntegrityNoException(lucene, dir));
+            assertFalse(Store.checkIntegrityNoException(legacy, dir));
         }
 
         { // negative check - wrong length
@@ -582,8 +585,8 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             StoreFileMetaData legacy = new StoreFileMetaData("legacy.bin", legacyFileLength+1, Store.digestToString(adler32LegacyChecksum));
             assertTrue(legacy.hasLegacyChecksum());
             assertFalse(lucene.hasLegacyChecksum());
-            assertFalse(Store.checkIntegrity(lucene, dir));
-            assertFalse(Store.checkIntegrity(legacy, dir));
+            assertFalse(Store.checkIntegrityNoException(lucene, dir));
+            assertFalse(Store.checkIntegrityNoException(legacy, dir));
         }
 
         { // negative check - wrong file
@@ -591,8 +594,8 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             StoreFileMetaData legacy = new StoreFileMetaData("lucene_checksum.bin", legacyFileLength, Store.digestToString(adler32LegacyChecksum));
             assertTrue(legacy.hasLegacyChecksum());
             assertFalse(lucene.hasLegacyChecksum());
-            assertFalse(Store.checkIntegrity(lucene, dir));
-            assertFalse(Store.checkIntegrity(legacy, dir));
+            assertFalse(Store.checkIntegrityNoException(lucene, dir));
+            assertFalse(Store.checkIntegrityNoException(legacy, dir));
         }
         dir.close();
 
@@ -678,7 +681,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
     }
 
     public void assertDeleteContent(Store store, DirectoryService service) throws IOException {
-        store.deleteContent();
+        deleteContent(store.directory());
         assertThat(Arrays.toString(store.directory().listAll()), store.directory().listAll().length, equalTo(0));
         assertThat(store.stats().sizeInBytes(), equalTo(0l));
         for (Directory dir : service.build()) {
@@ -896,7 +899,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             assertThat(newCommitDiff.missing.size(), equalTo(4)); // an entire segment must be missing (single doc segment got dropped)  plus the commit is different
         }
 
-        store.deleteContent();
+        deleteContent(store.directory());
         IOUtils.close(store);
     }
 
@@ -972,7 +975,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             int numChecksums = 0;
             int numNotFound = 0;
             for (String file : strings) {
-                assertTrue(firstMeta.contains(file) || Store.isChecksum(file));
+                assertTrue(firstMeta.contains(file) || Store.isChecksum(file) || file.equals("write.lock"));
                 if (Store.isChecksum(file)) {
                     numChecksums++;
                 } else  if (secondMeta.contains(file) == false) {
@@ -988,7 +991,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             int numChecksums = 0;
             int numNotFound = 0;
             for (String file : strings) {
-                assertTrue(secondMeta.contains(file) || Store.isChecksum(file));
+                assertTrue(file, secondMeta.contains(file) || Store.isChecksum(file) || file.equals("write.lock"));
                 if (Store.isChecksum(file)) {
                     numChecksums++;
                 } else  if (firstMeta.contains(file) == false) {
@@ -1000,14 +1003,14 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
             assertEquals("we wrote one checksum but it's gone now? - checksums are supposed to be kept", numChecksums, 1);
         }
 
-        store.deleteContent();
+        deleteContent(store.directory());
         IOUtils.close(store);
     }
 
     @Test
     public void testCleanUpWithLegacyChecksums() throws IOException {
         Map<String, StoreFileMetaData> metaDataMap = new HashMap<>();
-        metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[] {1})));
+        metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[]{1})));
         metaDataMap.put("_0_1.del", new StoreFileMetaData("_0_1.del", 42, "foobarbaz", null, new BytesRef()));
         Store.MetadataSnapshot snapshot = new Store.MetadataSnapshot(metaDataMap);
 
@@ -1023,7 +1026,7 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         }
 
         store.verifyAfterCleanup(snapshot, snapshot);
-        store.deleteContent();
+        deleteContent(store.directory());
         IOUtils.close(store);
     }
 
@@ -1049,5 +1052,50 @@ public class StoreTest extends ElasticsearchLuceneTestCase {
         }
 
         assertEquals(count.get(), 1);
+    }
+
+    @Test
+    public void testStoreStats() throws IOException {
+        final ShardId shardId = new ShardId(new Index("index"), 1);
+        DirectoryService directoryService = new LuceneManagedDirectoryService(random());
+        Settings settings = ImmutableSettings.builder().put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, TimeValue.timeValueMinutes(0)).build();
+        Store store = new Store(shardId, settings, directoryService, randomDistributor(directoryService), new DummyShardLock(shardId));
+
+        StoreStats stats = store.stats();
+        assertEquals(stats.getSize().bytes(), 0);
+
+        Directory dir = store.directory();
+        final long length;
+        try (IndexOutput output = dir.createOutput("foo.bar", IOContext.DEFAULT)) {
+            int iters = scaledRandomIntBetween(10, 100);
+            for (int i = 0; i < iters; i++) {
+                BytesRef bytesRef = new BytesRef(TestUtil.randomRealisticUnicodeString(random(), 10, 1024));
+                output.writeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+            }
+            length = output.getFilePointer();
+        }
+
+        assertTrue(store.directory().listAll().length > 0);
+        stats = store.stats();
+        assertEquals(stats.getSizeInBytes(), length);
+
+        deleteContent(store.directory());
+        IOUtils.close(store);
+    }
+
+
+    public static void deleteContent(Directory directory) throws IOException {
+        final String[] files = directory.listAll();
+        final List<IOException> exceptions = new ArrayList<>();
+        for (String file : files) {
+            try {
+                directory.deleteFile(file);
+            } catch (NoSuchFileException | FileNotFoundException e) {
+                // ignore
+            } catch (IOException e) {
+                exceptions.add(e);
+            }
+        }
+        ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 }

@@ -21,10 +21,10 @@ package org.elasticsearch.test.rest.client;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
-import org.apache.http.conn.HttpClientConnectionManager;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
@@ -49,7 +49,6 @@ import java.util.concurrent.TimeUnit;
 public class RestClient implements Closeable {
 
     private static final ESLogger logger = Loggers.getLogger(RestClient.class);
-    private static final HttpClientConnectionManager connectionPool = new PoolingHttpClientConnectionManager(15, TimeUnit.SECONDS);
 
     private final RestSpec restSpec;
     private final CloseableHttpClient httpClient;
@@ -222,21 +221,14 @@ public class RestClient implements Closeable {
     }
 
     protected CloseableHttpClient createHttpClient() {
-        return HttpClients.createMinimal(connectionPool);
-    }
-
-    public InetSocketAddress[] httpAddresses() {
-        return addresses;
+        return HttpClients.createMinimal(new PoolingHttpClientConnectionManager(15, TimeUnit.SECONDS));
     }
 
     /**
      * Closes the REST client and the underlying http client
      */
+    @Override
     public void close() {
-        try {
-            httpClient.close();
-        } catch(IOException e) {
-            logger.error(e.getMessage(), e);
-        }
+        IOUtils.closeWhileHandlingException(httpClient);
     }
 }

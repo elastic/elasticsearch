@@ -57,11 +57,13 @@ import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
  *
  */
 public class PluginsService extends AbstractComponent {
-    public static final String ES_PLUGIN_PROPERTIES_FILE_KEY = "properties_file";
+    public static final String ES_PLUGIN_PROPERTIES_FILE_KEY = "plugins.properties_file";
     public static final String ES_PLUGIN_PROPERTIES = "es-plugin.properties";
-    public static final String LOAD_PLUGIN_FROM_CLASSPATH = "load_classpath_plugins";
+    public static final String LOAD_PLUGIN_FROM_CLASSPATH = "plugins.load_classpath_plugins";
 
     private static final PathMatcher PLUGIN_LIB_MATCHER = FileSystems.getDefault().getPathMatcher("glob:**.{jar,zip}");
+    public static final String PLUGINS_CHECK_LUCENE_KEY = "plugins.check_lucene";
+    public static final String PLUGINS_INFO_REFRESH_INTERVAL_KEY = "plugins.info_refresh_interval";
 
 
     private final Environment environment;
@@ -98,9 +100,9 @@ public class PluginsService extends AbstractComponent {
     public PluginsService(Settings settings, Environment environment) {
         super(settings);
         this.environment = environment;
-        this.checkLucene = componentSettings.getAsBoolean("check_lucene", true);
-        this.esPluginPropertiesFile = componentSettings.get(ES_PLUGIN_PROPERTIES_FILE_KEY, ES_PLUGIN_PROPERTIES);
-        this.loadClasspathPlugins = componentSettings.getAsBoolean(LOAD_PLUGIN_FROM_CLASSPATH, true);
+        this.checkLucene = settings.getAsBoolean(PLUGINS_CHECK_LUCENE_KEY, true);
+        this.esPluginPropertiesFile = settings.get(ES_PLUGIN_PROPERTIES_FILE_KEY, ES_PLUGIN_PROPERTIES);
+        this.loadClasspathPlugins = settings.getAsBoolean(LOAD_PLUGIN_FROM_CLASSPATH, true);
 
         ImmutableList.Builder<Tuple<PluginInfo, Plugin>> tupleBuilder = ImmutableList.builder();
 
@@ -187,7 +189,7 @@ public class PluginsService extends AbstractComponent {
         }
         this.onModuleReferences = onModuleReferences.immutableMap();
 
-        this.refreshInterval = componentSettings.getAsTime("info_refresh_interval", TimeValue.timeValueSeconds(10));
+        this.refreshInterval = settings.getAsTime(PLUGINS_INFO_REFRESH_INTERVAL_KEY, TimeValue.timeValueSeconds(10));
     }
 
     public ImmutableList<Tuple<PluginInfo, Plugin>> plugins() {
@@ -387,7 +389,7 @@ public class PluginsService extends AbstractComponent {
                     List<Path> libFiles = Lists.newArrayList();
                     libFiles.addAll(Arrays.asList(files(plugin)));
                     Path libLocation = plugin.resolve("lib");
-                    if (Files.exists(libLocation) && Files.isDirectory(libLocation)) {
+                    if (Files.isDirectory(libLocation)) {
                         libFiles.addAll(Arrays.asList(files(libLocation)));
                     }
 
@@ -519,7 +521,7 @@ public class PluginsService extends AbstractComponent {
         // Let's try to find all _site plugins we did not already found
         Path pluginsFile = environment.pluginsFile();
 
-        if (!Files.exists(pluginsFile) || !Files.isDirectory(pluginsFile)) {
+        if (!Files.isDirectory(pluginsFile)) {
             return false;
         }
 

@@ -21,25 +21,28 @@ package org.elasticsearch.discovery.zen.publish;
 
 import com.google.common.collect.Maps;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
-import org.elasticsearch.discovery.ClusterStatePublishResponseHandler;
+import org.elasticsearch.discovery.BlockingClusterStatePublishResponseHandler;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -65,16 +68,14 @@ public class PublishClusterStateAction extends AbstractComponent {
     private final DiscoveryNodesProvider nodesProvider;
     private final NewClusterStateListener listener;
     private final DiscoverySettings discoverySettings;
-    private final ClusterName clusterName;
 
     public PublishClusterStateAction(Settings settings, TransportService transportService, DiscoveryNodesProvider nodesProvider,
-                                     NewClusterStateListener listener, DiscoverySettings discoverySettings, ClusterName clusterName) {
+                                     NewClusterStateListener listener, DiscoverySettings discoverySettings) {
         super(settings);
         this.transportService = transportService;
         this.nodesProvider = nodesProvider;
         this.listener = listener;
         this.discoverySettings = discoverySettings;
-        this.clusterName = clusterName;
         transportService.registerHandler(ACTION_NAME, new PublishClusterStateRequestHandler());
     }
 
@@ -83,29 +84,34 @@ public class PublishClusterStateAction extends AbstractComponent {
     }
 
     public void publish(ClusterState clusterState, final Discovery.AckListener ackListener) {
-        publish(clusterState, new AckClusterStatePublishResponseHandler(clusterState.nodes().size() - 1, ackListener));
+        Set<DiscoveryNode> nodesToPublishTo = new HashSet<>(clusterState.nodes().size());
+        DiscoveryNode localNode = nodesProvider.nodes().localNode();
+        for (final DiscoveryNode node : clusterState.nodes()) {
+            if (node.equals(localNode)) {
+                continue;
+            }
+            nodesToPublishTo.add(node);
+        }
+        publish(clusterState, nodesToPublishTo, new AckClusterStatePublishResponseHandler(nodesToPublishTo, ackListener));
     }
 
-    private void publish(final ClusterState clusterState, final ClusterStatePublishResponseHandler publishResponseHandler) {
-
-        DiscoveryNode localNode = nodesProvider.nodes().localNode();
+    private void publish(final ClusterState clusterState, final Set<DiscoveryNode> nodesToPublishTo,
+                         final BlockingClusterStatePublishResponseHandler publishResponseHandler) {
 
         Map<Version, BytesReference> serializedStates = Maps.newHashMap();
 
         final AtomicBoolean timedOutWaitingForNodes = new AtomicBoolean(false);
         final TimeValue publishTimeout = discoverySettings.getPublishTimeout();
 
-        for (final DiscoveryNode node : clusterState.nodes()) {
-            if (node.equals(localNode)) {
-                continue;
-            }
+        for (final DiscoveryNode node : nodesToPublishTo) {
+
             // try and serialize the cluster state once (or per version), so we don't serialize it
             // per node when we send it over the wire, compress it while we are at it...
             BytesReference bytes = serializedStates.get(node.version());
             if (bytes == null) {
                 try {
                     BytesStreamOutput bStream = new BytesStreamOutput();
-                    StreamOutput stream = new HandlesStreamOutput(CompressorFactory.defaultCompressor().streamOutput(bStream));
+                    StreamOutput stream = CompressorFactory.defaultCompressor().streamOutput(bStream);
                     stream.setVersion(node.version());
                     ClusterState.Builder.writeTo(clusterState, stream);
                     stream.close();
@@ -152,7 +158,11 @@ public class PublishClusterStateAction extends AbstractComponent {
             try {
                 timedOutWaitingForNodes.set(!publishResponseHandler.awaitAllNodes(publishTimeout));
                 if (timedOutWaitingForNodes.get()) {
-                    logger.debug("timed out waiting for all nodes to process published state [{}] (timeout [{}])", clusterState.version(), publishTimeout);
+                    DiscoveryNode[] pendingNodes = publishResponseHandler.pendingNodes();
+                    // everyone may have just responded
+                    if (pendingNodes.length > 0) {
+                        logger.warn("timed out waiting for all nodes to process published state [{}] (timeout [{}], pending nodes: {})", clusterState.version(), publishTimeout, pendingNodes);
+                    }
                 }
             } catch (InterruptedException e) {
                 // ignore & restore interrupt
@@ -173,33 +183,42 @@ public class PublishClusterStateAction extends AbstractComponent {
             Compressor compressor = CompressorFactory.compressor(request.bytes());
             StreamInput in;
             if (compressor != null) {
-                in = CachedStreamInput.cachedHandlesCompressed(compressor, request.bytes().streamInput());
+                in = compressor.streamInput(request.bytes().streamInput());
             } else {
-                in = CachedStreamInput.cachedHandles(request.bytes().streamInput());
+                in = request.bytes().streamInput();
             }
             in.setVersion(request.version());
-            ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode(), clusterName);
+            ClusterState clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode());
             clusterState.status(ClusterState.ClusterStateStatus.RECEIVED);
             logger.debug("received cluster state version {}", clusterState.version());
-            listener.onNewClusterState(clusterState, new NewClusterStateListener.NewStateProcessed() {
-                @Override
-                public void onNewClusterStateProcessed() {
-                    try {
-                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                    } catch (Throwable e) {
-                        logger.debug("failed to send response on cluster state processed", e);
+            try {
+                listener.onNewClusterState(clusterState, new NewClusterStateListener.NewStateProcessed() {
+                    @Override
+                    public void onNewClusterStateProcessed() {
+                        try {
+                            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+                        } catch (Throwable e) {
+                            logger.debug("failed to send response on cluster state processed", e);
+                        }
                     }
-                }
 
-                @Override
-                public void onNewClusterStateFailed(Throwable t) {
-                    try {
-                        channel.sendResponse(t);
-                    } catch (Throwable e) {
-                        logger.debug("failed to send response on cluster state processed", e);
+                    @Override
+                    public void onNewClusterStateFailed(Throwable t) {
+                        try {
+                            channel.sendResponse(t);
+                        } catch (Throwable e) {
+                            logger.debug("failed to send response on cluster state processed", e);
+                        }
                     }
+                });
+            } catch (Exception e) {
+                logger.warn("unexpected error while processing cluster state version [{}]", e, clusterState.version());
+                try {
+                    channel.sendResponse(e);
+                } catch (Throwable e1) {
+                    logger.debug("failed to send response on cluster state processed", e1);
                 }
-            });
+            }
         }
 
         @Override

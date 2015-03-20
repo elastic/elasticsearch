@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.*;
@@ -157,6 +156,22 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
             snapshotSet.add(repository.readSnapshot(snapshotId));
         }
         ArrayList<Snapshot> snapshotList = newArrayList(snapshotSet);
+        CollectionUtil.timSort(snapshotList);
+        return ImmutableList.copyOf(snapshotList);
+    }
+
+    /**
+     * Returns a list of currently running snapshots from repository sorted by snapshot creation date
+     *
+     * @param repositoryName repository name
+     * @return list of snapshots
+     */
+    public ImmutableList<Snapshot> currentSnapshots(String repositoryName) {
+        List<Snapshot> snapshotList = newArrayList();
+        ImmutableList<SnapshotMetaData.Entry> entries = currentSnapshots(repositoryName, null);
+        for (SnapshotMetaData.Entry entry : entries) {
+            snapshotList.add(inProgressSnapshot(entry));
+        }
         CollectionUtil.timSort(snapshotList);
         return ImmutableList.copyOf(snapshotList);
     }
@@ -306,7 +321,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                     for (SnapshotMetaData.Entry entry : snapshots.entries()) {
                         if (entry.snapshotId().equals(snapshot.snapshotId())) {
                             // Replace the snapshot that was just created
-                            ImmutableMap<ShardId, SnapshotMetaData.ShardSnapshotStatus> shards = shards(entry.snapshotId(), currentState, entry.indices());
+                            ImmutableMap<ShardId, SnapshotMetaData.ShardSnapshotStatus> shards = shards(currentState, entry.indices());
                             if (!partial) {
                                 Set<String> indicesWithMissingShards = indicesWithMissingShards(shards);
                                 if (indicesWithMissingShards != null) {
@@ -731,8 +746,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 return true;
             }
             for (DiscoveryNode node : event.nodesDelta().removedNodes()) {
-                for (ImmutableMap.Entry<ShardId, ShardSnapshotStatus> shardEntry : snapshot.shards().entrySet()) {
-                    ShardSnapshotStatus shardStatus = shardEntry.getValue();
+                for (ShardSnapshotStatus shardStatus : snapshot.shards().values()) {
                     if (!shardStatus.state().completed() && node.getId().equals(shardStatus.nodeId())) {
                         // At least one shard was running on the removed node - we need to fail it
                         return true;
@@ -1105,9 +1119,25 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                         shards = snapshot.shards();
                         endSnapshot(snapshot);
                     } else {
-                        // snapshot is being finalized - wait for it
-                        logger.trace("trying to delete completed snapshot - save to delete");
-                        return currentState;
+                        boolean hasUncompletedShards = false;
+                        // Cleanup in case a node gone missing and snapshot wasn't updated for some reason
+                        for (ShardSnapshotStatus shardStatus : snapshot.shards().values()) {
+                            // Check if we still have shard running on existing nodes
+                            if (shardStatus.state().completed() == false && shardStatus.nodeId() != null && currentState.nodes().get(shardStatus.nodeId()) != null) {
+                                hasUncompletedShards = true;
+                                break;
+                            }
+                        }
+                        if (hasUncompletedShards) {
+                            // snapshot is being finalized - wait for shards to complete finalization process
+                            logger.debug("trying to delete completed snapshot - should wait for shards to finalize on all nodes");
+                            return currentState;
+                        } else {
+                            // no shards to wait for - finish the snapshot
+                            logger.debug("trying to delete completed snapshot with no finalizing shards - can delete immediately");
+                            shards = snapshot.shards();
+                            endSnapshot(snapshot);
+                        }
                     }
                     SnapshotMetaData.Entry newSnapshot = new SnapshotMetaData.Entry(snapshot, State.ABORTED, shards);
                     snapshots = new SnapshotMetaData(newSnapshot);
@@ -1196,33 +1226,37 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     /**
      * Calculates the list of shards that should be included into the current snapshot
      *
-     * @param snapshotId   snapshot id
      * @param clusterState cluster state
      * @param indices      list of indices to be snapshotted
      * @return list of shard to be included into current snapshot
      */
-    private ImmutableMap<ShardId, SnapshotMetaData.ShardSnapshotStatus> shards(SnapshotId snapshotId, ClusterState clusterState, ImmutableList<String> indices) {
+    private ImmutableMap<ShardId, SnapshotMetaData.ShardSnapshotStatus> shards(ClusterState clusterState, ImmutableList<String> indices) {
         ImmutableMap.Builder<ShardId, SnapshotMetaData.ShardSnapshotStatus> builder = ImmutableMap.builder();
         MetaData metaData = clusterState.metaData();
         for (String index : indices) {
             IndexMetaData indexMetaData = metaData.index(index);
-            IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(index);
-            for (int i = 0; i < indexMetaData.numberOfShards(); i++) {
-                ShardId shardId = new ShardId(index, i);
-                if (indexRoutingTable != null) {
-                    ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
-                    if (primary == null || !primary.assignedToNode()) {
-                        builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(null, State.MISSING, "primary shard is not allocated"));
-                    } else if (primary.relocating() || primary.initializing()) {
-                        // The WAITING state was introduced in V1.2.0 - don't use it if there are nodes with older version in the cluster
-                        builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId(), State.WAITING));
-                    } else if (!primary.started()) {
-                        builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId(), State.MISSING, "primary shard hasn't been started yet"));
+            if (indexMetaData == null) {
+                // The index was deleted before we managed to start the snapshot - mark it as missing.
+                builder.put(new ShardId(index, 0), new SnapshotMetaData.ShardSnapshotStatus(null, State.MISSING, "missing index"));
+            } else {
+                IndexRoutingTable indexRoutingTable = clusterState.getRoutingTable().index(index);
+                for (int i = 0; i < indexMetaData.numberOfShards(); i++) {
+                    ShardId shardId = new ShardId(index, i);
+                    if (indexRoutingTable != null) {
+                        ShardRouting primary = indexRoutingTable.shard(i).primaryShard();
+                        if (primary == null || !primary.assignedToNode()) {
+                            builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(null, State.MISSING, "primary shard is not allocated"));
+                        } else if (primary.relocating() || primary.initializing()) {
+                            // The WAITING state was introduced in V1.2.0 - don't use it if there are nodes with older version in the cluster
+                            builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId(), State.WAITING));
+                        } else if (!primary.started()) {
+                            builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId(), State.MISSING, "primary shard hasn't been started yet"));
+                        } else {
+                            builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId()));
+                        }
                     } else {
-                        builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(primary.currentNodeId()));
+                        builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(null, State.MISSING, "missing routing table"));
                     }
-                } else {
-                    builder.put(shardId, new SnapshotMetaData.ShardSnapshotStatus(null, State.MISSING, "missing routing table"));
                 }
             }
         }

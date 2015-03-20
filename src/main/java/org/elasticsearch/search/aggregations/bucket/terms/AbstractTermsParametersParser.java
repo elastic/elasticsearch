@@ -21,7 +21,6 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
@@ -80,7 +79,7 @@ public abstract class AbstractTermsParametersParser {
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (EXECUTION_HINT_FIELD_NAME.match(currentFieldName)) {
                     executionHint = parser.text();
-                } else if(Aggregator.COLLECT_MODE.match(currentFieldName)){
+                } else if(SubAggCollectionMode.KEY.match(currentFieldName)){
                     collectMode = SubAggCollectionMode.parse(parser.text());
                 } else if (REQUIRED_SIZE_FIELD_NAME.match(currentFieldName)) {
                     bucketCountThresholds.setRequiredSize(parser.intValue());

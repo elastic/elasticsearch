@@ -157,7 +157,7 @@ Curly and square brackets can be combined:
 
 * Numbers from 1 up to but not including 5
 
-    count:[1..5}
+    count:[1 TO 5}
 
 
 Ranges with one side unbounded can use the following syntax:
@@ -172,7 +172,7 @@ Ranges with one side unbounded can use the following syntax:
 To combine an upper and lower bound with the simplified syntax, you
 would need to join two clauses with an `AND` operator:
 
-    age:(>=10 AND < 20)
+    age:(>=10 AND <20)
     age:(+>=10 +<20)
 
 ===================================================================
@@ -275,7 +275,7 @@ query itself (and not as operators), then you should escape them with
 a leading backslash. For instance, to search for `(1+1)=2`, you would
 need to write your query as `\(1\+1\)=2`.
 
-The reserved characters are:  `+ - && || ! ( ) { } [ ] ^ " ~ * ? : \ /`
+The reserved characters are:  `+ - = && || > < ! ( ) { } [ ] ^ " ~ * ? : \ /`
 
 Failing to escape these special characters correctly could lead to a syntax
 error which prevents your query from running.

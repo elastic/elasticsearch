@@ -61,7 +61,9 @@ Once it's done it will print all the remaining steps.
 """
 env = os.environ
 
-PLUGINS = [('bigdesk', 'lukas-vlcek/bigdesk'),
+PLUGINS = [('license', 'elasticsearch/license/latest'),
+           ('marvel', 'elasticsearch/marvel/latest'),
+           ('bigdesk', 'lukas-vlcek/bigdesk'),
            ('paramedic', 'karmi/elasticsearch-paramedic'),
            ('segmentspy', 'polyfractal/elasticsearch-segmentspy'),
            ('inquisitor', 'polyfractal/elasticsearch-inquisitor'),
@@ -274,8 +276,8 @@ def ensure_no_open_tickets(version):
       if issues:
         urls = []
         for issue in issues:
-          urls.append(issue['url'])
-        raise RuntimeError('Found open issues  for release version %s see - %s' % (version, urls))
+          urls.append(issue['html_url'])
+        raise RuntimeError('Found open issues for release version %s:\n%s' % (version, '\n'.join(urls)))
       else:
         log("No open issues found for version %s" % version)
     else:
@@ -355,6 +357,22 @@ def get_artifacts(release):
   else:
     raise RuntimeError('Could not find required artifact at %s' % rpm)
   return common_artifacts
+
+# Checks the jar files in each package
+# Barfs if any of the package jar files differ
+def check_artifacts_for_same_jars(artifacts):
+  jars = []
+  for file in artifacts:
+    if file.endswith('.zip'):
+      jars.append(subprocess.check_output("unzip -l %s  | grep '\.jar$' | awk -F '/' '{ print $NF }' | sort" % file, shell=True))
+    if file.endswith('.tar.gz'):
+      jars.append(subprocess.check_output("tar tzvf %s  | grep '\.jar$' | awk -F '/' '{ print $NF }' | sort" % file, shell=True))
+    if file.endswith('.rpm'):
+      jars.append(subprocess.check_output("rpm -pqli %s | grep '\.jar$' | awk -F '/' '{ print $NF }' | sort" % file, shell=True))
+    if file.endswith('.deb'):
+      jars.append(subprocess.check_output("dpkg -c %s   | grep '\.jar$' | awk -F '/' '{ print $NF }' | sort" % file, shell=True))
+  if len(set(jars)) != 1:
+    raise RuntimeError('JAR contents of packages are not the same, please check the package contents. Use [unzip -l], [tar tzvf], [dpkg -c], [rpm -pqli] to inspect')
 
 # Generates sha1 checsums for all files
 # and returns the checksum files as well
@@ -565,6 +583,20 @@ def ensure_checkout_is_clean(branchName):
   if 'is ahead' in s:
     raise RuntimeError('git status shows local commits; try running "git fetch origin", "git checkout %s", "git reset --hard origin/%s": got:\n%s' % (branchName, branchName, s))
 
+# Checks all source files for //NORELEASE comments
+def check_norelease(path='src'):
+  pattern = re.compile(r'\bnorelease\b', re.IGNORECASE)
+  for root, _, file_names in os.walk(path):
+    for file_name in fnmatch.filter(file_names, '*.java'):
+      full_path = os.path.join(root, file_name)
+      line_number = 0
+      with open(full_path, 'r', encoding='utf-8') as current_file:
+        for line in current_file:
+          line_number = line_number + 1
+          if pattern.search(line):
+            raise RuntimeError('Found //norelease comment in %s line %s' % (full_path, line_number))
+
+
 if __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Builds and publishes a Elasticsearch Release')
   parser.add_argument('--branch', '-b', metavar='RELEASE_BRANCH', default=get_current_branch(),
@@ -608,6 +640,7 @@ if __name__ == '__main__':
   print('  JAVA_HOME is [%s]' % JAVA_HOME)
   print('  Running with maven command: [%s] ' % (MVN))
   if build:
+    check_norelease(path='src')
     ensure_checkout_is_clean(src_branch)
     verify_lucene_version()
     release_version = find_release_version(src_branch)
@@ -644,6 +677,8 @@ if __name__ == '__main__':
         print('  Running maven builds now run-tests [%s]' % run_tests)
       build_release(run_tests=run_tests, dry_run=dry_run, cpus=cpus, bwc_version=find_bwc_version(release_version, bwc_path))
       artifacts = get_artifacts(release_version)
+      print('Checking if all artifacts contain the same jars')
+      check_artifacts_for_same_jars(artifacts)
       artifacts_and_checksum = generate_checksums(artifacts)
       smoke_test_release(release_version, artifacts, get_head_hash(), PLUGINS)
       print(''.join(['-' for _ in range(80)]))

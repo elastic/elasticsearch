@@ -102,6 +102,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchSingleNodeTest {
         reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(writer, true));
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

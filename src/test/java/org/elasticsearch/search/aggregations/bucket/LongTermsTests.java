@@ -223,7 +223,7 @@ public class LongTermsTests extends AbstractTermsTests {
     }
 
     private String key(Terms.Bucket bucket) {
-        return randomBoolean() ? bucket.getKey() : key(bucket);
+        return bucket.getKeyAsString();
     }
 
     @Test
@@ -269,7 +269,7 @@ public class LongTermsTests extends AbstractTermsTests {
             assertThat(bucket.getDocCount(), equalTo(1l));
         }
     }
-    
+
     @Test
     public void singleValueFieldWithFiltering() throws Exception {
         long includes[] = { 1, 2, 3, 98 };
@@ -300,7 +300,7 @@ public class LongTermsTests extends AbstractTermsTests {
             assertThat(bucket.getDocCount(), equalTo(1l));
         }
     }
-    
+
     @Test
     public void singleValueField_WithMaxSize() throws Exception {
         SearchResponse response = client().prepareSearch("idx").setTypes("high_card_type")
@@ -409,7 +409,7 @@ public class LongTermsTests extends AbstractTermsTests {
             Sum sum = bucket.getAggregations().get("sum");
             assertThat(sum, notNullValue());
             assertThat((long) sum.getValue(), equalTo(i+i+1l));
-            assertThat((String) propertiesKeys[i], equalTo(String.valueOf(i)));
+            assertThat((long) propertiesKeys[i], equalTo((long) i));
             assertThat((long) propertiesDocCounts[i], equalTo(1l));
             assertThat((double) propertiesCounts[i], equalTo((double) i + i + 1l));
         }
@@ -699,7 +699,7 @@ public class LongTermsTests extends AbstractTermsTests {
 
         try {
 
-            SearchResponse response = client().prepareSearch("idx").setTypes("type")
+            client().prepareSearch("idx").setTypes("type")
                     .addAggregation(terms("terms")
                             .collectMode(randomFrom(SubAggCollectionMode.values()))
                             .script("doc['" + MULTI_VALUED_FIELD_NAME + "']")
@@ -805,7 +805,7 @@ public class LongTermsTests extends AbstractTermsTests {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
-        Histogram.Bucket bucket = histo.getBucketByKey(1l);
+        Histogram.Bucket bucket = histo.getBuckets().get(1);
         assertThat(bucket, Matchers.notNullValue());
 
         Terms terms = bucket.getAggregations().get("terms");

@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState.Stage;
 import org.elasticsearch.indices.recovery.RecoveryState.Type;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -401,7 +402,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> creating test index: {}", name);
         assertAcked(prepareCreate(name, nodeCount, settingsBuilder().put("number_of_shards", shardCount)
-                .put("number_of_replicas", replicaCount)));
+                .put("number_of_replicas", replicaCount).put(Store.INDEX_STORE_STATS_REFRESH_INTERVAL, 0)));
         ensureGreen();
 
         logger.info("--> indexing sample data");
@@ -423,10 +424,10 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
 
     private void validateIndexRecoveryState(RecoveryState.Index indexState) {
         assertThat(indexState.time(), greaterThanOrEqualTo(0L));
-        assertThat(indexState.percentFilesRecovered(), greaterThanOrEqualTo(0.0f));
-        assertThat(indexState.percentFilesRecovered(), lessThanOrEqualTo(100.0f));
-        assertThat(indexState.percentBytesRecovered(), greaterThanOrEqualTo(0.0f));
-        assertThat(indexState.percentBytesRecovered(), lessThanOrEqualTo(100.0f));
+        assertThat(indexState.recoveredFilesPercent(), greaterThanOrEqualTo(0.0f));
+        assertThat(indexState.recoveredFilesPercent(), lessThanOrEqualTo(100.0f));
+        assertThat(indexState.recoveredBytesPercent(), greaterThanOrEqualTo(0.0f));
+        assertThat(indexState.recoveredBytesPercent(), lessThanOrEqualTo(100.0f));
     }
 
     @Test
@@ -528,6 +529,7 @@ public class IndexRecoveryTests extends ElasticsearchIntegrationTest {
             this.requestBlocked = requestBlocked;
         }
 
+        @Override
         public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
             if (recoveryActionToBlock.equals(action) || requestBlocked.getCount() == 0) {
                 logger.info("--> preventing {} request", action);

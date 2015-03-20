@@ -25,13 +25,15 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportShardSingleOperationAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -40,8 +42,6 @@ import org.elasticsearch.transport.TransportService;
  * Performs the get operation.
  */
 public class TransportGetAction extends TransportShardSingleOperationAction<GetRequest, GetResponse> {
-
-    public static final boolean REFRESH_FORCE = false;
 
     private final IndicesService indicesService;
     private final boolean realtime;
@@ -76,6 +76,14 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         if (request.request().realtime == null) {
             request.request().realtime = this.realtime;
         }
+        IndexMetaData indexMeta = state.getMetaData().index(request.concreteIndex());
+        if (request.request().realtime && // if the realtime flag is set
+                request.request().preference() == null && // the preference flag is not already set
+                indexMeta != null && // and we have the index
+                IndexMetaData.isIndexUsingShadowReplicas(indexMeta.settings())) { // and the index uses shadow replicas
+            // set the preference for the request to use "_primary" automatically
+            request.request().preference(Preference.PRIMARY.type());
+        }
         // update the routing (request#index here is possibly an alias)
         request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));
         // Fail fast on the node that received the request.
@@ -90,7 +98,7 @@ public class TransportGetAction extends TransportShardSingleOperationAction<GetR
         IndexShard indexShard = indexService.shardSafe(shardId.id());
 
         if (request.refresh() && !request.realtime()) {
-            indexShard.refresh("refresh_flag_get", REFRESH_FORCE);
+            indexShard.refresh("refresh_flag_get");
         }
 
         GetResult result = indexShard.getService().get(request.type(), request.id(), request.fields(),

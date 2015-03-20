@@ -161,7 +161,6 @@ public final class InternalTestCluster extends TestCluster {
     static final int DEFAULT_MIN_NUM_CLIENT_NODES = 0;
     static final int DEFAULT_MAX_NUM_CLIENT_NODES = 1;
 
-    static final boolean DEFAULT_ENABLE_RANDOM_BENCH_NODES = true;
     static final boolean DEFAULT_ENABLE_HTTP_PIPELINING = true;
 
     public static final String NODE_MODE = nodeMode();
@@ -188,8 +187,6 @@ public final class InternalTestCluster extends TestCluster {
 
     private final int numSharedClientNodes;
 
-    private final boolean enableRandomBenchNodes;
-
     private final SettingsSource settingsSource;
 
     private final ExecutorService executor;
@@ -201,15 +198,14 @@ public final class InternalTestCluster extends TestCluster {
 
     private ServiceDisruptionScheme activeDisruptionScheme;
 
-    public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes, boolean enableRandomBenchNodes,
+    public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes,
                                boolean enableHttpPipelining, int jvmOrdinal, String nodePrefix) {
-        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableRandomBenchNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
+        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
     }
 
     public InternalTestCluster(long clusterSeed,
                                int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes,
-                               boolean enableRandomBenchNodes, boolean enableHttpPipelining,
-                               int jvmOrdinal, String nodePrefix) {
+                                boolean enableHttpPipelining, int jvmOrdinal, String nodePrefix) {
         super(clusterSeed);
         this.clusterName = clusterName;
 
@@ -237,8 +233,6 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
         assert this.numSharedClientNodes >= 0;
-
-        this.enableRandomBenchNodes = enableRandomBenchNodes;
 
         this.nodePrefix = nodePrefix;
 
@@ -938,10 +932,6 @@ public final class InternalTestCluster extends TestCluster {
             if (nodeAndClient == null) {
                 changed = true;
                 Builder clientSettingsBuilder = ImmutableSettings.builder().put("node.client", true);
-                if (enableRandomBenchNodes && usually(random)) {
-                    //client nodes might also be bench nodes
-                    clientSettingsBuilder.put("node.bench", true);
-                }
                 nodeAndClient = buildNode(i, sharedNodesSeeds[i], clientSettingsBuilder.build(), Version.CURRENT);
                 nodeAndClient.node.start();
                 logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
@@ -1486,11 +1476,6 @@ public final class InternalTestCluster extends TestCluster {
         return dataAndMasterNodes().size();
     }
 
-    @Override
-    public int numBenchNodes() {
-        return benchNodeAndClients().size();
-    }
-
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
         clearDisruptionScheme();
         scheme.applyToCluster(this);
@@ -1573,17 +1558,6 @@ public final class InternalTestCluster extends TestCluster {
         @Override
         public boolean apply(NodeAndClient nodeAndClient) {
             return DiscoveryNode.clientNode(nodeAndClient.node.settings());
-        }
-    }
-
-    private synchronized Collection<NodeAndClient> benchNodeAndClients() {
-        return Collections2.filter(nodes.values(), new BenchNodePredicate());
-    }
-
-    private static final class BenchNodePredicate implements Predicate<NodeAndClient> {
-        @Override
-        public boolean apply(NodeAndClient nodeAndClient) {
-            return nodeAndClient.node.settings().getAsBoolean("node.bench", false);
         }
     }
 

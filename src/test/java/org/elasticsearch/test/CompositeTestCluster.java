@@ -217,11 +217,6 @@ public class CompositeTestCluster extends TestCluster {
     }
 
     @Override
-    public int numBenchNodes() {
-        return cluster.numBenchNodes();
-    }
-
-    @Override
     public InetSocketAddress[] httpAddresses() {
         return cluster.httpAddresses();
     }

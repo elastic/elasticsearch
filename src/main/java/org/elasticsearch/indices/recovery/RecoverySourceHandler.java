@@ -68,6 +68,7 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -215,6 +216,10 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
             final AtomicReference<Throwable> corruptedEngine = new AtomicReference<>();
             int fileIndex = 0;
             ThreadPoolExecutor pool;
+
+            // How many bytes we've copied since we last called RateLimiter.pause
+            final AtomicLong bytesSinceLastPause = new AtomicLong();
+
             for (final String name : response.phase1FileNames) {
                 long fileSize = response.phase1FileSizes.get(fileIndex);
 
@@ -269,9 +274,6 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                                     .withType(TransportRequestOptions.Type.RECOVERY)
                                     .withTimeout(recoverySettings.internalActionTimeout());
 
-                            // When we last consulted RateLimiter:
-                            long lastPauseCheckBytes = 0;
-
                             while (readCount < len) {
                                 if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
                                     throw new IndexShardClosedException(shard.shardId());
@@ -281,10 +283,14 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
 
                                 // Pause using the rate limiter, if desired, to throttle the recovery
                                 RateLimiter rl = recoverySettings.rateLimiter();
-                                if (rl != null && readCount - lastPauseCheckBytes > rl.getMinPauseCheckBytes()) {
-                                    long throttleTimeInNanos = rl.pause(readCount - lastPauseCheckBytes);
-                                    shard.recoveryStats().addThrottleTime(throttleTimeInNanos);
-                                    lastPauseCheckBytes = readCount;
+                                if (rl != null) {
+                                    long bytes = bytesSinceLastPause.addAndGet(toRead);
+                                    if (bytes > rl.getMinPauseCheckBytes()) {
+                                        // Time to pause
+                                        bytesSinceLastPause.addAndGet(-bytes);
+                                        long throttleTimeInNanos = rl.pause(bytes);
+                                        shard.recoveryStats().addThrottleTime(throttleTimeInNanos);
+                                    }
                                 }
                                 indexInput.readBytes(buf, 0, toRead, false);
                                 final BytesArray content = new BytesArray(buf, 0, toRead);

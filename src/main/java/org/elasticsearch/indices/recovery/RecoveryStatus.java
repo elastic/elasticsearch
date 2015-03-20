@@ -86,7 +86,6 @@ public class RecoveryStatus extends AbstractRefCounted {
         // make sure the store is not released until we are done.
         store.incRef();
         indexShard.recoveryStats().incCurrentAsTarget();
-        logger.info("--> incremented recoveries {}", indexShard.recoveryStats());
     }
 
     private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();

@@ -36,6 +36,7 @@ import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.math.MathUtils;
+import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.netty.NettyUtils;
 import org.elasticsearch.common.netty.OpenChannelsHandler;
 import org.elasticsearch.common.netty.ReleaseChannelFutureListener;
@@ -76,6 +77,7 @@ import java.nio.channels.CancelledKeyException;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -110,6 +112,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     public static final String CONNECTIONS_PER_NODE_REG = "transport.connections_per_node.reg";
     public static final String CONNECTIONS_PER_NODE_STATE = "transport.connections_per_node.state";
     public static final String CONNECTIONS_PER_NODE_PING = "transport.connections_per_node.ping";
+    public static final String PING_SCHEDULE = "transport.ping_schedule"; // the scheduled internal ping interval setting
+    public static final TimeValue DEFAULT_PING_SCHEDULE = TimeValue.timeValueMillis(-1); // the default ping schedule, defaults to disabled (-1)
     public static final String DEFAULT_PORT_RANGE = "9300-9400";
     public static final String DEFAULT_PROFILE = "default";
 
@@ -132,6 +136,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     protected final int connectionsPerNodeState;
     protected final int connectionsPerNodePing;
 
+    private final TimeValue pingSchedule;
+
     protected final BigArrays bigArrays;
     protected final ThreadPool threadPool;
     protected volatile OpenChannelsHandler serverOpenChannels;
@@ -148,6 +154,9 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     // this lock is here to make sure we close this transport and disconnect all the client nodes
     // connections while no connect operations is going on... (this might help with 100% CPU when stopping the transport?)
     private final ReadWriteLock globalLock = new ReentrantReadWriteLock();
+
+    // package visibility for tests
+    final ScheduledPing scheduledPing;
 
     @Inject
     public NettyTransport(Settings settings, ThreadPool threadPool, NetworkService networkService, BigArrays bigArrays, Version version) {
@@ -199,6 +208,12 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             receiveBufferSizePredictorFactory = new FixedReceiveBufferSizePredictorFactory((int) receivePredictorMax.bytes());
         } else {
             receiveBufferSizePredictorFactory = new AdaptiveReceiveBufferSizePredictorFactory((int) receivePredictorMin.bytes(), (int) receivePredictorMin.bytes(), (int) receivePredictorMax.bytes());
+        }
+
+        this.scheduledPing = new ScheduledPing();
+        this.pingSchedule = settings.getAsTime(PING_SCHEDULE, DEFAULT_PING_SCHEDULE);
+        if (pingSchedule.millis() > 0) {
+            threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, scheduledPing);
         }
     }
 
@@ -752,6 +767,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                         }
                     }
                     // we acquire a connection lock, so no way there is an existing connection
+                    nodeChannels.start();
                     connectedNodes.put(node, nodeChannels);
                     if (logger.isDebugEnabled()) {
                         logger.debug("connected to node [{}]", node);
@@ -1047,6 +1063,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     public static class NodeChannels {
 
+        ImmutableList<Channel> allChannels = ImmutableList.of();
         private Channel[] recovery;
         private final AtomicInteger recoveryCounter = new AtomicInteger();
         private Channel[] bulk;
@@ -1066,12 +1083,12 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             this.ping = ping;
         }
 
-        public boolean hasChannel(Channel channel) {
-            return hasChannel(channel, recovery) || hasChannel(channel, bulk) || hasChannel(channel, reg) || hasChannel(channel, state) || hasChannel(channel, ping);
+        public void start() {
+            this.allChannels = ImmutableList.<Channel>builder().add(recovery).add(bulk).add(reg).add(state).add(ping).build();
         }
 
-        private boolean hasChannel(Channel channel, Channel[] channels) {
-            for (Channel channel1 : channels) {
+        public boolean hasChannel(Channel channel) {
+            for (Channel channel1 : allChannels) {
                 if (channel.equals(channel1)) {
                     return true;
                 }
@@ -1097,18 +1114,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
         public synchronized void close() {
             List<ChannelFuture> futures = new ArrayList<>();
-            closeChannelsAndWait(recovery, futures);
-            closeChannelsAndWait(bulk, futures);
-            closeChannelsAndWait(reg, futures);
-            closeChannelsAndWait(state, futures);
-            closeChannelsAndWait(ping, futures);
-            for (ChannelFuture future : futures) {
-                future.awaitUninterruptibly();
-            }
-        }
-
-        private void closeChannelsAndWait(Channel[] channels, List<ChannelFuture> futures) {
-            for (Channel channel : channels) {
+            for (Channel channel : allChannels) {
                 try {
                     if (channel != null && channel.isOpen()) {
                         futures.add(channel.close());
@@ -1117,6 +1123,48 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                     //ignore
                 }
             }
+            for (ChannelFuture future : futures) {
+                future.awaitUninterruptibly();
+            }
+        }
+    }
+
+    class ScheduledPing implements Runnable {
+
+        final CounterMetric successfulPings = new CounterMetric();
+        final CounterMetric failedPings = new CounterMetric();
+
+        @Override
+        public void run() {
+            if (lifecycle.stoppedOrClosed()) {
+                return;
+            }
+            for (Map.Entry<DiscoveryNode, NodeChannels> entry : connectedNodes.entrySet()) {
+                DiscoveryNode node = entry.getKey();
+                NodeChannels channels = entry.getValue();
+                // we only support the ping message format since 1.6
+                if (node.version().onOrAfter(Version.V_1_6_0)) {
+                    for (Channel channel : channels.allChannels) {
+                        try {
+                            ChannelFuture future = channel.write(NettyHeader.pingHeader());
+                            future.addListener(new ChannelFutureListener() {
+                                @Override
+                                public void operationComplete(ChannelFuture future) throws Exception {
+                                    successfulPings.inc();
+                                }
+                            });
+                        } catch (Throwable t) {
+                            if (channel.isOpen()) {
+                                logger.debug("[{}] failed to send ping transport message", t, node);
+                                failedPings.inc();
+                            } else {
+                                logger.trace("[{}] failed to send ping transport message (channel closed)", t, node);
+                            }
+                        }
+                    }
+                }
+            }
+            threadPool.schedule(pingSchedule, ThreadPool.Names.GENERIC, this);
         }
     }
 }

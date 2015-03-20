@@ -171,7 +171,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
             if (indexRoutingTable == null) {
                 continue;
                 // we simply ignore indices that don't exists (make sense for operations that use it currently)
-//                throw new IndexMissingException(new Index(index));
             }
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {

@@ -440,9 +440,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             clusterName = ClusterName.readClusterName(in);
             indexUUID = in.readString();
             shardId = ShardId.readShardId(in);
-            if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
-                timeout = new TimeValue(in.readLong(), TimeUnit.MILLISECONDS);
-            }
+            timeout = new TimeValue(in.readLong(), TimeUnit.MILLISECONDS);
         }
 
         @Override
@@ -451,9 +449,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             clusterName.writeTo(out);
             out.writeString(indexUUID);
             shardId.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_1_5_0)) {
-                out.writeLong(timeout.millis());
-            }
+            out.writeLong(timeout.millis());
         }
     }
 

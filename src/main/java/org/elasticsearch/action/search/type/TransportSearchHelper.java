@@ -86,11 +86,6 @@ public abstract class TransportSearchHelper {
         return Base64.encodeBytes(bytesRef.bytes, bytesRef.offset, bytesRef.length, Base64.URL_SAFE);
     }
 
-    /*
-    Feature no. 1 implemented here
-    Nicer exceptions are provided
-
-     */
     public static ParsedScrollId parseScrollId(String scrollId) {
         CharsRefBuilder spare = new CharsRefBuilder();
         try {

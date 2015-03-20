@@ -63,10 +63,6 @@ public class FieldValueFactorFunctionParser implements ScoreFunctionParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             }
-             /*
-             Error here is thrown, as field_value_factor should not accept array params
-             Bug #2
-             */
             else if(token == XContentParser.Token.START_ARRAY) {
                 throw new QueryParsingException(parseContext.index(), NAMES[0] + " query does not accept arrays");
             }

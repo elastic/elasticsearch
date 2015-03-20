@@ -20,7 +20,6 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
@@ -249,15 +248,6 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      */
     public IndexRequestBuilder setRefresh(boolean refresh) {
         request.refresh(refresh);
-        return this;
-    }
-
-    /**
-     * Sets the consistency level. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}.
-     */
-    @Override
-    public IndexRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
-        request.consistencyLevel(consistencyLevel);
         return this;
     }
 

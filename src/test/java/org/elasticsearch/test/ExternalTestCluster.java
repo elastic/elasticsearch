@@ -63,7 +63,6 @@ public final class ExternalTestCluster extends TestCluster {
 
     private final int numDataNodes;
     private final int numMasterAndDataNodes;
-    private final int numBenchNodes;
 
     public ExternalTestCluster(TransportAddress... transportAddresses) {
         super(0);
@@ -79,7 +78,6 @@ public final class ExternalTestCluster extends TestCluster {
         httpAddresses = new InetSocketAddress[nodeInfos.getNodes().length];
         this.clusterName = nodeInfos.getClusterName().value();
         int dataNodes = 0;
-        int benchNodes = 0;
         int masterAndDataNodes = 0;
         for (int i = 0; i < nodeInfos.getNodes().length; i++) {
             NodeInfo nodeInfo = nodeInfos.getNodes()[i];
@@ -90,12 +88,8 @@ public final class ExternalTestCluster extends TestCluster {
             } else if (DiscoveryNode.masterNode(nodeInfo.getSettings())) {
                 masterAndDataNodes++;
             }
-            if (nodeInfo.getSettings().getAsBoolean("node.bench", false)) {
-                benchNodes++;
-            }
         }
         this.numDataNodes = dataNodes;
-        this.numBenchNodes = benchNodes;
         this.numMasterAndDataNodes = masterAndDataNodes;
         logger.info("Setup ExternalTestCluster [{}] made of [{}] nodes", nodeInfos.getClusterName().value(), size());
     }
@@ -123,11 +117,6 @@ public final class ExternalTestCluster extends TestCluster {
     @Override
     public int numDataAndMasterNodes() {
         return numMasterAndDataNodes;
-    }
-
-    @Override
-    public int numBenchNodes() {
-        return numBenchNodes;
     }
 
     @Override

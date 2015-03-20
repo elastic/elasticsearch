@@ -20,7 +20,6 @@
 package org.elasticsearch.test.rest.support;
 
 import com.google.common.collect.Lists;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
 import java.util.List;
 
@@ -45,9 +44,6 @@ public final class Features {
      */
     public static boolean areAllSupported(List<String> features) {
         for (String feature : features) {
-            if ("benchmark".equals(feature) && ElasticsearchIntegrationTest.cluster().numBenchNodes() > 0) {
-                continue;
-            }
             if (!SUPPORTED.contains(feature)) {
                 return false;
             }

@@ -19,6 +19,7 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
@@ -30,6 +31,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
+import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -123,7 +125,6 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         assertEquals("inactive shard state shouldn't be persisted", shardStateMetaData, new ShardStateMetaData(routing.version(), routing.primary(), shard.indexSettings.get(IndexMetaData.SETTING_UUID)));
 
 
-
         shard.updateRoutingEntry(new MutableShardRouting(shard.shardRouting, shard.shardRouting.version()+1), false);
         shardStateMetaData = ShardStateMetaData.load(logger, shard.shardId, env.shardPaths(shard.shardId));
         assertFalse("shard state persisted despite of persist=false", shardStateMetaData.equals(getShardStateMetadata(shard)));
@@ -135,6 +136,34 @@ public class IndexShardTests extends ElasticsearchSingleNodeTest {
         shardStateMetaData = ShardStateMetaData.load(logger, shard.shardId, env.shardPaths(shard.shardId));
         assertEquals(shardStateMetaData, getShardStateMetadata(shard));
         assertEquals(shardStateMetaData, new ShardStateMetaData(routing.version(), routing.primary(), shard.indexSettings.get(IndexMetaData.SETTING_UUID)));
+    }
+
+    public void testDeleteShardState() throws IOException {
+        createIndex("test");
+        ensureGreen();
+        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        NodeEnvironment env = getInstanceFromNode(NodeEnvironment.class);
+        IndexService test = indicesService.indexService("test");
+        IndexShard shard = test.shard(0);
+        try {
+            shard.deleteShardState();
+            fail("shard is active metadata delete must fail");
+        } catch (ElasticsearchIllegalStateException ex) {
+            // fine - only delete if non-active
+        }
+
+        ShardRouting routing = shard.routingEntry();
+        ShardStateMetaData shardStateMetaData = ShardStateMetaData.load(logger, shard.shardId, env.shardPaths(shard.shardId));
+        assertEquals(shardStateMetaData, getShardStateMetadata(shard));
+
+        routing = new MutableShardRouting(shard.shardId.index().getName(), shard.shardId.id(), routing.currentNodeId(), routing.primary(), ShardRoutingState.INITIALIZING, shard.shardRouting.version()+1);
+        shard.updateRoutingEntry(routing, true);
+        shard.deleteShardState();
+
+        assertNull("no shard state expected after delete on initializing", ShardStateMetaData.load(logger, shard.shardId, env.shardPaths(shard.shardId)));
+
+
+
 
     }
 

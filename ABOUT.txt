@@ -1,8 +1,0 @@
-Team Caterpie (we catch the bugs!)
-
-Project - ElasticSearch
-
-Jacob Bowers
-Corin Lobo
-Joshua Selom
-Stephen Fournier

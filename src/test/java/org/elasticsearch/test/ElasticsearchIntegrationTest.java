@@ -114,6 +114,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
+import org.elasticsearch.transport.netty.NettyTransport;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
 import org.junit.*;
@@ -473,6 +474,9 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
             // see #7210
             builder.put(RecoverySettings.INDICES_RECOVERY_COMPRESS, false);
+        }
+        if (random.nextBoolean()) {
+            builder.put(NettyTransport.PING_SCHEDULE, RandomInts.randomIntBetween(random, 100, 2000) + "ms");
         }
         return builder;
     }

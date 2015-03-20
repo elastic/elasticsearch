@@ -83,6 +83,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.util.concurrent.TimeUnit;
 
@@ -155,7 +156,9 @@ public class TransportClient extends AbstractClient {
      */
     public TransportClient(Settings pSettings, boolean loadConfigSettings) throws ElasticsearchException {
         Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(pSettings, loadConfigSettings);
-        Settings settings = settingsBuilder().put(tuple.v1())
+        Settings settings = settingsBuilder()
+                .put(NettyTransport.PING_SCHEDULE, "5s") // enable by default the transport schedule ping interval
+                .put(tuple.v1())
                 .put("network.server", false)
                 .put("node.client", true)
                 .put(CLIENT_TYPE_SETTING, CLIENT_TYPE)

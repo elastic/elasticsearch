@@ -283,12 +283,13 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
 
                                 // Pause using the rate limiter, if desired, to throttle the recovery
                                 RateLimiter rl = recoverySettings.rateLimiter();
+                                long throttleTimeInNanos = 0;
                                 if (rl != null) {
                                     long bytes = bytesSinceLastPause.addAndGet(toRead);
                                     if (bytes > rl.getMinPauseCheckBytes()) {
                                         // Time to pause
                                         bytesSinceLastPause.addAndGet(-bytes);
-                                        long throttleTimeInNanos = rl.pause(bytes);
+                                        throttleTimeInNanos = rl.pause(bytes);
                                         shard.recoveryStats().addThrottleTime(throttleTimeInNanos);
                                     }
                                 }

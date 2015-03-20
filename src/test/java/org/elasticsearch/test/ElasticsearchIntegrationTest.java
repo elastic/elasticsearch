@@ -1486,12 +1486,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         int numClientNodes() default InternalTestCluster.DEFAULT_NUM_CLIENT_NODES;
 
         /**
-         * Returns whether the ability to randomly have benchmark (client) nodes as part of the cluster needs to be enabled.
-         * Default is {@link InternalTestCluster#DEFAULT_ENABLE_RANDOM_BENCH_NODES}.
-         */
-        boolean enableRandomBenchNodes() default InternalTestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES;
-
-        /**
          * Returns the transport client ratio. By default this returns <code>-1</code> which means a random
          * ratio in the interval <code>[0..1]</code> is used.
          */
@@ -1597,11 +1591,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return annotation == null ? InternalTestCluster.DEFAULT_NUM_CLIENT_NODES : annotation.numClientNodes();
     }
 
-    private boolean enableRandomBenchNodes() {
-        ClusterScope annotation = getAnnotation(this.getClass());
-        return annotation == null ? InternalTestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES : annotation.enableRandomBenchNodes();
-    }
-
     private boolean randomDynamicTemplates() {
         ClusterScope annotation = getAnnotation(this.getClass());
         return annotation == null || annotation.randomDynamicTemplates();
@@ -1696,7 +1685,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
         return new InternalTestCluster(seed, minNumDataNodes, maxNumDataNodes,
                 clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), seed), settingsSource, getNumClientNodes(),
-                enableRandomBenchNodes(), InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, CHILD_JVM_ID, nodePrefix);
+                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, CHILD_JVM_ID, nodePrefix);
     }
 
     /**

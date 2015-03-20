@@ -102,7 +102,6 @@ public class MetaData implements Iterable<IndexMetaData> {
         registerFactory(RepositoriesMetaData.TYPE, RepositoriesMetaData.FACTORY);
         registerFactory(SnapshotMetaData.TYPE, SnapshotMetaData.FACTORY);
         registerFactory(RestoreMetaData.TYPE, RestoreMetaData.FACTORY);
-        registerFactory(BenchmarkMetaData.TYPE, BenchmarkMetaData.FACTORY);
     }
 
     /**

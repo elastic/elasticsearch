@@ -97,11 +97,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
             }
         }
         fieldInfos = new FieldInfos(filteredInfos.toArray(new FieldInfo[filteredInfos.size()]));
-        if (fullFieldNames != null) {
-            this.fullFieldNames = fullFieldNames.toArray(new String[0]);
-        } else {
-            this.fullFieldNames = null;
-        }
+        this.fullFieldNames = fullFieldNames.toArray(new String[fullFieldNames.size()]); 
     }
     
     /** returns true if this field is allowed. */
@@ -175,8 +171,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
     
     @Override
     public Fields fields() throws IOException {
-        final Fields f = super.fields();
-        return (f == null) ? null : new FieldFilterFields(f);
+        return new FieldFilterFields(super.fields());
     }    
     
     @Override
@@ -265,6 +260,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
                 // so we hide terms for fields we filter out.
                 Terms terms = super.terms(field);
                 if (terms != null) {
+                    // check for null, in case term dictionary is not a ghostbuster
                     terms = new FieldSubsetTerms(terms, fieldInfos);
                 }
                 return terms;

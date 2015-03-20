@@ -32,6 +32,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
 import org.junit.Test;
@@ -39,7 +40,9 @@ import org.junit.Test;
 import java.io.File;
 import java.io.FileFilter;
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -65,6 +68,7 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @TestLogging("index.translog:TRACE,index.gateway:TRACE")
     public void testCorruptTranslogFiles() throws Exception {
         internalCluster().startNodesAsync(1, ImmutableSettings.EMPTY).get();
 
@@ -134,14 +138,25 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
             int corruptions = randomIntBetween(5, 20);
             for (int i = 0; i < corruptions; i++) {
                 fileToCorrupt = RandomPicks.randomFrom(getRandom(), files);
-                try (RandomAccessFile raf = new RandomAccessFile(fileToCorrupt, "rw")) {
-                    raf.seek(randomIntBetween(0, (int) Math.min(Integer.MAX_VALUE, raf.length() - 1)));
-                    long filePointer = raf.getFilePointer();
-                    byte b = raf.readByte();
-                    raf.seek(filePointer);
-                    raf.writeByte(~b);
-                    raf.getFD().sync();
-                    logger.info("--> corrupting file {} --  flipping at position {} from {} to {} file: {}", fileToCorrupt.getName(), filePointer, Integer.toHexString(b), Integer.toHexString(~b), fileToCorrupt);
+                try (FileChannel raf = FileChannel.open(fileToCorrupt.toPath(), StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+                    // read
+                    raf.position(randomIntBetween(0, (int) Math.min(Integer.MAX_VALUE, raf.size() - 1)));
+                    long filePointer = raf.position();
+                    ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
+                    raf.read(bb);
+                    bb.flip();
+                    
+                    // corrupt
+                    byte oldValue = bb.get(0);
+                    byte newValue = (byte) (oldValue + 1);
+                    bb.put(0, newValue);
+                    
+                    // rewrite
+                    raf.position(filePointer);
+                    raf.write(bb);
+                    logger.info("--> corrupting file {} --  flipping at position {} from {} to {} file: {}",
+                            fileToCorrupt, filePointer, Integer.toHexString(oldValue),
+                            Integer.toHexString(newValue), fileToCorrupt);
                 }
             }
         }

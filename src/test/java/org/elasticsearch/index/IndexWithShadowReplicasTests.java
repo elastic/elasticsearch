@@ -377,7 +377,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         String IDX = "test";
 
         Settings idxSettings = ImmutableSettings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 10)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 5)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
                 .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
@@ -395,7 +395,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
         indexRandom(true, true, true, builders);
         flushAndRefresh(IDX);
 
-        // start a third node, with 10 shards each on the other nodes, they
+        // start a third node, with 5 shards each on the other nodes, they
         // should relocate some to the third node
         final String node3 = internalCluster().startNode(nodeSettings);
 
@@ -406,12 +406,12 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
                 ClusterStateResponse resp = client().admin().cluster().prepareState().get();
                 RoutingNodes nodes = resp.getState().getRoutingNodes();
                 for (RoutingNode node : nodes) {
-                    logger.info("--> node has {} shards", node.numberOfOwningShards());
-                    assertThat("at least 5 shards on node", node.numberOfOwningShards(), greaterThanOrEqualTo(5));
+                    logger.info("--> node has {} shards (needs at least 2)", node.numberOfOwningShards());
+                    assertThat("at least 2 shards on node", node.numberOfOwningShards(), greaterThanOrEqualTo(2));
                 }
             }
         });
-        ensureGreen(IDX);
+        ensureYellow(IDX);
 
         logger.info("--> performing query");
         SearchResponse resp = client().prepareSearch(IDX).setQuery(matchAllQuery()).get();

@@ -33,7 +33,7 @@ public class LocaleChecker {
     public static int JVM_PATCH_MINOR_VERSION = 0;
 
     static {
-        StringTokenizer st = new StringTokenizer(Constants.JAVA_VERSION, ".");
+        StringTokenizer st = new StringTokenizer(Constants.JVM_SPEC_VERSION, ".");
         JVM_MAJOR_VERSION = parseInt(st.nextToken());
         if(st.hasMoreTokens()) {
             JVM_MINOR_VERSION = parseInt(st.nextToken());

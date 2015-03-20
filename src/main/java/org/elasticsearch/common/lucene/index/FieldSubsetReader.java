@@ -80,7 +80,6 @@ public final class FieldSubsetReader extends FilterLeafReader {
     /** List of filtered fields (es names). this is used for _source filtering */
     private final String[] fullFieldNames;
     
-    
     /**
      * Create a new FieldSubsetReader.
      * 
@@ -228,7 +227,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
      * the ES internal _field_names (used by exists filter) has special handling, 
      * to hide terms for fields that don't exist.
      */
-    private class FieldFilterFields extends FilterFields {
+    class FieldFilterFields extends FilterFields {
         
         public FieldFilterFields(Fields in) {
             super(in);
@@ -261,7 +260,7 @@ public final class FieldSubsetReader extends FilterLeafReader {
                 Terms terms = super.terms(field);
                 if (terms != null) {
                     // check for null, in case term dictionary is not a ghostbuster
-                    terms = new FieldSubsetTerms(terms, fieldInfos);
+                    terms = new FieldNamesTerms(terms);
                 }
                 return terms;
             } else {
@@ -274,13 +273,19 @@ public final class FieldSubsetReader extends FilterLeafReader {
      * Terms impl for _field_names (used by exists filter) that filters out terms
      * representing fields that should not be visible in this reader.
      */
-    static class FieldSubsetTerms extends FilterTerms {
-        final FieldInfos infos;
+    class FieldNamesTerms extends FilterTerms {
         
-        FieldSubsetTerms(Terms in, FieldInfos infos) {
+        FieldNamesTerms(Terms in) {
             super(in);
-            this.infos = infos;
         }
+        
+        @Override
+        public TermsEnum iterator(TermsEnum reuse) throws IOException {
+            return new FieldNamesTermsEnum(in.iterator(null));
+        }
+        
+        // we don't support field statistics (since we filter out terms)
+        // but this isn't really a big deal: _field_names is not used for ranking.
 
         @Override
         public int getDocCount() throws IOException {
@@ -298,11 +303,6 @@ public final class FieldSubsetReader extends FilterLeafReader {
         }
 
         @Override
-        public TermsEnum iterator(TermsEnum reuse) throws IOException {
-            return new FieldSubsetTermsEnum(in.iterator(null), infos);
-        }
-
-        @Override
         public long size() throws IOException {
             return -1;
         }
@@ -312,18 +312,15 @@ public final class FieldSubsetReader extends FilterLeafReader {
      * TermsEnum impl for _field_names (used by exists filter) that filters out terms
      * representing fields that should not be visible in this reader.
      */
-    static class FieldSubsetTermsEnum extends FilterTermsEnum {
-        final FieldInfos infos;
+    class FieldNamesTermsEnum extends FilterTermsEnum {
         
-        FieldSubsetTermsEnum(TermsEnum in, FieldInfos infos) {
+        FieldNamesTermsEnum(TermsEnum in) {
             super(in);
-            this.infos = infos;
         }
         
-        /** Return true if term is accepted.
-         */
-        protected boolean accept(BytesRef term) throws IOException {
-            return infos.fieldInfo(term.utf8ToString()) != null;
+        /** Return true if term is accepted (matches a field name in this reader). */
+        boolean accept(BytesRef term) {
+            return hasField(term.utf8ToString());
         }
 
         @Override
@@ -341,16 +338,6 @@ public final class FieldSubsetReader extends FilterLeafReader {
         }
 
         @Override
-        public void seekExact(long ord) throws IOException {
-          throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long ord() throws IOException {
-          throw new UnsupportedOperationException();
-        }
-
-        @Override
         public BytesRef next() throws IOException {
             BytesRef next;
             while ((next = in.next()) != null) {
@@ -360,6 +347,17 @@ public final class FieldSubsetReader extends FilterLeafReader {
             }
             return next;
         }
+        
+        // we don't support ordinals, but _field_names is not used in this way
+
+        @Override
+        public void seekExact(long ord) throws IOException {
+          throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long ord() throws IOException {
+          throw new UnsupportedOperationException();
+        }
     }
-    
 }

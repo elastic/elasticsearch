@@ -226,6 +226,8 @@ protects Elasticsearch from the outside world. If users are allowed to run
 dynamic scripts (even in a search request) or indexed scripts, then they have
 the same access to your box as the user that Elasticsearch is running as. For
 this reason dynamic scripting is allowed only for sandboxed languages by default.
+The script engines that currently support sandboxing are `mustache` and
+`expressions`.
 
 First, you should not run Elasticsearch as the `root` user, as this would allow
 a script to access or do *anything* on your server, without limitations. Second,
@@ -261,7 +263,7 @@ script settings:
 |Value |Description
 | `disable` |scripting is turned off completely, in the context of the setting being set.
 | `enable`  |scripting is turned on, in the context of the setting being set.
-| `sandbox` |scripts may be executed only for languages that are sandboxed.
+| `sandbox` |scripts may be executed only for languages that are sandboxed (`mustache` and `expressions`)
 |=======================================================================
 
 The default values are the following:

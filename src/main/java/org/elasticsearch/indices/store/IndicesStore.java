@@ -359,6 +359,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                     @Override
                     public void onNewClusterState(ClusterState state) {
                         try {
+                            logger.info("test exception to see where the state is applied", new Exception("test exception"));
                             channel.sendResponse(new ShardActiveResponse(shardActive(request), clusterService.localNode()));
                         } catch (IOException e) {
                             logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", e, request.shardId, new Exception());

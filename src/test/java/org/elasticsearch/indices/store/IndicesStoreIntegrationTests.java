@@ -96,7 +96,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> move shard from node_1 to node_3, and wait for relocation to finish");
         SlowClusterStateProcessing disruption = null;
-        if (randomBoolean()) {
+        if (true) {
             disruption = new SlowClusterStateProcessing(node_3, getRandom(), 0, 0, 1000, 2000);
             internalCluster().setDisruptionScheme(disruption);
             disruption.startDisrupting();

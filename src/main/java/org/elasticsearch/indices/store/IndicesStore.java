@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -358,28 +359,25 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        try {
-                            channel.sendResponse(new ShardActiveResponse(shardActive(request), clusterService.localNode()));
-                        } catch (IOException e) {
-                            logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", e, request.shardId);
-                        }
+                        sendResultOrLogError(shardActive(request));
                     }
 
                     @Override
                     public void onClusterServiceClose() {
-                        try {
-                            channel.sendResponse(new ShardActiveResponse(false, clusterService.localNode()));
-                        } catch (IOException e) {
-                            logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", e, request.shardId);
-                        }
+                        sendResultOrLogError(false);
                     }
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        // Try one more time
+                        sendResultOrLogError(shardActive(request));
+                    }
+
+                    public void sendResultOrLogError(boolean shardActive) {
                         try {
-                            channel.sendResponse(new ShardActiveResponse(shardActive(request), clusterService.localNode()));
+                            channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
                         } catch (IOException e) {
+                            logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", e, request.shardId);
+                        } catch (EsRejectedExecutionException e) {
                             logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", e, request.shardId);
                         }
                     }

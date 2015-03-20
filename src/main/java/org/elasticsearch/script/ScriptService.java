@@ -612,7 +612,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
         @Override
         public String toString() {
-            //ScriptModes looks for 'dynamic' rather than 'inline' when reading settings, we should rename but we want to keep bw comp for now.
+            //ScriptModes looks for 'dynamic' rather than 'inline' when reading settings, that's the terminology
+            //we always used with users, although we prefer inline internally
             if (this == INLINE) {
                 return "dynamic";
             }

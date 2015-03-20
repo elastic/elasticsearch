@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexOutput;
+import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
@@ -417,6 +418,12 @@ public class RecoveryTarget extends AbstractComponent {
 
     class FileChunkTransportRequestHandler extends BaseTransportRequestHandler<RecoveryFileChunkRequest> {
 
+        // When we last consulted RateLimiter:
+        long lastPauseCheckBytes;
+        
+        // How many bytes we've copied so far:
+        long totalBytes;
+
         @Override
         public RecoveryFileChunkRequest newInstance() {
             return new RecoveryFileChunkRequest();
@@ -443,14 +450,17 @@ public class RecoveryTarget extends AbstractComponent {
                 } else {
                     indexOutput = recoveryStatus.getOpenIndexOutput(request.name());
                 }
-                if (recoverySettings.rateLimiter() != null) {
-                    long targetThrottling = recoverySettings.rateLimiter().pause(request.content().length());
-                    indexState.addTargetThrottling(targetThrottling);
-                    recoveryStatus.indexShard().recoveryStats().addThrottleTime(targetThrottling);
-                }
                 BytesReference content = request.content();
                 if (!content.hasArray()) {
                     content = content.toBytesArray();
+                }
+                totalBytes += content.length();
+                RateLimiter rl = recoverySettings.rateLimiter();
+                if (rl != null && totalBytes - lastPauseCheckBytes > rl.getMinPauseCheckBytes()) {
+                    long throttleTimeInNanos = rl.pause(totalBytes - lastPauseCheckBytes);
+                    indexState.addTargetThrottling(throttleTimeInNanos);
+                    recoveryStatus.indexShard().recoveryStats().addThrottleTime(throttleTimeInNanos);
+                    lastPauseCheckBytes = totalBytes;
                 }
                 indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
                 indexState.addRecoveredBytesToFile(request.name(), content.length());

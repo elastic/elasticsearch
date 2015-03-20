@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -268,6 +269,9 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                                     .withType(TransportRequestOptions.Type.RECOVERY)
                                     .withTimeout(recoverySettings.internalActionTimeout());
 
+                            // When we last consulted RateLimiter:
+                            long lastPauseCheckBytes = 0;
+
                             while (readCount < len) {
                                 if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
                                     throw new IndexShardClosedException(shard.shardId());
@@ -276,11 +280,12 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                                 final long position = indexInput.getFilePointer();
 
                                 // Pause using the rate limiter, if desired, to throttle the recovery
-                                long throttleTimeInNanos = 0;
-                                if (recoverySettings.rateLimiter() != null) {
-                                    throttleTimeInNanos = recoverySettings.rateLimiter().pause(toRead);
+                                RateLimiter rl = recoverySettings.rateLimiter();
+                                if (rl != null && readCount - lastPauseCheckBytes > rl.getMinPauseCheckBytes()) {
+                                    long throttleTimeInNanos = rl.pause(readCount - lastPauseCheckBytes);
+                                    shard.recoveryStats().addThrottleTime(throttleTimeInNanos);
+                                    lastPauseCheckBytes = readCount;
                                 }
-                                shard.recoveryStats().addThrottleTime(throttleTimeInNanos);
                                 indexInput.readBytes(buf, 0, toRead, false);
                                 final BytesArray content = new BytesArray(buf, 0, toRead);
                                 readCount += toRead;

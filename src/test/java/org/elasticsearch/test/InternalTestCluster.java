@@ -191,14 +191,27 @@ public final class InternalTestCluster extends TestCluster {
 
     private ServiceDisruptionScheme activeDisruptionScheme;
 
+    //constructor left for backwards compatibility, although the enableRandomBenchNodes flag doesn't have any effect
+    @SuppressWarnings("unused")
+    public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes,
+                               boolean enableRandomBenchNodes, boolean enableHttpPipelining, int jvmOrdinal, String nodePrefix) {
+        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
+    }
+
+    //constructor left for backwards compatibility, although the enableRandomBenchNodes flag doesn't have any effect
+    @SuppressWarnings("unused")
+    public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes,
+                               boolean enableRandomBenchNodes, boolean enableHttpPipelining, int jvmOrdinal, String nodePrefix) {
+        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, settingsSource, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
+    }
+
     public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes,
                                boolean enableHttpPipelining, int jvmOrdinal, String nodePrefix) {
         this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
     }
 
-    public InternalTestCluster(long clusterSeed,
-                               int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes,
-                                boolean enableHttpPipelining, int jvmOrdinal, String nodePrefix) {
+    public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource,
+                               int numClientNodes, boolean enableHttpPipelining, int jvmOrdinal, String nodePrefix) {
         super(clusterSeed);
         this.clusterName = clusterName;
 

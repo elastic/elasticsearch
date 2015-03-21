@@ -157,7 +157,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             return;
         }
         try {
-            if (handler.executor() == ThreadPool.Names.SAME) {
+            if (ThreadPool.Names.SAME.equals(handler.executor())) {
                 //noinspection unchecked
                 handler.handleResponse(response);
             } else {
@@ -184,7 +184,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             error = new RemoteTransportException(error.getMessage(), error);
         }
         final RemoteTransportException rtx = (RemoteTransportException) error;
-        if (handler.executor() == ThreadPool.Names.SAME) {
+        if (ThreadPool.Names.SAME.equals(handler.executor())) {
             try {
                 handler.handleException(rtx);
             } catch (Throwable e) {
@@ -216,7 +216,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
             final TransportRequest request = handler.newInstance();
             request.remoteAddress(new InetSocketTransportAddress((InetSocketAddress) channel.getRemoteAddress()));
             request.readFrom(buffer);
-            if (handler.executor() == ThreadPool.Names.SAME) {
+            if (ThreadPool.Names.SAME.equals(handler.executor())) {
                 //noinspection unchecked
                 handler.messageReceived(request, transportChannel);
             } else {

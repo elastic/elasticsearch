@@ -19,8 +19,6 @@
 
 package org.elasticsearch.bootstrap;
 
-import com.google.common.base.Charsets;
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.PidFile;
@@ -39,10 +37,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.Set;
@@ -194,19 +188,15 @@ public class Bootstrap {
         }
 
         String stage = "Initialization";
-        try {          
+        try {
             if (!foreground) {
                 Loggers.disableConsoleLogging();
                 System.out.close();
             }
-            
+
             // fail if using broken version
-            if (Boolean.parseBoolean(System.getProperty("elasticsearch.bypass.vm.check"))) {
-                Loggers.getLogger(Bootstrap.class).warn("bypassing jvm version check for version [{}]", Constants.JAVA_VERSION);
-            } else {
-                checkJVM();
-            }
-            
+            JVMCheck.check();
+
             bootstrap.setup(true, tuple);
 
             stage = "Startup";
@@ -284,21 +274,5 @@ public class Bootstrap {
             errorMessage.append("\n").append(ExceptionsHelper.stackTrace(e));
         }
         return errorMessage.toString();
-    }
-    
-    // Note: this list is for 1.7+ versions only, the vm vendor is always 'Oracle Corporation' here,
-    // (was different before!), even on openjdk/icedtea when configured with hotspot VM.
-    static final Set<String> brokenHotspotVersions = new HashSet<>(Arrays.asList(
-            "21.0-b17",  // 1.7.0 loop optimizer bug: https://bugs.openjdk.java.net/browse/JDK-7070134 
-            "24.0-b56",  // 1.7.0_40 register allocation bug (technically only x86/amd64): https://bugs.openjdk.java.net/browse/JDK-8024830
-            "24.45-b08", // 1.7.0_45 ''
-            "24.51-b03"  // 1.7.0_51 ''
-            
-    ));
-    
-    private static void checkJVM() {
-        if ("Oracle Corporation".equals(Constants.JVM_VENDOR) && brokenHotspotVersions.contains(Constants.JVM_VERSION)) {
-            throw new RuntimeException("Java version " + Constants.JAVA_VERSION + " has known bugs incompatible with elasticsearch. Please upgrade");
-        }
     }
 }

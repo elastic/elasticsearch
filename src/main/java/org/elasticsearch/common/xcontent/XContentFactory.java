@@ -208,14 +208,17 @@ public class XContentFactory {
      * Guesses the content type based on the provided input stream.
      */
     public static XContentType xContentType(InputStream si) throws IOException {
-        byte first = (byte) si.read();
-        if (first == -1) {
+        final int firstInt = si.read(); // this must be an int since we need to respect the method contract
+        if (firstInt == -1) {
             return null;
         }
-        byte second = (byte) si.read();
-        if (second == -1) {
-            return null;
+
+        final int secondInt = si.read(); // this must be an int since we need to respect the method contract
+        if (secondInt == -1) {
+           return null;
         }
+        final byte first = (byte) (0xff & firstInt);
+        final byte second = (byte) (0xff & secondInt);
         if (first == SmileConstants.HEADER_BYTE_1 && second == SmileConstants.HEADER_BYTE_2) {
             int third = si.read();
             if (third == SmileConstants.HEADER_BYTE_3) {

@@ -22,10 +22,12 @@ package org.elasticsearch.indices;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.common.settings.Settings;
 
 /**
  * A global component allowing to register for lifecycle of an index (create/closed) and
@@ -60,9 +62,17 @@ public interface IndicesLifecycle {
         }
 
         /**
-         * Called before the index gets created.
+         * Called on the Master node only before the index is created
          */
-        public void beforeIndexCreated(Index index) {
+        public void beforeIndexAddedToCluster(Index index, @IndexSettings Settings indexSettings) {
+
+        }
+
+        /**
+         * Called before the index gets created. Note that this is also called
+         * when the index is created on data nodes
+         */
+        public void beforeIndexCreated(Index index, @IndexSettings Settings indexSettings) {
 
         }
 
@@ -76,7 +86,7 @@ public interface IndicesLifecycle {
         /**
          * Called before the index shard gets created.
          */
-        public void beforeIndexShardCreated(ShardId shardId) {
+        public void beforeIndexShardCreated(ShardId shardId, @IndexSettings Settings indexSettings) {
 
         }
 
@@ -112,7 +122,7 @@ public interface IndicesLifecycle {
          *
          * @param index The index
          */
-        public void afterIndexClosed(Index index) {
+        public void afterIndexClosed(Index index, @IndexSettings Settings indexSettings) {
 
         }
 
@@ -121,7 +131,8 @@ public interface IndicesLifecycle {
          *
          * @param indexShard The index shard
          */
-        public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
+        public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
+                                           @IndexSettings Settings indexSettings) {
 
         }
 
@@ -130,8 +141,30 @@ public interface IndicesLifecycle {
          *
          * @param shardId The shard id
          */
-        public void afterIndexShardClosed(ShardId shardId) {
+        public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
+                                          @IndexSettings Settings indexSettings) {
 
+        }
+
+        /**
+         * Called before the index shard gets deleted from disk
+         * Note: this method is only executed on the first attempt of deleting the shard. Retries are will not invoke
+         * this method.
+         * @param shardId The shard id
+         * @param indexSettings the shards index settings
+         */
+        public void beforeIndexShardDeleted(ShardId shardId, @IndexSettings Settings indexSettings) {
+        }
+
+        /**
+         * Called after the index shard has been deleted from disk.
+         *
+         * Note: this method is only called if the deletion of the shard did finish without an exception
+         *
+         * @param shardId The shard id
+         * @param indexSettings the shards index settings
+         */
+        public void afterIndexShardDeleted(ShardId shardId, @IndexSettings Settings indexSettings) {
         }
 
         /**
@@ -144,6 +177,28 @@ public interface IndicesLifecycle {
          * @param reason the reason for the state change if there is one, null otherwise
          */
         public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState currentState, @Nullable String reason) {
+
+        }
+
+        /**
+         * Called after the index has been deleted.
+         * This listener method is invoked after {@link #afterIndexClosed(org.elasticsearch.index.Index, org.elasticsearch.common.settings.Settings)}
+         * when an index is deleted
+         *
+         * @param index The index
+         */
+        public void afterIndexDeleted(Index index, @IndexSettings Settings indexSettings) {
+
+        }
+
+        /**
+         * Called before the index gets deleted.
+         * This listener method is invoked after
+         * {@link #beforeIndexClosed(org.elasticsearch.index.IndexService)} when an index is deleted
+         *
+         * @param indexService The index service
+         */
+        public void beforeIndexDeleted(IndexService indexService) {
 
         }
     }

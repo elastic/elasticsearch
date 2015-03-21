@@ -32,7 +32,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.fs.*;
-import org.elasticsearch.index.store.ram.RamDirectoryService;
 
 import java.io.IOException;
 import java.util.Random;
@@ -85,6 +84,8 @@ public class MockDirectoryHelper {
         w.setThrottling(throttle);
         w.setCheckIndexOnClose(false); // we do this on the index level
         w.setPreventDoubleWrite(preventDoubleWrite);
+        // TODO: make this test robust to virus scanner
+        w.setEnableVirusScanner(false);
         w.setNoDeleteOpenFile(noDeleteOpenFile);
         wrappers.add(w);
         return w;
@@ -113,10 +114,6 @@ public class MockDirectoryHelper {
             default:
                 return new NioFsDirectoryService(shardId, indexSettings, indexStore);
         }
-    }
-
-    public DirectoryService randomRamDirectoryService() {
-        return new RamDirectoryService(shardId, indexSettings);
     }
 
     public static final class ElasticsearchMockDirectoryWrapper extends MockDirectoryWrapper {

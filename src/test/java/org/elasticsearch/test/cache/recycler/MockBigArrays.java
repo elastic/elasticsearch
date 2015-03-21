@@ -24,15 +24,30 @@ import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.*;
+import org.elasticsearch.common.util.BigArray;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.ByteArray;
+import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.util.FloatArray;
+import org.elasticsearch.common.util.IntArray;
+import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Random;
+import java.util.Set;
+import java.util.WeakHashMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -330,6 +345,10 @@ public class MockBigArrays extends BigArrays {
             in.fill(fromIndex, toIndex, value);
         }
 
+        @Override
+        public Collection<Accountable> getChildResources() {
+            return Collections.singleton(Accountables.namedAccountable("delegate", in));
+        }
     }
 
     private class IntArrayWrapper extends AbstractArrayWrapper implements IntArray {
@@ -370,7 +389,11 @@ public class MockBigArrays extends BigArrays {
         public void fill(long fromIndex, long toIndex, int value) {
             in.fill(fromIndex, toIndex, value);
         }
-
+        
+        @Override
+        public Collection<Accountable> getChildResources() {
+            return Collections.singleton(Accountables.namedAccountable("delegate", in));
+        }
     }
 
     private class LongArrayWrapper extends AbstractArrayWrapper implements LongArray {
@@ -410,6 +433,11 @@ public class MockBigArrays extends BigArrays {
         @Override
         public void fill(long fromIndex, long toIndex, long value) {
             in.fill(fromIndex, toIndex, value);
+        }
+        
+        @Override
+        public Collection<Accountable> getChildResources() {
+            return Collections.singleton(Accountables.namedAccountable("delegate", in));
         }
 
     }
@@ -453,6 +481,10 @@ public class MockBigArrays extends BigArrays {
             in.fill(fromIndex, toIndex, value);
         }
 
+        @Override
+        public Collection<Accountable> getChildResources() {
+            return Collections.singleton(Accountables.namedAccountable("delegate", in));
+        }
     }
 
     private class DoubleArrayWrapper extends AbstractArrayWrapper implements DoubleArray {
@@ -494,6 +526,10 @@ public class MockBigArrays extends BigArrays {
             in.fill(fromIndex, toIndex, value);
         }
 
+        @Override
+        public Collection<Accountable> getChildResources() {
+            return Collections.singleton(Accountables.namedAccountable("delegate", in));
+        }
     }
 
     private class ObjectArrayWrapper<T> extends AbstractArrayWrapper implements ObjectArray<T> {
@@ -525,6 +561,10 @@ public class MockBigArrays extends BigArrays {
             // will be cleared anyway
         }
 
+        @Override
+        public Collection<Accountable> getChildResources() {
+            return Collections.singleton(Accountables.namedAccountable("delegate", in));
+        }
     }
 
 }

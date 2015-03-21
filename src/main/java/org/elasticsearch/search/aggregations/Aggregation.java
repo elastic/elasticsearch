@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import java.util.Map;
+
 /**
  * An aggregation
  */
@@ -28,4 +30,17 @@ public interface Aggregation {
      */
     String getName();
 
+    /**
+     * Get the value of specified path in the aggregation.
+     * 
+     * @param path
+     *            the path to the property in the aggregation tree
+     * @return the value of the property
+     */
+    Object getProperty(String path);
+
+    /**
+     * Get the optional byte array metadata that was set on the aggregation
+     */
+    Map<String, Object> getMetaData();
 }

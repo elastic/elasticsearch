@@ -24,7 +24,6 @@ import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -48,9 +47,9 @@ import java.util.Set;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.ImmutableSettings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.ImmutableSettings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index. Best created with {@link org.elasticsearch.client.Requests#createIndexRequest(String)}.
@@ -131,7 +130,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * The index name to create.
      */
-    String index() {
+    public String index() {
         return index;
     }
 
@@ -143,14 +142,14 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
     /**
      * The settings to create the index with.
      */
-    Settings settings() {
+    public Settings settings() {
         return settings;
     }
 
     /**
      * The cause for this index creation.
      */
-    String cause() {
+    public String cause() {
         return cause;
     }
 
@@ -424,11 +423,11 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this;
     }
 
-    Map<String, String> mappings() {
+    public Map<String, String> mappings() {
         return this.mappings;
     }
 
-    Set<Alias> aliases() {
+    public Set<Alias> aliases() {
         return this.aliases;
     }
 
@@ -440,7 +439,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         return this;
     }
 
-    Map<String, IndexMetaData.Custom> customs() {
+    public Map<String, IndexMetaData.Custom> customs() {
         return this.customs;
     }
 
@@ -461,11 +460,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             IndexMetaData.Custom customIndexMetaData = IndexMetaData.lookupFactorySafe(type).readFrom(in);
             customs.put(type, customIndexMetaData);
         }
-        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            int aliasesSize = in.readVInt();
-            for (int i = 0; i < aliasesSize; i++) {
-                aliases.add(Alias.read(in));
-            }
+        int aliasesSize = in.readVInt();
+        for (int i = 0; i < aliasesSize; i++) {
+            aliases.add(Alias.read(in));
         }
     }
 
@@ -486,11 +483,9 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
             out.writeString(entry.getKey());
             IndexMetaData.lookupFactorySafe(entry.getKey()).writeTo(entry.getValue(), out);
         }
-        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeVInt(aliases.size());
-            for (Alias alias : aliases) {
-                alias.writeTo(out);
-            }
+        out.writeVInt(aliases.size());
+        for (Alias alias : aliases) {
+            alias.writeTo(out);
         }
     }
 }

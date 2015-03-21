@@ -20,6 +20,7 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
@@ -36,9 +37,11 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.EOFException;
-import java.io.File;
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 
 public class PagedBytesReferenceTest extends ElasticsearchTestCase {
@@ -47,12 +50,14 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
 
     private BigArrays bigarrays;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
         bigarrays = new BigArrays(ImmutableSettings.EMPTY, null, new NoneCircuitBreakerService());
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
@@ -181,8 +186,8 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         int length = randomIntBetween(10, scaledRandomIntBetween(PAGE_SIZE * 2, PAGE_SIZE * 20));
         BytesReference pbr = getRandomizedPagedBytesReference(length);
         StreamInput streamInput = pbr.streamInput();
-        BytesRef target = new BytesRef();
-        while (target.length < pbr.length()) {
+        BytesRefBuilder target = new BytesRefBuilder();
+        while (target.length() < pbr.length()) {
             switch (randomIntBetween(0, 10)) {
                 case 6:
                 case 5:
@@ -190,19 +195,20 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
                     break;
                 case 4:
                 case 3:
-                    BytesRef bytesRef = streamInput.readBytesRef(scaledRandomIntBetween(1, pbr.length() - target.length));
+                    BytesRef bytesRef = streamInput.readBytesRef(scaledRandomIntBetween(1, pbr.length() - target.length()));
                     target.append(bytesRef);
                     break;
                 default:
-                    byte[] buffer = new byte[scaledRandomIntBetween(1, pbr.length() - target.length)];
+                    byte[] buffer = new byte[scaledRandomIntBetween(1, pbr.length() - target.length())];
                     int offset = scaledRandomIntBetween(0, buffer.length - 1);
                     int read = streamInput.read(buffer, offset, buffer.length - offset);
                     target.append(new BytesRef(buffer, offset, read));
                     break;
             }
         }
-        assertEquals(pbr.length(), target.length);
-        assertArrayEquals(pbr.toBytes(), Arrays.copyOfRange(target.bytes, target.offset, target.length));
+        assertEquals(pbr.length(), target.length());
+        BytesRef targetBytes = target.get();
+        assertArrayEquals(pbr.toBytes(), Arrays.copyOfRange(targetBytes.bytes, targetBytes.offset, targetBytes.length));
     }
 
     public void testSliceStreamInput() throws IOException {
@@ -257,12 +263,12 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
     public void testWriteToChannel() throws IOException {
         int length = randomIntBetween(10, PAGE_SIZE * 4);
         BytesReference pbr = getRandomizedPagedBytesReference(length);
-        File tFile = newTempFile();
-        try (RandomAccessFile file = new RandomAccessFile(tFile, "rw")) {
-            pbr.writeTo(file.getChannel());
-            assertEquals(pbr.length(), file.length());
-            assertArrayEquals(pbr.toBytes(), Streams.copyToByteArray(tFile));
+        Path tFile = newTempFilePath();
+        try (FileChannel channel = FileChannel.open(tFile, StandardOpenOption.WRITE)) {
+            pbr.writeTo(channel);
+            assertEquals(pbr.length(), channel.position());
         }
+        assertArrayEquals(pbr.toBytes(), Files.readAllBytes(tFile));
     }
 
     public void testSliceWriteToOutputStream() throws IOException {
@@ -284,12 +290,12 @@ public class PagedBytesReferenceTest extends ElasticsearchTestCase {
         int sliceOffset = randomIntBetween(1, length / 2);
         int sliceLength = length - sliceOffset;
         BytesReference slice = pbr.slice(sliceOffset, sliceLength);
-        File tFile = newTempFile();
-        try (RandomAccessFile file = new RandomAccessFile(tFile, "rw")) {
-            slice.writeTo(file.getChannel());
-            assertEquals(slice.length(), file.length());
-            assertArrayEquals(slice.toBytes(), Streams.copyToByteArray(tFile));
+        Path tFile = newTempFilePath();
+        try (FileChannel channel = FileChannel.open(tFile, StandardOpenOption.WRITE)) {
+            slice.writeTo(channel);
+            assertEquals(slice.length(), channel.position());
         }
+        assertArrayEquals(slice.toBytes(), Files.readAllBytes(tFile));
     }
 
     public void testToBytes() {

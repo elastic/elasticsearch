@@ -18,14 +18,17 @@
  */
 package org.elasticsearch.search.aggregations.metrics.valuecount;
 
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * An internal implementation of {@link ValueCount}.
@@ -51,9 +54,10 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
 
     InternalValueCount() {} // for serialization
 
-    public InternalValueCount(String name, long value) {
-        super(name);
+    public InternalValueCount(String name, long value, @Nullable ValueFormatter formatter, Map<String, Object> metaData) {
+        super(name, metaData);
         this.value = value;
+        this.valueFormatter = formatter;
     }
 
     @Override
@@ -77,24 +81,26 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
         for (InternalAggregation aggregation : reduceContext.aggregations()) {
             valueCount += ((InternalValueCount) aggregation).value;
         }
-        return new InternalValueCount(name, valueCount);
+        return new InternalValueCount(name, valueCount, valueFormatter, getMetaData());
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         value = in.readVLong();
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeVLong(value);
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return builder.field(CommonFields.VALUE, value);
+        builder.field(CommonFields.VALUE, value);
+        if (valueFormatter != null) {
+            builder.field(CommonFields.VALUE_AS_STRING, valueFormatter.format(value));
+        }
+        return builder;
     }
 
     @Override

@@ -157,7 +157,7 @@ public class RestFilterChainTests extends ElasticsearchTestCase {
         AtomicInteger errors = new AtomicInteger();
 
         protected FakeRestChannel(RestRequest request, int responseCount) {
-            super(request);
+            super(request, randomBoolean());
             this.latch = new CountDownLatch(responseCount);
         }
 

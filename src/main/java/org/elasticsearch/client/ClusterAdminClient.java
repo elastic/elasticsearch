@@ -29,9 +29,6 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsRes
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequest;
-import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartRequestBuilder;
-import org.elasticsearch.action.admin.cluster.node.restart.NodesRestartResponse;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequest;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownRequestBuilder;
 import org.elasticsearch.action.admin.cluster.node.shutdown.NodesShutdownResponse;
@@ -47,6 +44,9 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequestBuilder;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequestBuilder;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequestBuilder;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
@@ -272,29 +272,6 @@ public interface ClusterAdminClient extends ElasticsearchClient<ClusterAdminClie
     NodesShutdownRequestBuilder prepareNodesShutdown(String... nodesIds);
 
     /**
-     * Restarts nodes in the cluster.
-     *
-     * @param request The nodes restart request
-     * @return The result future
-     * @see org.elasticsearch.client.Requests#nodesRestartRequest(String...)
-     */
-    ActionFuture<NodesRestartResponse> nodesRestart(NodesRestartRequest request);
-
-    /**
-     * Restarts nodes in the cluster.
-     *
-     * @param request  The nodes restart request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#nodesRestartRequest(String...)
-     */
-    void nodesRestart(NodesRestartRequest request, ActionListener<NodesRestartResponse> listener);
-
-    /**
-     * Restarts nodes in the cluster.
-     */
-    NodesRestartRequestBuilder prepareNodesRestart(String... nodesIds);
-
-    /**
      * Returns list of shards the given search would be executed on.
      */
     ActionFuture<ClusterSearchShardsResponse> searchShards(ClusterSearchShardsRequest request);
@@ -358,6 +335,21 @@ public interface ClusterAdminClient extends ElasticsearchClient<ClusterAdminClie
      * Gets repositories.
      */
     GetRepositoriesRequestBuilder prepareGetRepositories(String... name);
+
+    /**
+     * Verifies a repository.
+     */
+    ActionFuture<VerifyRepositoryResponse> verifyRepository(VerifyRepositoryRequest request);
+
+    /**
+     * Verifies a repository.
+     */
+    void verifyRepository(VerifyRepositoryRequest request, ActionListener<VerifyRepositoryResponse> listener);
+
+    /**
+     * Verifies a repository.
+     */
+    VerifyRepositoryRequestBuilder prepareVerifyRepository(String name);
 
     /**
      * Creates a new snapshot.

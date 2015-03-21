@@ -21,11 +21,14 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+
+import java.io.IOException;
+import java.util.Map;
 
 final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<ValuesSource> {
 
@@ -43,16 +46,16 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<V
     }
 
     @Override
-    protected Aggregator createUnmapped(AggregationContext context, Aggregator parent) {
-        return new CardinalityAggregator(name, parent == null ? 1 : parent.estimatedBucketCount(), null, true, precision(parent), context, parent);
+    protected Aggregator createUnmapped(AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        return new CardinalityAggregator(name, null, true, precision(parent), config.formatter(), context, parent, metaData);
     }
 
     @Override
-    protected Aggregator create(ValuesSource valuesSource, long expectedBucketsCount, AggregationContext context, Aggregator parent) {
+    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
         if (!(valuesSource instanceof ValuesSource.Numeric) && !rehash) {
             throw new AggregationExecutionException("Turning off rehashing for cardinality aggregation [" + name + "] on non-numeric values in not allowed");
         }
-        return new CardinalityAggregator(name, parent == null ? 1 : parent.estimatedBucketCount(), valuesSource, rehash, precision(parent), context, parent);
+        return new CardinalityAggregator(name, valuesSource, rehash, precision(parent), config.formatter(), context, parent, metaData);
     }
 
     /*
@@ -60,11 +63,11 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory<V
      * because otherwise it might be memory-intensive. On the other hand, for top-level aggregators
      * we try to focus on accuracy.
      */
-    private int defaultPrecision(Aggregator parent) {
+    private static int defaultPrecision(Aggregator parent) {
         int precision = HyperLogLogPlusPlus.DEFAULT_PRECISION;
         while (parent != null) {
-            if (parent.bucketAggregationMode() == BucketAggregationMode.PER_BUCKET) {
-                // if the parent is a per-bucket aggregator, we substract 5 to the precision,
+            if (parent instanceof SingleBucketAggregator == false) {
+                // if the parent creates buckets, we substract 5 to the precision,
                 // which will effectively divide the memory usage of each counter by 32
                 precision -= 5;
             }

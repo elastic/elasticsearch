@@ -41,6 +41,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Random;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
 
@@ -56,6 +57,7 @@ public class CompositeTestCluster extends TestCluster {
     private static final String NODE_PREFIX = "external_";
 
     public CompositeTestCluster(InternalTestCluster cluster, int numExternalNodes, ExternalNode externalNode) throws IOException {
+        super(cluster.seed());
         this.cluster = cluster;
         this.externalNodes = new ExternalNode[numExternalNodes];
         for (int i = 0; i < externalNodes.length; i++) {
@@ -147,6 +149,7 @@ public class CompositeTestCluster extends TestCluster {
             externalNode.stop();
             String s = cluster.startNode(nodeSettings);
             ExternalNode.waitForNode(existingClient, s);
+            assertNoTimeout(existingClient.admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(size())).get());
             return true;
         }
         return false;
@@ -209,6 +212,11 @@ public class CompositeTestCluster extends TestCluster {
     }
 
     @Override
+    public int numDataAndMasterNodes() {
+        return runningNodes().size() + cluster.numDataAndMasterNodes();
+    }
+
+    @Override
     public int numBenchNodes() {
         return cluster.numBenchNodes();
     }
@@ -234,17 +242,12 @@ public class CompositeTestCluster extends TestCluster {
                     .clear().setBreaker(true).execute().actionGet();
             for (NodeStats stats : nodeStats.getNodes()) {
                 assertThat("Fielddata breaker not reset to 0 on node: " + stats.getNode(),
-                        stats.getBreaker().getStats(CircuitBreaker.Name.FIELDDATA).getEstimated(), equalTo(0L));
+                        stats.getBreaker().getStats(CircuitBreaker.FIELDDATA).getEstimated(), equalTo(0L));
             }
             // CompositeTestCluster does not check the request breaker,
             // because checking it requires a network request, which in
             // turn increments the breaker, making it non-0
         }
-    }
-
-    @Override
-    public boolean hasFilterCache() {
-        return true;
     }
 
     @Override

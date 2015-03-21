@@ -1,7 +1,7 @@
 [[search-aggregations-bucket-daterange-aggregation]]
 === Date Range Aggregation
 
-A range aggregation that is dedicated for date values. The main difference between this aggregation and the normal <<search-aggregations-bucket-range-aggregation,range>> aggregation is that the `from` and `to` values can be expressed in Date Math expressions, and it is also possible to specify a date format by which the `from` and `to` response fields will be returned.
+A range aggregation that is dedicated for date values. The main difference between this aggregation and the normal <<search-aggregations-bucket-range-aggregation,range>> aggregation is that the `from` and `to` values can be expressed in <<date-math,Date Math>> expressions, and it is also possible to specify a date format by which the `from` and `to` response fields will be returned.
 Note that this aggregration includes the `from` value and excludes the `to` value for each range.
 
 Example:
@@ -15,14 +15,16 @@ Example:
                 "field": "date",
                 "format": "MM-yyy",
                 "ranges": [
-                    { "to": "now-10M/M" },
-                    { "from": "now-10M/M" }
+                    { "to": "now-10M/M" }, <1>
+                    { "from": "now-10M/M" } <2>
                 ]
             }
         }
     }
 }
 --------------------------------------------------
+<1> < now minus 10 months, rounded down to the start of the month.
+<2> >= now minus 10 months, rounded down to the start of the month.
 
 In the example above, we created two range buckets, the first will "bucket" all documents dated prior to 10 months ago and
 the second will "bucket" all documents dated since 10 months ago

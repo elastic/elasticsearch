@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -52,10 +53,19 @@ public class ZenUnicastDiscoveryTests extends ElasticsearchIntegrationTest {
     @Test
     public void testNormalClusterForming() throws ExecutionException, InterruptedException {
         int currentNumNodes = randomIntBetween(3, 5);
-        int currentNumOfUnicastHosts = randomIntBetween(1, currentNumNodes);
-        discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(currentNumNodes, currentNumOfUnicastHosts);
 
-        internalCluster().startNodesAsync(currentNumNodes).get();
+        // use explicit unicast hosts so we can start those first
+        int[] unicastHostOrdinals = new int[randomIntBetween(1, currentNumNodes)];
+        for (int i = 0; i < unicastHostOrdinals.length; i++) {
+            unicastHostOrdinals[i] = i;
+        }
+        discoveryConfig = new ClusterDiscoveryConfiguration.UnicastZen(currentNumNodes, unicastHostOrdinals);
+
+        // start the unicast hosts
+        internalCluster().startNodesAsync(unicastHostOrdinals.length).get();
+
+        // start the rest of the cluster
+        internalCluster().startNodesAsync(currentNumNodes - unicastHostOrdinals.length).get();
 
         if (client().admin().cluster().prepareHealth().setWaitForNodes("" + currentNumNodes).get().isTimedOut()) {
             logger.info("cluster forming timed out, cluster state:\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint());

@@ -21,6 +21,7 @@ package org.elasticsearch.action.deletebyquery;
 
 import com.google.common.base.Charsets;
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequest;
@@ -72,6 +73,14 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
     public DeleteByQueryRequest() {
     }
 
+    /**
+     * Copy constructor that creates a new delete by query request that is a copy of the one provided as an argument.
+     * The new request will inherit though headers and context from the original request that caused it.
+     */
+    public DeleteByQueryRequest(ActionRequest originalRequest) {
+        super(originalRequest);
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
@@ -84,7 +93,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
     /**
      * The source to execute.
      */
-    BytesReference source() {
+    public BytesReference source() {
         if (sourceUnsafe) {
             source = source.copyBytesArray();
         }
@@ -113,6 +122,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
     /**
      * The source to execute in the form of a map.
      */
+    @SuppressWarnings("unchecked")
     public DeleteByQueryRequest source(Map source) {
         try {
             XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
@@ -154,7 +164,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
     /**
      * The types of documents the query will run against. Defaults to all types.
      */
-    String[] types() {
+    public String[] types() {
         return this.types;
     }
 
@@ -189,6 +199,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
         return this;
     }
 
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         sourceUnsafe = false;
@@ -197,6 +208,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
         types = in.readStringArray();
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBytesReference(source);

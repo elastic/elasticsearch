@@ -33,17 +33,23 @@ import java.io.IOException;
 /**
  *
  */
-public class IndicesReplicationOperationRequest<T extends IndicesReplicationOperationRequest> extends ActionRequest<T> implements IndicesRequest {
+public abstract class IndicesReplicationOperationRequest<T extends IndicesReplicationOperationRequest> extends ActionRequest<T> implements IndicesRequest.Replaceable {
 
     protected TimeValue timeout = ShardReplicationOperationRequest.DEFAULT_TIMEOUT;
     protected String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
 
-    protected ReplicationType replicationType = ReplicationType.DEFAULT;
     protected WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
     public TimeValue timeout() {
         return timeout;
+    }
+
+    protected IndicesReplicationOperationRequest() {
+    }
+
+    protected IndicesReplicationOperationRequest(ActionRequest actionRequest) {
+        super(actionRequest);
     }
 
     /**
@@ -74,6 +80,7 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
         return indicesOptions;
     }
 
+    @SuppressWarnings("unchecked")
     public T indicesOptions(IndicesOptions indicesOptions) {
         if (indicesOptions == null) {
             throw new IllegalArgumentException("IndicesOptions must not be null");
@@ -86,32 +93,10 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
      * The indices the request will execute against.
      */
     @SuppressWarnings("unchecked")
+    @Override
     public final T indices(String[] indices) {
         this.indices = indices;
         return (T) this;
-    }
-
-    public ReplicationType replicationType() {
-        return this.replicationType;
-    }
-
-    /**
-     * Sets the replication type.
-     */
-    @SuppressWarnings("unchecked")
-    public final T replicationType(ReplicationType replicationType) {
-        if (replicationType == null) {
-            throw new IllegalArgumentException("ReplicationType must not be null");
-        }
-        this.replicationType = replicationType;
-        return (T) this;
-    }
-
-    /**
-     * Sets the replication type.
-     */
-    public final T replicationType(String replicationType) {
-        return replicationType(ReplicationType.fromString(replicationType));
     }
 
     public WriteConsistencyLevel consistencyLevel() {
@@ -138,7 +123,6 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         indices = in.readStringArray();
@@ -148,7 +132,6 @@ public class IndicesReplicationOperationRequest<T extends IndicesReplicationOper
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeStringArrayNullable(indices);

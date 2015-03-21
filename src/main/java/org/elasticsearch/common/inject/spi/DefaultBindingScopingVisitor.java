@@ -38,18 +38,22 @@ public class DefaultBindingScopingVisitor<V> implements BindingScopingVisitor<V>
         return null;
     }
 
+    @Override
     public V visitEagerSingleton() {
         return visitOther();
     }
 
+    @Override
     public V visitScope(Scope scope) {
         return visitOther();
     }
 
+    @Override
     public V visitScopeAnnotation(Class<? extends Annotation> scopeAnnotation) {
         return visitOther();
     }
 
+    @Override
     public V visitNoScoping() {
         return visitOther();
     }

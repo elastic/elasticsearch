@@ -60,12 +60,12 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         this.side = Lucene43EdgeNGramTokenizer.Side.getSide(settings.get("side", Lucene43EdgeNGramTokenizer.DEFAULT_SIDE.getLabel()));
         this.matcher = parseTokenChars(settings.getAsArray("token_chars"));
-        this.esVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT);
+        this.esVersion = org.elasticsearch.Version.indexCreated(indexSettings);
     }
 
     @Override
-    public Tokenizer create(Reader reader) {
-        if (version.onOrAfter(Version.LUCENE_43) && esVersion.onOrAfter(org.elasticsearch.Version.V_0_90_2)) {
+    public Tokenizer create() {
+        if (version.onOrAfter(Version.LUCENE_4_3) && esVersion.onOrAfter(org.elasticsearch.Version.V_0_90_2)) {
             /*
              * We added this in 0.90.2 but 0.90.1 used LUCENE_43 already so we can not rely on the lucene version.
              * Yet if somebody uses 0.90.2 or higher with a prev. lucene version we should also use the deprecated version.
@@ -76,11 +76,11 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
                         + " To obtain the same behavior as the previous version please use \"edgeNGram\" filter which still supports side=back" 
                         + " in combination with a \"keyword\" tokenizer");
             }
-            final Version version = this.version == Version.LUCENE_43 ? Version.LUCENE_44 : this.version; // always use 4.4 or higher
+            final Version version = this.version == Version.LUCENE_4_3 ? Version.LUCENE_4_4 : this.version; // always use 4.4 or higher
             if (matcher == null) {
-                return new EdgeNGramTokenizer(version, reader, minGram, maxGram);
+                return new EdgeNGramTokenizer(minGram, maxGram);
             } else {
-                return new EdgeNGramTokenizer(version, reader, minGram, maxGram) {
+                return new EdgeNGramTokenizer(minGram, maxGram) {
                     @Override
                     protected boolean isTokenChar(int chr) {
                         return matcher.isTokenChar(chr);
@@ -88,7 +88,7 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
                 };
             }
         } else {
-            return new Lucene43EdgeNGramTokenizer(version, reader, side, minGram, maxGram);
+            return new Lucene43EdgeNGramTokenizer(side, minGram, maxGram);
         }
     }
 }

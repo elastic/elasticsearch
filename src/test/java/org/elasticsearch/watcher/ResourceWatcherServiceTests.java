@@ -25,6 +25,8 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
 
+import java.util.concurrent.TimeUnit;
+
 import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.*;
 
@@ -63,7 +65,9 @@ public class ResourceWatcherServiceTests extends ElasticsearchTestCase {
         assertThat(service.highMonitor.interval.millis(), is(timeValueSeconds(10).millis()));
         assertThat(service.mediumMonitor.interval.millis(), is(timeValueSeconds(20).millis()));
         assertThat(service.lowMonitor.interval.millis(), is(timeValueSeconds(30).millis()));
+        terminate(threadPool);
     }
+
 
     @Test
     public void testHandle() throws Exception {
@@ -104,5 +108,6 @@ public class ResourceWatcherServiceTests extends ElasticsearchTestCase {
         assertThat(service.highMonitor.watchers.size(), is(0));
         handle.resume();
         assertThat(service.highMonitor.watchers.size(), is(1));
+        terminate(threadPool);
     }
 }

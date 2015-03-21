@@ -21,12 +21,27 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterHealthTests extends ElasticsearchIntegrationTest {
+
+
+    @Test
+    public void simpleLocalHealthTest() {
+        createIndex("test");
+        ensureGreen(); // master should thing it's green now.
+
+        for (String node : internalCluster().getNodeNames()) {
+            // a very high time out, which should never fire due to the local flag
+            ClusterHealthResponse health = client(node).admin().cluster().prepareHealth().setLocal(true).setWaitForEvents(Priority.LANGUID).setTimeout("30s").get("10s");
+            assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+            assertThat(health.isTimedOut(), equalTo(false));
+        }
+    }
 
     @Test
     public void testHealth() {

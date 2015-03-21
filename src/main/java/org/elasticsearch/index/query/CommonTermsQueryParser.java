@@ -27,8 +27,7 @@ import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,8 +35,6 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
 
 /**
  *
@@ -211,11 +208,11 @@ public class CommonTermsQueryParser implements QueryParser {
         try (TokenStream source = analyzer.tokenStream(field, queryString.toString())) {
             source.reset();
             CharTermAttribute termAtt = source.addAttribute(CharTermAttribute.class);
+            BytesRefBuilder builder = new BytesRefBuilder();
             while (source.incrementToken()) {
-                BytesRef ref = new BytesRef(termAtt.length() * 4); // oversize for
                 // UTF-8
-                UnicodeUtil.UTF16toUTF8(termAtt.buffer(), 0, termAtt.length(), ref);
-                query.add(new Term(field, ref));
+                builder.copyChars(termAtt);
+                query.add(new Term(field, builder.toBytesRef()));
                 count++;
             }
         }
@@ -225,6 +222,6 @@ public class CommonTermsQueryParser implements QueryParser {
         }
         query.setLowFreqMinimumNumberShouldMatch(lowFreqMinimumShouldMatch);
         query.setHighFreqMinimumNumberShouldMatch(highFreqMinimumShouldMatch);
-        return wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
+        return query;
     }
 }

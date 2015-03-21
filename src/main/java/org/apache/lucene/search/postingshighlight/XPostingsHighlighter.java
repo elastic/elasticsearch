@@ -61,7 +61,14 @@ public class XPostingsHighlighter {
     // unnecessary.
 
     /** for rewriting: we don't want slow processing from MTQs */
-    private static final IndexReader EMPTY_INDEXREADER = new MultiReader();
+    private static final IndexReader EMPTY_INDEXREADER;
+    static {
+      try {
+        EMPTY_INDEXREADER = new MultiReader();
+      } catch (IOException bogus) {
+        throw new RuntimeException(bogus);
+      }
+    }
 
     /** Default maximum content size to process. Typically snippets
      *  closer to the beginning of the document better summarize its content */
@@ -289,7 +296,7 @@ public class XPostingsHighlighter {
         query.extractTerms(queryTerms);
 
         IndexReaderContext readerContext = reader.getContext();
-        List<AtomicReaderContext> leaves = readerContext.leaves();
+        List<LeafReaderContext> leaves = readerContext.leaves();
 
         // Make our own copies because we sort in-place:
         int[] docids = new int[docidsIn.length];
@@ -384,14 +391,14 @@ public class XPostingsHighlighter {
     }
 
     //BEGIN EDIT: made protected so that we can call from our subclass and pass in the terms by ourselves
-    protected Map<Integer,Object> highlightField(String field, String contents[], BreakIterator bi, BytesRef terms[], int[] docids, List<AtomicReaderContext> leaves, int maxPassages) throws IOException {
-    //private Map<Integer,Object> highlightField(String field, String contents[], BreakIterator bi, BytesRef terms[], int[] docids, List<AtomicReaderContext > leaves, int maxPassages) throws IOException {
+    protected Map<Integer,Object> highlightField(String field, String contents[], BreakIterator bi, BytesRef terms[], int[] docids, List<LeafReaderContext> leaves, int maxPassages) throws IOException {
+    //private Map<Integer,Object> highlightField(String field, String contents[], BreakIterator bi, BytesRef terms[], int[] docids, List<LeafReaderContext > leaves, int maxPassages) throws IOException {
     //END EDIT
 
         Map<Integer,Object> highlights = new HashMap<>();
 
         // reuse in the real sense... for docs in same segment we just advance our old enum
-        DocsAndPositionsEnum postings[] = null;
+        PostingsEnum postings[] = null;
         TermsEnum termsEnum = null;
         int lastLeaf = -1;
 
@@ -408,15 +415,15 @@ public class XPostingsHighlighter {
             bi.setText(content);
             int doc = docids[i];
             int leaf = ReaderUtil.subIndex(doc, leaves);
-            AtomicReaderContext subContext = leaves.get(leaf);
-            AtomicReader r = subContext.reader();
+            LeafReaderContext subContext = leaves.get(leaf);
+            LeafReader r = subContext.reader();
             Terms t = r.terms(field);
             if (t == null) {
                 continue; // nothing to do
             }
             if (leaf != lastLeaf) {
                 termsEnum = t.iterator(null);
-                postings = new DocsAndPositionsEnum[terms.length];
+                postings = new PostingsEnum[terms.length];
             }
             Passage passages[] = highlightDoc(field, terms, content.length(), bi, doc - subContext.docBase, termsEnum, postings, maxPassages);
             if (passages.length == 0) {
@@ -437,7 +444,7 @@ public class XPostingsHighlighter {
     // we can intersect these with the postings lists via BreakIterator.preceding(offset),s
     // score each sentence as norm(sentenceStartOffset) * sum(weight * tf(freq))
     private Passage[] highlightDoc(String field, BytesRef terms[], int contentLength, BreakIterator bi, int doc,
-                                   TermsEnum termsEnum, DocsAndPositionsEnum[] postings, int n) throws IOException {
+                                   TermsEnum termsEnum, PostingsEnum[] postings, int n) throws IOException {
 
         //BEGIN EDIT added call to method that returns the offset for the current value (discrete highlighting)
         int valueOffset = getOffsetForCurrentValue(field, doc);
@@ -462,7 +469,7 @@ public class XPostingsHighlighter {
         float weights[] = new float[terms.length];
         // initialize postings
         for (int i = 0; i < terms.length; i++) {
-            DocsAndPositionsEnum de = postings[i];
+            PostingsEnum de = postings[i];
             int pDoc;
             if (de == EMPTY) {
                 continue;
@@ -471,7 +478,7 @@ public class XPostingsHighlighter {
                 if (!termsEnum.seekExact(terms[i])) {
                     continue; // term not found
                 }
-                de = postings[i] = termsEnum.docsAndPositions(null, null, DocsAndPositionsEnum.FLAG_OFFSETS);
+                de = postings[i] = termsEnum.postings(null, null, PostingsEnum.OFFSETS);
                 if (de == null) {
                     // no positions available
                     throw new IllegalArgumentException("field '" + field + "' was indexed without offsets, cannot highlight");
@@ -512,7 +519,7 @@ public class XPostingsHighlighter {
 
         OffsetsEnum off;
         while ((off = pq.poll()) != null) {
-            final DocsAndPositionsEnum dp = off.dp;
+            final PostingsEnum dp = off.dp;
 
             int start = dp.startOffset();
             if (start == -1) {
@@ -651,11 +658,11 @@ public class XPostingsHighlighter {
     }
 
     private static class OffsetsEnum implements Comparable<OffsetsEnum> {
-        DocsAndPositionsEnum dp;
+        PostingsEnum dp;
         int pos;
         int id;
 
-        OffsetsEnum(DocsAndPositionsEnum dp, int id) throws IOException {
+        OffsetsEnum(PostingsEnum dp, int id) throws IOException {
             this.dp = dp;
             this.id = id;
             this.pos = 1;
@@ -677,7 +684,7 @@ public class XPostingsHighlighter {
         }
     }
 
-    private static final DocsAndPositionsEnum EMPTY = new DocsAndPositionsEnum() {
+    private static final PostingsEnum EMPTY = new PostingsEnum() {
 
         @Override
         public int nextPosition() throws IOException { return 0; }

@@ -91,6 +91,7 @@ public class InternalTransportClientTests extends ElasticsearchTestCase {
             transport.endConnectMode();
         }
 
+        @Override
         public void close() {
             threadPool.shutdown();
             try {

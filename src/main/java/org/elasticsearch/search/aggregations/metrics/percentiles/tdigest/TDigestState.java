@@ -36,6 +36,7 @@ public class TDigestState extends AVLTreeDigest {
         this.compression = compression;
     }
 
+    @Override
     public double compression() {
         return compression;
     }

@@ -27,14 +27,13 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.aggregations.AggregationModule;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificantTermsHeuristicModule;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsFetchSubPhase;
 import org.elasticsearch.search.fetch.matchedqueries.MatchedQueriesFetchSubPhase;
-import org.elasticsearch.search.fetch.partial.PartialFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceSubPhase;
 import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
@@ -50,7 +49,7 @@ public class SearchModule extends AbstractModule implements SpawnModules {
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(new TransportSearchModule(), new HighlightModule(), new SuggestModule(), new FunctionScoreModule(), new AggregationModule(), new SignificantTermsHeuristicModule());
+        return ImmutableList.of(new TransportSearchModule(), new HighlightModule(), new SuggestModule(), new FunctionScoreModule(), new AggregationModule());
     }
 
     @Override
@@ -64,11 +63,11 @@ public class SearchModule extends AbstractModule implements SpawnModules {
         bind(ExplainFetchSubPhase.class).asEagerSingleton();
         bind(FieldDataFieldsFetchSubPhase.class).asEagerSingleton();
         bind(ScriptFieldsFetchSubPhase.class).asEagerSingleton();
-        bind(PartialFieldsFetchSubPhase.class).asEagerSingleton();
         bind(FetchSourceSubPhase.class).asEagerSingleton();
         bind(VersionFetchSubPhase.class).asEagerSingleton();
         bind(MatchedQueriesFetchSubPhase.class).asEagerSingleton();
         bind(HighlightPhase.class).asEagerSingleton();
+        bind(InnerHitsFetchSubPhase.class).asEagerSingleton();
 
         bind(SearchServiceTransportAction.class).asEagerSingleton();
         bind(MoreLikeThisFetchService.class).asEagerSingleton();

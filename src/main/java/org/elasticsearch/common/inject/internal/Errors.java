@@ -35,7 +35,7 @@ import java.util.*;
 
 /**
  * A collection of error messages. If this type is passed as a method parameter, the method is
- * considered to have executed succesfully only if new errors were not added to this collection.
+ * considered to have executed successfully only if new errors were not added to this collection.
  * <p/>
  * <p>Errors can be chained to provide additional context. To add context, call {@link #withSource}
  * to create a new Errors instance that contains additional context. All messages added to the
@@ -441,6 +441,7 @@ public final class Errors implements Serializable {
 
         List<Message> result = Lists.newArrayList(root.errors);
         CollectionUtil.timSort(result, new Comparator<Message>() {
+            @Override
             public int compare(Message a, Message b) {
                 return a.getSource().compareTo(b.getSource());
             }
@@ -554,16 +555,19 @@ public final class Errors implements Serializable {
 
     private static final Collection<Converter<?>> converters = ImmutableList.of(
             new Converter<Class>(Class.class) {
+                @Override
                 public String toString(Class c) {
                     return c.getName();
                 }
             },
             new Converter<Member>(Member.class) {
+                @Override
                 public String toString(Member member) {
                     return MoreTypes.toString(member);
                 }
             },
             new Converter<Key>(Key.class) {
+                @Override
                 public String toString(Key key) {
                     if (key.getAnnotationType() != null) {
                         return key.getTypeLiteral() + " annotated with "

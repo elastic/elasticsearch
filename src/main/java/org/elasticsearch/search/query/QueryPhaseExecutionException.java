@@ -30,4 +30,8 @@ public class QueryPhaseExecutionException extends SearchContextException {
     public QueryPhaseExecutionException(SearchContext context, String msg, Throwable cause) {
         super(context, "Query Failed [" + msg + "]", cause);
     }
+
+    public QueryPhaseExecutionException(SearchContext context, String msg) {
+        super(context, msg);
+    }
 }

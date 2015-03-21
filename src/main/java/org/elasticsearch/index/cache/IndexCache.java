@@ -19,41 +19,41 @@
 
 package org.elasticsearch.index.cache;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.component.CloseableComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.cache.docset.DocSetCache;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.cache.query.parser.QueryParserCache;
 import org.elasticsearch.index.settings.IndexSettings;
+
+import java.io.Closeable;
+import java.io.IOException;
 
 /**
  *
  */
-public class IndexCache extends AbstractIndexComponent implements CloseableComponent, ClusterStateListener {
+public class IndexCache extends AbstractIndexComponent implements Closeable, ClusterStateListener {
 
     private final FilterCache filterCache;
     private final QueryParserCache queryParserCache;
-    private final DocSetCache docSetCache;
-    private final FixedBitSetFilterCache fixedBitSetFilterCache;
+    private final BitsetFilterCache bitsetFilterCache;
 
     private ClusterService clusterService;
 
     @Inject
-    public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, QueryParserCache queryParserCache, DocSetCache docSetCache, FixedBitSetFilterCache fixedBitSetFilterCache) {
+    public IndexCache(Index index, @IndexSettings Settings indexSettings, FilterCache filterCache, QueryParserCache queryParserCache, BitsetFilterCache bitsetFilterCache) {
         super(index, indexSettings);
         this.filterCache = filterCache;
         this.queryParserCache = queryParserCache;
-        this.docSetCache = docSetCache;
-        this.fixedBitSetFilterCache = fixedBitSetFilterCache;
+        this.bitsetFilterCache = bitsetFilterCache;
     }
 
     @Inject(optional = true)
@@ -68,8 +68,11 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
         return filterCache;
     }
 
-    public DocSetCache docSet() {
-        return this.docSetCache;
+    /**
+     * Return the {@link BitsetFilterCache} for this index.
+     */
+    public BitsetFilterCache bitsetFilterCache() {
+        return bitsetFilterCache;
     }
 
     public QueryParserCache queryParserCache() {
@@ -77,11 +80,8 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
     }
 
     @Override
-    public void close() throws ElasticsearchException {
-        filterCache.close();
-        queryParserCache.close();
-        docSetCache.clear("close");
-        fixedBitSetFilterCache.close();
+    public void close() throws IOException {
+        IOUtils.close(filterCache, queryParserCache, bitsetFilterCache);
         if (clusterService != null) {
             clusterService.remove(this);
         }
@@ -90,8 +90,7 @@ public class IndexCache extends AbstractIndexComponent implements CloseableCompo
     public void clear(String reason) {
         filterCache.clear(reason);
         queryParserCache.clear();
-        docSetCache.clear(reason);
-        fixedBitSetFilterCache.clear(reason);
+        bitsetFilterCache.clear(reason);
     }
 
     @Override

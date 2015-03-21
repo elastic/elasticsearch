@@ -41,8 +41,9 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
+import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
@@ -74,7 +75,7 @@ public class UpdateHelper extends AbstractComponent {
     public Result prepare(UpdateRequest request, IndexShard indexShard) {
         long getDate = System.currentTimeMillis();
         final GetResult getResult = indexShard.getService().get(request.type(), request.id(),
-                new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME},
+                new String[]{RoutingFieldMapper.NAME, ParentFieldMapper.NAME, TTLFieldMapper.NAME, TimestampFieldMapper.NAME},
                 true, request.version(), request.versionType(), FetchSourceContext.FETCH_SOURCE, false);
 
         if (!getResult.isExists()) {
@@ -125,7 +126,7 @@ public class UpdateHelper extends AbstractComponent {
                     .routing(request.routing())
                     .ttl(ttl)
                     .refresh(request.refresh())
-                    .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
+                    .consistencyLevel(request.consistencyLevel());
             indexRequest.operationThreaded(false);
             if (request.versionType() != VersionType.INTERNAL) {
                 // in all but the internal versioning mode, we want to create the new document using the given version.
@@ -148,7 +149,7 @@ public class UpdateHelper extends AbstractComponent {
 
         Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         String operation = null;
-        String timestamp;
+        String timestamp = null;
         Long ttl = null;
         final Map<String, Object> updatedSourceAsMap;
         final XContentType updateSourceContentType = sourceAndContent.v1();
@@ -176,7 +177,17 @@ public class UpdateHelper extends AbstractComponent {
                 operation = "none";
             }
         } else {
-            Map<String, Object> ctx = new HashMap<>(2);
+            Map<String, Object> ctx = new HashMap<>(16);
+            Long originalTtl = getResult.getFields().containsKey(TTLFieldMapper.NAME) ? (Long) getResult.field(TTLFieldMapper.NAME).getValue() : null;
+            Long originalTimestamp = getResult.getFields().containsKey(TimestampFieldMapper.NAME) ? (Long) getResult.field(TimestampFieldMapper.NAME).getValue() : null;
+            ctx.put("_index", getResult.getIndex());
+            ctx.put("_type", getResult.getType());
+            ctx.put("_id", getResult.getId());
+            ctx.put("_version", getResult.getVersion());
+            ctx.put("_routing", routing);
+            ctx.put("_parent", parent);
+            ctx.put("_timestamp", originalTimestamp);
+            ctx.put("_ttl", originalTtl);
             ctx.put("_source", sourceAndContent.v2());
 
             try {
@@ -190,7 +201,14 @@ public class UpdateHelper extends AbstractComponent {
             }
 
             operation = (String) ctx.get("op");
-            timestamp = (String) ctx.get("_timestamp");
+
+            Object fetchedTimestamp = ctx.get("_timestamp");
+            if (fetchedTimestamp != null) {
+                timestamp = fetchedTimestamp.toString();
+            } else if (originalTimestamp != null) {
+                // No timestamp has been given in the update script, so we keep the previous timestamp if there is one
+                timestamp = originalTimestamp.toString();
+            }
 
             ttl = getTTLFromScriptContext(ctx);
             
@@ -210,7 +228,7 @@ public class UpdateHelper extends AbstractComponent {
             final IndexRequest indexRequest = Requests.indexRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .source(updatedSourceAsMap, updateSourceContentType)
                     .version(updateVersion).versionType(request.versionType())
-                    .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel())
+                    .consistencyLevel(request.consistencyLevel())
                     .timestamp(timestamp).ttl(ttl)
                     .refresh(request.refresh());
             indexRequest.operationThreaded(false);
@@ -218,7 +236,7 @@ public class UpdateHelper extends AbstractComponent {
         } else if ("delete".equals(operation)) {
             DeleteRequest deleteRequest = Requests.deleteRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .version(updateVersion).versionType(request.versionType())
-                    .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
+                    .consistencyLevel(request.consistencyLevel());
             deleteRequest.operationThreaded(false);
             return new Result(deleteRequest, Operation.DELETE, updatedSourceAsMap, updateSourceContentType);
         } else if ("none".equals(operation)) {

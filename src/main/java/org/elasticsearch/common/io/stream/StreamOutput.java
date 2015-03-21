@@ -20,17 +20,15 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.UTF8StreamWriter;
 import org.elasticsearch.common.text.Text;
 import org.joda.time.ReadableInstant;
 
 import java.io.IOException;
 import java.io.OutputStream;
-import java.lang.ref.SoftReference;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -178,15 +176,6 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    public void writeOptionalSharedString(@Nullable String str) throws IOException {
-        if (str == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writeSharedString(str);
-        }
-    }
-
     public void writeOptionalText(@Nullable Text text) throws IOException {
         if (text == null) {
             writeInt(-1);
@@ -195,30 +184,19 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private final BytesRef spare = new BytesRef();
+    private final BytesRefBuilder spare = new BytesRefBuilder();
 
     public void writeText(Text text) throws IOException {
         if (!text.hasBytes()) {
             final String string = text.string();
-            UnicodeUtil.UTF16toUTF8(string, 0, string.length(), spare);
-            writeInt(spare.length);
-            write(spare.bytes, spare.offset, spare.length);
+            spare.copyChars(string);
+            writeInt(spare.length());
+            write(spare.bytes(), 0, spare.length());
         } else {
             BytesReference bytes = text.bytes();
             writeInt(bytes.length());
             bytes.writeTo(this);
         }
-    }
-
-    public void writeTextArray(Text[] array) throws IOException {
-        writeVInt(array.length);
-        for (Text t : array) {
-            writeText(t);
-        }
-    }
-
-    public void writeSharedText(Text text) throws IOException {
-        writeText(text);
     }
 
     public void writeString(String str) throws IOException {
@@ -238,10 +216,6 @@ public abstract class StreamOutput extends OutputStream {
                 writeByte((byte) (0x80 | c >> 0 & 0x3F));
             }
         }
-    }
-
-    public void writeSharedString(String str) throws IOException {
-        writeString(str);
     }
 
     public void writeFloat(float v) throws IOException {
@@ -275,11 +249,13 @@ public abstract class StreamOutput extends OutputStream {
     /**
      * Forces any buffered output to be written.
      */
+    @Override
     public abstract void flush() throws IOException;
 
     /**
      * Closes this stream to further operations.
      */
+    @Override
     public abstract void close() throws IOException;
 
     public abstract void reset() throws IOException;
@@ -370,7 +346,7 @@ public abstract class StreamOutput extends OutputStream {
             Map<String, Object> map = (Map<String, Object>) value;
             writeVInt(map.size());
             for (Map.Entry<String, Object> entry : map.entrySet()) {
-                writeSharedString(entry.getKey());
+                writeString(entry.getKey());
                 writeGenericValue(entry.getValue());
             }
         } else if (type == Byte.class) {

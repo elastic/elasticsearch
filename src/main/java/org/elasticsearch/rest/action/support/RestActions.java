@@ -50,6 +50,11 @@ public class RestActions {
         return Versions.MATCH_ANY;
     }
 
+    public static long parseVersion(RestRequest request, long defaultVersion) {
+        long version = parseVersion(request);
+        return (version == Versions.MATCH_ANY) ? defaultVersion : version;
+    }
+
     static final class Fields {
         static final XContentBuilderString _SHARDS = new XContentBuilderString("_shards");
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");
@@ -89,7 +94,7 @@ public class RestActions {
         if (queryString == null) {
             return null;
         }
-        QueryStringQueryBuilder queryBuilder = QueryBuilders.queryString(queryString);
+        QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(queryString);
         queryBuilder.defaultField(request.param("df"));
         queryBuilder.analyzer(request.param("analyzer"));
         String defaultOperator = request.param("default_operator");

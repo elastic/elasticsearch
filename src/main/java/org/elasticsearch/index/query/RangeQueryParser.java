@@ -23,6 +23,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.joda.DateMathParser;
+import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -31,8 +32,6 @@ import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameQuery;
 
 /**
  *
@@ -69,6 +68,7 @@ public class RangeQueryParser implements QueryParser {
         boolean includeLower = true;
         boolean includeUpper = true;
         DateTimeZone timeZone = null;
+        DateMathParser forcedDateParser = null;
         float boost = 1.0f;
         String queryName = null;
 
@@ -100,9 +100,11 @@ public class RangeQueryParser implements QueryParser {
                     to = parser.objectBytes();
                     includeUpper = true;
                 } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
-                    timeZone = DateMathParser.parseZone(parser.text());
+                    timeZone = DateTimeZone.forID(parser.text());
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
+                } else if ("format".equals(currentFieldName)) {
+                    forcedDateParser = new DateMathParser(Joda.forPattern(parser.text()), DateFieldMapper.Defaults.TIME_UNIT);
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[range] query does not support [" + currentFieldName + "]");
                 }
@@ -124,7 +126,7 @@ public class RangeQueryParser implements QueryParser {
                     if ((from instanceof Number || to instanceof Number) && timeZone != null) {
                         throw new QueryParsingException(parseContext.index(), "[range] time_zone when using ms since epoch format as it's UTC based can not be applied to [" + fieldName + "]");
                     }
-                    query = ((DateFieldMapper) mapper).rangeQuery(from, to, includeLower, includeUpper, timeZone, parseContext);
+                    query = ((DateFieldMapper) mapper).rangeQuery(from, to, includeLower, includeUpper, timeZone, forcedDateParser, parseContext);
                 } else  {
                     if (timeZone != null) {
                         throw new QueryParsingException(parseContext.index(), "[range] time_zone can not be applied to non date field [" + fieldName + "]");
@@ -139,7 +141,6 @@ public class RangeQueryParser implements QueryParser {
             query = new TermRangeQuery(fieldName, BytesRefs.toBytesRef(from), BytesRefs.toBytesRef(to), includeLower, includeUpper);
         }
         query.setBoost(boost);
-        query =  wrapSmartNameQuery(query, smartNameFieldMappers, parseContext);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

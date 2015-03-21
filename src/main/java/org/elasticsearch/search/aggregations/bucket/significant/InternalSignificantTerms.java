@@ -19,24 +19,31 @@
 package org.elasticsearch.search.aggregations.bucket.significant;
 
 import com.google.common.collect.Maps;
+
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
  */
-public abstract class InternalSignificantTerms extends InternalAggregation implements SignificantTerms, ToXContent, Streamable {
+public abstract class InternalSignificantTerms extends InternalMultiBucketAggregation implements SignificantTerms, ToXContent, Streamable {
 
     protected SignificanceHeuristic significanceHeuristic;
     protected int requiredSize;
     protected long minDocCount;
-    protected Collection<Bucket> buckets;
+    protected List<Bucket> buckets;
     protected Map<String, Bucket> bucketMap;
     protected long subsetSize;
     protected long supersetSize;
@@ -49,6 +56,11 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
         long bucketOrd;
         protected InternalAggregations aggregations;
         double score;
+
+        protected Bucket(long subsetSize, long supersetSize) {
+            // for serialization
+            super(subsetSize, supersetSize);
+        }
 
         protected Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations) {
             super(subsetDf, subsetSize, supersetDf, supersetSize);
@@ -110,8 +122,8 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
         }
     }
 
-    protected InternalSignificantTerms(long subsetSize, long supersetSize, String name, int requiredSize, long minDocCount, SignificanceHeuristic significanceHeuristic, Collection<Bucket> buckets) {
-        super(name);
+    protected InternalSignificantTerms(long subsetSize, long supersetSize, String name, int requiredSize, long minDocCount, SignificanceHeuristic significanceHeuristic, List<Bucket> buckets, Map<String, Object> metaData) {
+        super(name, metaData);
         this.requiredSize = requiredSize;
         this.minDocCount = minDocCount;
         this.buckets = buckets;
@@ -127,9 +139,9 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
     }
 
     @Override
-    public Collection<SignificantTerms.Bucket> getBuckets() {
+    public List<SignificantTerms.Bucket> getBuckets() {
         Object o = buckets;
-        return (Collection<SignificantTerms.Bucket>) o;
+        return (List<SignificantTerms.Bucket>) o;
     }
 
     @Override
@@ -137,7 +149,7 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
         if (bucketMap == null) {
             bucketMap = Maps.newHashMapWithExpectedSize(buckets.size());
             for (Bucket bucket : buckets) {
-                bucketMap.put(bucket.getKey(), bucket);
+                bucketMap.put(bucket.getKeyAsString(), bucket);
             }
         }
         return bucketMap.get(term);
@@ -163,7 +175,7 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
                 List<Bucket> existingBuckets = buckets.get(bucket.getKey());
                 if (existingBuckets == null) {
                     existingBuckets = new ArrayList<>(aggregations.size());
-                    buckets.put(bucket.getKey(), existingBuckets);
+                    buckets.put(bucket.getKeyAsString(), existingBuckets);
                 }
                 // Adjust the buckets with the global stats representing the
                 // total size of the pots from which the stats are drawn
@@ -171,6 +183,7 @@ public abstract class InternalSignificantTerms extends InternalAggregation imple
             }
         }
 
+        significanceHeuristic.initialize(reduceContext);
         final int size = Math.min(requiredSize, buckets.size());
         BucketSignificancePriorityQueue ordered = new BucketSignificancePriorityQueue(size);
         for (Map.Entry<String, List<Bucket>> entry : buckets.entrySet()) {

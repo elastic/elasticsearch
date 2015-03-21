@@ -1,6 +1,6 @@
 {
   "search_exists": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/exists.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-exists.html",
     "methods": ["POST", "GET"],
     "url": {
       "path": "/_search/exists",
@@ -26,7 +26,7 @@
         },
         "expand_wildcards": {
             "type" : "enum",
-            "options" : ["open","closed"],
+            "options" : ["open","closed","none","all"],
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         },

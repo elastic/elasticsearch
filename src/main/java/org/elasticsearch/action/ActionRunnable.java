@@ -19,11 +19,13 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+
 /**
  * Base class for {@link Runnable}s that need to call {@link ActionListener#onFailure(Throwable)} in case an uncaught
  * exception or error is thrown while the actual action is run.
  */
-public abstract class ActionRunnable<Response> implements Runnable {
+public abstract class ActionRunnable<Response> extends AbstractRunnable {
     
     protected final ActionListener<Response> listener;
 
@@ -31,13 +33,12 @@ public abstract class ActionRunnable<Response> implements Runnable {
         this.listener = listener;
     }
 
-    public final void run() {
-        try {
-            doRun();
-        } catch (Throwable t) {
-            listener.onFailure(t);
-        }
+    /**
+     * Calls the action listeners {@link ActionListener#onFailure(Throwable)} method with the given exception.
+     * This method is invoked for all exception thrown by {@link #doRun()}
+     */
+    @Override
+    public void onFailure(Throwable t) {
+        listener.onFailure(t);
     }
-
-    protected abstract void doRun();
 }

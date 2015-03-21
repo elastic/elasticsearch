@@ -19,31 +19,24 @@
 
 package org.elasticsearch.index.translog;
 
-import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Version 0 of the translog format, there is no header in this file
  */
 public class LegacyTranslogStream implements TranslogStream {
 
-    private final InputStreamStreamInput in;
-    private final boolean fileExists;
-
-    LegacyTranslogStream(InputStreamStreamInput in, boolean fileExists) {
-        this.in = in;
-        this.fileExists = fileExists;
-    }
-
-    public Translog.Operation read() throws IOException {
-        assert this.fileExists : "cannot read from a stream for a file that does not exist";
-        in.readInt(); // ignored operation size
-        return this.read(in);
+    LegacyTranslogStream() {
     }
 
     @Override
@@ -52,15 +45,6 @@ public class LegacyTranslogStream implements TranslogStream {
         Translog.Operation operation = TranslogStreams.newOperationFromType(type);
         operation.readFrom(in);
         return operation;
-    }
-
-    @Override
-    public Translog.Source readSource(byte[] data) throws IOException {
-        BytesStreamInput in = new BytesStreamInput(data, false);
-        in.readInt(); // the size header
-        Translog.Operation.Type type = Translog.Operation.Type.fromId(in.readByte());
-        Translog.Operation operation = TranslogStreams.newOperationFromType(type);
-        return operation.readSource(in);
     }
 
     @Override
@@ -76,7 +60,9 @@ public class LegacyTranslogStream implements TranslogStream {
     }
 
     @Override
-    public void close() throws IOException {
-        this.in.close();
+    public StreamInput openInput(Path translogFile) throws IOException {
+        // nothing to do, legacy translogs have no header
+        return new InputStreamStreamInput(Files.newInputStream(translogFile));
     }
+
 }

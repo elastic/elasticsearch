@@ -19,7 +19,7 @@
 
 package org.elasticsearch.action.update;
 
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.get.GetResult;
@@ -28,7 +28,7 @@ import java.io.IOException;
 
 /**
  */
-public class UpdateResponse extends ActionResponse {
+public class UpdateResponse extends ActionWriteResponse {
 
     private String index;
     private String id;
@@ -38,10 +38,18 @@ public class UpdateResponse extends ActionResponse {
     private GetResult getResult;
 
     public UpdateResponse() {
-
     }
 
+    /**
+     * Constructor to be used when a update didn't translate in a write.
+     * For example: update script with operation set to none
+     */
     public UpdateResponse(String index, String type, String id, long version, boolean created) {
+        this(new ShardInfo(0, 0), index, type, id, version, created);
+    }
+
+    public UpdateResponse(ShardInfo shardInfo, String index, String type, String id, long version, boolean created) {
+        setShardInfo(shardInfo);
         this.index = index;
         this.id = id;
         this.type = type;
@@ -96,8 +104,8 @@ public class UpdateResponse extends ActionResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readSharedString();
-        type = in.readSharedString();
+        index = in.readString();
+        type = in.readString();
         id = in.readString();
         version = in.readLong();
         created = in.readBoolean();
@@ -109,8 +117,8 @@ public class UpdateResponse extends ActionResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeSharedString(index);
-        out.writeSharedString(type);
+        out.writeString(index);
+        out.writeString(type);
         out.writeString(id);
         out.writeLong(version);
         out.writeBoolean(created);

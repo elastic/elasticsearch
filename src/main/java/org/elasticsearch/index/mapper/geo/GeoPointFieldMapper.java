@@ -22,13 +22,15 @@ package org.elasticsearch.index.mapper.geo;
 import com.carrotsearch.hppc.ObjectOpenHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Objects;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -42,12 +44,21 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.core.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.FieldMapperListener;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ObjectMapperListener;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
+import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
+import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper.CustomNumericDocValuesField;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
@@ -57,8 +68,12 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
-import static org.elasticsearch.index.mapper.core.TypeParsers.*;
+import static org.elasticsearch.index.mapper.MapperBuilders.doubleField;
+import static org.elasticsearch.index.mapper.MapperBuilders.geoPointField;
+import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 
 /**
  * Parsing: We handle:
@@ -98,10 +113,9 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         public static final FieldType FIELD_TYPE = new FieldType(StringFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
             FIELD_TYPE.freeze();
         }
     }
@@ -130,6 +144,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             this.builder = this;
         }
 
+        @Override
         public Builder multiFieldPathType(ContentPath.Type pathType) {
             this.pathType = pathType;
             return this;
@@ -160,6 +175,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             return this;
         }
 
+        @Override
         public Builder fieldDataSettings(Settings settings) {
             this.fieldDataSettings = settings;
             return builder;
@@ -186,7 +202,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             }
             StringFieldMapper geohashMapper = null;
             if (enableGeoHash) {
-                geohashMapper = stringField(Names.GEOHASH).index(true).tokenized(false).includeInAll(false).omitNorms(true).indexOptions(IndexOptions.DOCS_ONLY).build(context);
+                geohashMapper = stringField(Names.GEOHASH).index(true).tokenized(false).includeInAll(false).omitNorms(true).indexOptions(IndexOptions.DOCS).build(context);
             }
             context.path().remove();
 
@@ -196,7 +212,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             // store them as a single token.
             fieldType.setTokenized(false);
 
-            return new GeoPointFieldMapper(buildNames(context), fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider,
+            return new GeoPointFieldMapper(buildNames(context), fieldType, docValues, indexAnalyzer, searchAnalyzer,
                     similarity, fieldDataSettings, context.indexSettings(), origPathType, enableLatLon, enableGeoHash, enableGeohashPrefix, precisionStep,
                     geoHashPrecision, latMapper, lonMapper, geohashMapper, validateLon, validateLat, normalizeLon, normalizeLat
             , multiFieldsBuilder.build(this, context));
@@ -208,44 +224,57 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = geoPointField(name);
             parseField(builder, name, node, parserContext);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
-                if (fieldName.equals("path")) {
+                if (fieldName.equals("path") && parserContext.indexVersionCreated().before(Version.V_2_0_0)) {
                     builder.multiFieldPathType(parsePathType(name, fieldNode.toString()));
+                    iterator.remove();
                 } else if (fieldName.equals("lat_lon")) {
                     builder.enableLatLon(XContentMapValues.nodeBooleanValue(fieldNode));
+                    iterator.remove();
                 } else if (fieldName.equals("geohash")) {
                     builder.enableGeoHash(XContentMapValues.nodeBooleanValue(fieldNode));
+                    iterator.remove();
                 } else if (fieldName.equals("geohash_prefix")) {
                     builder.geohashPrefix(XContentMapValues.nodeBooleanValue(fieldNode));
                     if (XContentMapValues.nodeBooleanValue(fieldNode)) {
                         builder.enableGeoHash(true);
                     }
+                    iterator.remove();
                 } else if (fieldName.equals("precision_step")) {
                     builder.precisionStep(XContentMapValues.nodeIntegerValue(fieldNode));
+                    iterator.remove();
                 } else if (fieldName.equals("geohash_precision")) {
                     if (fieldNode instanceof Integer) {
                         builder.geoHashPrecision(XContentMapValues.nodeIntegerValue(fieldNode));
                     } else {
                         builder.geoHashPrecision(GeoUtils.geoHashLevelsForPrecision(fieldNode.toString()));
                     }
+                    iterator.remove();
                 } else if (fieldName.equals("validate")) {
                     builder.validateLat = XContentMapValues.nodeBooleanValue(fieldNode);
                     builder.validateLon = XContentMapValues.nodeBooleanValue(fieldNode);
+                    iterator.remove();
                 } else if (fieldName.equals("validate_lon")) {
                     builder.validateLon = XContentMapValues.nodeBooleanValue(fieldNode);
+                    iterator.remove();
                 } else if (fieldName.equals("validate_lat")) {
                     builder.validateLat = XContentMapValues.nodeBooleanValue(fieldNode);
+                    iterator.remove();
                 } else if (fieldName.equals("normalize")) {
                     builder.normalizeLat = XContentMapValues.nodeBooleanValue(fieldNode);
                     builder.normalizeLon = XContentMapValues.nodeBooleanValue(fieldNode);
+                    iterator.remove();
                 } else if (fieldName.equals("normalize_lat")) {
                     builder.normalizeLat = XContentMapValues.nodeBooleanValue(fieldNode);
+                    iterator.remove();
                 } else if (fieldName.equals("normalize_lon")) {
                     builder.normalizeLon = XContentMapValues.nodeBooleanValue(fieldNode);
-                } else {
-                    parseMultiField(builder, name, parserContext, fieldName, fieldNode);
+                    iterator.remove();
+                } else if (parseMultiField(builder, name, parserContext, fieldName, fieldNode)) {
+                    iterator.remove();
                 }
             }
             return builder;
@@ -403,13 +432,12 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
 
     public GeoPointFieldMapper(FieldMapper.Names names, FieldType fieldType, Boolean docValues,
             NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
-            PostingsFormatProvider postingsFormat, DocValuesFormatProvider docValuesFormat,
             SimilarityProvider similarity, @Nullable Settings fieldDataSettings, Settings indexSettings,
             ContentPath.Type pathType, boolean enableLatLon, boolean enableGeoHash, boolean enableGeohashPrefix, Integer precisionStep, int geoHashPrecision,
             DoubleFieldMapper latMapper, DoubleFieldMapper lonMapper, StringFieldMapper geohashMapper,
             boolean validateLon, boolean validateLat,
             boolean normalizeLon, boolean normalizeLat, MultiFields multiFields) {
-        super(names, 1f, fieldType, docValues, null, indexAnalyzer, postingsFormat, docValuesFormat, similarity, null, fieldDataSettings, indexSettings, multiFields, null);
+        super(names, 1f, fieldType, docValues, null, indexAnalyzer, similarity, null, fieldDataSettings, indexSettings, multiFields, null);
         this.pathType = pathType;
         this.enableLatLon = enableLatLon;
         this.enableGeoHash = enableGeoHash || enableGeohashPrefix; // implicitly enable geohashes if geohash_prefix is set
@@ -568,7 +596,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
             }
         }
 
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new Field(names.indexName(), Double.toString(point.lat()) + ',' + Double.toString(point.lon()), fieldType);
             context.doc().add(field);
         }
@@ -716,7 +744,7 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
 
         public static final FieldType TYPE = new FieldType();
         static {
-          TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
+          TYPE.setDocValuesType(DocValuesType.BINARY);
           TYPE.freeze();
         }
 

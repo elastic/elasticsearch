@@ -57,14 +57,17 @@ public final class TypeListenerBinding implements Element {
         return typeMatcher;
     }
 
+    @Override
     public Object getSource() {
         return source;
     }
 
+    @Override
     public <T> T acceptVisitor(ElementVisitor<T> visitor) {
         return visitor.visit(this);
     }
 
+    @Override
     public void applyTo(Binder binder) {
         binder.withSource(getSource()).bindListener(typeMatcher, listener);
     }

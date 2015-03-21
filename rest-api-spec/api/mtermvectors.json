@@ -13,13 +13,13 @@
         "type" : {
           "type" : "string",
           "description" : "The type of the document."
-        },
-        "id" : {
-           "type" : "string",
-           "description" : "The id of the document."
-         }
+        }
       },
       "params" : {
+        "source": {
+          "type" : "string",
+          "description" : "The URL-encoded request definition"
+        },
         "ids" : {
           "type" : "list",
           "description" : "A comma-separated list of documents ids. You must define ids as parameter or set \"ids\" or \"docs\" in the request body",
@@ -74,11 +74,25 @@
           "type" : "string",
           "description" : "Parent id of documents. Applies to all returned documents unless otherwise specified in body \"params\" or \"docs\".",
           "required" : false
+        },
+        "realtime": {
+          "type": "boolean",
+          "description": "Specifies if requests are real-time as opposed to near-real-time (default: true).",
+          "required": false
+        },
+        "version" : {
+          "type" : "number",
+          "description" : "Explicit version number for concurrency control"
+        },
+        "version_type": {
+          "type" : "enum",
+          "options" : ["internal", "external", "external_gte", "force"],
+          "description" : "Specific version type"
         }
       }
     },
     "body" : {
-        "description" : "Define ids, parameters or a list of parameters per document here. You must at least provide a list of document ids. See documentation.",
+        "description" : "Define ids, documents, parameters or a list of parameters per document here. You must at least provide a list of document ids. See documentation.",
         "required" : false
 
     }

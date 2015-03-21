@@ -21,10 +21,7 @@ package org.elasticsearch.common;
 
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterables;
-
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
-import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -273,7 +270,7 @@ public class Strings {
     }
 
     /**
-     * Trim all occurences of the supplied leading character from the given String.
+     * Trim all occurrences of the supplied leading character from the given String.
      *
      * @param str              the String to check
      * @param leadingCharacter the leading character to be trimmed
@@ -329,7 +326,7 @@ public class Strings {
     }
 
     /**
-     * Replace all occurences of a substring within a string with
+     * Replace all occurrences of a substring within a string with
      * another string.
      *
      * @param inString   String to examine
@@ -1014,14 +1011,12 @@ public class Strings {
     }
     
     public static byte[] toUTF8Bytes(CharSequence charSequence) {
-        return toUTF8Bytes(charSequence, new BytesRef());
+        return toUTF8Bytes(charSequence, new BytesRefBuilder());
     }
     
-    public static byte[] toUTF8Bytes(CharSequence charSequence, BytesRef spare) {
-        UnicodeUtil.UTF16toUTF8(charSequence, 0, charSequence.length(), spare);
-        final byte[] bytes = new byte[spare.length];
-        System.arraycopy(spare.bytes, spare.offset, bytes, 0, bytes.length);
-        return bytes;
+    public static byte[] toUTF8Bytes(CharSequence charSequence, BytesRefBuilder spare) {
+        spare.copyChars(charSequence);
+        return Arrays.copyOf(spare.bytes(), spare.length());
     }
 
 

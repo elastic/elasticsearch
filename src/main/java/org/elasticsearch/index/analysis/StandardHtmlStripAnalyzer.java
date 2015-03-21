@@ -19,19 +19,17 @@
 
 package org.elasticsearch.index.analysis;
 
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.StopFilter;
-import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.standard.StandardFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.analysis.standard.std40.StandardTokenizer40;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.analysis.util.StopwordAnalyzerBase;
 import org.apache.lucene.util.Version;
-
-import java.io.IOException;
-import java.io.Reader;
 
 public class StandardHtmlStripAnalyzer extends StopwordAnalyzerBase {
 
@@ -40,30 +38,28 @@ public class StandardHtmlStripAnalyzer extends StopwordAnalyzerBase {
      * org.apache.lucene.analysis.util.CharArraySet)} instead
      */
     @Deprecated
-    public StandardHtmlStripAnalyzer(Version version) {
-        super(version, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
+    public StandardHtmlStripAnalyzer() {
+        super(StopAnalyzer.ENGLISH_STOP_WORDS_SET);
     }
 
-    public StandardHtmlStripAnalyzer(Version version, CharArraySet stopwords) {
-        super(version, stopwords);
+    public StandardHtmlStripAnalyzer(CharArraySet stopwords) {
+        super(stopwords);
     }
 
     @Override
-    protected TokenStreamComponents createComponents(final String fieldName, final Reader reader) {
-        final StandardTokenizer src = new StandardTokenizer(matchVersion, reader);
-        src.setMaxTokenLength(StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
-        TokenStream tok = new StandardFilter(matchVersion, src);
-        tok = new LowerCaseFilter(matchVersion, tok);
-        if (!stopwords.isEmpty()) {
-            tok = new StopFilter(matchVersion, tok, stopwords);
+    protected TokenStreamComponents createComponents(final String fieldName) {
+        final Tokenizer src;
+        if (getVersion().onOrAfter(Version.LUCENE_4_7_0)) {
+            src = new StandardTokenizer();
+        } else {
+            src = new StandardTokenizer40();
         }
-        return new TokenStreamComponents(src, tok) {
-            @Override
-            protected void setReader(final Reader reader) throws IOException {
-                src.setMaxTokenLength(StandardAnalyzer.DEFAULT_MAX_TOKEN_LENGTH);
-                super.setReader(reader);
-            }
-        };
+        TokenStream tok = new StandardFilter(src);
+        tok = new LowerCaseFilter(tok);
+        if (!stopwords.isEmpty()) {
+            tok = new StopFilter(tok, stopwords);
+        }
+        return new TokenStreamComponents(src, tok);
     }
 
 }

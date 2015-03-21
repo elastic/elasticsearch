@@ -8,8 +8,8 @@ and across one or more types. The query can be provided using the
 
 [source,java]
 --------------------------------------------------
-import static org.elasticsearch.index.query.xcontent.FilterBuilders.*;
-import static org.elasticsearch.index.query.xcontent.QueryBuilders.*;
+import static org.elasticsearch.index.query.FilterBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 
 CountResponse response = client.prepareCount("test")
         .setQuery(termQuery("_type", "type1"))

@@ -21,7 +21,8 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.range.date.DateRange;
+import org.elasticsearch.search.aggregations.bucket.range.Range;
+import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.min.Min;
@@ -38,7 +39,11 @@ import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.dateRange;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.min;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -114,23 +119,26 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
 
         assertSearchResponse(response);
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
         assertThat(range.getBuckets().size(), equalTo(3));
 
-        List<DateRange.Bucket> buckets = new ArrayList<>(range.getBuckets());
+        List<Range.Bucket> buckets = new ArrayList<>(range.getBuckets());
 
-        DateRange.Bucket bucket = buckets.get(0);
-        assertThat(bucket.getKey(), equalTo("a long time ago"));
+        Range.Bucket bucket = buckets.get(0);
+        assertThat((String) bucket.getKey(), equalTo("a long time ago"));
+        assertThat(bucket.getKeyAsString(), equalTo("a long time ago"));
         assertThat(bucket.getDocCount(), equalTo(0L));
 
         bucket = buckets.get(1);
-        assertThat(bucket.getKey(), equalTo("recently"));
+        assertThat((String) bucket.getKey(), equalTo("recently"));
+        assertThat(bucket.getKeyAsString(), equalTo("recently"));
         assertThat(bucket.getDocCount(), equalTo((long) numDocs));
 
         bucket = buckets.get(2);
-        assertThat(bucket.getKey(), equalTo("last year"));
+        assertThat((String) bucket.getKey(), equalTo("last year"));
+        assertThat(bucket.getKeyAsString(), equalTo("last year"));
         assertThat(bucket.getDocCount(), equalTo(0L));
     }
 
@@ -147,36 +155,37 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(3));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
 
-        DateRange.Bucket bucket = range.getBucketByKey("*-2012-02-15T00:00:00.000Z");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getFromAsDate(), nullValue());
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(2, 15)));
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        bucket = range.getBucketByKey("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(2, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        bucket = range.getBucketByKey("2012-03-15T00:00:00.000Z-*");
+        bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(3, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(bucket.getToAsDate(), nullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
     }
 
@@ -193,36 +202,37 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(3));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
 
-        DateRange.Bucket bucket = range.getBucketByKey("*-2012-02-15T00:00:00.000Z");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getFromAsDate(), nullValue());
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(2, 15)));
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        bucket = range.getBucketByKey("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(2, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        bucket = range.getBucketByKey("2012-03-15T00:00:00.000Z-*");
+        bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(3, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(bucket.getToAsDate(), nullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
     }
 
@@ -240,36 +250,37 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(3));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
 
-        DateRange.Bucket bucket = range.getBucketByKey("*-2012-02-15");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("*-2012-02-15"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getFromAsDate(), nullValue());
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(2, 15)));
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        bucket = range.getBucketByKey("2012-02-15-2012-03-15");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-02-15-2012-03-15"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(2, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15-2012-03-15"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        bucket = range.getBucketByKey("2012-03-15-*");
+        bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-03-15-*"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(3, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(bucket.getToAsDate(), nullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
     }
 
@@ -286,36 +297,37 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(3));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
 
-        DateRange.Bucket bucket = range.getBucketByKey("*-2012-02-15T00:00:00.000Z");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getFromAsDate(), nullValue());
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(2, 15)));
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        bucket = range.getBucketByKey("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(2, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        bucket = range.getBucketByKey("2012-03-15T00:00:00.000Z-*");
+        bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(3, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(bucket.getToAsDate(), nullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
     }
 
@@ -332,36 +344,37 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(3));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
 
-        DateRange.Bucket bucket = range.getBucketByKey("r1");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("r1"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getFromAsDate(), nullValue());
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(2, 15)));
+        assertThat((String) bucket.getKey(), equalTo("r1"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        bucket = range.getBucketByKey("r2");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("r2"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(2, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("r2"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        bucket = range.getBucketByKey("r3");
+        bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("r3"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(3, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(bucket.getToAsDate(), nullValue());
+        assertThat((String) bucket.getKey(), equalTo("r3"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
     }
 
@@ -388,45 +401,57 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(3));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
+        Object[] propertiesKeys = (Object[]) range.getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) range.getProperty("_count");
+        Object[] propertiesCounts = (Object[]) range.getProperty("sum.value");
 
-        DateRange.Bucket bucket = range.getBucketByKey("r1");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("r1"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getFromAsDate(), nullValue());
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(2, 15)));
+        assertThat((String) bucket.getKey(), equalTo("r1"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo((double) 1 + 2));
+        assertThat((String) propertiesKeys[0], equalTo("r1"));
+        assertThat((long) propertiesDocCounts[0], equalTo(2l));
+        assertThat((double) propertiesCounts[0], equalTo((double) 1 + 2));
 
-        bucket = range.getBucketByKey("r2");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("r2"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(2, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("r2"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
         assertThat(sum.getValue(), equalTo((double) 3 + 4));
+        assertThat((String) propertiesKeys[1], equalTo("r2"));
+        assertThat((long) propertiesDocCounts[1], equalTo(2l));
+        assertThat((double) propertiesCounts[1], equalTo((double) 3 + 4));
 
-        bucket = range.getBucketByKey("r3");
+        bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("r3"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(3, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(bucket.getToAsDate(), nullValue());
+        assertThat((String) bucket.getKey(), equalTo("r3"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
+        assertThat((String) propertiesKeys[2], equalTo("r3"));
+        assertThat((long) propertiesDocCounts[2], equalTo(numDocs - 4l));
     }
 
     @Test
@@ -443,42 +468,43 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(3));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
 
-        DateRange.Bucket bucket = range.getBucketByKey("r1");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("r1"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getFromAsDate(), nullValue());
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(2, 15)));
+        assertThat((String) bucket.getKey(), equalTo("r1"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
         Min min = bucket.getAggregations().get("min");
         assertThat(min, notNullValue());
         assertThat(min.getValue(), equalTo((double) date(1, 2).getMillis()));
 
-        bucket = range.getBucketByKey("r2");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("r2"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(2, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("r2"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
         min = bucket.getAggregations().get("min");
         assertThat(min, notNullValue());
         assertThat(min.getValue(), equalTo((double) date(2, 15).getMillis()));
 
-        bucket = range.getBucketByKey("r3");
+        bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("r3"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(3, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(bucket.getToAsDate(), nullValue());
+        assertThat((String) bucket.getKey(), equalTo("r3"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
         min = bucket.getAggregations().get("min");
         assertThat(min, notNullValue());
@@ -507,36 +533,37 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(3));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
 
-        DateRange.Bucket bucket = range.getBucketByKey("*-2012-02-15T00:00:00.000Z");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getFromAsDate(), nullValue());
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(2, 15)));
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        bucket = range.getBucketByKey("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(2, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(3l));
 
-        bucket = range.getBucketByKey("2012-03-15T00:00:00.000Z-*");
+        bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(3, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(bucket.getToAsDate(), nullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 2l));
     }
 
@@ -564,36 +591,37 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(3));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
 
-        DateRange.Bucket bucket = range.getBucketByKey("*-2012-02-15T00:00:00.000Z");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getFromAsDate(), nullValue());
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(2, 15)));
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(1l));
 
-        bucket = range.getBucketByKey("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(2, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        bucket = range.getBucketByKey("2012-03-15T00:00:00.000Z-*");
+        bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(3, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(bucket.getToAsDate(), nullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 1l));
     }
 
@@ -621,42 +649,43 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(3));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
 
-        DateRange.Bucket bucket = range.getBucketByKey("*-2012-02-15T00:00:00.000Z");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getFromAsDate(), nullValue());
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(2, 15)));
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(1l));
         Max max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo((double) date(3, 3).getMillis()));
 
-        bucket = range.getBucketByKey("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(2, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo((double) date(4, 3).getMillis()));
 
-        bucket = range.getBucketByKey("2012-03-15T00:00:00.000Z-*");
+        bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(3, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(bucket.getToAsDate(), nullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 1l));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
@@ -675,36 +704,37 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(3));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
 
-        DateRange.Bucket bucket = range.getBucketByKey("*-2012-02-15T00:00:00.000Z");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getFromAsDate(), nullValue());
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(2, 15)));
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        bucket = range.getBucketByKey("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(2, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        bucket = range.getBucketByKey("2012-03-15T00:00:00.000Z-*");
+        bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(3, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(bucket.getToAsDate(), nullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
     }
 
@@ -722,42 +752,43 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(3));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
 
-        DateRange.Bucket bucket = range.getBucketByKey("*-2012-02-15T00:00:00.000Z");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getFromAsDate(), nullValue());
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(2, 15)));
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
         Max max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo((double) date(2, 2).getMillis()));
 
-        bucket = range.getBucketByKey("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(2, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
         assertThat(max.getValue(), equalTo((double) date(3, 2).getMillis()));
 
-        bucket = range.getBucketByKey("2012-03-15T00:00:00.000Z-*");
+        bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(3, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(bucket.getToAsDate(), nullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
         max = bucket.getAggregations().get("max");
         assertThat(max, notNullValue());
@@ -785,36 +816,37 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(3));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
 
-        DateRange.Bucket bucket = range.getBucketByKey("*-2012-02-15T00:00:00.000Z");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getFromAsDate(), nullValue());
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(2, 15)));
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        bucket = range.getBucketByKey("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(2, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(3l));
 
-        bucket = range.getBucketByKey("2012-03-15T00:00:00.000Z-*");
+        bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(3, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(bucket.getToAsDate(), nullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 2l));
     }
 
@@ -832,42 +864,43 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(3));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
 
-        DateRange.Bucket bucket = range.getBucketByKey("*-2012-02-15T00:00:00.000Z");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getFromAsDate(), nullValue());
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(2, 15)));
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
         Min min = bucket.getAggregations().get("min");
         assertThat(min, notNullValue());
         assertThat(min.getValue(), equalTo((double) date(1, 2).getMillis()));
 
-        bucket = range.getBucketByKey("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(2, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(3l));
         min = bucket.getAggregations().get("min");
         assertThat(min, notNullValue());
         assertThat(min.getValue(), equalTo((double) date(2, 2).getMillis()));
 
-        bucket = range.getBucketByKey("2012-03-15T00:00:00.000Z-*");
+        bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(3, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(bucket.getToAsDate(), nullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 2l));
         min = bucket.getAggregations().get("min");
         assertThat(min, notNullValue());
@@ -889,36 +922,37 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(3));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
 
-        DateRange.Bucket bucket = range.getBucketByKey("*-2012-02-15T00:00:00.000Z");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getFromAsDate(), nullValue());
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(2, 15)));
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(0l));
 
-        bucket = range.getBucketByKey("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(2, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(0l));
 
-        bucket = range.getBucketByKey("2012-03-15T00:00:00.000Z-*");
+        bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(3, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(bucket.getToAsDate(), nullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(0l));
     }
 
@@ -935,36 +969,37 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(3));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
 
-        DateRange.Bucket bucket = range.getBucketByKey("*-2012-02-15T00:00:00.000Z");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getFromAsDate(), nullValue());
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(2, 15)));
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(0l));
 
-        bucket = range.getBucketByKey("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(2, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(0l));
 
-        bucket = range.getBucketByKey("2012-03-15T00:00:00.000Z-*");
+        bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(3, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(bucket.getToAsDate(), nullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(0l));
     }
 
@@ -981,36 +1016,37 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
 
 
-        DateRange range = response.getAggregations().get("range");
+        Range range = response.getAggregations().get("range");
         assertThat(range, notNullValue());
         assertThat(range.getName(), equalTo("range"));
-        assertThat(range.getBuckets().size(), equalTo(3));
+        List<? extends Bucket> buckets = range.getBuckets();
+        assertThat(buckets.size(), equalTo(3));
 
-        DateRange.Bucket bucket = range.getBucketByKey("*-2012-02-15T00:00:00.000Z");
+        Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(bucket.getFromAsDate(), nullValue());
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(2, 15)));
+        assertThat((String) bucket.getKey(), equalTo("*-2012-02-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), nullValue());
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(2, 15)));
+        assertThat(bucket.getFromAsString(), nullValue());
+        assertThat(bucket.getToAsString(), equalTo("2012-02-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        bucket = range.getBucketByKey("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z");
+        bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(2, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(2, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getToAsDate(), equalTo(date(3, 15)));
+        assertThat((String) bucket.getKey(), equalTo("2012-02-15T00:00:00.000Z-2012-03-15T00:00:00.000Z"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(2, 15)));
+        assertThat(((DateTime) bucket.getTo()), equalTo(date(3, 15)));
+        assertThat(bucket.getFromAsString(), equalTo("2012-02-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), equalTo("2012-03-15T00:00:00.000Z"));
         assertThat(bucket.getDocCount(), equalTo(2l));
 
-        bucket = range.getBucketByKey("2012-03-15T00:00:00.000Z-*");
+        bucket = buckets.get(2);
         assertThat(bucket, notNullValue());
-        assertThat(bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
-        assertThat(bucket.getFrom().doubleValue(), equalTo((double) date(3, 15).getMillis()));
-        assertThat(bucket.getFromAsDate(), equalTo(date(3, 15)));
-        assertThat(bucket.getTo().doubleValue(), equalTo(Double.POSITIVE_INFINITY));
-        assertThat(bucket.getToAsDate(), nullValue());
+        assertThat((String) bucket.getKey(), equalTo("2012-03-15T00:00:00.000Z-*"));
+        assertThat(((DateTime) bucket.getFrom()), equalTo(date(3, 15)));
+        assertThat(((DateTime) bucket.getTo()), nullValue());
+        assertThat(bucket.getFromAsString(), equalTo("2012-03-15T00:00:00.000Z"));
+        assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
     }
 
@@ -1024,17 +1060,17 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
-        Histogram.Bucket bucket = histo.getBucketByKey(1l);
+        Histogram.Bucket bucket = histo.getBuckets().get(1);
         assertThat(bucket, Matchers.notNullValue());
 
-        DateRange dateRange = bucket.getAggregations().get("date_range");
-        List<DateRange.Bucket> buckets = new ArrayList<>(dateRange.getBuckets());
+        Range dateRange = bucket.getAggregations().get("date_range");
+        List<Range.Bucket> buckets = new ArrayList<>(dateRange.getBuckets());
         assertThat(dateRange, Matchers.notNullValue());
         assertThat(dateRange.getName(), equalTo("date_range"));
         assertThat(buckets.size(), is(1));
-        assertThat(buckets.get(0).getKey(), equalTo("0-1"));
-        assertThat(buckets.get(0).getFrom().doubleValue(), equalTo(0.0));
-        assertThat(buckets.get(0).getTo().doubleValue(), equalTo(1.0));
+        assertThat((String) buckets.get(0).getKey(), equalTo("0-1"));
+        assertThat(((DateTime) buckets.get(0).getFrom()).getMillis(), equalTo(0l));
+        assertThat(((DateTime) buckets.get(0).getTo()).getMillis(), equalTo(1l));
         assertThat(buckets.get(0).getDocCount(), equalTo(0l));
         assertThat(buckets.get(0).getAggregations().asList().isEmpty(), is(true));
 

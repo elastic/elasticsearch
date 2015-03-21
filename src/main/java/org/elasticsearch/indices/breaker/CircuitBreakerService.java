@@ -35,9 +35,16 @@ public abstract class CircuitBreakerService extends AbstractLifecycleComponent<C
     }
 
     /**
+     * Allows to register of a custom circuit breaker.
+     *
+     * @param breakerSettings
+     */
+    public abstract void registerBreaker(BreakerSettings breakerSettings);
+
+    /**
      * @return the breaker that can be used to register estimates against
      */
-    public abstract CircuitBreaker getBreaker(CircuitBreaker.Name type);
+    public abstract CircuitBreaker getBreaker(String name);
 
     /**
      * @return stats about all breakers
@@ -47,14 +54,17 @@ public abstract class CircuitBreakerService extends AbstractLifecycleComponent<C
     /**
      * @return stats about a specific breaker
      */
-    public abstract CircuitBreakerStats stats(CircuitBreaker.Name name);
+    public abstract CircuitBreakerStats stats(String name);
 
+    @Override
     protected void doStart() throws ElasticsearchException {
     }
 
+    @Override
     protected void doStop() throws ElasticsearchException {
     }
 
+    @Override
     protected void doClose() throws ElasticsearchException {
     }
 }

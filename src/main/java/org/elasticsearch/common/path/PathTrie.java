@@ -165,7 +165,14 @@ public class PathTrie<T> {
                 }
                 usedWildcard = true;
             } else {
-                usedWildcard = token.equals(wildcard);
+                // If we are at the end of the path, the current node does not have a value but there
+                // is a child wildcard node, use the child wildcard node
+                if (index + 1 == path.length && node.value == null && children.get(wildcard) != null) {
+                    node = children.get(wildcard);
+                    usedWildcard = true;
+                } else {
+                    usedWildcard = token.equals(wildcard);
+                }
             }
 
             put(params, node, token);

@@ -35,22 +35,29 @@ import java.io.IOException;
  *
  */
 public final class RecoveryFileChunkRequest extends TransportRequest {  // public for testing
-
+    private boolean lastChunk;
     private long recoveryId;
     private ShardId shardId;
     private long position;
     private BytesReference content;
     private StoreFileMetaData metaData;
+    private long sourceThrottleTimeInNanos;
+
+    private int totalTranslogOps;
 
     RecoveryFileChunkRequest() {
     }
 
-    public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetaData metaData, long position, BytesReference content) {
+    public RecoveryFileChunkRequest(long recoveryId, ShardId shardId, StoreFileMetaData metaData, long position, BytesReference content,
+                                    boolean lastChunk, int totalTranslogOps, long sourceThrottleTimeInNanos) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.metaData = metaData;
         this.position = position;
         this.content = content;
+        this.lastChunk = lastChunk;
+        this.totalTranslogOps = totalTranslogOps;
+        this.sourceThrottleTimeInNanos = sourceThrottleTimeInNanos;
     }
 
     public long recoveryId() {
@@ -82,10 +89,12 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         return content;
     }
 
-    public RecoveryFileChunkRequest readFileChunk(StreamInput in) throws IOException {
-        RecoveryFileChunkRequest request = new RecoveryFileChunkRequest();
-        request.readFrom(in);
-        return request;
+    public int totalTranslogOps() {
+        return totalTranslogOps;
+    }
+
+    public long sourceThrottleTimeInNanos() {
+        return sourceThrottleTimeInNanos;
     }
 
     @Override
@@ -99,11 +108,12 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         String checksum = in.readOptionalString();
         content = in.readBytesReference();
         Version writtenBy = null;
-        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_3_0)) {
-            String versionString = in.readOptionalString();
-            writtenBy = Lucene.parseVersionLenient(versionString, null);
-        }
+        String versionString = in.readOptionalString();
+        writtenBy = Lucene.parseVersionLenient(versionString, null);
         metaData = new StoreFileMetaData(name, length, checksum, writtenBy);
+        lastChunk = in.readBoolean();
+        totalTranslogOps = in.readVInt();
+        sourceThrottleTimeInNanos = in.readLong();
     }
 
     @Override
@@ -116,9 +126,10 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
         out.writeVLong(metaData.length());
         out.writeOptionalString(metaData.checksum());
         out.writeBytesReference(content);
-        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_3_0)) {
-            out.writeOptionalString(metaData.writtenBy() == null ? null : metaData.writtenBy().name());
-        }
+        out.writeOptionalString(metaData.writtenBy() == null ? null : metaData.writtenBy().toString());
+        out.writeBoolean(lastChunk);
+        out.writeVInt(totalTranslogOps);
+        out.writeLong(sourceThrottleTimeInNanos);
     }
 
     @Override
@@ -130,5 +141,12 @@ public final class RecoveryFileChunkRequest extends TransportRequest {  // publi
 
     public StoreFileMetaData metadata() {
         return metaData;
+    }
+
+    /**
+     * Returns <code>true</code> if this chunk is the last chunk in the stream.
+     */
+    public boolean lastChunk() {
+        return lastChunk;
     }
 }

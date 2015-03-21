@@ -33,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.Scroll;
@@ -66,7 +67,7 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
 
     private String[] fields;
 
-    private float percentTermsToMatch = -1;
+    private String minimumShouldMatch = "0%";
     private int minTermFreq = -1;
     private int maxQueryTerms = -1;
     private String[] stopWords = null;
@@ -80,7 +81,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
     private SearchType searchType = SearchType.DEFAULT;
     private int searchSize = 0;
     private int searchFrom = 0;
-    private String searchQueryHint;
     private String[] searchIndices;
     private String[] searchTypes;
     private Scroll searchScroll;
@@ -137,13 +137,19 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
                 return MoreLikeThisRequest.this.indicesOptions();
             }
         });
-        requests.add(new IndicesRequest() {
+        requests.add(new IndicesRequest.Replaceable() {
             @Override
             public String[] indices() {
                 if (searchIndices != null) {
                     return searchIndices;
                 }
                 return new String[]{index};
+            }
+
+            @Override
+            public IndicesRequest indices(String[] indices) {
+                searchIndices = indices;
+                return this;
             }
 
             @Override
@@ -206,18 +212,44 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
     }
 
     /**
-     * The percent of the terms to match for each field. Defaults to <tt>0.3f</tt>.
+     * Number of terms that must match the generated query expressed in the
+     * common syntax for minimum should match. Defaults to <tt>30%</tt>.
+     *
+     * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
      */
-    public MoreLikeThisRequest percentTermsToMatch(float percentTermsToMatch) {
-        this.percentTermsToMatch = percentTermsToMatch;
+    public MoreLikeThisRequest minimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
         return this;
+    }
+
+    /**
+     * Number of terms that must match the generated query expressed in the
+     * common syntax for minimum should match.
+     *
+     * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
+     */
+    public String minimumShouldMatch() {
+        return this.minimumShouldMatch;
     }
 
     /**
      * The percent of the terms to match for each field. Defaults to <tt>0.3f</tt>.
      */
+    @Deprecated
+    public MoreLikeThisRequest percentTermsToMatch(float percentTermsToMatch) {
+        return minimumShouldMatch(Math.round(percentTermsToMatch * 100) + "%");
+    }
+
+    /**
+     * The percent of the terms to match for each field. Defaults to <tt>0.3f</tt>.
+     */
+    @Deprecated
     public float percentTermsToMatch() {
-        return this.percentTermsToMatch;
+        if (minimumShouldMatch.endsWith("%")) {
+            return Float.parseFloat(minimumShouldMatch.substring(0, minimumShouldMatch.indexOf("%"))) / 100;
+        } else {
+            return -1;
+        }
     }
 
     /**
@@ -507,21 +539,6 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
     }
 
     /**
-     * Optional search query hint.
-     */
-    public MoreLikeThisRequest searchQueryHint(String searchQueryHint) {
-        this.searchQueryHint = searchQueryHint;
-        return this;
-    }
-
-    /**
-     * Optional search query hint.
-     */
-    public String searchQueryHint() {
-        return this.searchQueryHint;
-    }
-
-    /**
      * An optional search scroll request to be able to continue and scroll the search
      * operation.
      */
@@ -594,7 +611,8 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
             }
         }
 
-        percentTermsToMatch = in.readFloat();
+        minimumShouldMatch(in.readString());
+
         minTermFreq = in.readVInt();
         maxQueryTerms = in.readVInt();
         size = in.readVInt();
@@ -609,16 +627,9 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
         minWordLength = in.readVInt();
         maxWordLength = in.readVInt();
         boostTerms = in.readFloat();
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            include = in.readBoolean();
-        } else {
-            include = false; // hard-coded behavior until Elasticsearch 1.2
-        }
+        include = in.readBoolean();
 
         searchType = SearchType.fromId(in.readByte());
-        if (in.readBoolean()) {
-            searchQueryHint = in.readString();
-        }
         size = in.readVInt();
         if (size == 0) {
             searchIndices = null;
@@ -668,7 +679,8 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
             }
         }
 
-        out.writeFloat(percentTermsToMatch);
+        out.writeString(minimumShouldMatch);
+
         out.writeVInt(minTermFreq);
         out.writeVInt(maxQueryTerms);
         if (stopWords == null) {
@@ -684,17 +696,9 @@ public class MoreLikeThisRequest extends ActionRequest<MoreLikeThisRequest> impl
         out.writeVInt(minWordLength);
         out.writeVInt(maxWordLength);
         out.writeFloat(boostTerms);
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeBoolean(include);
-        }
+        out.writeBoolean(include);
 
         out.writeByte(searchType.id());
-        if (searchQueryHint == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeString(searchQueryHint);
-        }
         if (searchIndices == null) {
             out.writeVInt(0);
         } else {

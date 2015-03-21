@@ -20,9 +20,11 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 
 /**
@@ -34,7 +36,27 @@ public abstract class ElasticsearchSingleNodeLuceneTestCase extends Elasticsearc
 
     @After
     public void cleanup() {
-        ElasticsearchSingleNodeTest.cleanup();
+        ElasticsearchSingleNodeTest.cleanup(resetNodeAfterTest());
+    }
+
+
+    @BeforeClass
+    public static void setUpClass() throws Exception {
+        ElasticsearchSingleNodeTest.setUpClass();
+    }
+
+    @AfterClass
+    public static void tearDownClass() {
+        ElasticsearchSingleNodeTest.tearDownClass();
+    }
+
+    /**
+     * This method returns <code>true</code> if the node that is used in the background should be reset
+     * after each test. This is useful if the test changes the cluster state metadata etc. The default is
+     * <code>false</code>.
+     */
+    protected boolean resetNodeAfterTest() {
+        return false;
     }
 
     /**

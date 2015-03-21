@@ -19,17 +19,17 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.*;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexComponent;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -41,7 +41,7 @@ import java.io.IOException;
 
 /**
  * Thread-safe utility class that allows to get per-segment values via the
- * {@link #load(AtomicReaderContext)} method.
+ * {@link #load(LeafReaderContext)} method.
  */
 public interface IndexFieldData<FD extends AtomicFieldData> extends IndexComponent {
 
@@ -87,12 +87,12 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
     /**
      * Loads the atomic field data for the reader, possibly cached.
      */
-    FD load(AtomicReaderContext context);
+    FD load(LeafReaderContext context);
 
     /**
      * Loads directly the atomic field data for the reader, ignoring any caching involved.
      */
-    FD loadDirect(AtomicReaderContext context) throws Exception;
+    FD loadDirect(LeafReaderContext context) throws Exception;
 
     /**
      * Comparator used for sorting.
@@ -115,9 +115,10 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
          *  since {@link Character#MAX_CODE_POINT} is a noncharacter and thus shouldn't appear in an index term. */
         public static final BytesRef MAX_TERM;
         static {
-            MAX_TERM = new BytesRef();
+            BytesRefBuilder builder = new BytesRefBuilder();
             final char[] chars = Character.toChars(Character.MAX_CODE_POINT);
-            UnicodeUtil.UTF16toUTF8(chars, 0, chars.length, MAX_TERM);
+            builder.copyChars(chars, 0, chars.length);
+            MAX_TERM = builder.toBytesRef();
         }
 
         /**
@@ -128,24 +129,26 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
          * parent + 1, or 0 if there is no previous parent, and R (excluded).
          */
         public static class Nested {
-            private final FixedBitSetFilter rootFilter, innerFilter;
 
-            public Nested(FixedBitSetFilter rootFilter, FixedBitSetFilter innerFilter) {
+            private final BitDocIdSetFilter rootFilter;
+            private final Filter innerFilter;
+
+            public Nested(BitDocIdSetFilter rootFilter, Filter innerFilter) {
                 this.rootFilter = rootFilter;
                 this.innerFilter = innerFilter;
             }
 
             /**
-             * Get a {@link FixedBitSet} that matches the root documents.
+             * Get a {@link BitDocIdSet} that matches the root documents.
              */
-            public FixedBitSet rootDocs(AtomicReaderContext ctx) throws IOException {
-                return rootFilter.getDocIdSet(ctx, null);
+            public BitDocIdSet rootDocs(LeafReaderContext ctx) throws IOException {
+                return rootFilter.getDocIdSet(ctx);
             }
 
             /**
-             * Get a {@link FixedBitSet} that matches the inner documents.
+             * Get a {@link DocIdSet} that matches the inner documents.
              */
-            public FixedBitSet innerDocs(AtomicReaderContext ctx) throws IOException {
+            public DocIdSet innerDocs(LeafReaderContext ctx) throws IOException {
                 return innerFilter.getDocIdSet(ctx, null);
             }
         }

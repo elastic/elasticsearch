@@ -35,8 +35,6 @@ public class ParsedScrollId {
 
     public static final String SCAN = "scan";
 
-    public static final Version SCROLL_SEARCH_AFTER_MINIMUM_VERSION = Version.V_1_2_0;
-
     private final String source;
 
     private final String type;

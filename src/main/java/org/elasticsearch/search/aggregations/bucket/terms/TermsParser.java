@@ -22,11 +22,15 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsParametersParser.OrderElement;
 import org.elasticsearch.search.aggregations.bucket.terms.support.IncludeExclude;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  *
@@ -45,7 +49,22 @@ public class TermsParser implements Aggregator.Parser {
         IncludeExclude.Parser incExcParser = new IncludeExclude.Parser(aggregationName, StringTerms.TYPE, context);
         aggParser.parse(aggregationName, parser, context, vsParser, incExcParser);
 
-        InternalOrder order = resolveOrder(aggParser.getOrderKey(), aggParser.isOrderAsc());
+        List<OrderElement> orderElements = aggParser.getOrderElements();
+        List<Terms.Order> orders = new ArrayList<>(orderElements.size());
+        for (OrderElement orderElement : orderElements) {
+            orders.add(resolveOrder(orderElement.key(), orderElement.asc()));
+        }
+        Terms.Order order;
+        if (orders.size() == 1 && (orders.get(0) == InternalOrder.TERM_ASC || orders.get(0) == InternalOrder.TERM_DESC))
+        {
+            // If order is only terms order then we don't need compound ordering
+            order = orders.get(0);
+        }
+        else
+        {
+            // for all other cases we need compound order so term order asc can be added to make the order deterministic
+            order = Order.compound(orders);
+        }
         TermsAggregator.BucketCountThresholds bucketCountThresholds = aggParser.getBucketCountThresholds();
         if (!(order == InternalOrder.TERM_ASC || order == InternalOrder.TERM_DESC)
                 && bucketCountThresholds.getShardSize() == aggParser.getDefaultBucketCountThresholds().getShardSize()) {
@@ -57,14 +76,14 @@ public class TermsParser implements Aggregator.Parser {
         return new TermsAggregatorFactory(aggregationName, vsParser.config(), order, bucketCountThresholds, aggParser.getIncludeExclude(), aggParser.getExecutionHint(), aggParser.getCollectionMode(), aggParser.showTermDocCountError());
     }
 
-    static InternalOrder resolveOrder(String key, boolean asc) {
+    static Terms.Order resolveOrder(String key, boolean asc) {
         if ("_term".equals(key)) {
-            return asc ? InternalOrder.TERM_ASC : InternalOrder.TERM_DESC;
+            return Order.term(asc);
         }
         if ("_count".equals(key)) {
-            return asc ? InternalOrder.COUNT_ASC : InternalOrder.COUNT_DESC;
+            return Order.count(asc);
         }
-        return new InternalOrder.Aggregation(key, asc);
+        return Order.aggregation(key, asc);
     }
 
 }

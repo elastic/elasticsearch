@@ -19,20 +19,28 @@
 
 package org.elasticsearch.transport;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.bench.AbortBenchmarkAction;
-import org.elasticsearch.action.bench.BenchmarkAction;
-import org.elasticsearch.action.bench.BenchmarkService;
-import org.elasticsearch.action.bench.BenchmarkStatusAction;
-import org.elasticsearch.action.exists.ExistsAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.util.HashSet;
-import java.util.Set;
+import static org.hamcrest.CoreMatchers.either;
+import static org.hamcrest.CoreMatchers.startsWith;
 
-import static org.hamcrest.CoreMatchers.*;
-
+/**
+ * This test verifies that all of the action names follow our defined naming conventions.
+ * The identified categories are:
+ * - indices:admin: apis that allow to perform administration tasks against indices
+ * - indices:data: apis that are about data
+ * - indices:read: apis that read data
+ * - indices:write: apis that write data
+ * - cluster:admin: cluster apis that allow to perform administration tasks
+ * - cluster:monitor: cluster apis that allow to monitor the system
+ * - internal: internal actions that are used from node to node but not directly exposed to users
+ *
+ * Any transport action belongs to one of the above categories and its name starts with its category, followed by a '/'
+ * and the name of the api itself (e.g. cluster:admin/nodes/restart).
+ * When an api exposes multiple transport handlers, some of which are invoked internally during the execution of the api,
+ * we use the `[n]` suffix to identify node actions and the `[s]` suffix to identify shard actions.
+ */
 public class ActionNamesTests extends ElasticsearchIntegrationTest {
 
     @Test
@@ -46,90 +54,5 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
                     .or(startsWith("cluster:admin")).or(startsWith("cluster:monitor"))
                     .or(startsWith("internal:")));
         }
-    }
-
-    @Test
-    public void testActionNamesMapping() {
-        TransportService transportService = internalCluster().getInstance(TransportService.class);
-        for (String action : transportService.serverHandlers.keySet()) {
-            if (post_1_4_actions.contains(action)) {
-                continue;
-            }
-            String pre_1_4_action = ActionNames.pre_1_4_Action(action);
-            assertThat("no pre 1.4 name for action " + action, pre_1_4_action, notNullValue());
-            String post_1_4_action = ActionNames.post_1_4_action(pre_1_4_action);
-            assertThat(post_1_4_action, equalTo(action));
-        }
-    }
-
-    @Test
-    public void testOutgoingAction() {
-        TransportService transportService = internalCluster().getInstance(TransportService.class);
-        String[] actions = transportService.serverHandlers.keySet().toArray(new String[transportService.serverHandlers.keySet().size()]);
-
-        int iters = iterations(10, 100);
-        for (int i = 0; i < iters; i++) {
-            boolean customAction = rarely();
-            String action;
-            if (customAction) {
-                action = randomAsciiOfLength(randomInt(30));
-            } else {
-                action = randomFrom(actions);
-            }
-
-            Version version = randomVersion();
-            String outgoingAction = ActionNames.outgoingAction(action, version);
-            if (version.onOrAfter(Version.V_1_4_0) || customAction || post_1_4_actions.contains(action)) {
-                assertThat(outgoingAction, equalTo(action));
-            } else {
-                assertThat(outgoingAction, not(equalTo(action)));
-                assertThat(outgoingAction, equalTo(ActionNames.pre_1_4_Action(action)));
-            }
-        }
-    }
-
-    @Test
-    public void testIncomingAction() {
-        String[] pre_1_4_names = ActionNames.ACTION_NAMES.inverse().keySet().toArray(new String[ActionNames.ACTION_NAMES.inverse().keySet().size()]);
-        TransportService transportService = internalCluster().getInstance(TransportService.class);
-        String[] actions = transportService.serverHandlers.keySet().toArray(new String[transportService.serverHandlers.keySet().size()]);
-
-        Version version = randomVersion();
-        int iters = iterations(10, 100);
-        for (int i = 0; i < iters; i++) {
-            boolean customAction = rarely();
-            String action;
-            if (customAction) {
-                action = randomAsciiOfLength(randomInt(30));
-            } else {
-                if (version.before(Version.V_1_4_0)) {
-                    action = randomFrom(pre_1_4_names);
-                } else {
-                    action = randomFrom(actions);
-                }
-            }
-
-            String incomingAction = ActionNames.incomingAction  (action, version);
-            if (version.onOrAfter(Version.V_1_4_0) || customAction) {
-                assertThat(incomingAction, equalTo(action));
-            } else {
-                assertThat(incomingAction, not(equalTo(action)));
-                assertThat(incomingAction, equalTo(ActionNames.post_1_4_action(action)));
-            }
-        }
-    }
-
-    private static final Set<String> post_1_4_actions = new HashSet<>();
-
-    static {
-        //add here new actions that don't need a mapping as they weren't available prior to 1.4
-        post_1_4_actions.add(BenchmarkService.STATUS_ACTION_NAME);
-        post_1_4_actions.add(BenchmarkService.START_ACTION_NAME);
-        post_1_4_actions.add(BenchmarkService.ABORT_ACTION_NAME);
-        post_1_4_actions.add(BenchmarkAction.NAME);
-        post_1_4_actions.add(BenchmarkStatusAction.NAME);
-        post_1_4_actions.add(AbortBenchmarkAction.NAME);
-        post_1_4_actions.add(ExistsAction.NAME);
-        post_1_4_actions.add(ExistsAction.NAME + "[s]");
     }
 }

@@ -22,7 +22,6 @@
  */
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 
@@ -30,15 +29,11 @@ public abstract class DelegatingActionListener<Instigator extends ActionResponse
 
     ActionListener<Delegated> delegatedActionListener;
 
-    private DelegatingActionListener(){
-        throw new ElasticsearchIllegalStateException("Constructor for " + DelegatingActionListener.class.toString() + " can't be called.");
-    }
-
-    public DelegatingActionListener(final ActionListener<Delegated> listener) {
+    protected DelegatingActionListener(final ActionListener<Delegated> listener) {
         this.delegatedActionListener = listener;
     }
 
-    public abstract Delegated getDelegatedFromInstigator(Instigator response);
+    protected abstract Delegated getDelegatedFromInstigator(Instigator response);
 
     @Override
     public final void onResponse(Instigator response) {

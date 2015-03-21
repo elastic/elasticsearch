@@ -20,8 +20,12 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.IntsRefBuilder;
 import org.apache.lucene.util.fst.FST;
 import org.apache.lucene.util.fst.FST.Arc;
 import org.apache.lucene.util.fst.FST.BytesReader;
@@ -29,6 +33,10 @@ import org.apache.lucene.util.fst.Util;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  */
@@ -62,6 +70,16 @@ public class FSTBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
     }
 
     @Override
+    public Collection<Accountable> getChildResources() {
+        List<Accountable> resources = new ArrayList<>();
+        resources.add(Accountables.namedAccountable("ordinals", ordinals));
+        if (fst != null) {
+            resources.add(Accountables.namedAccountable("terms", fst));
+        }
+        return Collections.unmodifiableList(resources);
+    }
+
+    @Override
     public RandomAccessOrds getOrdinalsValues() {
         return ordinals.ordinals(new ValuesHolder(fst));
     }
@@ -71,15 +89,15 @@ public class FSTBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
         private final FST<Long> fst;
 
         // per-thread resources
-        private final BytesRef scratch;
+        private final BytesRefBuilder scratch;
         protected final BytesReader in;
         protected final Arc<Long> firstArc = new Arc<>();
         protected final Arc<Long> scratchArc = new Arc<>();
-        protected final IntsRef scratchInts = new IntsRef();
+        protected final IntsRefBuilder scratchInts = new IntsRefBuilder();
 
         ValuesHolder(FST<Long> fst) {
             this.fst = fst;
-            scratch = new BytesRef();
+            scratch = new BytesRefBuilder();
             in = fst.getBytesReader();
         }
 
@@ -90,13 +108,13 @@ public class FSTBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
             fst.getFirstArc(firstArc);
             try {
                 IntsRef output = Util.getByOutput(fst, ord, in, firstArc, scratchArc, scratchInts);
-                scratch.length = scratch.offset = 0;
+                scratch.clear();
                 scratch.grow(output.length);
                 Util.toBytesRef(output, scratch);
             } catch (IOException ex) {
                 //bogus
             }
-            return scratch;
+            return scratch.get();
         }
     }
 

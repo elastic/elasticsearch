@@ -77,10 +77,13 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
      * Method used to trip the breaker
      * @throws CircuitBreakingException
      */
+    @Override
     public void circuitBreak(String fieldName, long bytesNeeded) throws CircuitBreakingException {
         this.trippedCount.incrementAndGet();
-        throw new CircuitBreakingException("Data too large, data for field [" + fieldName + "] would be larger than limit of [" +
-                memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]");
+        final String message = "Data too large, data for field [" + fieldName + "] would be larger than limit of [" +
+                memoryBytesLimit + "/" + new ByteSizeValue(memoryBytesLimit) + "]";
+        logger.debug(message);
+        throw new CircuitBreakingException(message);
     }
 
     /**
@@ -92,6 +95,7 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
      * @return number of "used" bytes so far
      * @throws CircuitBreakingException
      */
+    @Override
     public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
         // short-circuit on no data allowed, immediately throwing an exception
         if (memoryBytesLimit == 0) {
@@ -144,6 +148,7 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
      * @param bytes number of bytes to add to the breaker
      * @return number of "used" bytes so far
      */
+    @Override
     public long addWithoutBreaking(long bytes) {
         long u = used.addAndGet(bytes);
         if (logger.isTraceEnabled()) {
@@ -156,6 +161,7 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
     /**
      * @return the number of aggregated "used" bytes so far
      */
+    @Override
     public long getUsed() {
         return this.used.get();
     }
@@ -163,6 +169,7 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
     /**
      * @return the number of bytes that can be added before the breaker trips
      */
+    @Override
     public long getLimit() {
         return this.memoryBytesLimit;
     }
@@ -170,6 +177,7 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
     /**
      * @return the constant multiplier the breaker uses for aggregations
      */
+    @Override
     public double getOverhead() {
         return this.overheadConstant;
     }
@@ -177,6 +185,7 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
     /**
      * @return the number of times the breaker has been tripped
      */
+    @Override
     public long getTrippedCount() {
         return this.trippedCount.get();
     }
@@ -184,7 +193,8 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
     /**
      * @return the name of the breaker
      */
-    public Name getName() {
-        return Name.FIELDDATA;
+    @Override
+    public String getName() {
+        return FIELDDATA;
     }
 }

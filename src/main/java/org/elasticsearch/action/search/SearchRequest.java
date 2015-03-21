@@ -21,7 +21,6 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -59,7 +58,7 @@ import static org.elasticsearch.search.Scroll.readScroll;
  * @see org.elasticsearch.client.Client#search(SearchRequest)
  * @see SearchResponse
  */
-public class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRequest {
+public class SearchRequest extends ActionRequest<SearchRequest> implements IndicesRequest.Replaceable {
 
     private SearchType searchType = SearchType.DEFAULT;
 
@@ -74,7 +73,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     private boolean templateSourceUnsafe;
     private String templateName;
     private ScriptService.ScriptType templateType;
-    private Map<String, String> templateParams = Collections.emptyMap();
+    private Map<String, Object> templateParams = Collections.emptyMap();
 
     private BytesReference source;
     private boolean sourceUnsafe;
@@ -173,6 +172,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     /**
      * Sets the indices the search will be executed on.
      */
+    @Override
     public SearchRequest indices(String... indices) {
         if (indices == null) {
             throw new ElasticsearchIllegalArgumentException("indices must not be null");
@@ -370,7 +370,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             builder.map(extraSource);
             return extraSource(builder);
         } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+            throw new ElasticsearchGenerationException("Failed to generate [" + extraSource + "]", e);
         }
     }
 
@@ -451,7 +451,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     /**
      * Template parameters used for rendering
      */
-    public void templateParams(Map<String, String> params) {
+    public void templateParams(Map<String, Object> params) {
         this.templateParams = params;
     }
 
@@ -472,7 +472,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     /**
      * Template parameters used for rendering
      */
-    public Map<String, String> templateParams() {
+    public Map<String, Object> templateParams() {
         return templateParams;
     }
 
@@ -544,9 +544,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.getVersion().before(Version.V_1_2_0)) {
-            in.readByte(); // backward comp. for operation threading
-        }
         searchType = SearchType.fromId(in.readByte());
 
         indices = new String[in.readVInt()];
@@ -570,29 +567,19 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
 
-        if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-            templateSourceUnsafe = false;
-            templateSource = in.readBytesReference();
-            templateName = in.readOptionalString();
-            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-                templateType = ScriptService.ScriptType.readFrom(in);
-            }
-            if (in.readBoolean()) {
-                templateParams = (Map<String, String>) in.readGenericValue();
-            }
+        templateSourceUnsafe = false;
+        templateSource = in.readBytesReference();
+        templateName = in.readOptionalString();
+        templateType = ScriptService.ScriptType.readFrom(in);
+        if (in.readBoolean()) {
+            templateParams = (Map<String, Object>) in.readGenericValue();
         }
-
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-            queryCache = in.readOptionalBoolean();
-        }
+        queryCache = in.readOptionalBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_1_2_0)) {
-            out.writeByte((byte) 2); // operation threading
-        }
         out.writeByte(searchType.id());
 
         out.writeVInt(indices.length);
@@ -614,21 +601,15 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
 
-        if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-            out.writeBytesReference(templateSource);
-            out.writeOptionalString(templateName);
-            if (out.getVersion().onOrAfter(Version.V_1_3_0)) {
-                ScriptService.ScriptType.writeTo(templateType, out);
-            }
-            boolean existTemplateParams = templateParams != null;
-            out.writeBoolean(existTemplateParams);
-            if (existTemplateParams) {
-                out.writeGenericValue(templateParams);
-            }
+        out.writeBytesReference(templateSource);
+        out.writeOptionalString(templateName);
+        ScriptService.ScriptType.writeTo(templateType, out);
+        boolean existTemplateParams = templateParams != null;
+        out.writeBoolean(existTemplateParams);
+        if (existTemplateParams) {
+            out.writeGenericValue(templateParams);
         }
 
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-            out.writeOptionalBoolean(queryCache);
-        }
+        out.writeOptionalBoolean(queryCache);
     }
 }

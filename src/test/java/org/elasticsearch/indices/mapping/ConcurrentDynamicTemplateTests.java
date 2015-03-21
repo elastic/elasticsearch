@@ -24,6 +24,10 @@ import com.google.common.collect.Sets;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -40,6 +44,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.emptyIterable;
 
+@ElasticsearchIntegrationTest.ClusterScope(randomDynamicTemplates = false) // this test takes a long time to delete the idx if all fields are eager loading
 public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest {
 
     private final String mappingType = "test-mapping";
@@ -92,9 +97,12 @@ public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest
     @Test
     public void testDynamicMappingIntroductionPropagatesToAll() throws Exception {
         int numDocs = randomIntBetween(100, 1000);
-        int numberOfFields = randomIntBetween(1, 50);
+        int numberOfFields = scaledRandomIntBetween(1, 50);
         Set<Integer> fieldsIdx = Sets.newHashSet();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+
+        createIndex("idx");
+        ensureGreen("idx");
         for (int i = 0; i < numDocs; ++i) {
             int fieldIdx = i % numberOfFields;
             fieldsIdx.add(fieldIdx);
@@ -102,7 +110,7 @@ public class ConcurrentDynamicTemplateTests extends ElasticsearchIntegrationTest
                     .startObject()
                     .field("str_value_" + fieldIdx, "s" + i)
                     .field("l_value_" + fieldIdx, i)
-                    .field("d_value_" + fieldIdx, i)
+                    .field("d_value_" + fieldIdx, (double)i + 0.01)
                     .endObject());
         }
         indexRandom(false, builders);

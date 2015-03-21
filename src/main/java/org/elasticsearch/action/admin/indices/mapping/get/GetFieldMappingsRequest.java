@@ -23,16 +23,14 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 
 /** Request the mappings of specific fields */
-public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsRequest> implements IndicesRequest {
+public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsRequest> implements IndicesRequest.Replaceable {
 
     protected boolean local = false;
 
@@ -49,15 +47,6 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
 
     }
 
-    public GetFieldMappingsRequest(GetFieldMappingsRequest other) {
-        this.local = other.local;
-        this.includeDefaults = other.includeDefaults;
-        this.indices = other.indices;
-        this.types = other.types;
-        this.indicesOptions = other.indicesOptions;
-        this.fields = other.fields;
-    }
-
     /**
      * Indicate whether the receiving node should operate based on local index information or forward requests,
      * where needed, to other nodes. If running locally, request will not raise errors if running locally & missing indices.
@@ -71,6 +60,7 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
         return local;
     }
 
+    @Override
     public GetFieldMappingsRequest indices(String... indices) {
         this.indices = indices;
         return this;
@@ -128,8 +118,6 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        // This request used to inherit from MasterNodeOperationRequest, so for bwc we need to keep serializing it.
-        MasterNodeOperationRequest.DEFAULT_MASTER_NODE_TIMEOUT.writeTo(out);
         out.writeStringArray(indices);
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
@@ -141,8 +129,6 @@ public class GetFieldMappingsRequest extends ActionRequest<GetFieldMappingsReque
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        // This request used to inherit from MasterNodeOperationRequest, so for bwc we need to keep serializing it.
-        TimeValue.readTimeValue(in);
         indices = in.readStringArray();
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);

@@ -25,12 +25,17 @@ import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 
 import java.io.*;
 import java.net.MalformedURLException;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 /**
@@ -64,8 +69,6 @@ import java.util.*;
  */
 public class HunspellService extends AbstractComponent {
 
-    private final static DictionaryFileFilter DIC_FILE_FILTER = new DictionaryFileFilter();
-    private final static AffixFileFilter AFFIX_FILE_FILTER = new AffixFileFilter();
     public final static String HUNSPELL_LAZY_LOAD = "indices.analysis.hunspell.dictionary.lazy";
     public final static String HUNSPELL_IGNORE_CASE = "indices.analysis.hunspell.dictionary.ignore_case";
     public final static String HUNSPELL_LOCATION = "indices.analysis.hunspell.dictionary.location";
@@ -73,14 +76,14 @@ public class HunspellService extends AbstractComponent {
     private final Map<String, Dictionary> knownDictionaries;
 
     private final boolean defaultIgnoreCase;
-    private final File hunspellDir;
+    private final Path hunspellDir;
 
-    public HunspellService(final Settings settings, final Environment env) {
+    public HunspellService(final Settings settings, final Environment env) throws IOException {
         this(settings, env, Collections.<String, Dictionary>emptyMap());
     }
 
     @Inject
-    public HunspellService(final Settings settings, final Environment env, final Map<String, Dictionary> knownDictionaries) {
+    public HunspellService(final Settings settings, final Environment env, final Map<String, Dictionary> knownDictionaries) throws IOException {
         super(settings);
         this.knownDictionaries = knownDictionaries;
         this.hunspellDir = resolveHunspellDirectory(settings, env);
@@ -109,23 +112,27 @@ public class HunspellService extends AbstractComponent {
         return dictionaries.getUnchecked(locale);
     }
 
-    private File resolveHunspellDirectory(Settings settings, Environment env) {
+    private Path resolveHunspellDirectory(Settings settings, Environment env) {
         String location = settings.get(HUNSPELL_LOCATION, null);
         if (location != null) {
-            return new File(location);
+            return Paths.get(location);
         }
-        return new File(env.configFile(), "hunspell");
+        return env.configFile().resolve( "hunspell");
     }
 
     /**
      * Scans the hunspell directory and loads all found dictionaries
      */
-    private void scanAndLoadDictionaries() {
-        if (hunspellDir.exists() && hunspellDir.isDirectory()) {
-            for (File file : hunspellDir.listFiles()) {
-                if (file.isDirectory()) {
-                    if (file.list(DIC_FILE_FILTER).length > 0) { // just making sure it's indeed a dictionary dir
-                        dictionaries.getUnchecked(file.getName());
+    private void scanAndLoadDictionaries() throws IOException {
+        if (Files.isDirectory(hunspellDir)) {
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(hunspellDir)) {
+                for (Path file : stream) {
+                    if (Files.isDirectory(file)) {
+                        try (DirectoryStream<Path> inner = Files.newDirectoryStream(hunspellDir.resolve(file), "*.dic")) {
+                            if (inner.iterator().hasNext()) { // just making sure it's indeed a dictionary dir
+                                dictionaries.getUnchecked(file.getFileName().toString());
+                            }
+                        }
                     }
                 }
             }
@@ -138,7 +145,6 @@ public class HunspellService extends AbstractComponent {
      * @param locale       The locale of the hunspell dictionary to be loaded.
      * @param nodeSettings The node level settings
      * @param env          The node environment (from which the conf path will be resolved)
-     * @param version      The lucene version
      * @return The loaded Hunspell dictionary
      * @throws Exception when loading fails (due to IO errors or malformed dictionary files)
      */
@@ -146,8 +152,8 @@ public class HunspellService extends AbstractComponent {
         if (logger.isDebugEnabled()) {
             logger.debug("Loading hunspell dictionary [{}]...", locale);
         }
-        File dicDir = new File(hunspellDir, locale);
-        if (!dicDir.exists() || !dicDir.isDirectory()) {
+        Path dicDir = hunspellDir.resolve(locale);
+        if (FileSystemUtils.isAccessibleDirectory(dicDir, logger) == false) {
             throw new ElasticsearchException(String.format(Locale.ROOT, "Could not find hunspell dictionary [%s]", locale));
         }
 
@@ -156,7 +162,7 @@ public class HunspellService extends AbstractComponent {
 
         boolean ignoreCase = nodeSettings.getAsBoolean("ignore_case", defaultIgnoreCase);
 
-        File[] affixFiles = dicDir.listFiles(AFFIX_FILE_FILTER);
+        Path[] affixFiles = FileSystemUtils.files(dicDir, "*.aff");
         if (affixFiles.length == 0) {
             throw new ElasticsearchException(String.format(Locale.ROOT, "Missing affix file for hunspell dictionary [%s]", locale));
         }
@@ -165,15 +171,15 @@ public class HunspellService extends AbstractComponent {
         }
         InputStream affixStream = null;
 
-        File[] dicFiles = dicDir.listFiles(DIC_FILE_FILTER);
+        Path[] dicFiles = FileSystemUtils.files(dicDir, "*.dic");
         List<InputStream> dicStreams = new ArrayList<>(dicFiles.length);
         try {
 
             for (int i = 0; i < dicFiles.length; i++) {
-                dicStreams.add(new FileInputStream(dicFiles[i]));
+                dicStreams.add(Files.newInputStream(dicFiles[i]));
             }
 
-            affixStream = new FileInputStream(affixFiles[0]);
+            affixStream = Files.newInputStream(affixFiles[0]);
 
             return new Dictionary(affixStream, dicStreams, ignoreCase);
 
@@ -208,47 +214,18 @@ public class HunspellService extends AbstractComponent {
      * @param defaults The default settings for this dictionary
      * @return The resolved settings.
      */
-    private static Settings loadDictionarySettings(File dir, Settings defaults) {
-        File file = new File(dir, "settings.yml");
-        if (file.exists()) {
-            try {
-                return ImmutableSettings.settingsBuilder().loadFromUrl(file.toURI().toURL()).put(defaults).build();
-            } catch (MalformedURLException e) {
-                throw new ElasticsearchException(String.format(Locale.ROOT, "Could not load hunspell dictionary settings from [%s]", file.getAbsolutePath()), e);
-            }
+    private static Settings loadDictionarySettings(Path dir, Settings defaults) {
+        Path file = dir.resolve("settings.yml");
+        if (Files.exists(file)) {
+            return ImmutableSettings.settingsBuilder().loadFromPath(file).put(defaults).build();
         }
 
-        file = new File(dir, "settings.json");
-        if (file.exists()) {
-            try {
-                return ImmutableSettings.settingsBuilder().loadFromUrl(file.toURI().toURL()).put(defaults).build();
-            } catch (MalformedURLException e) {
-                throw new ElasticsearchException(String.format(Locale.ROOT, "Could not load hunspell dictionary settings from [%s]", file.getAbsolutePath()), e);
-            }
+        file = dir.resolve("settings.json");
+        if (Files.exists(file)) {
+            return ImmutableSettings.settingsBuilder().loadFromPath(file).put(defaults).build();
         }
 
         return defaults;
     }
-
-    /**
-     * Only accepts {@code *.dic} files
-     */
-    static class DictionaryFileFilter implements FilenameFilter {
-        @Override
-        public boolean accept(File dir, String name) {
-            return name.toLowerCase(Locale.ROOT).endsWith(".dic");
-        }
-    }
-
-    /**
-     * Only accepts {@code *.aff} files
-     */
-    static class AffixFileFilter implements FilenameFilter {
-        @Override
-        public boolean accept(File dir, String name) {
-            return name.toLowerCase(Locale.ROOT).endsWith(".aff");
-        }
-    }
-
 }
 

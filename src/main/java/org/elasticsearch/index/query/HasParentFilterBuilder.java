@@ -19,6 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.query.support.QueryInnerHitBuilder;
 
 import java.io.IOException;
 
@@ -31,6 +32,7 @@ public class HasParentFilterBuilder extends BaseFilterBuilder {
     private final FilterBuilder filterBuilder;
     private final String parentType;
     private String filterName;
+    private QueryInnerHitBuilder innerHit = null;
 
     /**
      * @param parentType  The parent type
@@ -74,6 +76,14 @@ public class HasParentFilterBuilder extends BaseFilterBuilder {
         return this;
     }
 
+    /**
+     * Sets inner hit definition in the scope of this filter and reusing the defined type and query.
+     */
+    public HasParentFilterBuilder innerHit(QueryInnerHitBuilder innerHit) {
+        this.innerHit = innerHit;
+        return this;
+    }
+
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(HasParentFilterParser.NAME);
@@ -87,6 +97,11 @@ public class HasParentFilterBuilder extends BaseFilterBuilder {
         builder.field("parent_type", parentType);
         if (filterName != null) {
             builder.field("_name", filterName);
+        }
+        if (innerHit != null) {
+            builder.startObject("inner_hits");
+            builder.value(innerHit);
+            builder.endObject();
         }
         builder.endObject();
     }

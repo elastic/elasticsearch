@@ -40,6 +40,7 @@ import org.elasticsearch.discovery.*;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashSet;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentMap;
@@ -58,7 +59,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     private final TransportService transportService;
     private final ClusterService clusterService;
-    private final DiscoveryService discoveryService;
     private final DiscoveryNodeService discoveryNodeService;
     private AllocationService allocationService;
     private final ClusterName clusterName;
@@ -78,7 +78,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
 
     @Inject
     public LocalDiscovery(Settings settings, ClusterName clusterName, TransportService transportService, ClusterService clusterService,
-                          DiscoveryNodeService discoveryNodeService, Version version, DiscoverySettings discoverySettings, DiscoveryService discoveryService) {
+                          DiscoveryNodeService discoveryNodeService, Version version, DiscoverySettings discoverySettings) {
         super(settings);
         this.clusterName = clusterName;
         this.clusterService = clusterService;
@@ -86,7 +86,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         this.discoveryNodeService = discoveryNodeService;
         this.version = version;
         this.discoverySettings = discoverySettings;
-        this.discoveryService = discoveryService;
     }
 
     @Override
@@ -274,13 +273,21 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         return clusterName.value() + "/" + localNode.id();
     }
 
+    @Override
     public void publish(ClusterState clusterState, final Discovery.AckListener ackListener) {
         if (!master) {
             throw new ElasticsearchIllegalStateException("Shouldn't publish state when not master");
         }
         LocalDiscovery[] members = members();
         if (members.length > 0) {
-            publish(members, clusterState, new AckClusterStatePublishResponseHandler(members.length - 1, ackListener));
+            Set<DiscoveryNode> nodesToPublishTo = new HashSet<>(members.length);
+            for (LocalDiscovery localDiscovery : members) {
+                if (localDiscovery.master) {
+                    continue;
+                }
+                nodesToPublishTo.add(localDiscovery.localNode);
+            }
+            publish(members, clusterState, new AckClusterStatePublishResponseHandler(nodesToPublishTo, ackListener));
         }
     }
 
@@ -293,7 +300,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         return members.toArray(new LocalDiscovery[members.size()]);
     }
 
-    private void publish(LocalDiscovery[] members, ClusterState clusterState, final ClusterStatePublishResponseHandler publishResponseHandler) {
+    private void publish(LocalDiscovery[] members, ClusterState clusterState, final BlockingClusterStatePublishResponseHandler publishResponseHandler) {
 
         try {
             // we do the marshaling intentionally, to check it works well...
@@ -303,12 +310,12 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 if (discovery.master) {
                     continue;
                 }
-                final ClusterState nodeSpecificClusterState = ClusterState.Builder.fromBytes(clusterStateBytes, discovery.localNode, clusterName);
+                final ClusterState nodeSpecificClusterState = ClusterState.Builder.fromBytes(clusterStateBytes, discovery.localNode);
                 nodeSpecificClusterState.status(ClusterState.ClusterStateStatus.RECEIVED);
                 // ignore cluster state messages that do not include "me", not in the game yet...
                 if (nodeSpecificClusterState.nodes().localNode() != null) {
                     assert nodeSpecificClusterState.nodes().masterNode() != null : "received a cluster state without a master";
-                    assert !nodeSpecificClusterState.blocks().hasGlobalBlock(discoveryService.getNoMasterBlock()) : "received a cluster state with a master block";
+                    assert !nodeSpecificClusterState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock()) : "received a cluster state with a master block";
 
                     discovery.clusterService.submitStateUpdateTask("local-disco-receive(from master)", new ProcessedClusterStateNonMasterUpdateTask() {
                         @Override
@@ -317,7 +324,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                                 return currentState;
                             }
 
-                            if (currentState.blocks().hasGlobalBlock(discoveryService.getNoMasterBlock())) {
+                            if (currentState.blocks().hasGlobalBlock(discoverySettings.getNoMasterBlock())) {
                                 // its a fresh update from the master as we transition from a start of not having a master to having one
                                 logger.debug("got first state from fresh master [{}]", nodeSpecificClusterState.nodes().masterNodeId());
                                 return nodeSpecificClusterState;
@@ -357,7 +364,11 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 try {
                     boolean awaited = publishResponseHandler.awaitAllNodes(publishTimeout);
                     if (!awaited) {
-                        logger.debug("awaiting all nodes to process published state {} timed out, timeout {}", clusterState.version(), publishTimeout);
+                        DiscoveryNode[] pendingNodes = publishResponseHandler.pendingNodes();
+                        // everyone may have just responded
+                        if (pendingNodes.length > 0) {
+                            logger.warn("timed out waiting for all nodes to process published state [{}] (timeout [{}], pending nodes: {})", clusterState.version(), publishTimeout, pendingNodes);
+                        }
                     }
                 } catch (InterruptedException e) {
                     // ignore & restore interrupt

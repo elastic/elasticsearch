@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
@@ -42,19 +43,24 @@ import static org.elasticsearch.rest.RestStatus.*;
 public class RestPutIndexedScriptAction extends BaseRestHandler {
 
     @Inject
-    public RestPutIndexedScriptAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestPutIndexedScriptAction(Settings settings, RestController controller, Client client) {
+        this(settings, controller, true, client);
+    }
 
-        controller.registerHandler(POST, "/_scripts/{lang}/{id}", this);
-        controller.registerHandler(PUT, "/_scripts/{lang}/{id}", this);
+    protected RestPutIndexedScriptAction(Settings settings, RestController controller, boolean registerDefaultHandlers, Client client) {
+        super(settings, controller, client);
+        if (registerDefaultHandlers) {
+            controller.registerHandler(POST, "/_scripts/{lang}/{id}", this);
+            controller.registerHandler(PUT, "/_scripts/{lang}/{id}", this);
 
-        controller.registerHandler(PUT, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, client));
-        controller.registerHandler(POST, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, client));
+            controller.registerHandler(PUT, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, controller, client));
+            controller.registerHandler(POST, "/_scripts/{lang}/{id}/_create", new CreateHandler(settings, controller, client));
+        }
     }
 
     final class CreateHandler extends BaseRestHandler {
-        protected CreateHandler(Settings settings, final Client client) {
-            super(settings, client);
+        protected CreateHandler(Settings settings, RestController controller, Client client) {
+            super(settings, controller, client);
         }
 
         @Override
@@ -64,12 +70,15 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
         }
     }
 
+    protected String getScriptLang(RestRequest request) {
+        return request.param("lang");
+    }
+
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
-
-        PutIndexedScriptRequest putRequest = new PutIndexedScriptRequest(request.param("lang"), request.param("id"));
-        putRequest.listenerThreaded(false);
-
+        PutIndexedScriptRequest putRequest = new PutIndexedScriptRequest(getScriptLang(request), request.param("id")).listenerThreaded(false);
+        putRequest.version(request.paramAsLong("version", putRequest.version()));
+        putRequest.versionType(VersionType.fromString(request.param("version_type"), putRequest.versionType()));
         putRequest.source(request.content(), request.contentUnsafe());
         String sOpType = request.param("op_type");
         if (sOpType != null) {
@@ -109,5 +118,4 @@ public class RestPutIndexedScriptAction extends BaseRestHandler {
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString CREATED = new XContentBuilderString("created");
     }
-
 }

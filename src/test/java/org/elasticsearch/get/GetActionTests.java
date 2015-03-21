@@ -473,7 +473,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 .startObject(type)
                 .startObject("_source")
                 .array("includes", "included")
-                .array("exlcudes", "excluded")
+                .array("excludes", "excluded")
                 .endObject()
                 .endObject()
                 .endObject()
@@ -806,13 +806,13 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
         assertAcked(prepareCreate("my-index")
                 .setSettings(ImmutableSettings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
-                        .startObject("field1").field("type", "object")
-                        .startObject("field2").field("type", "object")
-                                .startObject("field3").field("type", "object")
+                        .startObject("field1").field("type", "object").startObject("properties")
+                        .startObject("field2").field("type", "object").startObject("properties")
+                                .startObject("field3").field("type", "object").startObject("properties")
                                     .startObject("field4").field("type", "string").field("store", "yes")
-                                .endObject()
-                            .endObject()
-                        .endObject()
+                                .endObject().endObject()
+                            .endObject().endObject()
+                        .endObject().endObject()
                         .endObject().endObject().endObject()));
 
         BytesReference source = jsonBuilder().startObject()
@@ -964,7 +964,6 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testUngeneratedFieldsThatAreAlwaysStored() throws IOException {
-        String storedString = randomBoolean() ? "yes" : "no";
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
                 "    \"index.translog.disable_flush\": true,\n" +
@@ -977,12 +976,10 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "        \"enabled\": " + randomBoolean() + "\n" +
                 "      },\n" +
                 "      \"_parent\": {\n" +
-                "        \"type\": \"parentdoc\",\n" +
-                "        \"store\": \"" + storedString + "\"\n" +
+                "        \"type\": \"parentdoc\"\n" +
                 "      },\n" +
                 "      \"_ttl\": {\n" +
-                "        \"enabled\": true,\n" +
-                "        \"store\": \"" + storedString + "\"\n" +
+                "        \"enabled\": true\n" +
                 "      }\n" +
                 "    }\n" +
                 "  }\n" +
@@ -1009,7 +1006,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void testUngeneratedFieldsPartOfSourceUnstoredSourceDisabled() throws IOException {
         indexSingleDocumentWithUngeneratedFieldsThatArePartOf_source(false, false);
-        String[] fieldsList = {"my_boost"};
+        String[] fieldsList = {};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
         refresh();
@@ -1028,7 +1025,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
             sourceEnabled = randomBoolean();
         }
         indexSingleDocumentWithUngeneratedFieldsThatArePartOf_source(stored, sourceEnabled);
-        String[] fieldsList = {"my_boost"};
+        String[] fieldsList = {};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
         refresh();
@@ -1050,11 +1047,6 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "    \"doc\": {\n" +
                 "      \"_source\": {\n" +
                 "        \"enabled\": " + sourceEnabled + "\n" +
-                "      },\n" +
-                "      \"_boost\": {\n" +
-                "        \"name\": \"my_boost\",\n" +
-                "        \"null_value\": 1,\n" +
-                "        \"store\": \"" + storedString + "\"\n" +
                 "      }\n" +
                 "    }\n" +
                 "  }\n" +
@@ -1073,15 +1065,19 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void testUngeneratedFieldsNotPartOfSourceUnstored() throws IOException {
         indexSingleDocumentWithUngeneratedFieldsThatAreNeverPartOf_source(false, randomBoolean());
-        String[] fieldsList = {"_timestamp", "_size", "_routing"};
+        String[] fieldsList = {"_timestamp"};
+        String[] alwaysStoredFieldsList = {"_routing", "_size"};
         // before refresh - document is only in translog
         assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", alwaysStoredFieldsList, "1");
         refresh();
         //after refresh - document is in translog and also indexed
         assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", alwaysStoredFieldsList, "1");
         flush();
         //after flush - document is in not anymore translog - only indexed
         assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList, "1");
+        assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", alwaysStoredFieldsList, "1");
     }
 
     @Test
@@ -1112,11 +1108,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "        \"store\": \"" + storedString + "\",\n" +
                 "        \"enabled\": true\n" +
                 "      },\n" +
-                "      \"_routing\": {\n" +
-                "        \"store\": \"" + storedString + "\"\n" +
-                "      },\n" +
                 "      \"_size\": {\n" +
-                "        \"store\": \"" + storedString + "\",\n" +
                 "        \"enabled\": true\n" +
                 "      }\n" +
                 "    }\n" +
@@ -1149,16 +1141,20 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
     @Test
     public void testGeneratedStringFieldsStored() throws IOException {
         indexSingleDocumentWithStringFieldsGeneratedFromText(true, randomBoolean());
-        String[] fieldsList = {"_all", "_field_names"};
+        String[] fieldsList = {"_all"};
+        String[] alwaysNotStoredFieldsList = {"_field_names"};
         // before refresh - document is only in translog
         assertGetFieldsNull(indexOrAlias(), "doc", "1", fieldsList);
         assertGetFieldsException(indexOrAlias(), "doc", "1", fieldsList);
+        assertGetFieldsNull(indexOrAlias(), "doc", "1", alwaysNotStoredFieldsList);
         refresh();
         //after refresh - document is in translog and also indexed
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
+        assertGetFieldsNull(indexOrAlias(), "doc", "1", alwaysNotStoredFieldsList);
         flush();
         //after flush - document is in not anymore translog - only indexed
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList);
+        assertGetFieldsNull(indexOrAlias(), "doc", "1", alwaysNotStoredFieldsList);
     }
 
     void indexSingleDocumentWithStringFieldsGeneratedFromText(boolean stored, boolean sourceEnabled) {
@@ -1172,8 +1168,7 @@ public class GetActionTests extends ElasticsearchIntegrationTest {
                 "  \"mappings\": {\n" +
                 "    \"doc\": {\n" +
                 "      \"_source\" : {\"enabled\" : " + sourceEnabled + "}," +
-                "      \"_all\" : {\"enabled\" : true, \"store\":\"" + storedString + "\" }," +
-                "      \"_field_names\" : {\"store\":\"" + storedString + "\" }" +
+                "      \"_all\" : {\"enabled\" : true, \"store\":\"" + storedString + "\" }" +
                 "    }\n" +
                 "  }\n" +
                 "}";

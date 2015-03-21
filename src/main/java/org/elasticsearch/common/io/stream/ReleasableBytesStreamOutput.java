@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.io.ReleasableBytesStream;
 import org.elasticsearch.common.util.BigArrays;
@@ -42,7 +41,7 @@ public class ReleasableBytesStreamOutput extends BytesStreamOutput implements Re
     }
 
     @Override
-    public ReleasableBytesReference bytes() {
+    public ReleasablePagedBytesReference bytes() {
         return new ReleasablePagedBytesReference(bigarrays, bytes, count);
     }
 }

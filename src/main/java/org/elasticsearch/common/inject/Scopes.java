@@ -37,12 +37,14 @@ public class Scopes {
      * One instance per {@link Injector}. Also see {@code @}{@link Singleton}.
      */
     public static final Scope SINGLETON = new Scope() {
+        @Override
         public <T> Provider<T> scope(Key<T> key, final Provider<T> creator) {
             return new Provider<T>() {
 
                 private volatile T instance;
 
                 // DCL on a volatile is safe as of Java 5, which we obviously require.
+                @Override
                 @SuppressWarnings("DoubleCheckedLocking")
                 public T get() {
                     if (instance == null) {
@@ -61,6 +63,7 @@ public class Scopes {
                     return instance;
                 }
 
+                @Override
                 public String toString() {
                     return String.format(Locale.ROOT, "%s[%s]", creator, SINGLETON);
                 }
@@ -86,6 +89,7 @@ public class Scopes {
      * @since 2.0
      */
     public static final Scope NO_SCOPE = new Scope() {
+        @Override
         public <T> Provider<T> scope(Key<T> key, Provider<T> unscoped) {
             return unscoped;
         }

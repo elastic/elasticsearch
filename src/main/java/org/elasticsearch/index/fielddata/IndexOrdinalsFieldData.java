@@ -32,11 +32,13 @@ public interface IndexOrdinalsFieldData extends IndexFieldData.Global<AtomicOrdi
      * Load a global view of the ordinals for the given {@link IndexReader},
      * potentially from a cache.
      */
+    @Override
     IndexOrdinalsFieldData loadGlobal(IndexReader indexReader);
 
     /**
      * Load a global view of the ordinals for the given {@link IndexReader}.
      */
+    @Override
     IndexOrdinalsFieldData localGlobalDirect(IndexReader indexReader) throws Exception;
 
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.ack;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -31,6 +32,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
 import org.elasticsearch.action.admin.indices.warmer.put.PutWarmerResponse;
 import org.elasticsearch.client.Client;
@@ -83,7 +85,6 @@ public class AckTests extends ElasticsearchIntegrationTest {
     @Test
     public void testUpdateSettingsNoAcknowledgement() {
         createIndex("test");
-
         UpdateSettingsResponse updateSettingsResponse = client().admin().indices().prepareUpdateSettings("test").setTimeout("0s")
                 .setSettings(ImmutableSettings.builder().put("refresh_interval", 9999)).get();
         assertThat(updateSettingsResponse.isAcknowledged(), equalTo(false));
@@ -92,7 +93,8 @@ public class AckTests extends ElasticsearchIntegrationTest {
     @Test
     public void testPutWarmerAcknowledgement() {
         createIndex("test");
-        ensureGreen();
+        // make sure one shard is started so the search during put warmer will not fail
+        index("test", "type", "1", "f", 1);
 
         assertAcked(client().admin().indices().preparePutWarmer("custom_warmer")
                 .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())));
@@ -108,20 +110,37 @@ public class AckTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testPutWarmerNoAcknowledgement() {
+    public void testPutWarmerNoAcknowledgement() throws InterruptedException {
         createIndex("test");
-        ensureGreen();
+        // make sure one shard is started so the search during put warmer will not fail
+        index("test", "type", "1", "f", 1);
 
         PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("custom_warmer").setTimeout("0s")
                 .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
                 .get();
         assertThat(putWarmerResponse.isAcknowledged(), equalTo(false));
+        /* Since we don't wait for the ack here we have to wait until the search request has been executed from the master
+         * otherwise the test infra might have already deleted the index and the search request fails on all shards causing
+         * the test to fail too. We simply wait until the the warmer has been installed and also clean it up afterwards.*/
+        assertTrue(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object input) {
+                for (Client client : clients()) {
+                    GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
+                    if (getWarmersResponse.warmers().size() != 1) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }));
+        assertAcked(client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("custom_warmer"));
     }
 
     @Test
     public void testDeleteWarmerAcknowledgement() {
         createIndex("test");
-        ensureGreen();
+        index("test", "type", "1", "f", 1);
 
         assertAcked(client().admin().indices().preparePutWarmer("custom_warmer")
                 .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())));
@@ -135,14 +154,27 @@ public class AckTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testDeleteWarmerNoAcknowledgement() {
+    public void testDeleteWarmerNoAcknowledgement() throws InterruptedException {
         createIndex("test");
-        ensureGreen();
+        index("test", "type", "1", "f", 1);
 
-        PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("custom_warmer").setTimeout("0s")
-                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
-                .get();
-        assertThat(putWarmerResponse.isAcknowledged(), equalTo(false));
+        assertAcked(client().admin().indices().preparePutWarmer("custom_warmer")
+                .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())));
+
+        DeleteWarmerResponse deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("custom_warmer").setTimeout("0s").get();
+        assertFalse(deleteWarmerResponse.isAcknowledged());
+        assertTrue(awaitBusy(new Predicate<Object>() { // wait until they are all deleted
+            @Override
+            public boolean apply(Object input) {
+                for (Client client : clients()) {
+                    GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
+                    if (getWarmersResponse.warmers().size() > 0) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        }));
     }
 
     @Test
@@ -360,18 +392,6 @@ public class AckTests extends ElasticsearchIntegrationTest {
             IndexMetaData indexMetaData = getLocalClusterState(client).metaData().indices().get("test");
             assertThat(indexMetaData.getState(), equalTo(State.OPEN));
         }
-    }
-
-    @Test
-    public void testOpenIndexNoAcknowledgement() {
-        createIndex("test");
-        ensureGreen();
-
-        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
-        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
-
-        OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test").setTimeout("0s").get();
-        assertThat(openIndexResponse.isAcknowledged(), equalTo(false));
     }
 
     @Test

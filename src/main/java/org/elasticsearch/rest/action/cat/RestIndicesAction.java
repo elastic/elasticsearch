@@ -30,14 +30,13 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
@@ -49,8 +48,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestIndicesAction extends AbstractCatAction {
 
     @Inject
-    public RestIndicesAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestIndicesAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/indices", this);
         controller.registerHandler(GET, "/_cat/indices/{index}", this);
     }
@@ -72,8 +71,9 @@ public class RestIndicesAction extends AbstractCatAction {
         client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
-                final String[] concreteIndices = clusterStateResponse.getState().metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), indices);
-                ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(concreteIndices);
+                final String[] concreteIndices = clusterStateResponse.getState().metaData().concreteIndices(IndicesOptions.fromOptions(false, true, true, true), indices);
+                final String[] openIndices = clusterStateResponse.getState().metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), indices);
+                ClusterHealthRequest clusterHealthRequest = Requests.clusterHealthRequest(openIndices);
                 clusterHealthRequest.local(request.paramAsBoolean("local", clusterHealthRequest.local()));
                 client.admin().cluster().health(clusterHealthRequest, new RestActionListener<ClusterHealthResponse>(channel) {
                     @Override
@@ -83,7 +83,7 @@ public class RestIndicesAction extends AbstractCatAction {
                         client.admin().indices().stats(indicesStatsRequest, new RestResponseListener<IndicesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(IndicesStatsResponse indicesStatsResponse) throws Exception {
-                                Table tab = buildTable(request, concreteIndices, clusterHealthResponse, indicesStatsResponse);
+                                Table tab = buildTable(request, concreteIndices, clusterHealthResponse, indicesStatsResponse, clusterStateResponse.getState().metaData());
                                 return RestTable.buildResponse(tab, channel);
                             }
                         });
@@ -99,6 +99,7 @@ public class RestIndicesAction extends AbstractCatAction {
         Table table = new Table();
         table.startHeaders();
         table.addCell("health", "alias:h;desc:current health status");
+        table.addCell("status", "alias:s;desc:open/close status");
         table.addCell("index", "alias:i,idx;desc:index name");
         table.addCell("pri", "alias:p,shards.primary,shardsPrimary;text-align:right;desc:number of primary shards");
         table.addCell("rep", "alias:r,shards.replica,shardsReplica;text-align:right;desc:number of replica shards");
@@ -282,20 +283,25 @@ public class RestIndicesAction extends AbstractCatAction {
         table.addCell("suggest.total", "sibling:pri;alias:suto,suggestTotal;default:false;text-align:right;desc:number of suggest ops");
         table.addCell("pri.suggest.total", "default:false;text-align:right;desc:number of suggest ops");
 
+        table.addCell("memory.total", "sibling:pri;alias:tm,memoryTotal;default:false;text-align:right;desc:total used memory");
+        table.addCell("pri.memory.total", "default:false;text-align:right;desc:total user memory");
 
         table.endHeaders();
         return table;
     }
 
-    private Table buildTable(RestRequest request, String[] indices, ClusterHealthResponse health, IndicesStatsResponse stats) {
+    private Table buildTable(RestRequest request, String[] indices, ClusterHealthResponse health, IndicesStatsResponse stats, MetaData indexMetaDatas) {
         Table table = getTableWithHeader(request);
 
         for (String index : indices) {
             ClusterIndexHealth indexHealth = health.getIndices().get(index);
             IndexStats indexStats = stats.getIndices().get(index);
+            IndexMetaData indexMetaData = indexMetaDatas.getIndices().get(index);
+            IndexMetaData.State state = indexMetaData.getState();
 
             table.startRow();
-            table.addCell(indexHealth == null ? "red*" : indexHealth.getStatus().toString().toLowerCase(Locale.getDefault()));
+            table.addCell(state == IndexMetaData.State.OPEN ? (indexHealth == null ? "red*" : indexHealth.getStatus().toString().toLowerCase(Locale.ROOT)) : null);
+            table.addCell(state.toString().toLowerCase(Locale.ROOT));
             table.addCell(index);
             table.addCell(indexHealth == null ? null : indexHealth.getNumberOfShards());
             table.addCell(indexHealth == null ? null : indexHealth.getNumberOfReplicas());
@@ -458,8 +464,8 @@ public class RestIndicesAction extends AbstractCatAction {
             table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getVersionMapMemory());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getVersionMapMemory());
 
-            table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getFixedBitSetMemory());
-            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getFixedBitSetMemory());
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getSegments().getBitsetMemory());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSegments().getBitsetMemory());
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getWarmer().current());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getWarmer().current());
@@ -478,6 +484,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(indexStats == null ? null : indexStats.getTotal().getSuggest().getCount());
             table.addCell(indexStats == null ? null : indexStats.getPrimaries().getSuggest().getCount());
+
+            table.addCell(indexStats == null ? null : indexStats.getTotal().getTotalMemory());
+            table.addCell(indexStats == null ? null : indexStats.getPrimaries().getTotalMemory());
 
             table.endRow();
         }

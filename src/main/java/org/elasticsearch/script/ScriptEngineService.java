@@ -22,12 +22,13 @@ package org.elasticsearch.script;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.io.Closeable;
 import java.util.Map;
 
 /**
  *
  */
-public interface ScriptEngineService {
+public interface ScriptEngineService extends Closeable {
 
     String[] types();
 
@@ -45,5 +46,10 @@ public interface ScriptEngineService {
 
     Object unwrap(Object value);
 
-    void close();
+    /**
+     * Handler method called when a script is removed from the Guava cache.
+     *
+     * The passed script may be null if it has already been garbage collected.
+     * */
+    void scriptRemoved(@Nullable CompiledScript script);
 }

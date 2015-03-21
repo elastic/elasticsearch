@@ -112,9 +112,6 @@ public class MembershipAction extends AbstractComponent {
 
         DiscoveryNode node;
 
-        // here for backward compatibility. nodes with a version lower than 1.4.0 send this flag
-        boolean withClusterState = false;
-
         private JoinRequest() {
         }
 
@@ -126,49 +123,15 @@ public class MembershipAction extends AbstractComponent {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             node = DiscoveryNode.readNode(in);
-            if (in.getVersion().before(Version.V_1_4_0)) {
-                withClusterState = in.readBoolean();
-            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             node.writeTo(out);
-            if (out.getVersion().before(Version.V_1_4_0)) {
-                // old with cluster state flag
-                out.writeBoolean(false);
-            }
         }
     }
 
-
-    // used to reply to nodes from a version older than 1.4.0 which may expect this
-    @Deprecated
-    class JoinResponse extends TransportResponse {
-
-        ClusterState clusterState;
-
-        JoinResponse() {
-        }
-
-        JoinResponse(ClusterState clusterState) {
-            this.clusterState = clusterState;
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            // we don't care about cluster name. This cluster state is never used.
-            clusterState = ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode(), null);
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            ClusterState.Builder.writeTo(clusterState, out);
-        }
-    }
 
     private class JoinRequestRequestHandler extends BaseTransportRequestHandler<JoinRequest> {
 
@@ -183,12 +146,7 @@ public class MembershipAction extends AbstractComponent {
                 @Override
                 public void onSuccess() {
                     try {
-                        // nodes from a version older than 1.4.0 may ask for this
-                        if (request.withClusterState) {
-                            channel.sendResponse(new JoinResponse(clusterService.state()));
-                        } else {
-                            channel.sendResponse(TransportResponse.Empty.INSTANCE);
-                        }
+                        channel.sendResponse(TransportResponse.Empty.INSTANCE);
                     } catch (Throwable t) {
                         onFailure(t);
                     }
@@ -214,23 +172,6 @@ public class MembershipAction extends AbstractComponent {
     class ValidateJoinRequest extends TransportRequest {
 
         ValidateJoinRequest() {
-        }
-
-        @Override
-        public void readFrom(StreamInput in) throws IOException {
-            super.readFrom(in);
-            if (in.getVersion().before(Version.V_1_4_0)) {
-                // cluster name doesn't matter...
-                ClusterState.Builder.readFrom(in, nodesProvider.nodes().localNode(), null);
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            if (out.getVersion().before(Version.V_1_4_0)) {
-                ClusterState.Builder.writeTo(clusterService.state(), out);
-            }
         }
     }
 

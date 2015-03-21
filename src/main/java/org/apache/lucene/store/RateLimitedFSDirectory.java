@@ -67,7 +67,7 @@ public final class RateLimitedFSDirectory extends FilterDirectory {
         if (type == StoreRateLimiting.Type.NONE || limiter == null) {
             return StoreUtils.toString(in);
         } else {
-            return "rate_limited(" + StoreUtils.toString(in) + ", type=" + type.name() + ", rate=" + limiter.getMbPerSec() + ")";
+            return "rate_limited(" + StoreUtils.toString(in) + ", type=" + type.name() + ", rate=" + limiter.getMBPerSec() + ")";
         }
     }
 
@@ -82,17 +82,17 @@ public final class RateLimitedFSDirectory extends FilterDirectory {
         }
 
         @Override
-        public void setMbPerSec(double mbPerSec) {
-            delegate.setMbPerSec(mbPerSec);
+        public void setMBPerSec(double mbPerSec) {
+            delegate.setMBPerSec(mbPerSec);
         }
 
         @Override
-        public double getMbPerSec() {
-            return delegate.getMbPerSec();
+        public double getMBPerSec() {
+            return delegate.getMBPerSec();
         }
 
         @Override
-        public long pause(long bytes) {
+        public long pause(long bytes) throws IOException {
             long pause = delegate.pause(bytes);
             rateListener.onPause(pause);
             return pause;

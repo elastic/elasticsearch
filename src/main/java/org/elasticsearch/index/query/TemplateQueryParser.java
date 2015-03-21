@@ -19,17 +19,15 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -52,9 +50,9 @@ public class TemplateQueryParser implements QueryParser {
 
     private final static Map<String,ScriptService.ScriptType> parametersToTypes = new HashMap<>();
     static {
-        parametersToTypes.put("query",ScriptService.ScriptType.INLINE);
-        parametersToTypes.put("file",ScriptService.ScriptType.FILE);
-        parametersToTypes.put("id",ScriptService.ScriptType.INDEXED);
+        parametersToTypes.put("query", ScriptService.ScriptType.INLINE);
+        parametersToTypes.put("file", ScriptService.ScriptType.FILE);
+        parametersToTypes.put("id", ScriptService.ScriptType.INDEXED);
     }
 
     @Inject
@@ -78,15 +76,14 @@ public class TemplateQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         TemplateContext templateContext = parse(parser, PARAMS, parametersToTypes);
-        ExecutableScript executable = this.scriptService.executable("mustache", templateContext.template(), templateContext.scriptType(), templateContext.params());
+        ExecutableScript executable = this.scriptService.executable(MustacheScriptEngineService.NAME, templateContext.template(), templateContext.scriptType(), templateContext.params());
 
         BytesReference querySource = (BytesReference) executable.run();
 
         try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
-            final QueryParseContext context = new QueryParseContext(parseContext.index(), parseContext.indexQueryParser);
+            final QueryParseContext context = new QueryParseContext(parseContext.index(), parseContext.indexQueryParserService());
             context.reset(qSourceParser);
-            Query result = context.parseInnerQuery();
-            return result;
+            return context.parseInnerQuery();
         }
     }
 
@@ -115,10 +112,7 @@ public class TemplateQueryParser implements QueryParser {
                 currentFieldName = parser.currentName();
             } else if (parameterMap.containsKey(currentFieldName)) {
                 type = parameterMap.get(currentFieldName);
-
-
-
-                if (token == XContentParser.Token.START_OBJECT && !parser.hasTextCharacters()) {
+                if (token == XContentParser.Token.START_OBJECT) {
                     XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
                     builder.copyCurrentStructure(parser);
                     templateNameOrTemplateContent = builder.string();

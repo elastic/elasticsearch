@@ -19,7 +19,8 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BitsFilteredDocIdSet;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
@@ -33,8 +34,8 @@ import java.io.IOException;
 public class MatchAllDocsFilter extends Filter {
 
     @Override
-    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
-        return new AllDocIdSet(context.reader().maxDoc());
+    public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
+        return BitsFilteredDocIdSet.wrap(new AllDocIdSet(context.reader().maxDoc()), acceptDocs);
     }
 
     @Override
@@ -59,7 +60,7 @@ public class MatchAllDocsFilter extends Filter {
     }
 
     @Override
-    public String toString() {
+    public String toString(String field) {
         return "*:*";
     }
 }

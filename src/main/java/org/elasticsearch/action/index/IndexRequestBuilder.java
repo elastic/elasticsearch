@@ -21,7 +21,6 @@ package org.elasticsearch.action.index;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
@@ -254,26 +253,11 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
     }
 
     /**
-     * Set the replication type for this operation.
-     */
-    public IndexRequestBuilder setReplicationType(ReplicationType replicationType) {
-        request.replicationType(replicationType);
-        return this;
-    }
-
-    /**
      * Sets the consistency level. Defaults to {@link org.elasticsearch.action.WriteConsistencyLevel#DEFAULT}.
      */
+    @Override
     public IndexRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
         request.consistencyLevel(consistencyLevel);
-        return this;
-    }
-
-    /**
-     * Set the replication type for this operation.
-     */
-    public IndexRequestBuilder setReplicationType(String replicationType) {
-        request.replicationType(replicationType);
         return this;
     }
 

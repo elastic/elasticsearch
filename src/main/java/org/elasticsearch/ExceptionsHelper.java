@@ -19,10 +19,15 @@
 
 package org.elasticsearch;
 
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.List;
@@ -130,7 +135,7 @@ public final class ExceptionsHelper {
     public static <T extends Throwable> void rethrowAndSuppress(List<T> exceptions) throws T {
         T main = null;
         for (T ex : exceptions) {
-            main = useOrSupress(main, ex);
+            main = useOrSuppress(main, ex);
         }
         if (main != null) {
             throw main;
@@ -144,14 +149,14 @@ public final class ExceptionsHelper {
     public static <T extends Throwable> void maybeThrowRuntimeAndSuppress(List<T> exceptions) {
         T main = null;
         for (T ex : exceptions) {
-            main = useOrSupress(main, ex);
+            main = useOrSuppress(main, ex);
         }
         if (main != null) {
             throw new ElasticsearchException(main.getMessage(), main);
         }
     }
 
-    public static <T extends Throwable> T useOrSupress(T first, T second) {
+    public static <T extends Throwable> T useOrSuppress(T first, T second) {
         if (first == null) {
             return second;
         } else {
@@ -160,12 +165,19 @@ public final class ExceptionsHelper {
         return first;
     }
 
+    public static IOException unwrapCorruption(Throwable t) {
+        return (IOException) unwrap(t, CorruptIndexException.class, 
+                                       IndexFormatTooOldException.class, 
+                                       IndexFormatTooNewException.class);
+    }
 
-    public static <T extends Throwable> T unwrap(Throwable t, Class<T> clazz) {
+    public static Throwable unwrap(Throwable t, Class<?>... clazzes) {
         if (t != null) {
             do {
-                if (clazz.isInstance(t)) {
-                    return clazz.cast(t);
+                for (Class<?> clazz : clazzes) {
+                    if (clazz.isInstance(t)) {
+                        return t;
+                    }
                 }
             } while ((t = t.getCause()) != null);
         }
@@ -183,5 +195,19 @@ public final class ExceptionsHelper {
                         && t.getMessage().contains("OutOfMemoryError")
                         )
                     );
+    }
+
+    /**
+     * Throws the specified exception. If null if specified then <code>true</code> is returned.
+     */
+    public static boolean reThrowIfNotNull(@Nullable Throwable e) {
+        if (e != null) {
+            if (e instanceof RuntimeException) {
+                throw (RuntimeException) e;
+            } else {
+                throw new RuntimeException(e);
+            }
+        }
+        return true;
     }
 }

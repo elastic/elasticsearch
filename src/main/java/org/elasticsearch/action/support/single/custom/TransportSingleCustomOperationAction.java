@@ -346,27 +346,14 @@ public abstract class TransportSingleCustomOperationAction<Request extends Singl
             super.readFrom(in);
             request = newRequest();
             request.readFrom(in);
-            if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-                shardId = ShardId.readShardId(in);
-            } else {
-                //older nodes will send the concrete index as part of the request
-                shardId = new ShardId(request.index(), in.readVInt());
-            }
+            shardId = ShardId.readShardId(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().before(Version.V_1_4_0)) {
-                //older nodes expect the concrete index as part of the request
-                request.index(shardId.getIndex());
-            }
             request.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-                shardId.writeTo(out);
-            } else {
-                out.writeVInt(shardId.id());
-            }
+            shardId.writeTo(out);
         }
     }
 

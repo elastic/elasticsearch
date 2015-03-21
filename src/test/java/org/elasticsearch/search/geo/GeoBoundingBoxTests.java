@@ -261,5 +261,80 @@ public class GeoBoundingBoxTests extends ElasticsearchIntegrationTest {
                 ).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
+
+    @Test
+    public void completeLonRangeTest() throws Exception {
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
+                .endObject().endObject();
+        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
+                .field("userid", 880)
+                .field("title", "Place in Stockholm")
+                .startObject("location").field("lat", 59.328355000000002).field("lon", 18.036842).endObject()
+                .endObject())
+                .setRefresh(true)
+                .execute().actionGet();
+
+        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                .field("userid", 534)
+                .field("title", "Place in Montreal")
+                .startObject("location").field("lat", 45.509526999999999).field("lon", -73.570986000000005).endObject()
+                .endObject())
+                .setRefresh(true)
+                .execute().actionGet();
+
+        SearchResponse searchResponse = client().prepareSearch()
+                .setQuery(
+                        filteredQuery(matchAllQuery(),
+                                geoBoundingBoxFilter("location").topLeft(50, -180).bottomRight(-50, 180))
+                ).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        searchResponse = client().prepareSearch()
+                .setQuery(
+                        filteredQuery(matchAllQuery(),
+                                geoBoundingBoxFilter("location").topLeft(50, -180).bottomRight(-50, 180).type("indexed"))
+                ).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        searchResponse = client().prepareSearch()
+                .setQuery(
+                        filteredQuery(matchAllQuery(),
+                                geoBoundingBoxFilter("location").topLeft(90, -180).bottomRight(-90, 180))
+                ).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        searchResponse = client().prepareSearch()
+                .setQuery(
+                        filteredQuery(matchAllQuery(),
+                                geoBoundingBoxFilter("location").topLeft(90, -180).bottomRight(-90, 180).type("indexed"))
+                ).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+
+        searchResponse = client().prepareSearch()
+                .setQuery(
+                        filteredQuery(matchAllQuery(),
+                                geoBoundingBoxFilter("location").topLeft(50, 0).bottomRight(-50, 360))
+                ).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        searchResponse = client().prepareSearch()
+                .setQuery(
+                        filteredQuery(matchAllQuery(),
+                                geoBoundingBoxFilter("location").topLeft(50, 0).bottomRight(-50, 360).type("indexed"))
+                ).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
+        searchResponse = client().prepareSearch()
+                .setQuery(
+                        filteredQuery(matchAllQuery(),
+                                geoBoundingBoxFilter("location").topLeft(90, 0).bottomRight(-90, 360))
+                ).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+        searchResponse = client().prepareSearch()
+                .setQuery(
+                        filteredQuery(matchAllQuery(),
+                                geoBoundingBoxFilter("location").topLeft(90, 0).bottomRight(-90, 360).type("indexed"))
+                ).execute().actionGet();
+        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
+    }
 }
 

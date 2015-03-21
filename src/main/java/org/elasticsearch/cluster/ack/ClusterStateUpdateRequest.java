@@ -33,6 +33,7 @@ public abstract class ClusterStateUpdateRequest<T extends ClusterStateUpdateRequ
     /**
      * Returns the maximum time interval to wait for acknowledgements
      */
+    @Override
     public TimeValue ackTimeout() {
         return ackTimeout;
     }
@@ -50,6 +51,7 @@ public abstract class ClusterStateUpdateRequest<T extends ClusterStateUpdateRequ
      * Returns the maximum time interval to wait for the request to
      * be completed on the master node
      */
+    @Override
     public TimeValue masterNodeTimeout() {
         return masterNodeTimeout;
     }

@@ -24,17 +24,13 @@ import org.apache.lucene.search.spell.DirectSpellChecker;
 import org.apache.lucene.search.spell.SuggestMode;
 import org.apache.lucene.search.spell.SuggestWord;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.suggest.SuggestUtils;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 //TODO public for tests
 public final class DirectCandidateGenerator extends CandidateGenerator {
@@ -51,8 +47,8 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
     private final Analyzer postFilter;
     private final double nonErrorLikelihood;
     private final boolean useTotalTermFrequency;
-    private final CharsRef spare = new CharsRef();
-    private final BytesRef byteSpare = new BytesRef();
+    private final CharsRefBuilder spare = new CharsRefBuilder();
+    private final BytesRefBuilder byteSpare = new BytesRefBuilder();
     private final int numCandidates;
     
     public DirectCandidateGenerator(DirectSpellChecker spellchecker, String field, SuggestMode suggestMode, IndexReader reader, double nonErrorLikelihood, int numCandidates) throws IOException {
@@ -129,11 +125,11 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
         return set;
     }
     
-    protected BytesRef preFilter(final BytesRef term, final CharsRef spare, final BytesRef byteSpare) throws IOException {
+    protected BytesRef preFilter(final BytesRef term, final CharsRefBuilder spare, final BytesRefBuilder byteSpare) throws IOException {
         if (preFilter == null) {
             return term;
         }
-        final BytesRef result = byteSpare;
+        final BytesRefBuilder result = byteSpare;
         SuggestUtils.analyze(preFilter, term, field, new SuggestUtils.TokenConsumer() {
             
             @Override
@@ -141,25 +137,25 @@ public final class DirectCandidateGenerator extends CandidateGenerator {
                 this.fillBytesRef(result);
             }
         }, spare);
-        return result;
+        return result.get();
     }
     
-    protected void postFilter(final Candidate candidate, final CharsRef spare, BytesRef byteSpare, final List<Candidate> candidates) throws IOException {
+    protected void postFilter(final Candidate candidate, final CharsRefBuilder spare, BytesRefBuilder byteSpare, final List<Candidate> candidates) throws IOException {
         if (postFilter == null) {
             candidates.add(candidate);
         } else {
-            final BytesRef result = byteSpare;
+            final BytesRefBuilder result = byteSpare;
             SuggestUtils.analyze(postFilter, candidate.term, field, new SuggestUtils.TokenConsumer() {
                 @Override
                 public void nextToken() throws IOException {
                     this.fillBytesRef(result);
                     
-                    if (posIncAttr.getPositionIncrement() > 0 && result.bytesEquals(candidate.term))  {
-                        BytesRef term = BytesRef.deepCopyOf(result);    
+                    if (posIncAttr.getPositionIncrement() > 0 && result.get().bytesEquals(candidate.term))  {
+                        BytesRef term = result.toBytesRef();
                         long freq = frequency(term);
-                        candidates.add(new Candidate(BytesRef.deepCopyOf(term), freq, candidate.stringDistance, score(candidate.frequency, candidate.stringDistance, dictSize), false));
+                        candidates.add(new Candidate(result.toBytesRef(), freq, candidate.stringDistance, score(candidate.frequency, candidate.stringDistance, dictSize), false));
                     } else {
-                        candidates.add(new Candidate(BytesRef.deepCopyOf(result), candidate.frequency, nonErrorLikelihood, score(candidate.frequency, candidate.stringDistance, dictSize), false));
+                        candidates.add(new Candidate(result.toBytesRef(), candidate.frequency, nonErrorLikelihood, score(candidate.frequency, candidate.stringDistance, dictSize), false));
                     }
                 }
             }, spare);

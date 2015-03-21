@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.search.aggregations.metrics.valuecount;
 
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 
 /**
  * An get that holds the number of <strong>values</strong> that the current document set has for a specific
  * field.
  */
-public interface ValueCount extends Aggregation {
+public interface ValueCount extends NumericMetricsAggregation.SingleValue {
 
     /**
      * @return The count

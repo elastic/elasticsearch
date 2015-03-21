@@ -20,6 +20,7 @@
 package org.elasticsearch.nodesinfo;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
@@ -33,9 +34,9 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.Test;
 
-import java.io.File;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 
@@ -121,7 +122,7 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
         // The fourth has one java plugin and one site plugin
         String server4NodeId = startNodeWithPlugins(4,TestNoVersionPlugin.class.getName());
 
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
+        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForNodes("4")).actionGet();
         logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
 
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear().setPlugins(true).execute().actionGet();
@@ -161,7 +162,7 @@ public class SimpleNodesInfoTests extends ElasticsearchIntegrationTest {
         ImmutableSettings.Builder settings = settingsBuilder();
         settings.put(nodeSettings);
         if (resource != null) {
-            settings.put("path.plugins", new File(resource.toURI()).getAbsolutePath());
+            settings.put("path.plugins", Paths.get(resource.toURI()).toAbsolutePath());
         }
 
         if (pluginClassNames.length > 0) {

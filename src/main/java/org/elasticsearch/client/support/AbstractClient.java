@@ -20,7 +20,6 @@
 package org.elasticsearch.client.support;
 
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.bench.*;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -72,7 +71,7 @@ import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
-import org.elasticsearch.action.termvector.*;
+import org.elasticsearch.action.termvectors.*;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
@@ -287,6 +286,7 @@ public abstract class AbstractClient implements Client {
      * @param request The put request
      * @return The result future
      */
+    @Override
     public ActionFuture<DeleteIndexedScriptResponse> deleteIndexedScript(DeleteIndexedScriptRequest request){
         return execute(DeleteIndexedScriptAction.INSTANCE, request);
     }
@@ -295,6 +295,7 @@ public abstract class AbstractClient implements Client {
     /**
      * Delete an indexed script
      */
+    @Override
     public DeleteIndexedScriptRequestBuilder prepareDeleteIndexedScript(){
         return DeleteIndexedScriptAction.INSTANCE.newRequestBuilder(this);
     }
@@ -305,6 +306,7 @@ public abstract class AbstractClient implements Client {
      * @param id
      * @return
      */
+    @Override
     public DeleteIndexedScriptRequestBuilder prepareDeleteIndexedScript(@Nullable String scriptLang, String id){
         return prepareDeleteIndexedScript().setScriptLang(scriptLang).setId(id);
     }
@@ -432,18 +434,47 @@ public abstract class AbstractClient implements Client {
     }
 
     @Override
-    public ActionFuture<TermVectorResponse> termVector(final TermVectorRequest request) {
-        return execute(TermVectorAction.INSTANCE, request);
+    public ActionFuture<TermVectorsResponse> termVectors(final TermVectorsRequest request) {
+        return execute(TermVectorsAction.INSTANCE, request);
     }
 
     @Override
-    public void termVector(final TermVectorRequest request, final ActionListener<TermVectorResponse> listener) {
-        execute(TermVectorAction.INSTANCE, request, listener);
+    public void termVectors(final TermVectorsRequest request, final ActionListener<TermVectorsResponse> listener) {
+        execute(TermVectorsAction.INSTANCE, request, listener);
     }
 
     @Override
-    public TermVectorRequestBuilder prepareTermVector(String index, String type, String id) {
-        return new TermVectorRequestBuilder(this, index, type, id);
+    public TermVectorsRequestBuilder prepareTermVectors() {
+        return new TermVectorsRequestBuilder(this);
+    }
+
+    @Override
+    public TermVectorsRequestBuilder prepareTermVectors(String index, String type, String id) {
+        return new TermVectorsRequestBuilder(this, index, type, id);
+    }
+
+    @Deprecated
+    @Override
+    public ActionFuture<TermVectorsResponse> termVector(final TermVectorsRequest request) {
+        return termVectors(request);
+    }
+
+    @Deprecated
+    @Override
+    public void termVector(final TermVectorsRequest request, final ActionListener<TermVectorsResponse> listener) {
+        termVectors(request, listener);
+    }
+
+    @Deprecated
+    @Override
+    public TermVectorsRequestBuilder prepareTermVector() {
+        return prepareTermVectors();
+    }
+
+    @Deprecated
+    @Override
+    public TermVectorsRequestBuilder prepareTermVector(String index, String type, String id) {
+        return prepareTermVectors(index, type, id);
     }
 
     @Override

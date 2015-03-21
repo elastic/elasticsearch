@@ -24,7 +24,7 @@ should be defined:
 [float]
 ==== store / index
 
-By default the `_timestamp` field has `store` set to `false` and `index`
+By default the `_timestamp` field has `store` set to `true` and `index`
 set to `not_analyzed`. It can be queried as a standard date field.
 
 [float]
@@ -91,7 +91,7 @@ within the index request or in the `_source` document.
 
 By default, the default value is `now` which means the date the document was processed by the indexing chain.
 
-You can disable that default value by setting `default` to `null`. It means that `timestamp` is mandatory:
+You can reject documents which do not provide a `timestamp` value by setting `ignore_missing` to false (default to `true`):
 
 [source,js]
 --------------------------------------------------
@@ -99,13 +99,11 @@ You can disable that default value by setting `default` to `null`. It means that
     "tweet" : {
         "_timestamp" : {
             "enabled" : true,
-            "default" : null
+            "ignore_missing" : false
         }
     }
 }
 --------------------------------------------------
-
-If you don't provide any timestamp value, indexation will fail.
 
 You can also set the default value to any date respecting <<mapping-timestamp-field-format,timestamp format>>:
 
@@ -122,5 +120,12 @@ You can also set the default value to any date respecting <<mapping-timestamp-fi
 }
 --------------------------------------------------
 
-If you don't provide any timestamp value, indexation will fail.
+If you don't provide any timestamp value, _timestamp will be set to this default value.
+
+coming[1.5.0]
+
+In elasticsearch 1.4, we allowed setting explicitly `"default":null` which is not possible anymore
+as we added a new `ignore_missing` setting.
+When reading an index created with elasticsearch 1.4 and using this, we automatically update it by
+removing `"default": null` and setting `"ignore_missing": false`
 

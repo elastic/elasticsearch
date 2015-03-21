@@ -208,14 +208,17 @@ public class XContentFactory {
      * Guesses the content type based on the provided input stream.
      */
     public static XContentType xContentType(InputStream si) throws IOException {
-        int first = si.read();
-        if (first == -1) {
+        final int firstInt = si.read(); // this must be an int since we need to respect the method contract
+        if (firstInt == -1) {
             return null;
         }
-        int second = si.read();
-        if (second == -1) {
-            return null;
+
+        final int secondInt = si.read(); // this must be an int since we need to respect the method contract
+        if (secondInt == -1) {
+           return null;
         }
+        final byte first = (byte) (0xff & firstInt);
+        final byte second = (byte) (0xff & secondInt);
         if (first == SmileConstants.HEADER_BYTE_1 && second == SmileConstants.HEADER_BYTE_2) {
             int third = si.read();
             if (third == SmileConstants.HEADER_BYTE_3) {
@@ -231,9 +234,26 @@ public class XContentFactory {
                 return XContentType.YAML;
             }
         }
-        if (first == (CBORConstants.BYTE_OBJECT_INDEFINITE & 0xff)){
+        // CBOR logic similar to CBORFactory#hasCBORFormat
+        if (first == CBORConstants.BYTE_OBJECT_INDEFINITE){
             return XContentType.CBOR;
         }
+        if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_TAG, first)) {
+            // Actually, specific "self-describe tag" is a very good indicator
+            int third = si.read();
+            if (third == -1) {
+                return null;
+            }
+            if (first == (byte) 0xD9 && second == (byte) 0xD9 && third == (byte) 0xF7) {
+                return XContentType.CBOR;
+            }
+        }
+        // for small objects, some encoders just encode as major type object, we can safely
+        // say its CBOR since it doesn't contradict SMILE or JSON, and its a last resort
+        if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, first)) {
+            return XContentType.CBOR;
+        }
+
         for (int i = 2; i < GUESS_HEADER_LENGTH; i++) {
             int val = si.read();
             if (val == -1) {
@@ -279,9 +299,23 @@ public class XContentFactory {
         if (length > 2 && first == '-' && bytes.get(1) == '-' && bytes.get(2) == '-') {
             return XContentType.YAML;
         }
-        if (first == CBORConstants.BYTE_OBJECT_INDEFINITE){
+        // CBOR logic similar to CBORFactory#hasCBORFormat
+        if (first == CBORConstants.BYTE_OBJECT_INDEFINITE && length > 1){
             return XContentType.CBOR;
         }
+        if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_TAG, first) && length > 2) {
+            // Actually, specific "self-describe tag" is a very good indicator
+            if (first == (byte) 0xD9 && bytes.get(1) == (byte) 0xD9 && bytes.get(2) == (byte) 0xF7) {
+                return XContentType.CBOR;
+            }
+        }
+        // for small objects, some encoders just encode as major type object, we can safely
+        // say its CBOR since it doesn't contradict SMILE or JSON, and its a last resort
+        if (CBORConstants.hasMajorType(CBORConstants.MAJOR_TYPE_OBJECT, first)) {
+            return XContentType.CBOR;
+        }
+
+        // a last chance for JSON
         for (int i = 0; i < length; i++) {
             if (bytes.get(i) == '{') {
                 return XContentType.JSON;

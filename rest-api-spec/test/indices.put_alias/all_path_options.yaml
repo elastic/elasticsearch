@@ -106,16 +106,10 @@ setup:
 
 
   - do:
+      catch: param
       indices.put_alias:
         name: alias
 
-  - do:
-      indices.get_alias:
-        name: alias
-
-  - match: {test_index1.aliases.alias: {}}
-  - match: {test_index2.aliases.alias: {}}
-  - match: {foo.aliases.alias: {}}
 
 ---
 "put alias with missing name":

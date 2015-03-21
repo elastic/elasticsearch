@@ -19,9 +19,12 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.ExplainableSearchScript;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
@@ -87,7 +90,7 @@ public class ScriptScoreFunction extends ScoreFunction {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext ctx) {
+    public void setNextReader(LeafReaderContext ctx) throws IOException {
         script.setNextReader(ctx);
     }
 
@@ -96,18 +99,29 @@ public class ScriptScoreFunction extends ScoreFunction {
         script.setNextDocId(docId);
         scorer.docid = docId;
         scorer.score = subQueryScore;
-        return script.runAsDouble();
+        double result = script.runAsDouble();
+        if (Double.isNaN(result)) {
+            throw new ScriptException("script_score returned NaN");
+        }
+        return result;
     }
 
     @Override
-    public Explanation explainScore(int docId, float subQueryScore) {
+    public Explanation explainScore(int docId, float subQueryScore) throws IOException {
         Explanation exp;
-        double score = score(docId, subQueryScore);
-        String explanation = "script score function, computed with script:\"" + sScript;
-        if (params != null) {
-            explanation += "\" and parameters: \n" + params.toString();
+        if (script instanceof ExplainableSearchScript) {
+            script.setNextDocId(docId);
+            scorer.docid = docId;
+            scorer.score = subQueryScore;
+            exp = ((ExplainableSearchScript) script).explain(subQueryScore);
+        } else {
+            double score = score(docId, subQueryScore);
+            String explanation = "script score function, computed with script:\"" + sScript;
+            if (params != null) {
+                explanation += "\" and parameters: \n" + params.toString();
+            }
+            exp = new Explanation(CombineFunction.toFloat(score), explanation);
         }
-        exp = new Explanation(CombineFunction.toFloat(score), explanation);
         return exp;
     }
 

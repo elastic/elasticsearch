@@ -20,14 +20,13 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.StringAndBytesText;
-import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
 import org.joda.time.DateTime;
 
@@ -222,22 +221,6 @@ public abstract class StreamInput extends InputStream {
         return new StringAndBytesText(readBytesReference(length));
     }
 
-    public Text[] readTextArray() throws IOException {
-        int size = readVInt();
-        if (size == 0) {
-            return StringText.EMPTY_ARRAY;
-        }
-        Text[] ret = new Text[size];
-        for (int i = 0; i < size; i++) {
-            ret[i] = readText();
-        }
-        return ret;
-    }
-
-    public Text readSharedText() throws IOException {
-        return readText();
-    }
-
     @Nullable
     public String readOptionalString() throws IOException {
         if (readBoolean()) {
@@ -246,23 +229,14 @@ public abstract class StreamInput extends InputStream {
         return null;
     }
 
-    @Nullable
-    public String readOptionalSharedString() throws IOException {
-        if (readBoolean()) {
-            return readSharedString();
-        }
-        return null;
-    }
-
-    private final CharsRef spare = new CharsRef();
+    private final CharsRefBuilder spare = new CharsRefBuilder();
 
     public String readString() throws IOException {
         final int charCount = readVInt();
-        spare.offset = 0;
-        spare.length = 0;
+        spare.clear();
         spare.grow(charCount);
         int c = 0;
-        while (spare.length < charCount) {
+        while (spare.length() < charCount) {
             c = readByte() & 0xff;
             switch (c >> 4) {
                 case 0:
@@ -273,22 +247,18 @@ public abstract class StreamInput extends InputStream {
                 case 5:
                 case 6:
                 case 7:
-                    spare.chars[spare.length++] = (char) c;
+                    spare.append((char) c);
                     break;
                 case 12:
                 case 13:
-                    spare.chars[spare.length++] = (char) ((c & 0x1F) << 6 | readByte() & 0x3F);
+                    spare.append((char) ((c & 0x1F) << 6 | readByte() & 0x3F));
                     break;
                 case 14:
-                    spare.chars[spare.length++] = (char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0);
+                    spare.append((char) ((c & 0x0F) << 12 | (readByte() & 0x3F) << 6 | (readByte() & 0x3F) << 0));
                     break;
             }
         }
         return spare.toString();
-    }
-
-    public String readSharedString() throws IOException {
-        return readString();
     }
 
 
@@ -322,11 +292,13 @@ public abstract class StreamInput extends InputStream {
     /**
      * Resets the stream.
      */
+    @Override
     public abstract void reset() throws IOException;
 
     /**
      * Closes the stream to further operations.
      */
+    @Override
     public abstract void close() throws IOException;
 
 //    // IS
@@ -401,14 +373,14 @@ public abstract class StreamInput extends InputStream {
                 int size9 = readVInt();
                 Map map9 = new LinkedHashMap(size9);
                 for (int i = 0; i < size9; i++) {
-                    map9.put(readSharedString(), readGenericValue());
+                    map9.put(readString(), readGenericValue());
                 }
                 return map9;
             case 10:
                 int size10 = readVInt();
                 Map map10 = new HashMap(size10);
                 for (int i = 0; i < size10; i++) {
-                    map10.put(readSharedString(), readGenericValue());
+                    map10.put(readString(), readGenericValue());
                 }
                 return map10;
             case 11:

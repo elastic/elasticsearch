@@ -22,7 +22,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.operation.OperationRouting;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -92,7 +92,9 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
     void remove(LocalNodeMasterListener listener);
 
     /**
-     * Adds a cluster state listener that will timeout after the provided timeout.
+     * Adds a cluster state listener that will timeout after the provided timeout,
+     * and is executed after the clusterstate has been successfully applied ie. is
+     * in state {@link org.elasticsearch.cluster.ClusterState.ClusterStateStatus#APPLIED}
      */
     void add(TimeValue timeout, TimeoutClusterStateListener listener);
 
@@ -110,5 +112,10 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
      * Returns the tasks that are pending.
      */
     List<PendingClusterTask> pendingTasks();
+
+    /**
+     * Returns the number of currently pending tasks.
+     */
+    int numberOfPendingTasks();
 
 }

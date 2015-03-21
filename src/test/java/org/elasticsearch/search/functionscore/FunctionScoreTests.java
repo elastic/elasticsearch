@@ -20,6 +20,7 @@
 package org.elasticsearch.search.functionscore;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -28,33 +29,46 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
+import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.searchRequest;
-import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.*;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.exponentialDecayFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.gaussDecayFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.linearDecayFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.randomFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
+import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.weightFactorFunction;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
 
 public class FunctionScoreTests extends ElasticsearchIntegrationTest {
 
     static final String TYPE = "type";
     static final String INDEX = "index";
     static final String TEXT_FIELD = "text_field";
-    static final String FLOAT_FIELD = "float_field";
+    static final String DOUBLE_FIELD = "double_field";
     static final String GEO_POINT_FIELD = "geo_point_field";
     static final XContentBuilder SIMPLE_DOC;
-    static final XContentBuilder MAPPING_WITH_FLOAT_AND_GEO_POINT_AND_TEST_FIELD;
+    static final XContentBuilder MAPPING_WITH_DOUBLE_AND_GEO_POINT_AND_TEXT_FIELD;
 
     @Test
     public void testExplainQueryOnlyOnce() throws IOException, ExecutionException, InterruptedException {
@@ -106,7 +120,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
 
     static {
         XContentBuilder simpleDoc;
-        XContentBuilder mappingWithFloatAndGeoPointAndTestField;
+        XContentBuilder mappingWithDoubleAndGeoPointAndTestField;
         try {
             simpleDoc = jsonBuilder().startObject()
                     .field(TEXT_FIELD, "value")
@@ -114,7 +128,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
                     .field("lat", 10)
                     .field("lon", 20)
                     .endObject()
-                    .field(FLOAT_FIELD, 2.71828)
+                    .field(DOUBLE_FIELD, Math.E)
                     .endObject();
         } catch (IOException e) {
             throw new ElasticsearchException("Exception while initializing FunctionScoreTests", e);
@@ -122,7 +136,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         SIMPLE_DOC = simpleDoc;
         try {
 
-            mappingWithFloatAndGeoPointAndTestField = jsonBuilder().startObject()
+            mappingWithDoubleAndGeoPointAndTestField = jsonBuilder().startObject()
                     .startObject(TYPE)
                     .startObject("properties")
                     .startObject(TEXT_FIELD)
@@ -131,8 +145,8 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
                     .startObject(GEO_POINT_FIELD)
                     .field("type", "geo_point")
                     .endObject()
-                    .startObject(FLOAT_FIELD)
-                    .field("type", "float")
+                    .startObject(DOUBLE_FIELD)
+                    .field("type", "double")
                     .endObject()
                     .endObject()
                     .endObject()
@@ -140,13 +154,13 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         } catch (IOException e) {
             throw new ElasticsearchException("Exception while initializing FunctionScoreTests", e);
         }
-        MAPPING_WITH_FLOAT_AND_GEO_POINT_AND_TEST_FIELD = mappingWithFloatAndGeoPointAndTestField;
+        MAPPING_WITH_DOUBLE_AND_GEO_POINT_AND_TEXT_FIELD = mappingWithDoubleAndGeoPointAndTestField;
     }
 
     @Test
     public void testExplain() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate(INDEX).addMapping(
-                TYPE, MAPPING_WITH_FLOAT_AND_GEO_POINT_AND_TEST_FIELD
+                TYPE, MAPPING_WITH_DOUBLE_AND_GEO_POINT_AND_TEXT_FIELD
         ));
         ensureYellow();
 
@@ -158,13 +172,13 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
                         searchSource().query(
                                 functionScoreQuery(termFilter(TEXT_FIELD, "value").cache(false))
                                         .add(gaussDecayFunction(GEO_POINT_FIELD, new GeoPoint(10, 20), "1000km"))
-                                        .add(fieldValueFactorFunction(FLOAT_FIELD).modifier(FieldValueFactorFunction.Modifier.LN).setWeight(2))
+                                        .add(fieldValueFactorFunction(DOUBLE_FIELD).modifier(FieldValueFactorFunction.Modifier.LN).setWeight(2))
                                         .add(scriptFunction("_index['" + TEXT_FIELD + "']['value'].tf()").setWeight(3))
                         ).explain(true))).actionGet();
 
         assertThat(responseWithWeights.getHits().getAt(0).getExplanation().toString(),
-                equalTo("5.999996 = (MATCH) function score, product of:\n  1.0 = (MATCH) ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  5.999996 = (MATCH) Math.min of\n    5.999996 = (MATCH) function score, score mode [multiply]\n      1.0 = (MATCH) function score, product of:\n        1.0 = match filter: *:*\n        1.0 = (MATCH) Function for field geo_point_field:\n          1.0 = -exp(-0.5*pow(MIN of: [Math.max(arcDistance([10.0, 20.0](=doc value),[10.0, 20.0](=origin)) - 0.0(=offset), 0)],2.0)/7.213475204444817E11)\n      1.9999987 = (MATCH) function score, product of:\n        1.0 = match filter: *:*\n        1.9999987 = (MATCH) product of:\n          0.99999934 = field value function: ln(doc['float_field'].value * factor=1.0)\n          2.0 = weight\n      3.0 = (MATCH) function score, product of:\n        1.0 = match filter: *:*\n        3.0 = (MATCH) product of:\n          1.0 = script score function, computed with script:\"_index['text_field']['value'].tf()\n          3.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n")
-                );
+                equalTo("6.0 = (MATCH) function score, product of:\n  1.0 = (MATCH) ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  6.0 = (MATCH) Math.min of\n    6.0 = (MATCH) function score, score mode [multiply]\n      1.0 = (MATCH) function score, product of:\n        1.0 = match filter: *:*\n        1.0 = (MATCH) Function for field geo_point_field:\n          1.0 = exp(-0.5*pow(MIN of: [Math.max(arcDistance([10.0, 20.0](=doc value),[10.0, 20.0](=origin)) - 0.0(=offset), 0)],2.0)/7.213475204444817E11)\n      2.0 = (MATCH) function score, product of:\n        1.0 = match filter: *:*\n        2.0 = (MATCH) product of:\n          1.0 = field value function: ln(doc['double_field'].value * factor=1.0)\n          2.0 = weight\n      3.0 = (MATCH) function score, product of:\n        1.0 = match filter: *:*\n        3.0 = (MATCH) product of:\n          1.0 = script score function, computed with script:\"_index['text_field']['value'].tf()\n          3.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n")
+        );
         responseWithWeights = client().search(
                 searchRequest().source(
                         searchSource().query(
@@ -180,7 +194,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
     @Test
     public void simpleWeightedFunctionsTest() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate(INDEX).addMapping(
-                TYPE, MAPPING_WITH_FLOAT_AND_GEO_POINT_AND_TEST_FIELD
+                TYPE, MAPPING_WITH_DOUBLE_AND_GEO_POINT_AND_TEXT_FIELD
         ));
         ensureYellow();
 
@@ -191,7 +205,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
                         searchSource().query(
                                 functionScoreQuery(termFilter(TEXT_FIELD, "value"))
                                         .add(gaussDecayFunction(GEO_POINT_FIELD, new GeoPoint(10, 20), "1000km"))
-                                        .add(fieldValueFactorFunction(FLOAT_FIELD).modifier(FieldValueFactorFunction.Modifier.LN))
+                                        .add(fieldValueFactorFunction(DOUBLE_FIELD).modifier(FieldValueFactorFunction.Modifier.LN))
                                         .add(scriptFunction("_index['" + TEXT_FIELD + "']['value'].tf()"))
                         ))).actionGet();
         SearchResponse responseWithWeights = client().search(
@@ -199,29 +213,23 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
                         searchSource().query(
                                 functionScoreQuery(termFilter(TEXT_FIELD, "value"))
                                         .add(gaussDecayFunction(GEO_POINT_FIELD, new GeoPoint(10, 20), "1000km").setWeight(2))
-                                        .add(fieldValueFactorFunction(FLOAT_FIELD).modifier(FieldValueFactorFunction.Modifier.LN).setWeight(2))
+                                        .add(fieldValueFactorFunction(DOUBLE_FIELD).modifier(FieldValueFactorFunction.Modifier.LN).setWeight(2))
                                         .add(scriptFunction("_index['" + TEXT_FIELD + "']['value'].tf()").setWeight(2))
                         ))).actionGet();
 
-        assertThat((double) response.getHits().getAt(0).getScore(), closeTo(1.0, 1.e-5));
-        assertThat((double) responseWithWeights.getHits().getAt(0).getScore(), closeTo(8.0, 1.e-5));
+        assertSearchResponse(response);
+        assertThat(response.getHits().getAt(0).getScore(), is(1.0f));
+        assertThat(responseWithWeights.getHits().getAt(0).getScore(), is(8.0f));
     }
 
     @Test
     public void simpleWeightedFunctionsTestWithRandomWeightsAndRandomCombineMode() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate(INDEX).addMapping(
                 TYPE,
-                MAPPING_WITH_FLOAT_AND_GEO_POINT_AND_TEST_FIELD));
+                MAPPING_WITH_DOUBLE_AND_GEO_POINT_AND_TEXT_FIELD));
         ensureYellow();
 
-        XContentBuilder doc = jsonBuilder().startObject()
-                .field(TEXT_FIELD, "value")
-                .startObject(GEO_POINT_FIELD)
-                .field("lat", 10)
-                .field("lon", 20)
-                .endObject()
-                .field(FLOAT_FIELD, 10)
-                .endObject();
+        XContentBuilder doc = SIMPLE_DOC;
         index(INDEX, TYPE, "1", doc);
         refresh();
         ScoreFunctionBuilder[] scoreFunctionBuilders = getScoreFunctionBuilders();
@@ -232,7 +240,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         FunctionScoreQueryBuilder withWeights = functionScoreQuery(termFilter(TEXT_FIELD, "value")).scoreMode(scoreMode);
         int weightscounter = 0;
         for (ScoreFunctionBuilder builder : scoreFunctionBuilders) {
-            withWeights.add(builder.setWeight((float) weights[weightscounter]));
+            withWeights.add(builder.setWeight(weights[weightscounter]));
             weightscounter++;
         }
         SearchResponse responseWithWeights = client().search(
@@ -240,24 +248,26 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         ).actionGet();
 
         double expectedScore = computeExpectedScore(weights, scores, scoreMode);
-        assertThat(expectedScore / responseWithWeights.getHits().getAt(0).getScore(), closeTo(1.0, 1.e-6));
-
+        assertThat((float) expectedScore / responseWithWeights.getHits().getAt(0).getScore(), is(1.0f));
     }
 
-    protected float computeExpectedScore(float[] weights, float[] scores, String scoreMode) {
-        float expectedScore = 0.0f;
+    protected double computeExpectedScore(float[] weights, float[] scores, String scoreMode) {
+        double expectedScore = 0.0;
         if ("multiply".equals(scoreMode)) {
-            expectedScore = 1.0f;
+            expectedScore = 1.0;
         }
         if ("max".equals(scoreMode)) {
-            expectedScore = Float.MAX_VALUE * -1.0f;
+            expectedScore = Float.MAX_VALUE * -1.0;
         }
         if ("min".equals(scoreMode)) {
             expectedScore = Float.MAX_VALUE;
         }
 
+        float weightSum = 0;
+
         for (int i = 0; i < weights.length; i++) {
-            float functionScore = weights[i] * scores[i];
+            double functionScore = (double) weights[i] * scores[i];
+            weightSum += weights[i];
 
             if ("avg".equals(scoreMode)) {
                 expectedScore += functionScore;
@@ -273,7 +283,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
 
         }
         if ("avg".equals(scoreMode)) {
-            expectedScore /= (double) weights.length;
+            expectedScore /= weightSum;
         }
         return expectedScore;
     }
@@ -282,7 +292,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
     public void simpleWeightedFunctionsTestSingleFunction() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate(INDEX).addMapping(
                 TYPE,
-                MAPPING_WITH_FLOAT_AND_GEO_POINT_AND_TEST_FIELD));
+                MAPPING_WITH_DOUBLE_AND_GEO_POINT_AND_TEXT_FIELD));
         ensureYellow();
 
         XContentBuilder doc = jsonBuilder().startObject()
@@ -291,7 +301,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
                 .field("lat", 12)
                 .field("lon", 21)
                 .endObject()
-                .field(FLOAT_FIELD, 10)
+                .field(DOUBLE_FIELD, 10)
                 .endObject();
         index(INDEX, TYPE, "1", doc);
         refresh();
@@ -306,7 +316,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
                 searchRequest().source(searchSource().query(withWeights))
         ).actionGet();
 
-        assertThat((double) scores[0] * weights[0] / responseWithWeights.getHits().getAt(0).getScore(), closeTo(1.0, 1.e-6));
+        assertThat( (double) scores[0] * weights[0]/ responseWithWeights.getHits().getAt(0).getScore(), closeTo(1.0, 1.e-6));
 
     }
 
@@ -334,16 +344,16 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
     private float[] createRandomWeights(int size) {
         float[] weights = new float[size];
         for (int i = 0; i < weights.length; i++) {
-            weights[i] = randomFloat() * (randomBoolean() ? 1.0f : -1.0f) * (float) randomInt(100) + 1.e-6f;
+            weights[i] = randomFloat() * (randomBoolean() ? 1.0f : -1.0f) * randomInt(100) + 1.e-6f;
         }
         return weights;
     }
 
     public ScoreFunctionBuilder[] getScoreFunctionBuilders() {
         ScoreFunctionBuilder[] builders = new ScoreFunctionBuilder[4];
-        builders[0] = gaussDecayFunction(GEO_POINT_FIELD, new GeoPoint(11, 20), "1000km");
+        builders[0] = gaussDecayFunction(GEO_POINT_FIELD, new GeoPoint(10, 20), "1000km");
         builders[1] = randomFunction(10);
-        builders[2] = fieldValueFactorFunction(FLOAT_FIELD).modifier(FieldValueFactorFunction.Modifier.LN);
+        builders[2] = fieldValueFactorFunction(DOUBLE_FIELD).modifier(FieldValueFactorFunction.Modifier.LN);
         builders[3] = scriptFunction("_index['" + TEXT_FIELD + "']['value'].tf()");
         return builders;
     }
@@ -352,7 +362,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
     public void checkWeightOnlyCreatesBoostFunction() throws IOException {
         assertAcked(prepareCreate(INDEX).addMapping(
                 TYPE,
-                MAPPING_WITH_FLOAT_AND_GEO_POINT_AND_TEST_FIELD));
+                MAPPING_WITH_DOUBLE_AND_GEO_POINT_AND_TEXT_FIELD));
         ensureYellow();
 
         index(INDEX, TYPE, "1", SIMPLE_DOC);
@@ -397,4 +407,155 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
         assertThat(response.getHits().getAt(0).score(), equalTo(2.0f));
     }
+
+    @Test
+    public void testScriptScoresNested() throws IOException {
+        createIndex(INDEX);
+        ensureYellow();
+        index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
+        refresh();
+        SearchResponse response = client().search(
+                searchRequest().source(
+                        searchSource().query(
+                                functionScoreQuery(
+                                        functionScoreQuery(
+                                                functionScoreQuery().add(scriptFunction("1")))
+                                                .add(scriptFunction("_score.doubleValue()")))
+                                        .add(scriptFunction("_score.doubleValue()")
+                                        )
+                        )
+                )
+        ).actionGet();
+        assertSearchResponse(response);
+        assertThat(response.getHits().getAt(0).score(), equalTo(1.0f));
+    }
+
+    @Test
+    public void testScriptScoresWithAgg() throws IOException {
+        createIndex(INDEX);
+        ensureYellow();
+        index(INDEX, TYPE, "1", jsonBuilder().startObject().field("dummy_field", 1).endObject());
+        refresh();
+        SearchResponse response = client().search(
+                searchRequest().source(
+                        searchSource().query(
+                                functionScoreQuery()
+                                        .add(scriptFunction("_score.doubleValue()")
+                                        )
+                        ).aggregation(terms("score_agg").script("_score.doubleValue()"))
+                )
+        ).actionGet();
+        assertSearchResponse(response);
+        assertThat(response.getHits().getAt(0).score(), equalTo(1.0f));
+        assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getKeyAsString(), equalTo("1.0"));
+        assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1l));
+    }
+
+    public void testMinScoreFunctionScoreBasic() throws IOException {
+        index(INDEX, TYPE, jsonBuilder().startObject().field("num", 2).endObject());
+        refresh();
+        ensureYellow();
+        float score = randomFloat();
+        float minScore = randomFloat();
+        SearchResponse searchResponse = client().search(
+                searchRequest().source(searchSource().query(functionScoreQuery().add(scriptFunction(Float.toString(score))).setMinScore(minScore)))
+        ).actionGet();
+        if (score < minScore) {
+            assertThat(searchResponse.getHits().getTotalHits(), is(0l));
+        } else {
+            assertThat(searchResponse.getHits().getTotalHits(), is(1l));
+        }
+
+        searchResponse = client().search(
+                searchRequest().source(searchSource().query(functionScoreQuery()
+                        .add(scriptFunction(Float.toString(score)))
+                        .add(scriptFunction(Float.toString(score)))
+                        .scoreMode("avg").setMinScore(minScore)))
+        ).actionGet();
+        if (score < minScore) {
+            assertThat(searchResponse.getHits().getTotalHits(), is(0l));
+        } else {
+            assertThat(searchResponse.getHits().getTotalHits(), is(1l));
+        }
+    }
+
+    @Test
+    public void testMinScoreFunctionScoreManyDocsAndRandomMinScore() throws IOException, ExecutionException, InterruptedException {
+        List<IndexRequestBuilder> docs = new ArrayList<>();
+        int numDocs = randomIntBetween(1, 100);
+        int scoreOffset = randomIntBetween(-2 * numDocs, 2 * numDocs);
+        int minScore = randomIntBetween(-2 * numDocs, 2 * numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            docs.add(client().prepareIndex(INDEX, TYPE, Integer.toString(i)).setSource("num", i + scoreOffset));
+        }
+        indexRandom(true, docs);
+        ensureYellow();
+        String script = "return (doc['num'].value)";
+        int numMatchingDocs = numDocs + scoreOffset - minScore;
+        if (numMatchingDocs < 0) {
+            numMatchingDocs = 0;
+        }
+        if (numMatchingDocs > numDocs) {
+            numMatchingDocs = numDocs;
+        }
+
+        SearchResponse searchResponse = client().search(
+                searchRequest().source(searchSource().query(functionScoreQuery()
+                        .add(scriptFunction(script))
+                        .setMinScore(minScore)).size(numDocs))).actionGet();
+        assertMinScoreSearchResponses(numDocs, searchResponse, numMatchingDocs);
+
+        searchResponse = client().search(
+                searchRequest().source(searchSource().query(functionScoreQuery()
+                        .add(scriptFunction(script))
+                        .add(scriptFunction(script))
+                        .scoreMode("avg").setMinScore(minScore)).size(numDocs))).actionGet();
+        assertMinScoreSearchResponses(numDocs, searchResponse, numMatchingDocs);
+    }
+
+    protected void assertMinScoreSearchResponses(int numDocs, SearchResponse searchResponse, int numMatchingDocs) {
+        assertSearchResponse(searchResponse);
+        assertThat((int) searchResponse.getHits().totalHits(), is(numMatchingDocs));
+        int pos = 0;
+        for (int hitId = numDocs - 1; (numDocs - hitId) < searchResponse.getHits().totalHits(); hitId--) {
+            assertThat(searchResponse.getHits().getAt(pos).getId(), equalTo(Integer.toString(hitId)));
+            pos++;
+        }
+    }
+
+    @Test
+    public void testFilterAndQueryGiven() throws IOException, ExecutionException, InterruptedException {
+        assertAcked(prepareCreate("test").addMapping(
+                "type",
+                jsonBuilder().startObject().startObject("type").startObject("properties")
+                        .startObject("filter_field").field("type", "string").endObject()
+                        .startObject("query_field").field("type", "string").endObject()
+                        .startObject("num").field("type", "float").endObject().endObject().endObject().endObject()));
+        ensureYellow();
+
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            indexRequests.add(
+                    client().prepareIndex()
+                            .setType("type")
+                            .setId(Integer.toString(i))
+                            .setIndex("test")
+                            .setSource(
+                                    jsonBuilder().startObject().field("query_field", Integer.toString(i % 3)).field("filter_field", Integer.toString(i % 2)).field("num", i).endObject()));
+        }
+
+        indexRandom(true, true, indexRequests);
+
+        SearchResponse response = client().search(
+                searchRequest().source(
+                        searchSource().query(
+                                functionScoreQuery(termQuery("query_field", "0"), termFilter("filter_field", "0"), scriptFunction("doc['num'].value")).boostMode("replace")))).get();
+
+        assertSearchResponse(response);
+        assertThat(response.getHits().totalHits(), equalTo(4l));
+        for (SearchHit hit : response.getHits().getHits()) {
+            assertThat(Float.parseFloat(hit.getId()), equalTo(hit.getScore()));
+        }
+    }
 }
+

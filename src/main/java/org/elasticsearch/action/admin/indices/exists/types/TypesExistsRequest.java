@@ -32,7 +32,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  */
-public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExistsRequest> implements IndicesRequest {
+public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExistsRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
     private String[] types;
@@ -52,8 +52,10 @@ public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExis
         return indices;
     }
 
-    public void indices(String[] indices) {
+    @Override
+    public TypesExistsRequest indices(String[] indices) {
         this.indices = indices;
+        return this;
     }
 
     public String[] types() {
@@ -74,6 +76,7 @@ public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExis
         return this;
     }
 
+    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (indices == null) { // Specifying '*' via rest api results in an empty array
@@ -92,7 +95,6 @@ public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExis
         out.writeStringArray(indices);
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
-        writeLocal(out, Version.V_1_0_0_RC2);
     }
 
     @Override
@@ -101,6 +103,5 @@ public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExis
         indices = in.readStringArray();
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        readLocal(in, Version.V_1_0_0_RC2);
     }
 }

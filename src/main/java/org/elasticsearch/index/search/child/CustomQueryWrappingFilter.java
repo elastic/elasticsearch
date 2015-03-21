@@ -18,13 +18,12 @@
  */
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.index.AtomicReader;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.lucene.search.NoCacheFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -43,7 +42,7 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
     private final Query query;
 
     private IndexSearcher searcher;
-    private IdentityHashMap<AtomicReader, DocIdSet> docIdSets;
+    private IdentityHashMap<LeafReader, DocIdSet> docIdSets;
 
     /** Constructs a filter which only matches documents matching
      * <code>query</code>.
@@ -60,7 +59,7 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
     }
 
     @Override
-    public DocIdSet getDocIdSet(final AtomicReaderContext context, final Bits acceptDocs) throws IOException {
+    public DocIdSet getDocIdSet(final LeafReaderContext context, final Bits acceptDocs) throws IOException {
         final SearchContext searchContext = SearchContext.current();
         if (docIdSets == null) {
             assert searcher == null;
@@ -69,26 +68,28 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
             this.searcher = searcher;
             searchContext.addReleasable(this, Lifetime.COLLECTION);
 
-            final Weight weight = searcher.createNormalizedWeight(query);
-            for (final AtomicReaderContext leaf : searcher.getTopReaderContext().leaves()) {
-                final DocIdSet set = DocIdSets.toCacheable(leaf.reader(), new DocIdSet() {
+            final Weight weight = searcher.createNormalizedWeight(query, false);
+            for (final LeafReaderContext leaf : searcher.getTopReaderContext().leaves()) {
+                final DocIdSet set = new DocIdSet() {
                     @Override
                     public DocIdSetIterator iterator() throws IOException {
                         return weight.scorer(leaf, null);
                     }
                     @Override
                     public boolean isCacheable() { return false; }
-                });
+
+                    @Override
+                    public long ramBytesUsed() {
+                        return 0;
+                    }
+                };
                 docIdSets.put(leaf.reader(), set);
             }
         } else {
             assert searcher == SearchContext.current().searcher();
         }
         final DocIdSet set = docIdSets.get(context.reader());
-        if (set != null && acceptDocs != null) {
-            return BitsFilteredDocIdSet.wrap(set, acceptDocs);
-        }
-        return set;
+        return BitsFilteredDocIdSet.wrap(set, acceptDocs);
     }
 
     @Override
@@ -100,7 +101,7 @@ public class CustomQueryWrappingFilter extends NoCacheFilter implements Releasab
     }
 
     @Override
-    public String toString() {
+    public String toString(String field) {
         return "CustomQueryWrappingFilter(" + query + ")";
     }
 

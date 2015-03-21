@@ -63,7 +63,7 @@ public class IndexLookup extends MinimalMap<String, IndexField> {
 
     // Current reader from which we can get the term vectors. No info on term
     // and field statistics.
-    private AtomicReader reader;
+    private LeafReader reader;
 
     // The parent reader from which we can get proper field and term
     // statistics
@@ -123,7 +123,7 @@ public class IndexLookup extends MinimalMap<String, IndexField> {
         builder.put("_CACHE", IndexLookup.FLAG_CACHE);
     }
 
-    public void setNextReader(AtomicReaderContext context) {
+    public void setNextReader(LeafReaderContext context) {
         if (reader == context.reader()) { // if we are called with the same
                                           // reader, nothing to do
             return;
@@ -213,7 +213,7 @@ public class IndexLookup extends MinimalMap<String, IndexField> {
         return reader.getTermVectors(docId);
     }
 
-    AtomicReader getReader() {
+    LeafReader getReader() {
         return reader;
     }
 

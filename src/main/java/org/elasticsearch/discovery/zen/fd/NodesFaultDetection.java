@@ -20,11 +20,9 @@
 package org.elasticsearch.discovery.zen.fd;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -36,7 +34,6 @@ import java.io.IOException;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
-import static org.elasticsearch.cluster.node.DiscoveryNodes.EMPTY_NODES;
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
 import static org.elasticsearch.transport.TransportRequestOptions.options;
 
@@ -59,11 +56,9 @@ public class NodesFaultDetection extends FaultDetection {
 
     private final ConcurrentMap<DiscoveryNode, NodeFD> nodesFD = newConcurrentMap();
 
-    private volatile DiscoveryNodes latestNodes = EMPTY_NODES;
-
     private volatile long clusterStateVersion = ClusterState.UNKNOWN_VERSION;
 
-    private volatile boolean running = false;
+    private volatile DiscoveryNode localNode;
 
     public NodesFaultDetection(Settings settings, ThreadPool threadPool, TransportService transportService, ClusterName clusterName) {
         super(settings, threadPool, transportService, clusterName);
@@ -71,6 +66,10 @@ public class NodesFaultDetection extends FaultDetection {
         logger.debug("[node  ] uses ping_interval [{}], ping_timeout [{}], ping_retries [{}]", pingInterval, pingRetryTimeout, pingRetryCount);
 
         transportService.registerHandler(PING_ACTION_NAME, new PingRequestHandler());
+    }
+
+    public void setLocalNode(DiscoveryNode localNode) {
+        this.localNode = localNode;
     }
 
     public void addListener(Listener listener) {
@@ -81,46 +80,41 @@ public class NodesFaultDetection extends FaultDetection {
         listeners.remove(listener);
     }
 
-    public void updateNodes(DiscoveryNodes nodes, long clusterStateVersion) {
-        DiscoveryNodes prevNodes = latestNodes;
-        this.latestNodes = nodes;
-        this.clusterStateVersion = clusterStateVersion;
-        if (!running) {
-            return;
+    /**
+     * make sure that nodes in clusterState are pinged. Any pinging to nodes which are not
+     * part of the cluster will be stopped
+     */
+    public void updateNodesAndPing(ClusterState clusterState) {
+        // remove any nodes we don't need, this will cause their FD to stop
+        for (DiscoveryNode monitoredNode : nodesFD.keySet()) {
+            if (!clusterState.nodes().nodeExists(monitoredNode.id())) {
+                nodesFD.remove(monitoredNode);
+            }
         }
-        DiscoveryNodes.Delta delta = nodes.delta(prevNodes);
-        for (DiscoveryNode newNode : delta.addedNodes()) {
-            if (newNode.id().equals(nodes.localNodeId())) {
+        // add any missing nodes
+
+        for (DiscoveryNode node : clusterState.nodes()) {
+            if (node.equals(localNode)) {
                 // no need to monitor the local node
                 continue;
             }
-            if (!nodesFD.containsKey(newNode)) {
-                nodesFD.put(newNode, new NodeFD());
+            if (!nodesFD.containsKey(node)) {
+                NodeFD fd = new NodeFD(node);
+                // it's OK to overwrite an existing nodeFD - it will just stop and the new one will pick things up.
+                nodesFD.put(node, fd);
                 // we use schedule with a 0 time value to run the pinger on the pool as it will run on later
-                threadPool.schedule(TimeValue.timeValueMillis(0), ThreadPool.Names.SAME, new SendPingRequest(newNode));
+                threadPool.schedule(TimeValue.timeValueMillis(0), ThreadPool.Names.SAME, fd);
             }
         }
-        for (DiscoveryNode removedNode : delta.removedNodes()) {
-            nodesFD.remove(removedNode);
-        }
     }
 
-    public NodesFaultDetection start() {
-        if (running) {
-            return this;
-        }
-        running = true;
-        return this;
-    }
-
+    /** stops all pinging **/
     public NodesFaultDetection stop() {
-        if (!running) {
-            return this;
-        }
-        running = false;
+        nodesFD.clear();
         return this;
     }
 
+    @Override
     public void close() {
         super.close();
         stop();
@@ -129,25 +123,21 @@ public class NodesFaultDetection extends FaultDetection {
 
     @Override
     protected void handleTransportDisconnect(DiscoveryNode node) {
-        if (!latestNodes.nodeExists(node.id())) {
-            return;
-        }
         NodeFD nodeFD = nodesFD.remove(node);
         if (nodeFD == null) {
             return;
         }
-        if (!running) {
-            return;
-        }
-        nodeFD.running = false;
         if (connectOnNetworkDisconnect) {
+            NodeFD fd = new NodeFD(node);
             try {
                 transportService.connectToNode(node);
-                nodesFD.put(node, new NodeFD());
+                nodesFD.put(node, fd);
                 // we use schedule with a 0 time value to run the pinger on the pool as it will run on later
-                threadPool.schedule(TimeValue.timeValueMillis(0), ThreadPool.Names.SAME, new SendPingRequest(node));
+                threadPool.schedule(TimeValue.timeValueMillis(0), ThreadPool.Names.SAME, fd);
             } catch (Exception e) {
                 logger.trace("[node  ] [{}] transport disconnected (with verified connect)", node);
+                // clean up if needed, just to be safe..
+                nodesFD.remove(node, fd);
                 notifyNodeFailure(node, "transport disconnected (with verified connect)");
             }
         } else {
@@ -180,20 +170,26 @@ public class NodesFaultDetection extends FaultDetection {
         });
     }
 
-    private class SendPingRequest implements Runnable {
+
+    private class NodeFD implements Runnable {
+        volatile int retryCount;
 
         private final DiscoveryNode node;
 
-        private SendPingRequest(DiscoveryNode node) {
+        private NodeFD(DiscoveryNode node) {
             this.node = node;
+        }
+
+        private boolean running() {
+            return NodeFD.this.equals(nodesFD.get(node));
         }
 
         @Override
         public void run() {
-            if (!running) {
+            if (!running()) {
                 return;
             }
-            final PingRequest pingRequest = new PingRequest(node.id(), clusterName, latestNodes.localNode(), clusterStateVersion);
+            final PingRequest pingRequest = new PingRequest(node.id(), clusterName, localNode, clusterStateVersion);
             final TransportRequestOptions options = options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout);
             transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, new BaseTransportResponseHandler<PingResponse>() {
                         @Override
@@ -203,47 +199,34 @@ public class NodesFaultDetection extends FaultDetection {
 
                         @Override
                         public void handleResponse(PingResponse response) {
-                            if (!running) {
+                            if (!running()) {
                                 return;
                             }
-                            NodeFD nodeFD = nodesFD.get(node);
-                            if (nodeFD != null) {
-                                if (!nodeFD.running) {
-                                    return;
-                                }
-                                nodeFD.retryCount = 0;
-                                threadPool.schedule(pingInterval, ThreadPool.Names.SAME, SendPingRequest.this);
-                            }
+                            retryCount = 0;
+                            threadPool.schedule(pingInterval, ThreadPool.Names.SAME, NodeFD.this);
                         }
 
                         @Override
                         public void handleException(TransportException exp) {
-                            // check if the master node did not get switched on us...
-                            if (!running) {
+                            if (!running()) {
                                 return;
                             }
-                            NodeFD nodeFD = nodesFD.get(node);
-                            if (nodeFD != null) {
-                                if (!nodeFD.running) {
-                                    return;
-                                }
-                                if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
-                                    handleTransportDisconnect(node);
-                                    return;
-                                }
+                            if (exp instanceof ConnectTransportException || exp.getCause() instanceof ConnectTransportException) {
+                                handleTransportDisconnect(node);
+                                return;
+                            }
 
-                                int retryCount = ++nodeFD.retryCount;
-                                logger.trace("[node  ] failed to ping [{}], retry [{}] out of [{}]", exp, node, retryCount, pingRetryCount);
-                                if (retryCount >= pingRetryCount) {
-                                    logger.debug("[node  ] failed to ping [{}], tried [{}] times, each with  maximum [{}] timeout", node, pingRetryCount, pingRetryTimeout);
-                                    // not good, failure
-                                    if (nodesFD.remove(node) != null) {
-                                        notifyNodeFailure(node, "failed to ping, tried [" + pingRetryCount + "] times, each with maximum [" + pingRetryTimeout + "] timeout");
-                                    }
-                                } else {
-                                    // resend the request, not reschedule, rely on send timeout
-                                    transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, this);
+                            retryCount++;
+                            logger.trace("[node  ] failed to ping [{}], retry [{}] out of [{}]", exp, node, retryCount, pingRetryCount);
+                            if (retryCount >= pingRetryCount) {
+                                logger.debug("[node  ] failed to ping [{}], tried [{}] times, each with  maximum [{}] timeout", node, pingRetryCount, pingRetryTimeout);
+                                // not good, failure
+                                if (nodesFD.remove(node, NodeFD.this)) {
+                                    notifyNodeFailure(node, "failed to ping, tried [" + pingRetryCount + "] times, each with maximum [" + pingRetryTimeout + "] timeout");
                                 }
+                            } else {
+                                // resend the request, not reschedule, rely on send timeout
+                                transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, this);
                             }
                         }
 
@@ -254,11 +237,6 @@ public class NodesFaultDetection extends FaultDetection {
                     }
             );
         }
-    }
-
-    static class NodeFD {
-        volatile int retryCount;
-        volatile boolean running = true;
     }
 
     class PingRequestHandler extends BaseTransportRequestHandler<PingRequest> {
@@ -272,8 +250,8 @@ public class NodesFaultDetection extends FaultDetection {
         public void messageReceived(PingRequest request, TransportChannel channel) throws Exception {
             // if we are not the node we are supposed to be pinged, send an exception
             // this can happen when a kill -9 is sent, and another node is started using the same port
-            if (!latestNodes.localNodeId().equals(request.nodeId)) {
-                throw new ElasticsearchIllegalStateException("Got pinged as node [" + request.nodeId + "], but I am node [" + latestNodes.localNodeId() + "]");
+            if (!localNode.id().equals(request.nodeId)) {
+                throw new ElasticsearchIllegalStateException("Got pinged as node [" + request.nodeId + "], but I am node [" + localNode.id() + "]");
             }
 
             // PingRequest will have clusterName set to null if it came from a node of version <1.4.0
@@ -335,22 +313,18 @@ public class NodesFaultDetection extends FaultDetection {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             nodeId = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-                clusterName = ClusterName.readClusterName(in);
-                masterNode = DiscoveryNode.readNode(in);
-                clusterStateVersion = in.readLong();
-            }
+            clusterName = ClusterName.readClusterName(in);
+            masterNode = DiscoveryNode.readNode(in);
+            clusterStateVersion = in.readLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(nodeId);
-            if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-                clusterName.writeTo(out);
-                masterNode.writeTo(out);
-                out.writeLong(clusterStateVersion);
-            }
+            clusterName.writeTo(out);
+            masterNode.writeTo(out);
+            out.writeLong(clusterStateVersion);
         }
     }
 

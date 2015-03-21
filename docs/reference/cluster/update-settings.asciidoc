@@ -78,14 +78,9 @@ due to forced awareness or allocation filtering.
 
 `cluster.routing.allocation.balance.index`::
      Defines a factor to the number of shards per index allocated
-      on a specific node (float). Defaults to `0.5f`.  Raising this raises the
+      on a specific node (float). Defaults to `0.55f`.  Raising this raises the
       tendency to equalize the number of shards per index across all nodes in
       the cluster.
-
-`cluster.routing.allocation.balance.primary`::
-     Defines a weight factor for the number of primaries of a specific index
-      allocated on a node (float). `0.05f`.  Raising this raises the tendency
-      to equalize the number of primary shards across all nodes in the cluster.
 
 `cluster.routing.allocation.balance.threshold`::
      Minimal optimization value of operations that should be performed (non
@@ -99,23 +94,6 @@ due to forced awareness or allocation filtering.
        Allow to control how many concurrent rebalancing of shards are 
        allowed cluster wide, and default it to `2` (integer). `-1` for 
        unlimited. See also <<modules-cluster>>.
-
-[float]
-===== Disable allocation
-
-added[1.0.0.RC1]
-
-All the disable allocation settings have been deprecated in favour for
-`cluster.routing.allocation.enable` setting.
-
-`cluster.routing.allocation.disable_allocation`::
-     See <<modules-cluster>>.
-
-`cluster.routing.allocation.disable_replica_allocation`::
-     See <<modules-cluster>>.
-
-`cluster.routing.allocation.disable_new_allocation`::
-     See <<modules-cluster>>.
 
 [float]
 ===== Enable allocation
@@ -156,7 +134,7 @@ All the disable allocation settings have been deprecated in favour for
 `discovery.zen.minimum_master_nodes`::
      See <<modules-discovery-zen>>
 
-`discovery.zen.publish_timeout` added[1.1.0, The setting existed before but wasn't dynamic]::
+`discovery.zen.publish_timeout`::
      See <<modules-discovery-zen>>
 
 [float]
@@ -206,15 +184,6 @@ All the disable allocation settings have been deprecated in favour for
      See <<modules-indices>>
 
 [float]
-==== Store level throttling
-
-`indices.store.throttle.type`::
-      See <<index-modules-store>>
-
-`indices.store.throttle.max_bytes_per_sec`::
-      See <<index-modules-store>>
-
-[float]
 [[logger]]
 === Logger
 
@@ -224,9 +193,9 @@ settings will be allowed to be updated.
 [float]
 === Field data circuit breaker
 
-`indices.fielddata.breaker.limit`::
+`indices.breaker.fielddata.limit`::
      See <<index-modules-fielddata>>
 
-`indices.fielddata.breaker.overhead`::
+`indices.breaker.fielddata.overhead`::
      See <<index-modules-fielddata>>
 

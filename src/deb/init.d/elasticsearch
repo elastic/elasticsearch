@@ -44,7 +44,7 @@ ES_USER=elasticsearch
 ES_GROUP=elasticsearch
 
 # The first existing directory is used for JAVA_HOME (if JAVA_HOME is not defined in $DEFAULT)
-JDK_DIRS="/usr/lib/jvm/java-7-oracle /usr/lib/jvm/java-7-openjdk /usr/lib/jvm/java-7-openjdk-amd64/ /usr/lib/jvm/java-7-openjdk-armhf /usr/lib/jvm/java-7-openjdk-i386/ /usr/lib/jvm/default-java"
+JDK_DIRS="/usr/lib/jvm/java-8-oracle/ /usr/lib/jvm/j2sdk1.8-oracle/ /usr/lib/jvm/jdk-7-oracle-x64 /usr/lib/jvm/java-7-oracle /usr/lib/jvm/j2sdk1.7-oracle/ /usr/lib/jvm/java-7-openjdk /usr/lib/jvm/java-7-openjdk-amd64/ /usr/lib/jvm/java-7-openjdk-armhf /usr/lib/jvm/java-7-openjdk-i386/ /usr/lib/jvm/default-java"
 
 # Look for the right JVM to use
 for jdir in $JDK_DIRS; do
@@ -57,7 +57,8 @@ export JAVA_HOME
 # Directory where the Elasticsearch binary distribution resides
 ES_HOME=/usr/share/$NAME
 
-# Heap Size (defaults to 256m min, 1g max)
+# Heap size defaults to 256m min, 1g max
+# Set ES_HEAP_SIZE to 50% of available RAM, but no more than 31g
 #ES_HEAP_SIZE=2g
 
 # Heap new generation
@@ -93,6 +94,9 @@ CONF_FILE=$CONF_DIR/elasticsearch.yml
 # Maximum number of VMA (Virtual Memory Areas) a process can own
 MAX_MAP_COUNT=262144
 
+# Path to the GC log file
+#ES_GC_LOG_FILE=/var/log/elasticsearch/gc.log
+
 # End of variables that can be overwritten in $DEFAULT
 
 # overwrite settings from default file
@@ -103,12 +107,13 @@ fi
 # Define other required variables
 PID_FILE=/var/run/$NAME.pid
 DAEMON=$ES_HOME/bin/elasticsearch
-DAEMON_OPTS="-d -p $PID_FILE -Des.default.config=$CONF_FILE -Des.default.path.home=$ES_HOME -Des.default.path.logs=$LOG_DIR -Des.default.path.data=$DATA_DIR -Des.default.path.work=$WORK_DIR -Des.default.path.conf=$CONF_DIR"
+DAEMON_OPTS="-d -p $PID_FILE --default.config=$CONF_FILE --default.path.home=$ES_HOME --default.path.logs=$LOG_DIR --default.path.data=$DATA_DIR --default.path.work=$WORK_DIR --default.path.conf=$CONF_DIR"
 
 export ES_HEAP_SIZE
 export ES_HEAP_NEWSIZE
 export ES_DIRECT_SIZE
 export ES_JAVA_OPTS
+export ES_GC_LOG_FILE
 
 # Check DAEMON exists
 test -x $DAEMON || exit 0
@@ -156,13 +161,27 @@ case "$1" in
 		ulimit -l $MAX_LOCKED_MEMORY
 	fi
 
-	if [ -n "$MAX_MAP_COUNT" ]; then
+	if [ -n "$MAX_MAP_COUNT" -a -f /proc/sys/vm/max_map_count ]; then
 		sysctl -q -w vm.max_map_count=$MAX_MAP_COUNT
 	fi
 
 	# Start Daemon
 	start-stop-daemon --start -b --user "$ES_USER" -c "$ES_USER" --pidfile "$PID_FILE" --exec $DAEMON -- $DAEMON_OPTS
-	log_end_msg $?
+	return=$?
+	if [ $return -eq 0 ]
+	then
+		i=0
+		timeout=10
+		# Wait for the process to be properly started before exiting
+		until { cat "$PID_FILE" | xargs kill -0; } >/dev/null 2>&1
+		do
+			sleep 1
+			i=$(($i + 1))
+			[ $i -gt $timeout ] && log_end_msg 1
+		done
+	else
+		log_end_msg $return
+	fi
 	;;		
   stop)
 	log_daemon_msg "Stopping $DESC"

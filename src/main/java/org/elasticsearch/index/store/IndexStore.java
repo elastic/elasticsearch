@@ -20,23 +20,18 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.StoreRateLimiting;
-import org.elasticsearch.index.CloseableIndexComponent;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.store.IndicesStore;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
 
 /**
  * Index store is an index level information of the {@link Store} each shard will use.
  */
-public interface IndexStore extends CloseableIndexComponent {
-
-    /**
-     * Is the store a persistent store that can survive full restarts.
-     */
-    boolean persistent();
-
-    IndicesStore indicesStore();
+public interface IndexStore extends Closeable {
 
     /**
      * Returns the rate limiting, either of the index is explicitly configured, or
@@ -50,13 +45,12 @@ public interface IndexStore extends CloseableIndexComponent {
     Class<? extends DirectoryService> shardDirectory();
 
     /**
-     * Returns <tt>true</tt> if this shard is allocated on this node. Allocated means
-     * that it has storage files that can be deleted using {@link #deleteUnallocated(org.elasticsearch.index.shard.ShardId)}.
+     * Return an array of all index folder locations for a given shard
      */
-    boolean canDeleteUnallocated(ShardId shardId);
+    Path[] shardIndexLocations(ShardId shardId);
 
     /**
-     * Deletes this shard store since its no longer allocated.
+     * Return an array of all translog folder locations for a given shard
      */
-    void deleteUnallocated(ShardId shardId) throws IOException;
+    Path[] shardTranslogLocations(ShardId shardId);
 }

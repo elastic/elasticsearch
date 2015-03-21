@@ -43,8 +43,8 @@ import static org.elasticsearch.rest.RestStatus.OK;
 public class RestGetIndexTemplateAction extends BaseRestHandler {
 
     @Inject
-    public RestGetIndexTemplateAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestGetIndexTemplateAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
 
         controller.registerHandler(GET, "/_template", this);
         controller.registerHandler(GET, "/_template/{name}", this);
@@ -56,6 +56,8 @@ public class RestGetIndexTemplateAction extends BaseRestHandler {
 
         GetIndexTemplatesRequest getIndexTemplatesRequest = new GetIndexTemplatesRequest(names);
         getIndexTemplatesRequest.local(request.paramAsBoolean("local", getIndexTemplatesRequest.local()));
+        getIndexTemplatesRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexTemplatesRequest.masterNodeTimeout()));
+
         getIndexTemplatesRequest.listenerThreaded(false);
 
         final boolean implicitAll = getIndexTemplatesRequest.names().length == 0;

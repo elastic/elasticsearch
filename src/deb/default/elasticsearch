@@ -42,3 +42,6 @@
 
 # Configure restart on package upgrade (true, every other setting will lead to not restarting)
 #RESTART_ON_UPGRADE=true
+
+# Path to the GC log file
+#ES_GC_LOG_FILE=/var/log/elasticsearch/gc.log

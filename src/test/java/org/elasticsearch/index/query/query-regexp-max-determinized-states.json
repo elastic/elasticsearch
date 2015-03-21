@@ -1,0 +1,7 @@
+{
+    query_string: {
+        default_field: "content",
+        query:"/foo*bar/",
+	max_determinized_states: 5000
+    }
+}

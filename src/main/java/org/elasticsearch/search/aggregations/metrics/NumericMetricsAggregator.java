@@ -21,19 +21,22 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
+import java.io.IOException;
+import java.util.Map;
+
 /**
  *
  */
 public abstract class NumericMetricsAggregator extends MetricsAggregator {
 
-    private NumericMetricsAggregator(String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
-        super(name, estimatedBucketsCount, context, parent);
+    private NumericMetricsAggregator(String name, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, metaData);
     }
 
     public static abstract class SingleValue extends NumericMetricsAggregator {
 
-        protected SingleValue(String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
-            super(name, estimatedBucketsCount, context, parent);
+        protected SingleValue(String name, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
+            super(name, context, parent, metaData);
         }
 
         public abstract double metric(long owningBucketOrd);
@@ -41,8 +44,8 @@ public abstract class NumericMetricsAggregator extends MetricsAggregator {
 
     public static abstract class MultiValue extends NumericMetricsAggregator {
 
-        protected MultiValue(String name, long estimatedBucketsCount, AggregationContext context, Aggregator parent) {
-            super(name, estimatedBucketsCount, context, parent);
+        protected MultiValue(String name, AggregationContext context, Aggregator parent, Map<String, Object> metaData) throws IOException {
+            super(name, context, parent, metaData);
         }
 
         public abstract boolean hasMetric(String name);

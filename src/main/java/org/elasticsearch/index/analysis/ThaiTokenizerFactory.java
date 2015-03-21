@@ -27,8 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.io.Reader;
-
 /**
  * Factory for {@link ThaiTokenizer}
  */
@@ -40,7 +38,7 @@ public class ThaiTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer create(Reader reader) {
-        return new ThaiTokenizer(reader);
+    public Tokenizer create() {
+        return new ThaiTokenizer();
     }
 }

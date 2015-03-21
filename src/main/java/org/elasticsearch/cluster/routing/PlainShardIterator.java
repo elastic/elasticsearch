@@ -60,4 +60,9 @@ public class PlainShardIterator extends PlainShardsIterator implements ShardIter
     public int hashCode() {
         return shardId.hashCode();
     }
+
+    @Override
+    public int compareTo(ShardIterator o) {
+        return shardId.compareTo(o.shardId());
+    }
 }

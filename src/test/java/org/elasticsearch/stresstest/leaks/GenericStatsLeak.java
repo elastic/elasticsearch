@@ -24,13 +24,13 @@ import org.elasticsearch.monitor.jvm.JvmService;
 import org.elasticsearch.monitor.network.NetworkService;
 import org.elasticsearch.monitor.os.OsService;
 import org.elasticsearch.monitor.process.ProcessService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.node.internal.InternalNode;
 
 public class GenericStatsLeak {
 
     public static void main(String[] args) {
-        InternalNode node = (InternalNode) NodeBuilder.nodeBuilder().settings(ImmutableSettings.settingsBuilder()
+        Node node = NodeBuilder.nodeBuilder().settings(ImmutableSettings.settingsBuilder()
                 .put("monitor.os.refresh_interval", 0)
                 .put("monitor.process.refresh_interval", 0)
                 .put("monitor.network.refresh_interval", 0)

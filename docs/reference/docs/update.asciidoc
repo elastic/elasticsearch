@@ -53,7 +53,7 @@ We can also add a new field to the document:
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.text = \"some text\""
+    "script" : "ctx._source.name_of_new_field = \"value_of_new_field\""
 }'
 --------------------------------------------------
 
@@ -62,7 +62,7 @@ We can also remove a field from the document:
 [source,js]
 --------------------------------------------------
 curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
-    "script" : "ctx._source.remove(\"text\")"
+    "script" : "ctx._source.remove(\"name_of_field\")"
 }'
 --------------------------------------------------
 
@@ -126,6 +126,8 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 If `name` was `new_name` before the request was sent then the entire update
 request is ignored.
 
+[[upserts]]
+[float]
 === Upserts
 There is also support for `upsert`. If the document does
 not already exists, the content of the `upsert` element will be used to
@@ -143,8 +145,6 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
     }
 }'
 --------------------------------------------------
-coming[1.4.0]
-
 If the document does not exist you may want your update script to
 run anyway in order to initialize the document contents using 
 business logic unknown to the client. In this case pass the
@@ -190,6 +190,7 @@ curl -XPOST 'localhost:9200/test/type1/1/_update' -d '{
 --------------------------------------------------
 
 
+[float]
 === Parameters
 
 The update operation supports similar parameters as the index API,
@@ -199,18 +200,13 @@ including:
 `routing`::     Sets the routing that will be used to route the 
                 document to the relevant shard.
 
-`parent`::      Simply sets the routing.
-
 `timeout`::     Timeout waiting for a shard to become available.
-
-`replication`:: The replication type for the delete/index operation
-                (sync or async).
 
 `consistency`:: The write consistency of the index/delete operation.
 
-`refresh`::     Refresh the index immediately after the operation occurs,
-                so that the updated document appears in search results 
-                immediately.
+`refresh`::     Refresh the relevant primary and replica shards (not the whole
+                index) immediately after the operation occurs, so that the
+                updated document appears in search results  immediately.
 
 `fields`::      return the relevant fields from the updated document.
                 Support `_source` to return the full updated 
@@ -233,3 +229,7 @@ It also allows to update the `ttl` of a document using `ctx._ttl` and
 timestamp using `ctx._timestamp`. Note that if the timestamp is not
 updated and not extracted from the `_source` it will be set to the
 update date.
+
+In addition to `_source`, the following variables are available through
+the `ctx` map: `_index`, `_type`, `_id`, `_version`, `_routing`,
+`_parent`, `_timestamp`, `_ttl`.

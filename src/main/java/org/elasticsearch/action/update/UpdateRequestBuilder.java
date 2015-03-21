@@ -22,7 +22,6 @@ package org.elasticsearch.action.update;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -67,11 +66,6 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      */
     public UpdateRequestBuilder setRouting(String routing) {
         request.routing(routing);
-        return this;
-    }
-
-    public UpdateRequestBuilder setParent(String parent) {
-        request.parent(parent);
         return this;
     }
 
@@ -160,14 +154,6 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
      */
     public UpdateRequestBuilder setRefresh(boolean refresh) {
         request.refresh(refresh);
-        return this;
-    }
-
-    /**
-     * Sets the replication type.
-     */
-    public UpdateRequestBuilder setReplicationType(ReplicationType replicationType) {
-        request.replicationType(replicationType);
         return this;
     }
 

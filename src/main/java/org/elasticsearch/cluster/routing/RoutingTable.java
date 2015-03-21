@@ -108,10 +108,10 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
         return validation;
     }
 
-    public List<ShardRouting> shardsWithState(ShardRoutingState... states) {
+    public List<ShardRouting> shardsWithState(ShardRoutingState state) {
         List<ShardRouting> shards = newArrayList();
         for (IndexRoutingTable indexRoutingTable : this) {
-            shards.addAll(indexRoutingTable.shardsWithState(states));
+            shards.addAll(indexRoutingTable.shardsWithState(state));
         }
         return shards;
     }

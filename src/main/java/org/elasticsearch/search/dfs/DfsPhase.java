@@ -44,13 +44,6 @@ import java.util.Map;
  */
 public class DfsPhase implements SearchPhase {
 
-    private static ThreadLocal<ObjectOpenHashSet<Term>> cachedTermsSet = new ThreadLocal<ObjectOpenHashSet<Term>>() {
-        @Override
-        protected ObjectOpenHashSet<Term> initialValue() {
-            return new ObjectOpenHashSet<>();
-        }
-    };
-
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
         return ImmutableMap.of();
@@ -60,16 +53,14 @@ public class DfsPhase implements SearchPhase {
     public void preProcess(SearchContext context) {
     }
 
+    @Override
     public void execute(SearchContext context) {
-        final ObjectOpenHashSet<Term> termsSet = cachedTermsSet.get();
+        final ObjectOpenHashSet<Term> termsSet = new ObjectOpenHashSet<>();
         try {
             if (!context.queryRewritten()) {
                 context.updateRewriteQuery(context.searcher().rewrite(context.query()));
             }
 
-            if (!termsSet.isEmpty()) {
-                termsSet.clear();
-            }
             context.query().extractTerms(new DelegateSet(termsSet));
             for (RescoreSearchContext rescoreContext : context.rescore()) {
                 rescoreContext.rescorer().extractTerms(context, rescoreContext, new DelegateSet(termsSet));

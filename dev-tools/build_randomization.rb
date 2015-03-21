@@ -50,7 +50,8 @@ RANDOM_CHOICES = {
   'tests.jvm.argline' => [
                 {:choices => ['-server'], :method => 'get_random_one'},
                 {:choices => ['-XX:+UseConcMarkSweepGC', '-XX:+UseParallelGC', '-XX:+UseSerialGC', '-XX:+UseG1GC'], :method => 'get_random_one'},
-                {:choices => ['-XX:+UseCompressedOops', '-XX:-UseCompressedOops'], :method => 'get_random_one'}
+                {:choices => ['-XX:+UseCompressedOops', '-XX:-UseCompressedOops'], :method => 'get_random_one'},
+                {:choices => ['-XX:+AggressiveOpts'], :method => 'get_50_percent'}
                ],
 
   'es.node.mode' => {:choices => ['local', 'network'], :method => 'get_random_one'},
@@ -283,7 +284,7 @@ class RandomizedRunner
     s = {}
     selections.each do |k, v|
       if(v.size > 1)
-        s[k] = v.join(' ') #this should be dependent on class of v[0] and perform reduce operation instead... good enough for now
+        s[k] = v.compact.join(' ') #this should be dependent on class of v[0] and perform reduce operation instead... good enough for now
       else
         s[k] = v.first
       end

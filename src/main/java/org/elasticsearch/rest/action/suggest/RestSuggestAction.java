@@ -19,6 +19,9 @@
 
 package org.elasticsearch.rest.action.suggest;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestResponse;
@@ -28,14 +31,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.search.suggest.Suggest;
-
-import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestStatus.OK;
-import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastShardsHeader;
 
 /**
  *
@@ -43,8 +47,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestSuggestAction extends BaseRestHandler {
 
     @Inject
-    public RestSuggestAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestSuggestAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(POST, "/_suggest", this);
         controller.registerHandler(GET, "/_suggest", this);
         controller.registerHandler(POST, "/{index}/_suggest", this);
@@ -72,6 +76,7 @@ public class RestSuggestAction extends BaseRestHandler {
         client.suggest(suggestRequest, new RestBuilderListener<SuggestResponse>(channel) {
             @Override
             public RestResponse buildResponse(SuggestResponse response, XContentBuilder builder) throws Exception {
+                RestStatus restStatus = RestStatus.status(response.getSuccessfulShards(), response.getTotalShards(), response.getShardFailures());
                 builder.startObject();
                 buildBroadcastShardsHeader(builder, response);
                 Suggest suggest = response.getSuggest();
@@ -79,7 +84,7 @@ public class RestSuggestAction extends BaseRestHandler {
                     suggest.toXContent(builder, request);
                 }
                 builder.endObject();
-                return new BytesRestResponse(OK, builder);
+                return new BytesRestResponse(restStatus, builder);
             }
         });
     }

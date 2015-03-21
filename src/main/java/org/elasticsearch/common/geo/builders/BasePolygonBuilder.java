@@ -48,6 +48,10 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
     // List of linear rings defining the holes of the polygon 
     protected final ArrayList<BaseLineStringBuilder<?>> holes = new ArrayList<>();
 
+    public BasePolygonBuilder(Orientation orientation) {
+        super(orientation);
+    }
+
     @SuppressWarnings("unchecked")
     private E thisRef() {
         return (E)this;
@@ -125,10 +129,9 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
 
         Edge[] edges = new Edge[numEdges];
         Edge[] holeComponents = new Edge[holes.size()];
-
-        int offset = createEdges(0, true, shell, edges, 0);
+        int offset = createEdges(0, orientation, shell, null, edges, 0);
         for (int i = 0; i < holes.size(); i++) {
-            int length = createEdges(i+1, false, this.holes.get(i), edges, offset);
+            int length = createEdges(i+1, orientation, shell, this.holes.get(i), edges, offset);
             holeComponents[i] = edges[offset];
             offset += length;
         }
@@ -358,9 +361,12 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
             // will get the correct position in the edge list and therefore the correct component to add the hole
             current.intersect = current.coordinate;
             final int intersections = intersections(current.coordinate.x, edges);
-            final int pos = Arrays.binarySearch(edges, 0, intersections, current, INTERSECTION_ORDER);
-            if (pos >= 0) {
-                throw new ElasticsearchParseException("Invaild shape: Hole is not within polygon");
+            // if no intersection is found then the hole is not within the polygon, so
+            // don't waste time calling a binary search
+            final int pos;
+            if (intersections == 0 ||
+               (pos = Arrays.binarySearch(edges, 0, intersections, current, INTERSECTION_ORDER)) >= 0) {
+                throw new ElasticsearchParseException("Invalid shape: Hole is not within polygon");
             }
             final int index = -(pos+2);
             final int component = -edges[index].component - numHoles - 1;
@@ -395,7 +401,24 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
                 holes[e2.component-1] = holes[numHoles];
                 holes[numHoles] = null;
             }
-            connect(e1, e2);
+            // only connect edges if intersections are pairwise 
+            // 1. per the comment above, the edge array is sorted by y-value of the intersection
+            // with the dateline.  Two edges have the same y intercept when they cross the 
+            // dateline thus they appear sequentially (pairwise) in the edge array. Two edges
+            // do not have the same y intercept when we're forming a multi-poly from a poly
+            // that wraps the dateline (but there are 2 ordered intercepts).  
+            // The connect method creates a new edge for these paired edges in the linked list. 
+            // For boundary conditions (e.g., intersect but not crossing) there is no sibling edge 
+            // to connect. Thus the first logic check enforces the pairwise rule
+            // 2. the second logic check ensures the two candidate edges aren't already connected by an
+            //    existing edge along the dateline - this is necessary due to a logic change in
+            //    ShapeBuilder.intersection that computes dateline edges as valid intersect points 
+            //    in support of OGC standards
+            if (e1.intersect != Edge.MAX_COORDINATE && e2.intersect != Edge.MAX_COORDINATE 
+                    && !(e1.next.next.coordinate.equals3D(e2.coordinate) && Math.abs(e1.next.coordinate.x) == DATELINE
+                    && Math.abs(e2.coordinate.x) == DATELINE) ) {
+                connect(e1, e2);
+            }
         }
         return numHoles;
     }
@@ -420,7 +443,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
                 in.next = new Edge(in.intersect, out.next, in.intersect);
             }
             out.next = new Edge(out.intersect, e1, out.intersect);
-        } else if (in.next != out){
+        } else if (in.next != out && in.coordinate != out.intersect) {
             // first edge intersects with dateline
             Edge e2 = new Edge(out.intersect, in.next, out.intersect);
 
@@ -437,9 +460,15 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         }
     }
 
-    private static int createEdges(int component, boolean direction, BaseLineStringBuilder<?> line, Edge[] edges, int offset) {
-        Coordinate[] points = line.coordinates(false); // last point is repeated 
-        Edge.ring(component, direction, points, 0, edges, offset, points.length-1);
+    private static int createEdges(int component, Orientation orientation, BaseLineStringBuilder<?> shell,
+                                   BaseLineStringBuilder<?> hole,
+                                   Edge[] edges, int offset) {
+        // inner rings (holes) have an opposite direction than the outer rings
+        // XOR will invert the orientation for outer ring cases (Truth Table:, T/T = F, T/F = T, F/T = T, F/F = F)
+        boolean direction = (component != 0 ^ orientation == Orientation.RIGHT);
+        // set the points array accordingly (shell or hole)
+        Coordinate[] points = (hole != null) ? hole.coordinates(false) : shell.coordinates(false);
+        Edge.ring(component, direction, orientation == Orientation.LEFT, shell, points, 0, edges, offset, points.length-1);
         return points.length-1;
     }
 

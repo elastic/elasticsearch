@@ -61,6 +61,7 @@ public class BenchmarkTestUtil {
             this.name = name;
         }
 
+        @Override
         public String toString() {
             return name;
         }
@@ -90,8 +91,8 @@ public class BenchmarkTestUtil {
         QUERY_STRING {
             @Override
             QueryBuilder getQuery() {
-                return QueryBuilders.queryString(
-                            randomAsciiOfLengthBetween(1, 3));
+                return QueryBuilders.queryStringQuery(
+                        randomAsciiOfLengthBetween(1, 3));
             }
         },
         WILDCARD {

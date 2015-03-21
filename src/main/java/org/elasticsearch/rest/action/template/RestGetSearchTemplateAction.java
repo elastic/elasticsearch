@@ -18,61 +18,34 @@
  */
 package org.elasticsearch.rest.action.template;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
-import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-
-import java.io.IOException;
-import java.util.Map;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.script.RestGetIndexedScriptAction;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
  */
-public class RestGetSearchTemplateAction extends BaseRestHandler {
+public class RestGetSearchTemplateAction extends RestGetIndexedScriptAction {
 
     @Inject
-    public RestGetSearchTemplateAction(Settings settings, Client client,
-                                       RestController controller, ScriptService scriptService) {
-        super(settings, client);
+    public RestGetSearchTemplateAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, false, client);
         controller.registerHandler(GET, "/_search/template/{id}", this);
     }
 
     @Override
-    public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
-        final GetIndexedScriptRequest getRequest = new GetIndexedScriptRequest(ScriptService.SCRIPT_INDEX, "mustache", request.param("id"));
-        RestResponseListener<GetIndexedScriptResponse> responseListener = new RestResponseListener<GetIndexedScriptResponse>(channel) {
-            @Override
-            public RestResponse buildResponse(GetIndexedScriptResponse response) throws Exception {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                if (!response.isExists()) {
-                    return new BytesRestResponse(NOT_FOUND, builder);
-                } else {
-                    try{
-                        String templateString = response.getScript();
-                        builder.startObject();
-                        builder.field("template",templateString);
-                        builder.endObject();
-                        return new BytesRestResponse(OK, builder);
-                    } catch( IOException|ClassCastException e ){
-                        throw new ElasticsearchIllegalStateException("Unable to parse "  + response.getScript() + " as json",e);
-                    }
-                }
-            }
-        };
-        client.getIndexedScript(getRequest, responseListener);
+    protected String getScriptLang(RestRequest request) {
+        return MustacheScriptEngineService.NAME;
+    }
+
+    @Override
+    protected String getScriptFieldName() {
+        return "template";
     }
 }

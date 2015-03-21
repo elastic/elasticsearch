@@ -25,7 +25,6 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
-import org.elasticsearch.common.io.stream.CachedStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
@@ -49,12 +48,14 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
     protected final ThreadPool threadPool;
     protected final TransportServiceAdapter transportServiceAdapter;
     protected final NettyTransport transport;
+    protected final String profileName;
 
-    public MessageChannelHandler(NettyTransport transport, ESLogger logger) {
+    public MessageChannelHandler(NettyTransport transport, ESLogger logger, String profileName) {
         this.threadPool = transport.threadPool();
         this.transportServiceAdapter = transport.transportServiceAdapter();
         this.transport = transport;
         this.logger = logger;
+        this.profileName = profileName;
     }
 
     @Override
@@ -65,6 +66,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
     @Override
     public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
+        Transports.assertTransportThread();
         Object m = e.getMessage();
         if (!(m instanceof ChannelBuffer)) {
             ctx.sendUpstream(e);
@@ -101,9 +103,9 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 sb.append("]");
                 throw new ElasticsearchIllegalStateException(sb.toString());
             }
-            wrappedStream = CachedStreamInput.cachedHandlesCompressed(compressor, streamIn);
+            wrappedStream = compressor.streamInput(streamIn);
         } else {
-            wrappedStream = CachedStreamInput.cachedHandles(streamIn);
+            wrappedStream = streamIn;
         }
         wrappedStream.setVersion(version);
 
@@ -118,6 +120,8 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 buffer.readerIndex(expectedIndexReader);
             }
         } else {
+            // notify with response before we process it and before we remove information about it.
+            transportServiceAdapter.onResponseReceived(requestId);
             TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
             // ignore if its null, the adapter logs it
             if (handler != null) {
@@ -202,10 +206,10 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
     protected String handleRequest(Channel channel, StreamInput buffer, long requestId, Version version) throws IOException {
         final String action = buffer.readString();
-
-        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, action, channel, requestId, version);
+        transportServiceAdapter.onRequestReceived(requestId, action);
+        final NettyTransportChannel transportChannel = new NettyTransportChannel(transport, transportServiceAdapter, action, channel, requestId, version, profileName);
         try {
-            final TransportRequestHandler handler = transportServiceAdapter.handler(action, version);
+            final TransportRequestHandler handler = transportServiceAdapter.handler(action);
             if (handler == null) {
                 throw new ActionNotFoundTransportException(action);
             }
@@ -270,25 +274,26 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
 
         @SuppressWarnings({"unchecked"})
         @Override
-        public void run() {
-            try {
-                handler.messageReceived(request, transportChannel);
-            } catch (Throwable e) {
-                if (transport.lifecycleState() == Lifecycle.State.STARTED) {
-                    // we can only send a response transport is started....
-                    try {
-                        transportChannel.sendResponse(e);
-                    } catch (Throwable e1) {
-                        logger.warn("Failed to send error message back to client for action [" + action + "]", e1);
-                        logger.warn("Actual Exception", e);
-                    }
-                }
-            }
+        protected void doRun() throws Exception {
+            handler.messageReceived(request, transportChannel);
         }
 
         @Override
         public boolean isForceExecution() {
             return handler.isForceExecution();
+        }
+
+        @Override
+        public void onFailure(Throwable e) {
+            if (transport.lifecycleState() == Lifecycle.State.STARTED) {
+                // we can only send a response transport is started....
+                try {
+                    transportChannel.sendResponse(e);
+                } catch (Throwable e1) {
+                    logger.warn("Failed to send error message back to client for action [" + action + "]", e1);
+                    logger.warn("Actual Exception", e);
+                }
+            }
         }
     }
 }

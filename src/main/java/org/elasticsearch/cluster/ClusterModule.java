@@ -26,9 +26,9 @@ import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.RoutingService;
 import org.elasticsearch.cluster.routing.allocation.AllocationModule;
-import org.elasticsearch.cluster.routing.operation.OperationRoutingModule;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.cluster.settings.ClusterDynamicSettingsModule;
 import org.elasticsearch.common.inject.AbstractModule;
@@ -47,6 +47,7 @@ import java.util.Set;
 public class ClusterModule extends AbstractModule implements SpawnModules {
 
     private final Settings settings;
+    public static final String CLUSTER_SERVICE_IMPL = "cluster.info.service.type";
 
     private Set<Class<? extends IndexTemplateFilter>> indexTemplateFilters = new HashSet<>();
 
@@ -61,7 +62,6 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
     @Override
     public Iterable<? extends Module> spawnModules() {
         return ImmutableList.of(new AllocationModule(settings),
-                new OperationRoutingModule(settings),
                 new ClusterDynamicSettingsModule(),
                 new IndexDynamicSettingsModule());
     }
@@ -70,7 +70,7 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
     protected void configure() {
         bind(DiscoveryNodeService.class).asEagerSingleton();
         bind(ClusterService.class).to(InternalClusterService.class).asEagerSingleton();
-
+        bind(OperationRouting.class).asEagerSingleton();
         bind(MetaDataService.class).asEagerSingleton();
         bind(MetaDataCreateIndexService.class).asEagerSingleton();
         bind(MetaDataDeleteIndexService.class).asEagerSingleton();
@@ -87,7 +87,7 @@ public class ClusterModule extends AbstractModule implements SpawnModules {
         bind(NodeMappingRefreshAction.class).asEagerSingleton();
         bind(MappingUpdatedAction.class).asEagerSingleton();
 
-        bind(ClusterInfoService.class).to(InternalClusterInfoService.class).asEagerSingleton();
+        bind(ClusterInfoService.class).to(settings.getAsClass(CLUSTER_SERVICE_IMPL, InternalClusterInfoService.class)).asEagerSingleton();
 
         Multibinder<IndexTemplateFilter> mbinder = Multibinder.newSetBinder(binder(), IndexTemplateFilter.class);
         for (Class<? extends IndexTemplateFilter> indexTemplateFilter : indexTemplateFilters) {

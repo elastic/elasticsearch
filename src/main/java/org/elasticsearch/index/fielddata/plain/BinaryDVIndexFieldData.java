@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -35,12 +35,12 @@ public class BinaryDVIndexFieldData extends DocValuesIndexFieldData implements I
     }
 
     @Override
-    public BinaryDVAtomicFieldData load(AtomicReaderContext context) {
+    public BinaryDVAtomicFieldData load(LeafReaderContext context) {
         return new BinaryDVAtomicFieldData(context.reader(), fieldNames.indexName());
     }
 
     @Override
-    public BinaryDVAtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public BinaryDVAtomicFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 

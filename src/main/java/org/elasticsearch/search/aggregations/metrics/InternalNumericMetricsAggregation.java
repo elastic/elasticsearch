@@ -18,7 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -27,33 +31,70 @@ public abstract class InternalNumericMetricsAggregation extends InternalMetricsA
 
     protected ValueFormatter valueFormatter;
 
-    public static abstract class SingleValue extends InternalNumericMetricsAggregation {
+    public static abstract class SingleValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.SingleValue {
 
         protected SingleValue() {}
 
-        protected SingleValue(String name) {
-            super(name);
+        protected SingleValue(String name, Map<String, Object> metaData) {
+            super(name, metaData);
         }
 
-        public abstract double value();
+        @Override
+        public String getValueAsString() {
+            if (valueFormatter == null) {
+                return ValueFormatter.RAW.format(value());
+            } else {
+                return valueFormatter.format(value());
+            }
+        }
+
+        @Override
+        public Object getProperty(List<String> path) {
+            if (path.isEmpty()) {
+                return this;
+            } else if (path.size() == 1 && "value".equals(path.get(0))) {
+                return value();
+            } else {
+                throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);
+            }
+        }
+
     }
 
-    public static abstract class MultiValue extends InternalNumericMetricsAggregation {
+    public static abstract class MultiValue extends InternalNumericMetricsAggregation implements NumericMetricsAggregation.MultiValue {
 
         protected MultiValue() {}
 
-        protected MultiValue(String name) {
-            super(name);
+        protected MultiValue(String name, Map<String, Object> metaData) {
+            super(name, metaData);
         }
 
         public abstract double value(String name);
 
+        public String valueAsString(String name) {
+            if (valueFormatter == null) {
+                return ValueFormatter.RAW.format(value(name));
+            } else {
+                return valueFormatter.format(value(name));
+            }
+        }
+
+        @Override
+        public Object getProperty(List<String> path) {
+            if (path.isEmpty()) {
+                return this;
+            } else if (path.size() == 1) {
+                return value(path.get(0));
+            } else {
+                throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);
+            }
+        }
     }
 
     private InternalNumericMetricsAggregation() {} // for serialization
 
-    private InternalNumericMetricsAggregation(String name) {
-        super(name);
+    private InternalNumericMetricsAggregation(String name, Map<String, Object> metaData) {
+        super(name, metaData);
     }
 
 }

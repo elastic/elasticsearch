@@ -38,14 +38,12 @@ public class RefreshStressTest1 {
         Node node = NodeBuilder.nodeBuilder().local(true).loadConfigSettings(false).clusterName("testCluster").settings(
                 ImmutableSettings.settingsBuilder()
                         .put("node.name", "node1")
-                        .put("gateway.type", "none")
                         .put("index.number_of_shards", numberOfShards)
                                 //.put("path.data", new File("target/data").getAbsolutePath())
                         .build()).node();
         Node node2 = NodeBuilder.nodeBuilder().local(true).loadConfigSettings(false).clusterName("testCluster").settings(
                 ImmutableSettings.settingsBuilder()
                         .put("node.name", "node2")
-                        .put("gateway.type", "none")
                         .put("index.number_of_shards", numberOfShards)
                                 //.put("path.data", new File("target/data").getAbsolutePath())
                         .build()).node();

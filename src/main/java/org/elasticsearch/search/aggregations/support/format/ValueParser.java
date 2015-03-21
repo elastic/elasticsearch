@@ -31,6 +31,7 @@ import java.text.DecimalFormatSymbols;
 import java.text.NumberFormat;
 import java.text.ParseException;
 import java.util.Locale;
+import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -92,8 +93,14 @@ public interface ValueParser {
         }
 
         @Override
-        public long parseLong(String value, SearchContext searchContext) {
-            return parser.parse(value, searchContext.nowInMillis());
+        public long parseLong(String value, final SearchContext searchContext) {
+            final Callable<Long> now = new Callable<Long>() {
+                @Override
+                public Long call() throws Exception {
+                    return searchContext.nowInMillis();
+                }
+            };
+            return parser.parse(value, now);
         }
 
         @Override

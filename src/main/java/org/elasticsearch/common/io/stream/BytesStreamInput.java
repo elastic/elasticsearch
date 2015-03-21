@@ -37,8 +37,6 @@ public class BytesStreamInput extends StreamInput {
 
     protected int end;
 
-    private final boolean unsafe;
-
     public BytesStreamInput(BytesReference bytes) {
         if (!bytes.hasArray()) {
             bytes = bytes.toBytesArray();
@@ -46,25 +44,20 @@ public class BytesStreamInput extends StreamInput {
         this.buf = bytes.array();
         this.pos = bytes.arrayOffset();
         this.end = pos + bytes.length();
-        this.unsafe = false;
     }
 
-    public BytesStreamInput(byte buf[], boolean unsafe) {
-        this(buf, 0, buf.length, unsafe);
+    public BytesStreamInput(byte buf[]) {
+        this(buf, 0, buf.length);
     }
 
-    public BytesStreamInput(byte buf[], int offset, int length, boolean unsafe) {
+    public BytesStreamInput(byte buf[], int offset, int length) {
         this.buf = buf;
         this.pos = offset;
         this.end = offset + length;
-        this.unsafe = unsafe;
     }
 
     @Override
     public BytesReference readBytesReference(int length) throws IOException {
-        if (unsafe) {
-            return super.readBytesReference(length);
-        }
         BytesArray bytes = new BytesArray(buf, pos, length);
         pos += length;
         return bytes;
@@ -72,9 +65,6 @@ public class BytesStreamInput extends StreamInput {
 
     @Override
     public BytesRef readBytesRef(int length) throws IOException {
-        if (unsafe) {
-            return super.readBytesRef(length);
-        }
         BytesRef bytes = new BytesRef(buf, pos, length);
         pos += length;
         return bytes;

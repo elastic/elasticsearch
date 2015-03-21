@@ -87,8 +87,10 @@ The following table lists all the attributes that can be used with the
 Defaults to the property/field name.
 
 |`store` |Set to `true` to actually store the field in the index, `false` to not
-store it. Defaults to `false` (note, the JSON document itself is stored,
-and it can be retrieved from it).
+store it. Since by default ElasticSearch stores all fields of the source
+document in the special `_source` field, this option is primarily useful when
+the `_source` field has been disabled in the type definition. Defaults to
+`false`.
 
 |`index` |Set to `analyzed` for the field to be indexed and searchable
 after being broken down into token using an analyzer. `not_analyzed`
@@ -128,14 +130,11 @@ is also possible to set it to `offsets` (doc numbers, term
 frequencies, positions and offsets).
 
 |`analyzer` |The analyzer used to analyze the text contents when
-`analyzed` during indexing and when searching using a query string.
+`analyzed` during indexing and searching.
 Defaults to the globally configured analyzer.
 
-|`index_analyzer` |The analyzer used to analyze the text contents when
-`analyzed` during indexing.
-
-|`search_analyzer` |The analyzer used to analyze the field when part of
-a query string. Can be updated on an existing field.
+|`search_analyzer` |The analyzer used to analyze the field when searching, which
+overrides the value of `analyzer`. Can be updated on an existing field.
 
 |`include_in_all` |Should the field be included in the `_all` field (if
 enabled). If `index` is set to `no` this defaults to `false`, otherwise,
@@ -181,11 +180,27 @@ you don't need scoring on a specific field, it is highly recommended to disable
 norms on it. In  particular, this is the case for fields that are used solely
 for filtering or aggregations.
 
-added[1.2.0]
 In case you would like to disable norms after the fact, it is possible to do so
-by using the <<indices-put-mapping,PUT mapping API>>. Please however note that
-norms won't be removed instantly, but as your index will receive new insertions
-or updates, and segments get merged. Any score computation on a field that got
+by using the <<indices-put-mapping,PUT mapping API>>, like this:
+
+[source,json]
+------------
+PUT my_index/_mapping/my_type
+{
+  "properties": {
+    "title": {
+      "type": "string",
+      "norms": {
+        "enabled": false
+      }
+    }
+  }
+}
+------------
+
+Please however note that norms won't be removed instantly, but will be removed
+as old segments are merged into new segments as you continue indexing new documents.
+Any score computation on a field that has had 
 norms removed might return inconsistent results since some documents won't have
 norms anymore while other documents might still have norms.
 
@@ -556,8 +571,6 @@ The following Similarities are configured out-of-box:
 [float]
 ===== Copy to field
 
-added[1.0.0.RC2]
-
 Adding `copy_to` parameter to any field mapping will cause all values of this field to be copied to fields specified in
 the parameter. In the following example all values from fields `title` and `abstract` will be copied to the field
 `meta_data`.
@@ -589,8 +602,6 @@ Multiple fields are also supported:
 
 [float]
 ===== Multi fields
-
-added[1.0.0.RC1]
 
 The `fields` options allows to map several core types fields into a single
 json source field. This can be useful if a single field need to be
@@ -630,10 +641,10 @@ the tokens aren't copied.
 [float]
 ==== Updating a field
 
-In the essence a field can't be updated. However multi fields can be
+In essence a field cannot be updated. However multi fields can be
 added to existing fields. This allows for example to have a different
-`index_analyzer` configuration in addition to the already configured
-`index_analyzer` configuration specified in the main and other multi fields.
+`analyzer` configuration in addition to the already configured
+`analyzer` configuration specified in the main and other multi fields.
 
 Also the new multi field will only be applied on document that have been
 added after the multi field has been added and in fact the new multi field
@@ -642,4 +653,3 @@ doesn't exist in existing documents.
 Another important note is that new multi fields will be merged into the
 list of existing multi fields, so when adding new multi fields for a field
 previous added multi fields don't need to be specified.
-

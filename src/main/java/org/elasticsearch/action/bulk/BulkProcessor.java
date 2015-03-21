@@ -31,6 +31,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 
 import java.io.Closeable;
 import java.util.concurrent.*;
@@ -221,7 +222,7 @@ public class BulkProcessor implements Closeable {
         }
         closed = true;
         if (this.scheduledFuture != null) {
-            this.scheduledFuture.cancel(false);
+            FutureUtils.cancel(this.scheduledFuture);
             this.scheduler.shutdown();
         }
         if (bulkRequest.numberOfActions() > 0) {

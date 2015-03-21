@@ -69,15 +69,16 @@ public class TransportClientNodesServiceTests extends ElasticsearchTestCase {
             transport.endConnectMode();
         }
 
+        @Override
         public void close() {
-            threadPool.shutdown();
-            try {
-                threadPool.awaitTermination(1, TimeUnit.SECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().isInterrupted();
-            }
+
             transportService.stop();
             transportClientNodesService.close();
+            try {
+                terminate(threadPool);
+            } catch (InterruptedException e) {
+                throw new AssertionError(e);
+            }
         }
     }
 

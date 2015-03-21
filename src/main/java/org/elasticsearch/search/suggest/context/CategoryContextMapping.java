@@ -25,8 +25,9 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.PrefixAnalyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.BasicAutomata;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -122,6 +123,7 @@ public class CategoryContextMapping extends ContextMapping {
 
         if (fieldName != null) {
             mapping.fieldName(fieldName.toString());
+            config.remove(FIELD_FIELDNAME);
         }
 
         if (defaultValues != null) {
@@ -132,6 +134,7 @@ public class CategoryContextMapping extends ContextMapping {
             } else {
                 mapping.addDefaultValue(defaultValues.toString());
             }
+            config.remove(FIELD_MISSING);
         }
 
         return mapping.build();
@@ -275,12 +278,13 @@ public class CategoryContextMapping extends ContextMapping {
             this.values = values;
         }
 
+        @Override
         public Automaton toAutomaton() {
             List<Automaton> automatons = new ArrayList<>();
             for (CharSequence value : values) {
-                automatons.add(BasicAutomata.makeString(value.toString()));
+                automatons.add(Automata.makeString(value.toString()));
             }
-            return Automaton.union(automatons);
+            return Operations.union(automatons);
         }
 
         @Override

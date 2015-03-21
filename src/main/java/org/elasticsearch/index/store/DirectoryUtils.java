@@ -19,8 +19,9 @@
 
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.store.*;
-import org.elasticsearch.Version;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FileSwitchDirectory;
+import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.common.Nullable;
 
 /**
@@ -28,40 +29,16 @@ import org.elasticsearch.common.Nullable;
  */
 public final class DirectoryUtils {
 
-    static {
-        assert Version.CURRENT.luceneVersion == org.apache.lucene.util.Version.LUCENE_4_9 : "Remove the special case for NRTCachingDirectory - it implements FilterDirectory in 4.10";
-    }
-
     private DirectoryUtils() {} // no instance
 
-    /**
-     * Try and extract a store directory out of a directory, tries to take into
-     * account the fact that a directory is a filter directory, and/or a compound dir.
-     */
-    @Nullable
-    public static Store.StoreDirectory getStoreDirectory(Directory dir) {
-        Directory current = dir;
-        while (true) {
-            if (current instanceof Store.StoreDirectory) {
-                return (Store.StoreDirectory) current;
-            }
-            if (current instanceof FilterDirectory) {
-                current = ((FilterDirectory) current).getDelegate();
-            } else if (current instanceof CompoundFileDirectory) {
-                current = ((CompoundFileDirectory) current).getDirectory();
-            } else {
-                return null;
-            }
-        }
-    }
-
-    static final Directory getLeafDirectory(FilterDirectory dir) {
+    static final <T extends Directory> Directory getLeafDirectory(FilterDirectory dir, Class<T> targetClass) {
         Directory current = dir.getDelegate();
         while (true) {
             if ((current instanceof FilterDirectory)) {
+                if (targetClass != null && targetClass.isAssignableFrom(current.getClass())) {
+                    break;
+                }
                 current = ((FilterDirectory) current).getDelegate();
-            } else if (current instanceof NRTCachingDirectory) { // remove this when we upgrade to Lucene 4.10
-                current = ((NRTCachingDirectory) current).getDelegate();
             } else {
                 break;
             }
@@ -85,7 +62,7 @@ public final class DirectoryUtils {
     public static <T extends Directory> T getLeaf(Directory dir, Class<T> targetClass, T defaultValue) {
         Directory d = dir;
         if (dir instanceof FilterDirectory) {
-            d = getLeafDirectory((FilterDirectory) dir);
+            d = getLeafDirectory((FilterDirectory) dir, targetClass);
         }
         if (d instanceof FileSwitchDirectory) {
             T leaf = getLeaf(((FileSwitchDirectory) d).getPrimaryDir(), targetClass);

@@ -64,6 +64,6 @@ public class KeepTypesFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new TypeTokenFilter(version, tokenStream, keepTypes, true);
+        return new TypeTokenFilter(tokenStream, keepTypes, true);
     }
 }

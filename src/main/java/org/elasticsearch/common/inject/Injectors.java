@@ -230,11 +230,6 @@ public class Injectors {
         return keyType;
     }
 
-
-    public static void close(Injector injector) {
-
-    }
-
     public static void cleanCaches(Injector injector) {
         ((InjectorImpl) injector).clearCache();
         if (injector.getParent() != null) {

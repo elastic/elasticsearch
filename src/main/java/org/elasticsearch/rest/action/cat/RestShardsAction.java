@@ -25,15 +25,13 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestChannel;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
@@ -43,8 +41,8 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestShardsAction extends AbstractCatAction {
 
     @Inject
-    public RestShardsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestShardsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_cat/shards", this);
         controller.registerHandler(GET, "/_cat/shards/{index}", this);
     }
@@ -61,7 +59,7 @@ public class RestShardsAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
-        clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
+        clusterStateRequest.clear().nodes(true).metaData(true).routingTable(true).indices(indices);
         client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
@@ -168,7 +166,21 @@ public class RestShardsAction extends AbstractCatAction {
 
             table.addCell(shard.index());
             table.addCell(shard.id());
-            table.addCell(shard.primary() ? "p" : "r");
+
+            IndexMetaData indexMeta = state.getState().getMetaData().index(shard.index());
+            boolean usesShadowReplicas = false;
+            if (indexMeta != null) {
+                usesShadowReplicas = IndexMetaData.isIndexUsingShadowReplicas(indexMeta.settings());
+            }
+            if (shard.primary()) {
+                table.addCell("p");
+            } else {
+                if (usesShadowReplicas) {
+                    table.addCell("s");
+                } else {
+                    table.addCell("r");
+                }
+            }
             table.addCell(shard.state());
             table.addCell(shardStats == null ? null : shardStats.getDocs().getCount());
             table.addCell(shardStats == null ? null : shardStats.getStore().getSize());
@@ -249,7 +261,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(shardStats == null ? null : shardStats.getSegments().getIndexWriterMemory());
             table.addCell(shardStats == null ? null : shardStats.getSegments().getIndexWriterMaxMemory());
             table.addCell(shardStats == null ? null : shardStats.getSegments().getVersionMapMemory());
-            table.addCell(shardStats == null ? null : shardStats.getSegments().getFixedBitSetMemory());
+            table.addCell(shardStats == null ? null : shardStats.getSegments().getBitsetMemory());
 
             table.addCell(shardStats == null ? null : shardStats.getWarmer().current());
             table.addCell(shardStats == null ? null : shardStats.getWarmer().total());

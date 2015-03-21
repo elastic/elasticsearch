@@ -19,20 +19,27 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PagedBytes;
-import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  */
 public class PagedBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
 
     private final PagedBytes.Reader bytes;
-    private final MonotonicAppendingLongBuffer termOrdToBytesOffset;
+    private final PackedLongValues termOrdToBytesOffset;
     protected final Ordinals ordinals;
 
-    public PagedBytesAtomicFieldData(PagedBytes.Reader bytes, MonotonicAppendingLongBuffer termOrdToBytesOffset, Ordinals ordinals) {
+    public PagedBytesAtomicFieldData(PagedBytes.Reader bytes, PackedLongValues termOrdToBytesOffset, Ordinals ordinals) {
         this.bytes = bytes;
         this.termOrdToBytesOffset = termOrdToBytesOffset;
         this.ordinals = ordinals;
@@ -53,6 +60,15 @@ public class PagedBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
     }
 
     @Override
+    public Collection<Accountable> getChildResources() {
+        List<Accountable> resources = new ArrayList<>();
+        resources.add(Accountables.namedAccountable("ordinals", ordinals));
+        resources.add(Accountables.namedAccountable("term bytes", bytes));
+        resources.add(Accountables.namedAccountable("term offsets", termOrdToBytesOffset));
+        return Collections.unmodifiableList(resources);
+    }
+
+    @Override
     public RandomAccessOrds getOrdinalsValues() {
         return ordinals.ordinals(new ValuesHolder(bytes, termOrdToBytesOffset));
     }
@@ -61,9 +77,9 @@ public class PagedBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
 
         private final BytesRef scratch = new BytesRef();
         private final PagedBytes.Reader bytes;
-        private final MonotonicAppendingLongBuffer termOrdToBytesOffset;
+        private final PackedLongValues termOrdToBytesOffset;
 
-        ValuesHolder(PagedBytes.Reader bytes, MonotonicAppendingLongBuffer termOrdToBytesOffset) {
+        ValuesHolder(PagedBytes.Reader bytes, PackedLongValues termOrdToBytesOffset) {
             this.bytes = bytes;
             this.termOrdToBytesOffset = termOrdToBytesOffset;
         }

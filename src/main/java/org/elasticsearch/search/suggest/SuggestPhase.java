@@ -20,7 +20,7 @@ package org.elasticsearch.search.suggest;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -76,7 +76,7 @@ public class SuggestPhase extends AbstractComponent implements SearchPhase {
 
     public Suggest execute(SuggestionSearchContext suggest, IndexReader reader) {
         try {
-            CharsRef spare = new CharsRef(); // Maybe add CharsRef to CacheRecycler?
+            CharsRefBuilder spare = new CharsRefBuilder();
             final List<Suggestion<? extends Entry<? extends Option>>> suggestions = new ArrayList<>(suggest.suggestions().size());
 
             for (Map.Entry<String, SuggestionSearchContext.SuggestionContext> entry : suggest.suggestions().entrySet()) {

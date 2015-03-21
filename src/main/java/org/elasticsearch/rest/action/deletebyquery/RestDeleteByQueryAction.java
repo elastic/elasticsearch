@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.deletebyquery;
 
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
@@ -27,7 +26,6 @@ import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.deletebyquery.ShardDeleteByQueryRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.QuerySourceBuilder;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -46,8 +44,8 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public class RestDeleteByQueryAction extends BaseRestHandler {
 
     @Inject
-    public RestDeleteByQueryAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestDeleteByQueryAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(DELETE, "/{index}/_query", this);
         controller.registerHandler(DELETE, "/{index}/{type}/_query", this);
     }
@@ -73,10 +71,6 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
         deleteByQueryRequest.timeout(request.paramAsTime("timeout", ShardDeleteByQueryRequest.DEFAULT_TIMEOUT));
 
         deleteByQueryRequest.routing(request.param("routing"));
-        String replicationType = request.param("replication");
-        if (replicationType != null) {
-            deleteByQueryRequest.replicationType(ReplicationType.fromString(replicationType));
-        }
         String consistencyLevel = request.param("consistency");
         if (consistencyLevel != null) {
             deleteByQueryRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
@@ -90,28 +84,10 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
                 builder.startObject(Fields._INDICES);
                 for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : result.getIndices().values()) {
                     builder.startObject(indexDeleteByQueryResponse.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
-
-                    builder.startObject(Fields._SHARDS);
-                    builder.field(Fields.TOTAL, indexDeleteByQueryResponse.getTotalShards());
-                    builder.field(Fields.SUCCESSFUL, indexDeleteByQueryResponse.getSuccessfulShards());
-                    builder.field(Fields.FAILED, indexDeleteByQueryResponse.getFailedShards());
-                    ShardOperationFailedException[] failures = indexDeleteByQueryResponse.getFailures();
-                    if (failures != null && failures.length > 0) {
-                        builder.startArray(Fields.FAILURES);
-                        for (ShardOperationFailedException shardFailure : failures) {
-                            builder.startObject();
-                            builder.field(Fields.INDEX, shardFailure.index());
-                            builder.field(Fields.SHARD, shardFailure.shardId());
-                            builder.field(Fields.REASON, shardFailure.reason());
-                            builder.endObject();
-                        }
-                        builder.endArray();
-                    }
+                    indexDeleteByQueryResponse.getShardInfo().toXContent(builder, request);
                     builder.endObject();
-
                     builder.endObject();
                 }
-                builder.endObject();
                 builder.endObject();
                 return new BytesRestResponse(restStatus, builder);
             }

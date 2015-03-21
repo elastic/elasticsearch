@@ -17,9 +17,12 @@ $ curl -XGET 'http://localhost:9200/_cluster/health?pretty=true'
   "active_shards" : 10,                                                                      
   "relocating_shards" : 0,                                                                   
   "initializing_shards" : 0,                                                                 
-  "unassigned_shards" : 0                                                                    
+  "unassigned_shards" : 0,
+  "number_of_pending_tasks" : 0
 }
 --------------------------------------------------
+
+coming[1.5.0, number of pending tasks was added in 1.5.0]
 
 The API can also be executed against one or more indices to get just the
 specified indices health:

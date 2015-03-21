@@ -20,38 +20,37 @@
 package org.elasticsearch.indices.breaker;
 
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.MemoryCircuitBreaker;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.unit.ByteSizeValue;
 
 /**
  * Class that returns a breaker that never breaks
  */
 public class NoneCircuitBreakerService extends CircuitBreakerService {
 
-    private final ESLogger logger = Loggers.getLogger(NoneCircuitBreakerService.class);
-
-    private final MemoryCircuitBreaker breaker = new MemoryCircuitBreaker(new ByteSizeValue(Long.MAX_VALUE), 0.0, logger);
+    private final CircuitBreaker breaker = new NoopCircuitBreaker(CircuitBreaker.FIELDDATA);
 
     public NoneCircuitBreakerService() {
         super(ImmutableSettings.EMPTY);
     }
 
-
     @Override
-    public MemoryCircuitBreaker getBreaker(CircuitBreaker.Name name) {
+    public CircuitBreaker getBreaker(String name) {
         return breaker;
     }
 
     @Override
     public AllCircuitBreakerStats stats() {
-        return new AllCircuitBreakerStats(new CircuitBreakerStats[] {stats(CircuitBreaker.Name.FIELDDATA)});
+        return new AllCircuitBreakerStats(new CircuitBreakerStats[] {stats(CircuitBreaker.FIELDDATA)});
     }
 
     @Override
-    public CircuitBreakerStats stats(CircuitBreaker.Name name) {
-        return new CircuitBreakerStats(CircuitBreaker.Name.FIELDDATA, -1, -1, 0, 0);
+    public CircuitBreakerStats stats(String name) {
+        return new CircuitBreakerStats(CircuitBreaker.FIELDDATA, -1, -1, 0, 0);
+    }
+
+    @Override
+    public void registerBreaker(BreakerSettings breakerSettings) {
+        // ignore
     }
 }

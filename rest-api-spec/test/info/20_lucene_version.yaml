@@ -1,7 +1,6 @@
 ---
 "Lucene Version":
     - do:         {info: {}}
-    - match:      {status: 200}
     - is_true:    version.lucene_version
 
 

@@ -43,7 +43,7 @@ Here is a sample mapping:
                 "properties" : {
                     "first" : {
                         "properties" : {
-                            "location" : {"type" : "string", "store" : true, "index_name" : "firstLocation"}
+                            "location" : {"type" : "string", "store" : true}
                         }
                     },
                     "last" : {
@@ -61,7 +61,7 @@ Here is a sample mapping:
 --------------------------------------------------
 
 The `_all` fields allows for `store`, `term_vector` and `analyzer` (with
-specific `index_analyzer` and `search_analyzer`) to be set.
+specific `analyzer` and `search_analyzer`) to be set.
 
 [float]
 [[highlighting]]

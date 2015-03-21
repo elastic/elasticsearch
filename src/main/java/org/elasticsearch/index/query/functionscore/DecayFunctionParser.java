@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -85,7 +85,7 @@ import java.util.Locale;
  * parameters origin and scale.
  * <p>
  * To write a new scoring function, create a new class that inherits from this
- * one and implement the getDistanceFuntion(). Furthermore, to create a builder,
+ * one and implement the getDistanceFunction(). Furthermore, to create a builder,
  * override the getName() in {@link DecayFunctionBuilder}.
  * <p>
  * See {@link GaussDecayFunctionBuilder} and {@link GaussDecayFunctionParser}
@@ -265,7 +265,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         }
         long origin = SearchContext.current().nowInMillis();
         if (originString != null) {
-            origin = dateFieldMapper.parseToMilliseconds(originString, parseContext);
+            origin = dateFieldMapper.parseToMilliseconds(originString);
         }
 
         if (scaleString == null) {
@@ -295,7 +295,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) {
+        public void setNextReader(LeafReaderContext context) {
             geoPointValues = fieldData.load(context).getGeoPointValues();
         }
 
@@ -357,7 +357,8 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             this.origin = origin;
         }
 
-        public void setNextReader(AtomicReaderContext context) {
+        @Override
+        public void setNextReader(LeafReaderContext context) {
             this.doubleValues = this.fieldData.load(context).getDoubleValues();
         }
 

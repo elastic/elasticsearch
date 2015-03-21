@@ -20,23 +20,28 @@
 package org.elasticsearch.search.aggregations.bucket.filters;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
+import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
  */
-public class InternalFilters extends InternalAggregation implements Filters {
+public class InternalFilters extends InternalMultiBucketAggregation implements Filters {
 
     public final static Type TYPE = new Type("filters");
 
@@ -49,29 +54,54 @@ public class InternalFilters extends InternalAggregation implements Filters {
         }
     };
 
+    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
+        @Override
+        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
+            Bucket filters = new Bucket(context.keyed());
+            filters.readFrom(in);
+            return filters;
+        }
+
+        @Override
+        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
+            BucketStreamContext context = new BucketStreamContext();
+            context.keyed(bucket.keyed);
+            return context;
+        }
+    };
+
     public static void registerStream() {
         AggregationStreams.registerStream(STREAM, TYPE.stream());
+        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
-    public static class Bucket implements Filters.Bucket {
+    public static class Bucket extends InternalBucket implements Filters.Bucket {
 
+        private final boolean keyed;
         private String key;
         private long docCount;
         InternalAggregations aggregations;
 
-        public Bucket(String key, long docCount, InternalAggregations aggregations) {
+        private Bucket(boolean keyed) {
+            // for serialization
+            this.keyed = keyed;
+        }
+
+        public Bucket(String key, long docCount, InternalAggregations aggregations, boolean keyed) {
             this.key = key;
             this.docCount = docCount;
             this.aggregations = aggregations;
+            this.keyed = keyed;
         }
 
+        @Override
         public String getKey() {
             return key;
         }
 
         @Override
-        public Text getKeyAsText() {
-            return new StringText(getKey());
+        public String getKeyAsString() {
+            return key;
         }
 
         @Override
@@ -89,7 +119,7 @@ public class InternalFilters extends InternalAggregation implements Filters {
             List<InternalAggregations> aggregationsList = Lists.newArrayListWithCapacity(buckets.size());
             for (Bucket bucket : buckets) {
                 if (reduced == null) {
-                    reduced = new Bucket(bucket.key, bucket.docCount, bucket.aggregations);
+                    reduced = new Bucket(bucket.key, bucket.docCount, bucket.aggregations, bucket.keyed);
                 } else {
                     reduced.docCount += bucket.docCount;
                 }
@@ -99,7 +129,8 @@ public class InternalFilters extends InternalAggregation implements Filters {
             return reduced;
         }
 
-        void toXContent(XContentBuilder builder, Params params, boolean keyed) throws IOException {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (keyed) {
                 builder.startObject(key);
             } else {
@@ -108,6 +139,21 @@ public class InternalFilters extends InternalAggregation implements Filters {
             builder.field(CommonFields.DOC_COUNT, docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            key = in.readOptionalString();
+            docCount = in.readVLong();
+            aggregations = InternalAggregations.readAggregations(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(key);
+            out.writeVLong(docCount);
+            aggregations.writeTo(out);
         }
     }
 
@@ -117,8 +163,8 @@ public class InternalFilters extends InternalAggregation implements Filters {
 
     public InternalFilters() {} // for serialization
 
-    public InternalFilters(String name, List<Bucket> buckets, boolean keyed) {
-        super(name);
+    public InternalFilters(String name, List<Bucket> buckets, boolean keyed, Map<String, Object> metaData) {
+        super(name, metaData);
         this.buckets = buckets;
         this.keyed = keyed;
     }
@@ -129,7 +175,7 @@ public class InternalFilters extends InternalAggregation implements Filters {
     }
 
     @Override
-    public Collection<Bucket> getBuckets() {
+    public List<Bucket> getBuckets() {
         return buckets;
     }
 
@@ -165,7 +211,7 @@ public class InternalFilters extends InternalAggregation implements Filters {
             }
         }
 
-        InternalFilters reduced = new InternalFilters(name, new ArrayList<Bucket>(bucketsList.size()), keyed);
+        InternalFilters reduced = new InternalFilters(name, new ArrayList<Bucket>(bucketsList.size()), keyed, getMetaData());
         for (List<Bucket> sameRangeList : bucketsList) {
             reduced.buckets.add((sameRangeList.get(0)).reduce(sameRangeList, reduceContext));
         }
@@ -173,28 +219,25 @@ public class InternalFilters extends InternalAggregation implements Filters {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         keyed = in.readBoolean();
         int size = in.readVInt();
         List<Bucket> buckets = Lists.newArrayListWithCapacity(size);
         for (int i = 0; i < size; i++) {
-            String key = in.readOptionalString();
-            buckets.add(new Bucket(key, in.readVLong(), InternalAggregations.readAggregations(in)));
+            Bucket bucket = new Bucket(keyed);
+            bucket.readFrom(in);
+            buckets.add(bucket);
         }
         this.buckets = buckets;
         this.bucketMap = null;
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeBoolean(keyed);
         out.writeVInt(buckets.size());
         for (Bucket bucket : buckets) {
-            out.writeOptionalString(bucket.key);
-            out.writeVLong(bucket.docCount);
-            bucket.aggregations.writeTo(out);
+            bucket.writeTo(out);
         }
     }
 
@@ -206,7 +249,7 @@ public class InternalFilters extends InternalAggregation implements Filters {
             builder.startArray(CommonFields.BUCKETS);
         }
         for (Bucket bucket : buckets) {
-            bucket.toXContent(builder, params, keyed);
+            bucket.toXContent(builder, params);
         }
         if (keyed) {
             builder.endObject();

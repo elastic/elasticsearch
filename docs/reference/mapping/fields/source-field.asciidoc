@@ -34,7 +34,7 @@ when it's stored, supporting `*` as wildcard annotation. For example:
     "my_type" : {
         "_source" : {
             "includes" : ["path1.*", "path2.*"],
-            "excludes" : ["pat3.*"]
+            "excludes" : ["path3.*"]
         }
     }
 }

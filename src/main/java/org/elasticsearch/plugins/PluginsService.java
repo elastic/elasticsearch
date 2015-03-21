@@ -19,10 +19,12 @@
 
 package org.elasticsearch.plugins;
 
+import com.google.common.base.Charsets;
 import com.google.common.collect.*;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.PluginInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
@@ -32,20 +34,21 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.CloseableIndexComponent;
 
-import java.io.File;
-import java.io.FileInputStream;
+import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.net.URL;
+import java.nio.file.*;
 import java.util.*;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
@@ -54,9 +57,14 @@ import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
  *
  */
 public class PluginsService extends AbstractComponent {
-    public static final String ES_PLUGIN_PROPERTIES_FILE_KEY = "properties_file";
+    public static final String ES_PLUGIN_PROPERTIES_FILE_KEY = "plugins.properties_file";
     public static final String ES_PLUGIN_PROPERTIES = "es-plugin.properties";
-    public static final String LOAD_PLUGIN_FROM_CLASSPATH = "load_classpath_plugins";
+    public static final String LOAD_PLUGIN_FROM_CLASSPATH = "plugins.load_classpath_plugins";
+
+    private static final PathMatcher PLUGIN_LIB_MATCHER = FileSystems.getDefault().getPathMatcher("glob:**.{jar,zip}");
+    public static final String PLUGINS_CHECK_LUCENE_KEY = "plugins.check_lucene";
+    public static final String PLUGINS_INFO_REFRESH_INTERVAL_KEY = "plugins.info_refresh_interval";
+
 
     private final Environment environment;
 
@@ -92,9 +100,9 @@ public class PluginsService extends AbstractComponent {
     public PluginsService(Settings settings, Environment environment) {
         super(settings);
         this.environment = environment;
-        this.checkLucene = componentSettings.getAsBoolean("check_lucene", true);
-        this.esPluginPropertiesFile = componentSettings.get(ES_PLUGIN_PROPERTIES_FILE_KEY, ES_PLUGIN_PROPERTIES);
-        this.loadClasspathPlugins = componentSettings.getAsBoolean(LOAD_PLUGIN_FROM_CLASSPATH, true);
+        this.checkLucene = settings.getAsBoolean(PLUGINS_CHECK_LUCENE_KEY, true);
+        this.esPluginPropertiesFile = settings.get(ES_PLUGIN_PROPERTIES_FILE_KEY, ES_PLUGIN_PROPERTIES);
+        this.loadClasspathPlugins = settings.getAsBoolean(LOAD_PLUGIN_FROM_CLASSPATH, true);
 
         ImmutableList.Builder<Tuple<PluginInfo, Plugin>> tupleBuilder = ImmutableList.builder();
 
@@ -110,7 +118,11 @@ public class PluginsService extends AbstractComponent {
         }
 
         // now, find all the ones that are in the classpath
-        loadPluginsIntoClassLoader();
+        try {
+            loadPluginsIntoClassLoader();
+        } catch (IOException ex) {
+            throw new ElasticsearchIllegalStateException("Can't load plugins into classloader", ex);
+        }
         if (loadClasspathPlugins) {
             tupleBuilder.addAll(loadPluginsFromClasspath(settings));
         }
@@ -126,11 +138,14 @@ public class PluginsService extends AbstractComponent {
                 sitePlugins.add(tuple.v1().getName());
             }
         }
-
-        // we load site plugins
-        ImmutableList<Tuple<PluginInfo, Plugin>> tuples = loadSitePlugins();
-        for (Tuple<PluginInfo, Plugin> tuple : tuples) {
-            sitePlugins.add(tuple.v1().getName());
+        try {
+            // we load site plugins
+            ImmutableList<Tuple<PluginInfo, Plugin>> tuples = loadSitePlugins();
+            for (Tuple<PluginInfo, Plugin> tuple : tuples) {
+                sitePlugins.add(tuple.v1().getName());
+            }
+        } catch (IOException ex) {
+            throw new ElasticsearchIllegalStateException("Can't load site  plugins", ex);
         }
 
         // Checking expected plugins
@@ -174,7 +189,7 @@ public class PluginsService extends AbstractComponent {
         }
         this.onModuleReferences = onModuleReferences.immutableMap();
 
-        this.refreshInterval = componentSettings.getAsTime("info_refresh_interval", TimeValue.timeValueSeconds(10));
+        this.refreshInterval = settings.getAsTime(PLUGINS_INFO_REFRESH_INTERVAL_KEY, TimeValue.timeValueSeconds(10));
     }
 
     public ImmutableList<Tuple<PluginInfo, Plugin>> plugins() {
@@ -255,8 +270,8 @@ public class PluginsService extends AbstractComponent {
         return modules;
     }
 
-    public Collection<Class<? extends CloseableIndexComponent>> indexServices() {
-        List<Class<? extends CloseableIndexComponent>> services = Lists.newArrayList();
+    public Collection<Class<? extends Closeable>> indexServices() {
+        List<Class<? extends Closeable>> services = Lists.newArrayList();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             services.addAll(plugin.v2().indexServices());
         }
@@ -279,8 +294,8 @@ public class PluginsService extends AbstractComponent {
         return modules;
     }
 
-    public Collection<Class<? extends CloseableIndexComponent>> shardServices() {
-        List<Class<? extends CloseableIndexComponent>> services = Lists.newArrayList();
+    public Collection<Class<? extends Closeable>> shardServices() {
+        List<Class<? extends Closeable>> services = Lists.newArrayList();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             services.addAll(plugin.v2().shardServices());
         }
@@ -319,19 +334,23 @@ public class PluginsService extends AbstractComponent {
             cachedPluginsInfo.add(plugin.v1());
         }
 
-        // We reload site plugins (in case of some changes)
-        for (Tuple<PluginInfo, Plugin> plugin : loadSitePlugins()) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("adding site plugin [{}]", plugin.v1());
+        try {
+            // We reload site plugins (in case of some changes)
+            for (Tuple<PluginInfo, Plugin> plugin : loadSitePlugins()) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("adding site plugin [{}]", plugin.v1());
+                }
+                cachedPluginsInfo.add(plugin.v1());
             }
-            cachedPluginsInfo.add(plugin.v1());
+        } catch (IOException ex) {
+            logger.warn("can load site plugins info", ex);
         }
 
         return cachedPluginsInfo;
     }
 
-    private void loadPluginsIntoClassLoader() {
-        File pluginsDirectory = environment.pluginsFile();
+    private void loadPluginsIntoClassLoader() throws IOException {
+        Path pluginsDirectory = environment.pluginsFile();
         if (!isAccessibleDirectory(pluginsDirectory, logger)) {
             return;
         }
@@ -353,38 +372,48 @@ public class PluginsService extends AbstractComponent {
             logger.debug("failed to find addURL method on classLoader [" + classLoader + "] to add methods");
             return;
         }
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsDirectory)) {
 
-        for (File plugin : pluginsDirectory.listFiles()) {
-            // We check that subdirs are directories and readable
-            if (!isAccessibleDirectory(plugin, logger)) {
-                continue;
-            }
-
-            logger.trace("--- adding plugin [{}]", plugin.getAbsolutePath());
-
-            try {
-                // add the root
-                addURL.invoke(classLoader, plugin.toURI().toURL());
-                // gather files to add
-                List<File> libFiles = Lists.newArrayList();
-                if (plugin.listFiles() != null) {
-                    libFiles.addAll(Arrays.asList(plugin.listFiles()));
-                }
-                File libLocation = new File(plugin, "lib");
-                if (libLocation.exists() && libLocation.isDirectory() && libLocation.listFiles() != null) {
-                    libFiles.addAll(Arrays.asList(libLocation.listFiles()));
+            for (Path plugin : stream) {
+                // We check that subdirs are directories and readable
+                if (!isAccessibleDirectory(plugin, logger)) {
+                    continue;
                 }
 
-                // if there are jars in it, add it as well
-                for (File libFile : libFiles) {
-                    if (!(libFile.getName().endsWith(".jar") || libFile.getName().endsWith(".zip"))) {
-                        continue;
+                logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
+
+                try {
+                    // add the root
+                    addURL.invoke(classLoader, plugin.toUri().toURL());
+                    // gather files to add
+                    List<Path> libFiles = Lists.newArrayList();
+                    libFiles.addAll(Arrays.asList(files(plugin)));
+                    Path libLocation = plugin.resolve("lib");
+                    if (Files.isDirectory(libLocation)) {
+                        libFiles.addAll(Arrays.asList(files(libLocation)));
                     }
-                    addURL.invoke(classLoader, libFile.toURI().toURL());
+
+                    // if there are jars in it, add it as well
+                    for (Path libFile : libFiles) {
+                        if (!hasLibExtension(libFile)) {
+                            continue;
+                        }
+                        addURL.invoke(classLoader, libFile.toUri().toURL());
+                    }
+                } catch (Throwable e) {
+                    logger.warn("failed to add plugin [" + plugin + "]", e);
                 }
-            } catch (Throwable e) {
-                logger.warn("failed to add plugin [" + plugin + "]", e);
             }
+        }
+    }
+
+    protected static boolean hasLibExtension(Path lib) {
+        return PLUGIN_LIB_MATCHER.matches(lib);
+    }
+
+    private Path[] files(Path from) throws IOException {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(from)) {
+            return Iterators.toArray(stream.iterator(), Path.class);
         }
     }
 
@@ -406,7 +435,7 @@ public class PluginsService extends AbstractComponent {
                     Plugin plugin = loadPlugin(pluginClassName, settings);
 
                     // Is it a site plugin as well? Does it have also an embedded _site structure
-                    File siteFile = new File(new File(environment.pluginsFile(), plugin.name()), "_site");
+                    Path siteFile = environment.pluginsFile().resolve(plugin.name()).resolve("_site");
                     boolean isSite = isAccessibleDirectory(siteFile, logger);
                     if (logger.isTraceEnabled()) {
                         logger.trace("found a jvm plugin [{}], [{}]{}",
@@ -429,7 +458,7 @@ public class PluginsService extends AbstractComponent {
         return plugins.build();
     }
 
-    private ImmutableList<Tuple<PluginInfo,Plugin>> loadSitePlugins() {
+    private ImmutableList<Tuple<PluginInfo,Plugin>> loadSitePlugins() throws IOException {
         ImmutableList.Builder<Tuple<PluginInfo, Plugin>> sitePlugins = ImmutableList.builder();
         List<String> loadedJvmPlugins = new ArrayList<>();
 
@@ -441,49 +470,46 @@ public class PluginsService extends AbstractComponent {
         }
 
         // Let's try to find all _site plugins we did not already found
-        File pluginsFile = environment.pluginsFile();
+        Path pluginsFile = environment.pluginsFile();
 
-        if (!pluginsFile.exists() || !pluginsFile.isDirectory()) {
+        if (FileSystemUtils.isAccessibleDirectory(pluginsFile, logger) == false) {
             return sitePlugins.build();
         }
 
-        for (File pluginFile : pluginsFile.listFiles()) {
-            if (!loadedJvmPlugins.contains(pluginFile.getName())) {
-                File sitePluginDir = new File(pluginFile, "_site");
-                if (isAccessibleDirectory(sitePluginDir, logger)) {
-                    // We have a _site plugin. Let's try to get more information on it
-                    String name = pluginFile.getName();
-                    String version = PluginInfo.VERSION_NOT_AVAILABLE;
-                    String description = PluginInfo.DESCRIPTION_NOT_AVAILABLE;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginsFile)) {
+            for (Path pluginFile : stream) {
+                if (!loadedJvmPlugins.contains(pluginFile.getFileName().toString())) {
+                    Path sitePluginDir = pluginFile.resolve("_site");
+                    if (isAccessibleDirectory(sitePluginDir, logger)) {
+                        // We have a _site plugin. Let's try to get more information on it
+                        String name = pluginFile.getFileName().toString();
+                        String version = PluginInfo.VERSION_NOT_AVAILABLE;
+                        String description = PluginInfo.DESCRIPTION_NOT_AVAILABLE;
 
-                    // We check if es-plugin.properties exists in plugin/_site dir
-                    File pluginPropFile = new File(sitePluginDir, esPluginPropertiesFile);
-                    if (pluginPropFile.exists()) {
+                        // We check if es-plugin.properties exists in plugin/_site dir
+                        final Path pluginPropFile = sitePluginDir.resolve(esPluginPropertiesFile);
+                        if (Files.exists(pluginPropFile)) {
 
-                        Properties pluginProps = new Properties();
-                        InputStream is = null;
-                        try {
-                            is = new FileInputStream(pluginPropFile.getAbsolutePath());
-                            pluginProps.load(is);
-                            description = pluginProps.getProperty("description", PluginInfo.DESCRIPTION_NOT_AVAILABLE);
-                            version = pluginProps.getProperty("version", PluginInfo.VERSION_NOT_AVAILABLE);
-                        } catch (Exception e) {
-                            // Can not load properties for this site plugin. Ignoring.
-                            logger.debug("can not load {} file.", e, esPluginPropertiesFile);
-                        } finally {
-                            IOUtils.closeWhileHandlingException(is);
+                            final Properties pluginProps = new Properties();
+                            try (final BufferedReader reader = Files.newBufferedReader(pluginPropFile, Charsets.UTF_8)) {
+                                pluginProps.load(reader);
+                                description = pluginProps.getProperty("description", PluginInfo.DESCRIPTION_NOT_AVAILABLE);
+                                version = pluginProps.getProperty("version", PluginInfo.VERSION_NOT_AVAILABLE);
+                            } catch (Exception e) {
+                                // Can not load properties for this site plugin. Ignoring.
+                                logger.debug("can not load {} file.", e, esPluginPropertiesFile);
+                            }
                         }
-                    }
 
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("found a site plugin name [{}], version [{}], description [{}]",
-                                name, version, description);
+                        if (logger.isTraceEnabled()) {
+                            logger.trace("found a site plugin name [{}], version [{}], description [{}]",
+                                    name, version, description);
+                        }
+                        sitePlugins.add(new Tuple<PluginInfo, Plugin>(new PluginInfo(name, description, true, false, version), null));
                     }
-                    sitePlugins.add(new Tuple<PluginInfo, Plugin>(new PluginInfo(name, description, true, false, version), null));
                 }
             }
         }
-
         return sitePlugins.build();
     }
 
@@ -493,13 +519,13 @@ public class PluginsService extends AbstractComponent {
      */
     private boolean hasSite(String name) {
         // Let's try to find all _site plugins we did not already found
-        File pluginsFile = environment.pluginsFile();
+        Path pluginsFile = environment.pluginsFile();
 
-        if (!pluginsFile.exists() || !pluginsFile.isDirectory()) {
+        if (!Files.isDirectory(pluginsFile)) {
             return false;
         }
 
-        File sitePluginDir = new File(pluginsFile, name + "/_site");
+        Path sitePluginDir = pluginsFile.resolve(name).resolve("_site");
         return isAccessibleDirectory(sitePluginDir, logger);
     }
 

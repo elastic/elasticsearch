@@ -1,0 +1,64 @@
+[[java-aggs]]
+== Aggregations
+
+Elasticsearch provides a full Java API to play with aggregations. See the
+{ref}/search-aggregations.html[Aggregations guide].
+
+Use the factory for aggregation builders (`AggregationBuilders`) and add each aggregation
+you want to compute when querying and add it to your search request:
+
+[source,java]
+--------------------------------------------------
+SearchResponse sr = node.client().prepareSearch()
+        .setQuery( /* your query */ )
+        .addAggregation( /* add an aggregation */ )
+        .execute().actionGet();
+--------------------------------------------------
+
+Note that you can add more than one aggregation. See
+{ref}/search-search.html[Search Java API] for details.
+
+To build aggregation requests, use `AggregationBuilders` helpers. Just import them
+in your class:
+
+[source,java]
+--------------------------------------------------
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+--------------------------------------------------
+
+=== Structuring aggregations
+
+As explained in the
+{ref}/search-aggregations.html[Aggregations guide], you can define
+sub aggregations inside an aggregation.
+
+An aggregation could be a metrics aggregation or a bucket aggregation.
+
+For example, here is a 3 levels aggregation composed of:
+
+* Terms aggregation (bucket)
+* Date Histogram aggregation (bucket)
+* Average aggregation (metric)
+
+[source,java]
+--------------------------------------------------
+SearchResponse sr = node.client().prepareSearch()
+    .addAggregation(
+        AggregationBuilders.terms("by_country").field("country")
+        .subAggregation(AggregationBuilders.dateHistogram("by_year")
+            .field("dateOfBirth")
+            .interval((DateHistogram.Interval.YEAR)
+            .subAggregation(AggregationBuilders.avg("avg_children").field("children"))
+        )
+    )
+    .execute().actionGet();
+--------------------------------------------------
+
+=== Metrics aggregations
+
+include::aggregations/metrics.asciidoc[]
+
+=== Bucket aggregations
+
+include::aggregations/bucket.asciidoc[]
+

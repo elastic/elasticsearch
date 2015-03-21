@@ -33,7 +33,7 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
-import org.elasticsearch.cluster.routing.allocation.AllocationExplanation;
+
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -44,17 +44,16 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 /**
  *
@@ -133,8 +132,6 @@ public class ClusterState implements ToXContent {
 
     // built on demand
     private volatile RoutingNodes routingNodes;
-
-    private SettingsFilter settingsFilter;
 
     private volatile ClusterStateStatus status;
 
@@ -234,11 +231,6 @@ public class ClusterState implements ToXContent {
         return routingNodes;
     }
 
-    public ClusterState settingsFilter(SettingsFilter settingsFilter) {
-        this.settingsFilter = settingsFilter;
-        return this;
-    }
-
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
         sb.append("version: ").append(version).append("\n");
@@ -262,20 +254,71 @@ public class ClusterState implements ToXContent {
         }
     }
 
+    public enum Metric {
+        VERSION("version"),
+        MASTER_NODE("master_node"),
+        BLOCKS("blocks"),
+        NODES("nodes"),
+        METADATA("metadata"),
+        ROUTING_TABLE("routing_table"),
+        CUSTOMS("customs");
+
+        private static Map<String, Metric> valueToEnum;
+
+        static {
+            valueToEnum = new HashMap<>();
+            for (Metric metric : Metric.values()) {
+                valueToEnum.put(metric.value, metric);
+            }
+        }
+
+        private final String value;
+
+        private Metric(String value) {
+            this.value = value;
+        }
+
+        public static EnumSet<Metric> parseString(String param, boolean ignoreUnknown) {
+            String[] metrics = Strings.splitStringByCommaToArray(param);
+            EnumSet<Metric> result = EnumSet.noneOf(Metric.class);
+            for (String metric : metrics) {
+                if ("_all".equals(metric)) {
+                    result = EnumSet.allOf(Metric.class);
+                    break;
+                }
+                Metric m = valueToEnum.get(metric);
+                if (m == null) {
+                    if (!ignoreUnknown) {
+                        throw new ElasticsearchIllegalArgumentException("Unknown metric [" + metric + "]");
+                    }
+                } else {
+                    result.add(m);
+                }
+            }
+            return result;
+        }
+
+        @Override
+        public String toString() {
+            return value;
+        }
+    }
+
+
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        Set<String> metrics = Strings.splitStringByCommaToSet(params.param("metric", "_all"));
-        boolean isAllMetricsOnly = metrics.size() == 1 && metrics.contains("_all");
+        EnumSet<Metric> metrics = Metric.parseString(params.param("metric", "_all"), true);
 
-        if (isAllMetricsOnly || metrics.contains("version")) {
+        if (metrics.contains(Metric.VERSION)) {
             builder.field("version", version);
         }
 
-        if (isAllMetricsOnly || metrics.contains("master_node")) {
+        if (metrics.contains(Metric.MASTER_NODE)) {
             builder.field("master_node", nodes().masterNodeId());
         }
 
-        if (isAllMetricsOnly || metrics.contains("blocks")) {
+        if (metrics.contains(Metric.BLOCKS)) {
             builder.startObject("blocks");
 
             if (!blocks().global().isEmpty()) {
@@ -302,7 +345,7 @@ public class ClusterState implements ToXContent {
         }
 
         // nodes
-        if (isAllMetricsOnly || metrics.contains("nodes")) {
+        if (metrics.contains(Metric.NODES)) {
             builder.startObject("nodes");
             for (DiscoveryNode node : nodes()) {
                 builder.startObject(node.id(), XContentBuilder.FieldCaseConversion.NONE);
@@ -321,7 +364,7 @@ public class ClusterState implements ToXContent {
         }
 
         // meta data
-        if (isAllMetricsOnly || metrics.contains("metadata")) {
+        if (metrics.contains(Metric.METADATA)) {
             builder.startObject("metadata");
 
             builder.startObject("templates");
@@ -334,9 +377,6 @@ public class ClusterState implements ToXContent {
 
                 builder.startObject("settings");
                 Settings settings = templateMetaData.settings();
-                if (settingsFilter != null) {
-                    settings = settingsFilter.filterSettings(settings);
-                }
                 settings.toXContent(builder, params);
                 builder.endObject();
 
@@ -367,9 +407,6 @@ public class ClusterState implements ToXContent {
 
                 builder.startObject("settings");
                 Settings settings = indexMetaData.settings();
-                if (settingsFilter != null) {
-                    settings = settingsFilter.filterSettings(settings);
-                }
                 settings.toXContent(builder, params);
                 builder.endObject();
 
@@ -407,7 +444,7 @@ public class ClusterState implements ToXContent {
         }
 
         // routing table
-        if (isAllMetricsOnly || metrics.contains("routing_table")) {
+        if (metrics.contains(Metric.ROUTING_TABLE)) {
             builder.startObject("routing_table");
             builder.startObject("indices");
             for (IndexRoutingTable indexRoutingTable : routingTable()) {
@@ -428,7 +465,7 @@ public class ClusterState implements ToXContent {
         }
 
         // routing nodes
-        if (isAllMetricsOnly || metrics.contains("routing_table")) {
+        if (metrics.contains(Metric.ROUTING_TABLE)) {
             builder.startObject("routing_nodes");
             builder.startArray("unassigned");
             for (ShardRouting shardRouting : readOnlyRoutingNodes().unassigned()) {
@@ -448,8 +485,7 @@ public class ClusterState implements ToXContent {
 
             builder.endObject();
         }
-
-        if (isAllMetricsOnly || metrics.contains("customs")) {
+        if (metrics.contains(Metric.CUSTOMS)) {
             for (ObjectObjectCursor<String, Custom> cursor : customs) {
                 builder.startObject(cursor.key);
                 lookupFactorySafe(cursor.key).toXContent(cursor.value, builder, params);
@@ -567,29 +603,18 @@ public class ClusterState implements ToXContent {
         /**
          * @param data               input bytes
          * @param localNode          used to set the local node in the cluster state.
-         * @param defaultClusterName this cluster name will be used of if the deserialized cluster state does not have a name set
-         *                           (which is only introduced in version 1.1.1)
          */
-        public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode, ClusterName defaultClusterName) throws IOException {
-            return readFrom(new BytesStreamInput(data, false), localNode, defaultClusterName);
+        public static ClusterState fromBytes(byte[] data, DiscoveryNode localNode) throws IOException {
+            return readFrom(new BytesStreamInput(data), localNode);
         }
 
         public static void writeTo(ClusterState state, StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(Version.V_1_1_1)) {
-                out.writeBoolean(state.clusterName != null);
-                if (state.clusterName != null) {
-                    state.clusterName.writeTo(out);
-                }
-            }
+            state.clusterName.writeTo(out);
             out.writeLong(state.version());
             MetaData.Builder.writeTo(state.metaData(), out);
             RoutingTable.Builder.writeTo(state.routingTable(), out);
             DiscoveryNodes.Builder.writeTo(state.nodes(), out);
             ClusterBlocks.Builder.writeClusterBlocks(state.blocks(), out);
-            if (out.getVersion().before(Version.V_1_1_0)) {
-                // Versions before 1.1.0 are expecting AllocationExplanation
-                AllocationExplanation.EMPTY.writeTo(out);
-            }
             out.writeVInt(state.customs().size());
             for (ObjectObjectCursor<String, Custom> cursor : state.customs()) {
                 out.writeString(cursor.key);
@@ -600,27 +625,15 @@ public class ClusterState implements ToXContent {
         /**
          * @param in                 input stream
          * @param localNode          used to set the local node in the cluster state. can be null.
-         * @param defaultClusterName this cluster name will be used of receiving a cluster state from a node on version older than 1.1.1
-         *                           or if the sending node did not set a cluster name
          */
-        public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode, @Nullable ClusterName defaultClusterName) throws IOException {
-            ClusterName clusterName = defaultClusterName;
-            if (in.getVersion().onOrAfter(Version.V_1_1_1)) {
-                // it might be null even if it comes from a >= 1.1.1 node since it's origin might be an older node
-                if (in.readBoolean()) {
-                    clusterName = ClusterName.readClusterName(in);
-                }
-            }
+        public static ClusterState readFrom(StreamInput in, @Nullable DiscoveryNode localNode) throws IOException {
+            ClusterName clusterName = ClusterName.readClusterName(in);
             Builder builder = new Builder(clusterName);
             builder.version = in.readLong();
             builder.metaData = MetaData.Builder.readFrom(in);
             builder.routingTable = RoutingTable.Builder.readFrom(in);
             builder.nodes = DiscoveryNodes.Builder.readFrom(in, localNode);
             builder.blocks = ClusterBlocks.Builder.readClusterBlocks(in);
-            if (in.getVersion().before(Version.V_1_1_0)) {
-                // Ignore the explanation read, since after 1.1.0 it's not part of the cluster state
-                AllocationExplanation.readAllocationExplanation(in);
-            }
             int customSize = in.readVInt();
             for (int i = 0; i < customSize; i++) {
                 String type = in.readString();

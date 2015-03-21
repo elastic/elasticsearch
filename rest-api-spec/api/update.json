@@ -36,19 +36,9 @@
           "type": "string",
           "description": "The script language (default: groovy)"
         },
-        "parent": {
-          "type": "string",
-          "description": "ID of the parent document"
-        },
         "refresh": {
           "type": "boolean",
           "description": "Refresh the index after performing the operation"
-        },
-        "replication": {
-          "type": "enum",
-          "options": ["sync", "async"],
-          "default": "sync",
-          "description": "Specific replication type"
         },
         "retry_on_conflict": {
           "type": "number",
@@ -65,7 +55,7 @@
           "description": "The id of a stored script"
         },
         "scripted_upsert": {
-          "type": "boolean",        
+          "type": "boolean",
           "description": "True if the script referenced in script or script_id should be called to perform inserts - defaults to false"
         },
         "timeout": {

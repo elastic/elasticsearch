@@ -19,9 +19,9 @@
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.joda.DateMathParser;
 import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.rounding.TimeZoneRounding;
@@ -31,7 +31,9 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter.DateTime;
 import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
@@ -43,6 +45,9 @@ import java.io.IOException;
 public class DateHistogramParser implements Aggregator.Parser {
 
     static final ParseField EXTENDED_BOUNDS = new ParseField("extended_bounds");
+    static final ParseField TIME_ZONE = new ParseField("time_zone");
+    static final ParseField OFFSET = new ParseField("offset");
+    static final ParseField INTERVAL = new ParseField("interval");
 
     private final ImmutableMap<String, DateTimeUnit> dateFieldUnits;
 
@@ -85,11 +90,8 @@ public class DateHistogramParser implements Aggregator.Parser {
         ExtendedBounds extendedBounds = null;
         InternalOrder order = (InternalOrder) Histogram.Order.KEY_ASC;
         String interval = null;
-        boolean preZoneAdjustLargeInterval = false;
-        DateTimeZone preZone = DateTimeZone.UTC;
-        DateTimeZone postZone = DateTimeZone.UTC;
-        long preOffset = 0;
-        long postOffset = 0;
+        DateTimeZone timeZone = DateTimeZone.UTC;
+        long offset = 0;
 
         XContentParser.Token token;
         String currentFieldName = null;
@@ -99,17 +101,11 @@ public class DateHistogramParser implements Aggregator.Parser {
             } else if (vsParser.token(currentFieldName, token, parser)) {
                 continue;
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
-                    preZone = DateMathParser.parseZone(parser.text());
-                } else if ("pre_zone".equals(currentFieldName) || "preZone".equals(currentFieldName)) {
-                    preZone = DateMathParser.parseZone(parser.text());
-                } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
-                    postZone = DateMathParser.parseZone(parser.text());
-                } else if ("pre_offset".equals(currentFieldName) || "preOffset".equals(currentFieldName)) {
-                    preOffset = parseOffset(parser.text());
-                } else if ("post_offset".equals(currentFieldName) || "postOffset".equals(currentFieldName)) {
-                    postOffset = parseOffset(parser.text());
-                } else if ("interval".equals(currentFieldName)) {
+                if (TIME_ZONE.match(currentFieldName)) {
+                    timeZone = DateTimeZone.forID(parser.text());
+                } else if (OFFSET.match(currentFieldName)) {
+                    offset = parseOffset(parser.text());
+                } else if (INTERVAL.match(currentFieldName)) {
                     interval = parser.text();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
@@ -117,8 +113,6 @@ public class DateHistogramParser implements Aggregator.Parser {
             } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                 if ("keyed".equals(currentFieldName)) {
                     keyed = parser.booleanValue();
-                } else if ("pre_zone_adjust_large_interval".equals(currentFieldName) || "preZoneAdjustLargeInterval".equals(currentFieldName)) {
-                    preZoneAdjustLargeInterval = parser.booleanValue();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -126,11 +120,7 @@ public class DateHistogramParser implements Aggregator.Parser {
                 if ("min_doc_count".equals(currentFieldName) || "minDocCount".equals(currentFieldName)) {
                     minDocCount = parser.longValue();
                 } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
-                    preZone = DateTimeZone.forOffsetHours(parser.intValue());
-                } else if ("pre_zone".equals(currentFieldName) || "preZone".equals(currentFieldName)) {
-                    preZone = DateTimeZone.forOffsetHours(parser.intValue());
-                } else if ("post_zone".equals(currentFieldName) || "postZone".equals(currentFieldName)) {
-                    postZone = DateTimeZone.forOffsetHours(parser.intValue());
+                    timeZone = DateTimeZone.forOffsetHours(parser.intValue());
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: [" + currentFieldName + "].");
                 }
@@ -194,12 +184,15 @@ public class DateHistogramParser implements Aggregator.Parser {
         }
 
         Rounding rounding = tzRoundingBuilder
-                .preZone(preZone).postZone(postZone)
-                .preZoneAdjustLargeInterval(preZoneAdjustLargeInterval)
-                .preOffset(preOffset).postOffset(postOffset)
-                .build();
+                .timeZone(timeZone)
+                .offset(offset).build();
 
-        return new HistogramAggregator.Factory(aggregationName, vsParser.config(), rounding, order, keyed, minDocCount, extendedBounds, InternalDateHistogram.FACTORY);
+        ValuesSourceConfig config = vsParser.config();
+        if (config.formatter()!=null) {
+            ((DateTime) config.formatter()).setTimeZone(timeZone);
+        }
+        return new HistogramAggregator.Factory(aggregationName, config, rounding, order, keyed, minDocCount, extendedBounds,
+                new InternalDateHistogram.Factory());
 
     }
 

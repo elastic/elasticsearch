@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.store;
 
+import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.Lists;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -29,17 +30,21 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.engine.MockInternalEngine;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportModule;
 import org.junit.Test;
 
-import java.io.File;
-import java.io.FileFilter;
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.*;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -58,11 +63,12 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
         return ImmutableSettings.builder()
                 // we really need local GW here since this also checks for corruption etc.
                 // and we need to make sure primaries are not just trashed if we don't have replicas
-                .put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local")
+                .put(super.nodeSettings(nodeOrdinal))
                 .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName()).build();
     }
 
     @Test
+    @TestLogging("index.translog:TRACE,index.gateway:TRACE")
     public void testCorruptTranslogFiles() throws Exception {
         internalCluster().startNodesAsync(1, ImmutableSettings.EMPTY).get();
 
@@ -70,6 +76,8 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
                 .put("index.number_of_shards", 1)
                 .put("index.number_of_replicas", 0)
                 .put("index.refresh_interval", "-1")
+                .put(MockInternalEngine.FLUSH_ON_CLOSE_RATIO, 0.0d) // never flush - always recover from translog
+                .put(IndexShard.INDEX_FLUSH_ON_CLOSE, false) // never flush - always recover from translog
                 .put("index.gateway.local.sync", "1s") // fsync the translog every second
         ));
         ensureYellow();
@@ -80,7 +88,8 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < builders.length; i++) {
             builders[i] = client().prepareIndex("test", "type").setSource("foo", "bar");
         }
-        indexRandom(false, false, builders);
+        disableTranslogFlush("test");
+        indexRandom(false, false, false, Arrays.asList(builders));  // this one
 
         // Corrupt the translog file(s)
         corruptRandomTranslogFiles();
@@ -89,6 +98,7 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
         internalCluster().fullRestart();
         // node needs time to start recovery and discover the translog corruption
         sleep(1000);
+        enableTranslogFlush("test");
 
         try {
             client().prepareSearch("test").setQuery(matchAllQuery()).get();
@@ -103,40 +113,54 @@ public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
     private void corruptRandomTranslogFiles() throws IOException {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         GroupShardsIterator shardIterators = state.getRoutingNodes().getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
-        ShardIterator shardIterator = RandomPicks.randomFrom(getRandom(), shardIterators.iterators());
+        List<ShardIterator> iterators = Lists.newArrayList(shardIterators);
+        ShardIterator shardIterator = RandomPicks.randomFrom(getRandom(), iterators);
         ShardRouting shardRouting = shardIterator.nextOrNull();
         assertNotNull(shardRouting);
         assertTrue(shardRouting.primary());
         assertTrue(shardRouting.assignedToNode());
         String nodeId = shardRouting.currentNodeId();
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
-        Set<File> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
+        Set<Path> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
         for (FsStats.Info info : nodeStatses.getNodes()[0].getFs()) {
             String path = info.getPath();
             final String relativeDataLocationPath =  "indices/test/" + Integer.toString(shardRouting.getId()) + "/translog";
-            File file = new File(path, relativeDataLocationPath);
+            Path file = Paths.get(path).resolve(relativeDataLocationPath);
             logger.info("--> path: {}", file);
-            files.addAll(Arrays.asList(file.listFiles(new FileFilter() {
-                @Override
-                public boolean accept(File pathname) {
-                    logger.info("--> File: {}", pathname);
-                    return pathname.isFile() && pathname.getName().startsWith("translog-");
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
+                for (Path item : stream) {
+                    logger.info("--> File: {}", item);
+                    if (Files.isRegularFile(item) && item.getFileName().toString().startsWith("translog-")) {
+                        files.add(item);
+                    }
+
                 }
-            })));
+            }
         }
-        File fileToCorrupt = null;
+        Path fileToCorrupt = null;
         if (!files.isEmpty()) {
             int corruptions = randomIntBetween(5, 20);
             for (int i = 0; i < corruptions; i++) {
                 fileToCorrupt = RandomPicks.randomFrom(getRandom(), files);
-                try (RandomAccessFile raf = new RandomAccessFile(fileToCorrupt, "rw")) {
-                    raf.seek(randomIntBetween(0, (int) Math.min(Integer.MAX_VALUE, raf.length() - 1)));
-                    long filePointer = raf.getFilePointer();
-                    byte b = raf.readByte();
-                    raf.seek(filePointer);
-                    raf.writeByte(~b);
-                    raf.getFD().sync();
-                    logger.info("--> corrupting file {} --  flipping at position {} from {} to {} file: {}", fileToCorrupt.getName(), filePointer, Integer.toHexString(b), Integer.toHexString(~b), fileToCorrupt);
+                try (FileChannel raf = FileChannel.open(fileToCorrupt, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+                    // read
+                    raf.position(randomIntBetween(0, (int) Math.min(Integer.MAX_VALUE, raf.size() - 1)));
+                    long filePointer = raf.position();
+                    ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
+                    raf.read(bb);
+                    bb.flip();
+                    
+                    // corrupt
+                    byte oldValue = bb.get(0);
+                    byte newValue = (byte) (oldValue + 1);
+                    bb.put(0, newValue);
+                    
+                    // rewrite
+                    raf.position(filePointer);
+                    raf.write(bb);
+                    logger.info("--> corrupting file {} --  flipping at position {} from {} to {} file: {}",
+                            fileToCorrupt, filePointer, Integer.toHexString(oldValue),
+                            Integer.toHexString(newValue), fileToCorrupt);
                 }
             }
         }

@@ -44,8 +44,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.EnumSet;
@@ -100,7 +100,6 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
         if (sb.get("cluster.name") == null) {
             sb.put("cluster.name", "tribe_" + Strings.randomBase64UUID()); // make sure it won't join other tribe nodes in the same JVM
         }
-        sb.put("gateway.type", "none"); // we shouldn't store anything locally...
         sb.put(TransportMasterNodeReadOperationAction.FORCE_LOCAL_SETTING, true);
         return sb.build();
     }
@@ -116,7 +115,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     private final String onConflict;
     private final Set<String> droppedIndices = ConcurrentCollections.newConcurrentSet();
 
-    private final List<InternalNode> nodes = Lists.newCopyOnWriteArrayList();
+    private final List<Node> nodes = Lists.newCopyOnWriteArrayList();
 
     @Inject
     public TribeService(Settings settings, ClusterService clusterService, DiscoveryService discoveryService) {
@@ -129,10 +128,11 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             ImmutableSettings.Builder sb = ImmutableSettings.builder().put(entry.getValue());
             sb.put("node.name", settings.get("name") + "/" + entry.getKey());
             sb.put(TRIBE_NAME, entry.getKey());
+            sb.put("config.ignore_system_properties", true);
             if (sb.get("http.enabled") == null) {
                 sb.put("http.enabled", false);
             }
-            nodes.add((InternalNode) NodeBuilder.nodeBuilder().settings(sb).client(true).build());
+            nodes.add(NodeBuilder.nodeBuilder().settings(sb).client(true).loadConfigSettings(false).build());
         }
 
         String[] blockIndicesWrite = Strings.EMPTY_ARRAY;
@@ -152,7 +152,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             }
             blockIndicesMetadata = settings.getAsArray("tribe.blocks.metadata.indices", Strings.EMPTY_ARRAY);
             blockIndicesRead = settings.getAsArray("tribe.blocks.read.indices", Strings.EMPTY_ARRAY);
-            for (InternalNode node : nodes) {
+            for (Node node : nodes) {
                 node.injector().getInstance(ClusterService.class).add(new TribeClusterStateListener(node));
             }
         }
@@ -165,12 +165,12 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
 
     @Override
     protected void doStart() throws ElasticsearchException {
-        for (InternalNode node : nodes) {
+        for (Node node : nodes) {
             try {
                 node.start();
             } catch (Throwable e) {
                 // calling close is safe for non started nodes, we can just iterate over all
-                for (InternalNode otherNode : nodes) {
+                for (Node otherNode : nodes) {
                     try {
                         otherNode.close();
                     } catch (Throwable t) {
@@ -187,18 +187,12 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
 
     @Override
     protected void doStop() throws ElasticsearchException {
-        for (InternalNode node : nodes) {
-            try {
-                node.stop();
-            } catch (Throwable t) {
-                logger.warn("failed to stop node {}", t, node);
-            }
-        }
+        doClose();
     }
 
     @Override
     protected void doClose() throws ElasticsearchException {
-        for (InternalNode node : nodes) {
+        for (Node node : nodes) {
             try {
                 node.close();
             } catch (Throwable t) {
@@ -209,11 +203,9 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
 
     class TribeClusterStateListener implements ClusterStateListener {
 
-        private final InternalNode tribeNode;
         private final String tribeName;
 
-        TribeClusterStateListener(InternalNode tribeNode) {
-            this.tribeNode = tribeNode;
+        TribeClusterStateListener(Node tribeNode) {
             this.tribeName = tribeNode.settings().get(TRIBE_NAME);
         }
 
@@ -256,7 +248,7 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
                         String markedTribeName = index.settings().get(TRIBE_NAME);
                         if (markedTribeName != null && markedTribeName.equals(tribeName)) {
                             IndexMetaData tribeIndex = tribeState.metaData().index(index.index());
-                            if (tribeIndex == null) {
+                            if (tribeIndex == null || tribeIndex.state() == IndexMetaData.State.CLOSE) {
                                 logger.info("[{}] removing index [{}]", tribeName, index.index());
                                 removeIndex(blocks, metaData, routingTable, index);
                             } else {

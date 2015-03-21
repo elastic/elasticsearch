@@ -34,6 +34,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescoreBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
@@ -445,40 +446,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Adds a partial field based on _source, with an "include" and/or "exclude" set which can include simple wildcard
-     * elements.
-     *
-     * @deprecated since 1.0.0
-     * use {@link org.elasticsearch.action.search.SearchRequestBuilder#setFetchSource(String, String)} instead
-     *
-     * @param name    The name of the field
-     * @param include An optional include (optionally wildcarded) pattern from _source
-     * @param exclude An optional exclude (optionally wildcarded) pattern from _source
-     */
-    @Deprecated
-    public SearchRequestBuilder addPartialField(String name, @Nullable String include, @Nullable String exclude) {
-        sourceBuilder().partialField(name, include, exclude);
-        return this;
-    }
-
-    /**
-     * Adds a partial field based on _source, with an "includes" and/or "excludes set which can include simple wildcard
-     * elements.
-     *
-     * @deprecated since 1.0.0
-     * use {@link org.elasticsearch.action.search.SearchRequestBuilder#setFetchSource(String[], String[])} instead
-     *
-     * @param name     The name of the field
-     * @param includes An optional list of includes (optionally wildcarded) patterns from _source
-     * @param excludes An optional list of excludes (optionally wildcarded) patterns from _source
-     */
-    @Deprecated
-    public SearchRequestBuilder addPartialField(String name, @Nullable String[] includes, @Nullable String[] excludes) {
-        sourceBuilder().partialField(name, includes, excludes);
-        return this;
-    }
-
-    /**
      * Adds a script based field to load and return. The field does not have to be stored,
      * but its recommended to use non analyzed or numeric fields.
      *
@@ -775,6 +742,11 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
+    public SearchRequestBuilder addInnerHit(String name, InnerHitsBuilder.InnerHit innerHit) {
+        innerHitsBuilder().addInnerHit(name, innerHit);
+        return this;
+    }
+
     /**
      * Delegates to {@link org.elasticsearch.search.suggest.SuggestBuilder#setText(String)}.
      */
@@ -992,7 +964,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         return this;
     }
 
-    public SearchRequestBuilder setTemplateParams(Map<String,String> templateParams) {
+    public SearchRequestBuilder setTemplateParams(Map<String,Object> templateParams) {
         request.templateParams(templateParams);
         return this;
     }
@@ -1064,6 +1036,10 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     private HighlightBuilder highlightBuilder() {
         return sourceBuilder().highlighter();
+    }
+
+    private InnerHitsBuilder innerHitsBuilder() {
+        return sourceBuilder().innerHitsBuilder();
     }
 
     private SuggestBuilder suggestBuilder() {

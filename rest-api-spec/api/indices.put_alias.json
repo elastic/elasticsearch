@@ -4,11 +4,12 @@
     "methods": ["PUT", "POST"],
     "url": {
       "path": "/{index}/_alias/{name}",
-      "paths": ["/{index}/_alias/{name}", "/_alias/{name}", "/{index}/_aliases/{name}", "/_aliases/{name}"],
+      "paths": ["/{index}/_alias/{name}", "/{index}/_aliases/{name}"],
       "parts": {
         "index": {
           "type" : "list",
-          "description" : "A comma-separated list of index names the alias should point to (supports wildcards); use `_all` or omit to perform the operation on all indices."
+          "required" : true,
+          "description" : "A comma-separated list of index names the alias should point to (supports wildcards); use `_all` to perform the operation on all indices."
         },
         "name": {
           "type" : "string",

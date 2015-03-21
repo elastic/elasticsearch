@@ -46,6 +46,7 @@ public final class InjectionRequest<T> implements Element {
         this.instance = checkNotNull(instance, "instance");
     }
 
+    @Override
     public Object getSource() {
         return source;
     }
@@ -74,10 +75,12 @@ public final class InjectionRequest<T> implements Element {
         return InjectionPoint.forInstanceMethodsAndFields(instance.getClass());
     }
 
+    @Override
     public <R> R acceptVisitor(ElementVisitor<R> visitor) {
         return visitor.visit(this);
     }
 
+    @Override
     public void applyTo(Binder binder) {
         binder.withSource(getSource()).requestInjection(type, instance);
     }

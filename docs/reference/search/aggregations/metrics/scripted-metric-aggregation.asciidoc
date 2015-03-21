@@ -1,16 +1,9 @@
 [[search-aggregations-metrics-scripted-metric-aggregation]]
 === Scripted Metric Aggregation
 
-coming[1.4.0]
+experimental[]
 
 A metric aggregation that executes using scripts to provide a metric output.
-
-.Experimental!
-[IMPORTANT]
-=====
-This feature is marked as experimental, and may be subject to change in the
-future.  If you use this feature, please let us know your experience with it!
-=====
 
 Example:
 
@@ -46,7 +39,7 @@ The response for the above aggregation:
 
     "aggregations": {
         "profit": {
-            "aggregation": 170
+            "value": 170
         }
    }
 }
@@ -207,7 +200,7 @@ produce the response:
 
     "aggregations": {
         "profit": {
-            "aggregation": 170
+            "value": 170
         }
    }
 }
@@ -229,5 +222,12 @@ params::           Optional. An object whose contents will be passed as variable
 reduce_params::    Optional. An object whose contents will be passed as variables to the `reduce_script`. This can be useful to allow the user to control 
                    the behavior of the reduce phase. If this is not specified the variable will be undefined in the reduce_script execution.
 lang::             Optional. The script language used for the scripts. If this is not specified the default scripting language is used.
-script_type::      Optional. The type of script provided.  This can be `inline`, `file` or `indexed`.  The default is `inline`.
+init_script_file:: Optional. Can be used in place of the `init_script` parameter to provide the script using in a file.
+init_script_id:: Optional. Can be used in place of the `init_script` parameter to provide the script using an indexed script.
+map_script_file:: Optional. Can be used in place of the `map_script` parameter to provide the script using in a file.
+map_script_id:: Optional. Can be used in place of the `map_script` parameter to provide the script using an indexed script.
+combine_script_file:: Optional. Can be used in place of the `combine_script` parameter to provide the script using in a file.
+combine_script_id:: Optional. Can be used in place of the `combine_script` parameter to provide the script using an indexed script.
+reduce_script_file:: Optional. Can be used in place of the `reduce_script` parameter to provide the script using in a file.
+reduce_script_id:: Optional. Can be used in place of the `reduce_script` parameter to provide the script using an indexed script.
 

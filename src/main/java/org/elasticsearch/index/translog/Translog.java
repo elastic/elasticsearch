@@ -35,26 +35,27 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.CloseableIndexComponent;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.util.Collection;
+import java.util.Collections;
 
 
 /**
  *
  */
-public interface Translog extends IndexShardComponent, CloseableIndexComponent, Accountable {
+public interface Translog extends IndexShardComponent, Closeable, Accountable {
 
     static ByteSizeValue INACTIVE_SHARD_TRANSLOG_BUFFER = ByteSizeValue.parseBytesSizeValue("1kb");
 
     public static final String TRANSLOG_ID_KEY = "translog_id";
 
     void updateBuffer(ByteSizeValue bufferSize);
-
-    void closeWithDelete();
 
     /**
      * Returns the id of the current transaction log.
@@ -75,8 +76,9 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
      * Creates a new transaction log internally.
      * <p/>
      * <p>Can only be called by one thread.
+     * @param id the translog id for the new translog
      */
-    void newTranslog(long id) throws TranslogException;
+    void newTranslog(long id) throws TranslogException, IOException;
 
     /**
      * Creates a new transient translog, where added ops will be added to the current one, and to
@@ -91,21 +93,19 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
      * <p/>
      * <p>Can only be called by one thread.
      */
-    void makeTransientCurrent();
+    void makeTransientCurrent() throws IOException;
 
     /**
      * Reverts back to not have a transient translog.
      */
-    void revertTransient();
+    void revertTransient() throws IOException;
 
     /**
      * Adds a create operation to the transaction log.
      */
     Location add(Operation operation) throws TranslogException;
 
-    byte[] read(Location location);
-
-    Translog.Source readSource(Location location) throws IOException;
+    Translog.Operation read(Location location);
 
     /**
      * Snapshots the current transaction log allowing to safely iterate over the snapshot.
@@ -120,9 +120,11 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
     Snapshot snapshot(Snapshot snapshot);
 
     /**
-     * Clears unreferenced transaclogs.
+     * Clears unreferenced transaction logs.
+     *
+     * @return the number of clean up files
      */
-    void clearUnreferenced();
+    int clearUnreferenced();
 
     /**
      * Sync's the translog.
@@ -134,9 +136,27 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
     void syncOnEachOperation(boolean syncOnEachOperation);
 
     /**
+     * Returns all translog locations as absolute paths.
+     * These paths don't contain actual translog files they are
+     * directories holding the transaction logs.
+     */
+    public Path[] locations();
+
+    /**
+     * Returns the translog file with the given id as a Path. This
+     * will return a relative path.
+     */
+    Path getPath(long translogId);
+
+    /**
      * return stats
      */
     TranslogStats stats();
+
+    /**
+     * Returns the largest translog id present in all locations or <tt>-1</tt> if no translog is present.
+     */
+    long findLargestPresentTranslogId() throws IOException;
 
     static class Location implements Accountable {
 
@@ -153,6 +173,16 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
         @Override
         public long ramBytesUsed() {
             return RamUsageEstimator.NUM_BYTES_OBJECT_HEADER + 2*RamUsageEstimator.NUM_BYTES_LONG + RamUsageEstimator.NUM_BYTES_INT;
+        }
+
+        @Override
+        public Collection<Accountable> getChildResources() {
+            return Collections.emptyList();
+        }
+
+        @Override
+        public String toString() {
+            return "[id: " + translogId + ", location: " + translogLocation + ", size: " + size + "]";
         }
     }
 
@@ -238,7 +268,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
 
         long estimateSize();
 
-        Source readSource(StreamInput in) throws IOException;
+        Source getSource();
     }
 
     static class Source {
@@ -338,8 +368,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
         }
 
         @Override
-        public Source readSource(StreamInput in) throws IOException {
-            readFrom(in);
+        public Source getSource() {
             return new Source(source, routing, parent, timestamp, ttl);
         }
 
@@ -481,8 +510,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
         }
 
         @Override
-        public Source readSource(StreamInput in) throws IOException {
-            readFrom(in);
+        public Source getSource() {
             return new Source(source, routing, parent, timestamp, ttl);
         }
 
@@ -596,7 +624,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
         }
 
         @Override
-        public Source readSource(StreamInput in) throws IOException {
+        public Source getSource(){
             throw new ElasticsearchIllegalStateException("trying to read doc source from delete operation");
         }
 
@@ -668,7 +696,7 @@ public interface Translog extends IndexShardComponent, CloseableIndexComponent, 
         }
 
         @Override
-        public Source readSource(StreamInput in) throws IOException {
+        public Source getSource() {
             throw new ElasticsearchIllegalStateException("trying to read doc source from delete_by_query operation");
         }
 

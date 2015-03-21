@@ -23,6 +23,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.cache.filter.AutoFilterCachingPolicy;
+import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -44,7 +47,12 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, false).build();
+        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+                .put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, false)
+                // aggressive filter caching so that we can assert on the number of iterations of the script filters
+                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, WeightedFilterCache.class)
+                .put(AutoFilterCachingPolicy.AGGRESSIVE_CACHING_SETTINGS)
+                .build();
     }
 
     @Test
@@ -132,7 +140,7 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
-        assertThat(scriptCounter.get(), equalTo(internalCluster().hasFilterCache() ? 3 : 1));
+        assertThat(scriptCounter.get(), equalTo(3));
 
         scriptCounter.set(0);
         logger.info("running script filter the second time");
@@ -141,7 +149,7 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
-        assertThat(scriptCounter.get(), equalTo(cluster().hasFilterCache() ? 0 : 1));
+        assertThat(scriptCounter.get(), equalTo(0));
 
         scriptCounter.set(0);
         logger.info("running script filter with new parameters");
@@ -150,7 +158,7 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
-        assertThat(scriptCounter.get(), equalTo(cluster().hasFilterCache() ? 3 : 1));
+        assertThat(scriptCounter.get(), equalTo(3));
 
         scriptCounter.set(0);
         logger.info("running script filter with same parameters");
@@ -159,6 +167,6 @@ public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
-        assertThat(scriptCounter.get(), equalTo(cluster().hasFilterCache() ? 0 : 3));
+        assertThat(scriptCounter.get(), equalTo(0));
     }
 }

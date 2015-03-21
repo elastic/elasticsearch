@@ -48,10 +48,10 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestResponse;
-import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
-import org.elasticsearch.action.termvector.MultiTermVectorsResponse;
-import org.elasticsearch.action.termvector.TermVectorRequest;
-import org.elasticsearch.action.termvector.TermVectorResponse;
+import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -66,7 +66,6 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.io.CachedStreams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -98,19 +97,15 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
  */
 public class TransportClient extends AbstractClient {
 
+    private static final String CLIENT_TYPE = "transport";
+
     final Injector injector;
 
     private final Settings settings;
-
     private final Environment environment;
-
-
     private final PluginsService pluginsService;
-
     private final TransportClientNodesService nodesService;
-
     private final InternalTransportClient internalClient;
-
 
     /**
      * Constructs a new transport client with settings loaded either from the classpath or the file system (the
@@ -163,6 +158,7 @@ public class TransportClient extends AbstractClient {
         Settings settings = settingsBuilder().put(tuple.v1())
                 .put("network.server", false)
                 .put("node.client", true)
+                .put(CLIENT_TYPE_SETTING, CLIENT_TYPE)
                 .build();
         this.environment = tuple.v2();
 
@@ -282,23 +278,13 @@ public class TransportClient extends AbstractClient {
         for (Class<? extends LifecycleComponent> plugin : pluginsService.services()) {
             injector.getInstance(plugin).close();
         }
-
-        injector.getInstance(ThreadPool.class).shutdown();
         try {
-            injector.getInstance(ThreadPool.class).awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            // ignore
-            Thread.currentThread().interrupt();
-        }
-        try {
-            injector.getInstance(ThreadPool.class).shutdownNow();
+            ThreadPool.terminate(injector.getInstance(ThreadPool.class), 10, TimeUnit.SECONDS);
         } catch (Exception e) {
             // ignore
         }
 
         injector.getInstance(PageCacheRecycler.class).close();
-
-        CachedStreams.clear();
     }
 
     @Override
@@ -457,13 +443,13 @@ public class TransportClient extends AbstractClient {
     }
 
     @Override
-    public ActionFuture<TermVectorResponse> termVector(TermVectorRequest request) {
-        return internalClient.termVector(request);
+    public ActionFuture<TermVectorsResponse> termVectors(TermVectorsRequest request) {
+        return internalClient.termVectors(request);
     }
 
     @Override
-    public void termVector(TermVectorRequest request, ActionListener<TermVectorResponse> listener) {
-        internalClient.termVector(request, listener);
+    public void termVectors(TermVectorsRequest request, ActionListener<TermVectorsResponse> listener) {
+        internalClient.termVectors(request, listener);
     }
 
     @Override

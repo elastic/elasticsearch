@@ -76,7 +76,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        final Version indexVersion = indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        final Version indexVersion = Version.indexCreated(indexSettings);
 
         if ("arabic".equalsIgnoreCase(language)) {
             return new ArabicStemFilter(tokenStream);
@@ -124,7 +124,7 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
         } else if ("minimal_english".equalsIgnoreCase(language) || "minimalEnglish".equalsIgnoreCase(language)) {
             return new EnglishMinimalStemFilter(tokenStream);
         } else if ("possessive_english".equalsIgnoreCase(language) || "possessiveEnglish".equalsIgnoreCase(language)) {
-            return new EnglishPossessiveFilter(version, tokenStream);
+            return new EnglishPossessiveFilter(tokenStream);
 
             // Finnish stemmers
         } else if ("finnish".equalsIgnoreCase(language)) {

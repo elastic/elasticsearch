@@ -21,9 +21,11 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.LocaleUtils;
@@ -89,6 +91,7 @@ public class SimpleQueryStringParser implements QueryParser {
         String queryBody = null;
         String queryName = null;
         String field = null;
+        String minimumShouldMatch = null;
         Map<String, Float> fieldsAndWeights = null;
         BooleanClause.Occur defaultOperator = null;
         Analyzer analyzer = null;
@@ -160,7 +163,7 @@ public class SimpleQueryStringParser implements QueryParser {
                                 "[" + NAME + "] default operator [" + op + "] is not allowed");
                     }
                 } else if ("flags".equals(currentFieldName)) {
-                    if (parser.hasTextCharacters()) {
+                    if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
                         // Possible options are:
                         // ALL, NONE, AND, OR, PREFIX, PHRASE, PRECEDENCE, ESCAPE, WHITESPACE, FUZZY, NEAR, SLOP
                         flags = SimpleQueryStringFlag.resolveFlags(parser.text());
@@ -178,8 +181,12 @@ public class SimpleQueryStringParser implements QueryParser {
                     sqsSettings.lowercaseExpandedTerms(parser.booleanValue());
                 } else if ("lenient".equals(currentFieldName)) {
                     sqsSettings.lenient(parser.booleanValue());
+                } else if ("analyze_wildcard".equals(currentFieldName)) {
+                    sqsSettings.analyzeWildcard(parser.booleanValue());
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
+                } else if ("minimum_should_match".equals(currentFieldName)) {
+                    minimumShouldMatch = parser.textOrNull();
                 } else {
                     throw new QueryParsingException(parseContext.index(), "[" + NAME + "] unsupported field [" + parser.currentName() + "]");
                 }
@@ -218,6 +225,10 @@ public class SimpleQueryStringParser implements QueryParser {
         Query query = sqp.parse(queryBody);
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
+        }
+
+        if (minimumShouldMatch != null && query instanceof BooleanQuery) {
+            Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         }
         return query;
     }

@@ -79,13 +79,14 @@ public class BoolQueryBuilder extends BaseQueryBuilder implements BoostableQuery
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
      * weightings) have their score multiplied by the boost provided.
      */
+    @Override
     public BoolQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;
     }
 
     /**
-     * Disables <tt>Similarity#coord(int,int)</tt> in scoring. Defualts to <tt>false</tt>.
+     * Disables <tt>Similarity#coord(int,int)</tt> in scoring. Defaults to <tt>false</tt>.
      */
     public BoolQueryBuilder disableCoord(boolean disableCoord) {
         this.disableCoord = disableCoord;

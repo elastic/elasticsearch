@@ -19,10 +19,12 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ComplexExplanation;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+
+import java.io.IOException;
 
 /**
  *
@@ -53,7 +55,7 @@ public class WeightFactorFunction extends ScoreFunction {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext context) {
+    public void setNextReader(LeafReaderContext context) throws IOException {
         scoreFunction.setNextReader(context);
     }
 
@@ -63,7 +65,7 @@ public class WeightFactorFunction extends ScoreFunction {
     }
 
     @Override
-    public Explanation explainScore(int docId, float score) {
+    public Explanation explainScore(int docId, float score) throws IOException {
         Explanation functionScoreExplanation;
         Explanation functionExplanation = scoreFunction.explainScore(docId, score);
         functionScoreExplanation = new ComplexExplanation(true, functionExplanation.getValue() * (float) getWeight(), "product of:");
@@ -87,7 +89,7 @@ public class WeightFactorFunction extends ScoreFunction {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) {
+        public void setNextReader(LeafReaderContext context) {
 
         }
 

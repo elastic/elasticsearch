@@ -27,7 +27,9 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.ThrowableObjectInputStream;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
@@ -39,8 +41,10 @@ import org.elasticsearch.transport.*;
 import org.elasticsearch.transport.support.TransportStatus;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -51,6 +55,8 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
  *
  */
 public class LocalTransport extends AbstractLifecycleComponent<Transport> implements Transport {
+
+    public static final String LOCAL_TRANSPORT_THREAD_NAME_PREFIX = "local_transport";
 
     private final ThreadPool threadPool;
     private final ThreadPoolExecutor workers;
@@ -75,7 +81,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         int workerCount = this.settings.getAsInt(TRANSPORT_LOCAL_WORKERS, EsExecutors.boundedNumberOfProcessors(settings));
         int queueSize = this.settings.getAsInt(TRANSPORT_LOCAL_QUEUE, -1);
         logger.debug("creating [{}] workers, queue_size [{}]", workerCount, queueSize);
-        this.workers = EsExecutors.newFixed(workerCount, queueSize, EsExecutors.daemonThreadFactory(this.settings, "local_transport"));
+        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(this.settings, LOCAL_TRANSPORT_THREAD_NAME_PREFIX);
+        this.workers = EsExecutors.newFixed(workerCount, queueSize, threadFactory);
     }
 
     @Override
@@ -117,13 +124,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     protected void doClose() throws ElasticsearchException {
-        workers.shutdown();
-        try {
-            workers.awaitTermination(10, TimeUnit.SECONDS);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
-        workers.shutdownNow();
+        ThreadPool.terminate(workers, 10, TimeUnit.SECONDS);
     }
 
     @Override
@@ -134,6 +135,11 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     @Override
     public BoundTransportAddress boundAddress() {
         return boundAddress;
+    }
+
+    @Override
+    public Map<String, BoundTransportAddress> profileBoundAddresses() {
+        return Collections.EMPTY_MAP;
     }
 
     @Override
@@ -180,35 +186,35 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     public void sendRequest(final DiscoveryNode node, final long requestId, final String action, final TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
         final Version version = Version.smallest(node.version(), this.version);
 
-        BytesStreamOutput bStream = new BytesStreamOutput();
-        StreamOutput stream = new HandlesStreamOutput(bStream);
-        stream.setVersion(version);
+        try (BytesStreamOutput stream = new BytesStreamOutput()) {
+            stream.setVersion(version);
 
-        stream.writeLong(requestId);
-        byte status = 0;
-        status = TransportStatus.setRequest(status);
-        stream.writeByte(status); // 0 for request, 1 for response.
+            stream.writeLong(requestId);
+            byte status = 0;
+            status = TransportStatus.setRequest(status);
+            stream.writeByte(status); // 0 for request, 1 for response.
 
-        stream.writeString(transportServiceAdapter.action(action, version));
-        request.writeTo(stream);
+            stream.writeString(action);
+            request.writeTo(stream);
 
-        stream.close();
+            stream.close();
 
-        final LocalTransport targetTransport = connectedNodes.get(node);
-        if (targetTransport == null) {
-            throw new NodeNotConnectedException(node, "Node not connected");
-        }
-
-        final byte[] data = bStream.bytes().toBytes();
-
-        transportServiceAdapter.sent(data.length);
-
-        targetTransport.workers().execute(new Runnable() {
-            @Override
-            public void run() {
-                targetTransport.messageReceived(data, action, LocalTransport.this, version, requestId);
+            final LocalTransport targetTransport = connectedNodes.get(node);
+            if (targetTransport == null) {
+                throw new NodeNotConnectedException(node, "Node not connected");
             }
-        });
+
+            final byte[] data = stream.bytes().toBytes();
+
+            transportServiceAdapter.sent(data.length);
+            transportServiceAdapter.onRequestSent(node, requestId, action, request, options);
+            targetTransport.workers().execute(new Runnable() {
+                @Override
+                public void run() {
+                    targetTransport.messageReceived(data, action, LocalTransport.this, version, requestId);
+                }
+            });
+        }
     }
 
     ThreadPoolExecutor workers() {
@@ -216,10 +222,10 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     protected void messageReceived(byte[] data, String action, LocalTransport sourceTransport, Version version, @Nullable final Long sendRequestId) {
+        Transports.assertTransportThread();
         try {
             transportServiceAdapter.received(data.length);
-            StreamInput stream = new BytesStreamInput(data, false);
-            stream = CachedStreamInput.cachedHandles(stream);
+            StreamInput stream = new BytesStreamInput(data);
             stream.setVersion(version);
 
             long requestId = stream.readLong();
@@ -229,6 +235,8 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             if (isRequest) {
                 handleRequest(stream, requestId, sourceTransport, version);
             } else {
+                // notify with response before we process it and before we remove information about it.
+                transportServiceAdapter.onResponseReceived(requestId);
                 final TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
                 // ignore if its null, the adapter logs it
                 if (handler != null) {
@@ -253,9 +261,10 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
 
     private void handleRequest(StreamInput stream, long requestId, LocalTransport sourceTransport, Version version) throws Exception {
         final String action = stream.readString();
-        final LocalTransportChannel transportChannel = new LocalTransportChannel(this, sourceTransport, action, requestId, version);
+        transportServiceAdapter.onRequestReceived(requestId, action);
+        final LocalTransportChannel transportChannel = new LocalTransportChannel(this, transportServiceAdapter, sourceTransport, action, requestId, version);
         try {
-            final TransportRequestHandler handler = transportServiceAdapter.handler(action, version);
+            final TransportRequestHandler handler = transportServiceAdapter.handler(action);
             if (handler == null) {
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }
@@ -268,26 +277,27 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             } else {
                 threadPool.executor(handler.executor()).execute(new AbstractRunnable() {
                     @Override
-                    public void run() {
-                        try {
-                            //noinspection unchecked
-                            handler.messageReceived(request, transportChannel);
-                        } catch (Throwable e) {
-                            if (lifecycleState() == Lifecycle.State.STARTED) {
-                                // we can only send a response transport is started....
-                                try {
-                                    transportChannel.sendResponse(e);
-                                } catch (Throwable e1) {
-                                    logger.warn("Failed to send error message back to client for action [" + action + "]", e1);
-                                    logger.warn("Actual Exception", e);
-                                }
-                            }
-                        }
+                    protected void doRun() throws Exception {
+                        //noinspection unchecked
+                        handler.messageReceived(request, transportChannel);
                     }
 
                     @Override
                     public boolean isForceExecution() {
                         return handler.isForceExecution();
+                    }
+
+                    @Override
+                    public void onFailure(Throwable e) {
+                        if (lifecycleState() == Lifecycle.State.STARTED) {
+                            // we can only send a response transport is started....
+                            try {
+                                transportChannel.sendResponse(e);
+                            } catch (Throwable e1) {
+                                logger.warn("Failed to send error message back to client for action [" + action + "]", e1);
+                                logger.warn("Actual Exception", e);
+                            }
+                        }
                     }
                 });
             }

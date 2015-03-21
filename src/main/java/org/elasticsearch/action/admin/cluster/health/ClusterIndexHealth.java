@@ -204,14 +204,7 @@ public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streama
             ClusterShardHealth shardHealth = readClusterShardHealth(in);
             shards.put(shardHealth.getId(), shardHealth);
         }
-        size = in.readVInt();
-        if (size == 0) {
-            validationFailures = ImmutableList.of();
-        } else {
-            for (int i = 0; i < size; i++) {
-                validationFailures.add(in.readString());
-            }
-        }
+        validationFailures = ImmutableList.copyOf(in.readStringArray());
     }
 
     @Override

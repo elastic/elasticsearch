@@ -19,12 +19,11 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.FieldCache.Doubles;
-import org.apache.lucene.search.FieldComparator;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.SortField;
-import org.apache.lucene.util.FixedBitSet;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.*;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -33,13 +32,11 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilter;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.ObjectMappers;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.ParsedFilter;
+import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.internal.SearchContext;
@@ -66,8 +63,7 @@ public class GeoDistanceSortParser implements SortParser {
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         boolean reverse = false;
         MultiValueMode sortMode = null;
-        String nestedPath = null;
-        Filter nestedFilter = null;
+        NestedInnerQueryParseSupport nestedHelper = null;
 
         boolean normalizeLon = true;
         boolean normalizeLat = true;
@@ -84,8 +80,10 @@ public class GeoDistanceSortParser implements SortParser {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 // the json in the format of -> field : { lat : 30, lon : 12 }
                 if ("nested_filter".equals(currentName) || "nestedFilter".equals(currentName)) {
-                    ParsedFilter parsedFilter = context.queryParserService().parseInnerFilter(parser);
-                    nestedFilter = parsedFilter == null ? null : parsedFilter.filter();
+                    if (nestedHelper == null) {
+                        nestedHelper = new NestedInnerQueryParseSupport(parser, context);
+                    }
+                    nestedHelper.filter();
                 } else {
                     fieldName = currentName;
                     GeoPoint point = new GeoPoint();
@@ -107,7 +105,10 @@ public class GeoDistanceSortParser implements SortParser {
                 } else if ("sort_mode".equals(currentName) || "sortMode".equals(currentName) || "mode".equals(currentName)) {
                     sortMode = MultiValueMode.fromString(parser.text());
                 } else if ("nested_path".equals(currentName) || "nestedPath".equals(currentName)) {
-                    nestedPath = parser.text();
+                    if (nestedHelper == null) {
+                        nestedHelper = new NestedInnerQueryParseSupport(parser, context);
+                    }
+                    nestedHelper.setPath(parser.text());
                 } else {
                     GeoPoint point = new GeoPoint();
                     point.resetFromString(parser.text());
@@ -141,27 +142,27 @@ public class GeoDistanceSortParser implements SortParser {
         for (int i = 0; i< geoPoints.size(); i++) {
             distances[i] = geoDistance.fixedSourceDistance(geoPoints.get(i).lat(), geoPoints.get(i).lon(), unit);
         }
-        ObjectMapper objectMapper;
-        if (nestedPath != null) {
-            ObjectMappers objectMappers = context.mapperService().objectMapper(nestedPath);
-            if (objectMappers == null) {
-                throw new ElasticsearchIllegalArgumentException("failed to find nested object mapping for explicit nested path [" + nestedPath + "]");
+
+        // TODO: remove this in master, we should be explicit when we want to sort on nested fields and don't do anything automatically
+        if (nestedHelper == null || nestedHelper.getNestedObjectMapper() == null) {
+            ObjectMapper objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);
+            if (objectMapper != null && objectMapper.nested().isNested()) {
+                if (nestedHelper == null) {
+                    nestedHelper = new NestedInnerQueryParseSupport(context.queryParserService().getParseContext());
+                }
+                nestedHelper.setPath(objectMapper.fullPath());
             }
-            objectMapper = objectMappers.mapper();
-            if (!objectMapper.nested().isNested()) {
-                throw new ElasticsearchIllegalArgumentException("mapping for explicit nested path is not mapped as nested: [" + nestedPath + "]");
-            }
-        } else {
-            objectMapper = context.mapperService().resolveClosestNestedObjectMapper(fieldName);
         }
+
         final Nested nested;
-        if (objectMapper != null && objectMapper.nested().isNested()) {
-            FixedBitSetFilter rootDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(NonNestedDocsFilter.INSTANCE);
-            FixedBitSetFilter innerDocumentsFilter;
-            if (nestedFilter != null) {
-                innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(nestedFilter);
+        if (nestedHelper != null && nestedHelper.getPath() != null) {
+            
+            BitDocIdSetFilter rootDocumentsFilter = context.bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE);
+            Filter innerDocumentsFilter;
+            if (nestedHelper.filterFound()) {
+                innerDocumentsFilter = context.filterCache().cache(nestedHelper.getInnerFilter(), null, context.queryParserService().autoFilterCachePolicy());
             } else {
-                innerDocumentsFilter = context.fixedBitSetFilterCache().getFixedBitSetFilter(objectMapper.nestedTypeFilter());
+                innerDocumentsFilter = context.filterCache().cache(nestedHelper.getNestedObjectMapper().nestedTypeFilter(), null, context.queryParserService().autoFilterCachePolicy());
             }
             nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
         } else {
@@ -177,25 +178,20 @@ public class GeoDistanceSortParser implements SortParser {
 
             @Override
             public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) throws IOException {
-                return new FieldComparator.DoubleComparator(numHits, null, null, null) {
+                return new FieldComparator.DoubleComparator(numHits, null, null) {
                     @Override
-                    protected Doubles getDoubleValues(AtomicReaderContext context, String field) throws IOException {
+                    protected NumericDocValues getNumericDocValues(LeafReaderContext context, String field) throws IOException {
                         final MultiGeoPointValues geoPointValues = geoIndexFieldData.load(context).getGeoPointValues();
                         final SortedNumericDoubleValues distanceValues = GeoDistance.distanceValues(geoPointValues, distances);
                         final NumericDoubleValues selectedValues;
                         if (nested == null) {
                             selectedValues = finalSortMode.select(distanceValues, Double.MAX_VALUE);
                         } else {
-                            final FixedBitSet rootDocs = nested.rootDocs(context);
-                            final FixedBitSet innerDocs = nested.innerDocs(context);
+                            final BitSet rootDocs = nested.rootDocs(context).bits();
+                            final DocIdSet innerDocs = nested.innerDocs(context);
                             selectedValues = finalSortMode.select(distanceValues, Double.MAX_VALUE, rootDocs, innerDocs, context.reader().maxDoc());
                         }
-                        return new Doubles() {
-                            @Override
-                            public double get(int docID) {
-                                return selectedValues.get(docID);
-                            }
-                        };
+                        return selectedValues.getRawDoubleValues();
                     }
                 };
             }

@@ -37,12 +37,9 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     private Long minDocCount;
     private Object extendedBoundsMin;
     private Object extendedBoundsMax;
-    private String preZone;
-    private String postZone;
-    private boolean preZoneAdjustLargeInterval;
+    private String timeZone;
     private String format;
-    private String preOffset;
-    private String postOffset;
+    private String offset;
     private float factor = 1.0f;
 
     /**
@@ -63,7 +60,7 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     /**
      * Set the interval.
      */
-    public DateHistogramBuilder interval(DateHistogram.Interval interval) {
+    public DateHistogramBuilder interval(DateHistogramInterval interval) {
         this.interval = interval;
         return this;
     }
@@ -71,7 +68,7 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     /**
      * Set the order by which the buckets will be returned.
      */
-    public DateHistogramBuilder order(DateHistogram.Order order) {
+    public DateHistogramBuilder order(Histogram.Order order) {
         this.order = order;
         return this;
     }
@@ -88,41 +85,18 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
     /**
      * Set the timezone in which to translate dates before computing buckets.
      */
-    public DateHistogramBuilder preZone(String preZone) {
-        this.preZone = preZone;
+    public DateHistogramBuilder timeZone(String timeZone) {
+        this.timeZone = timeZone;
         return this;
     }
 
     /**
-     * Set the timezone in which to translate dates after having computed buckets.
+     * @param offset sets the offset of time intervals in this histogram
+     * @return the current builder
      */
-    public DateHistogramBuilder postZone(String postZone) {
-        this.postZone = postZone;
-        return this;
-    }
-
-    /**
-     * Set whether to adjust large intervals, when using days or larger intervals.
-     */
-    public DateHistogramBuilder preZoneAdjustLargeInterval(boolean preZoneAdjustLargeInterval) {
-        this.preZoneAdjustLargeInterval = preZoneAdjustLargeInterval;
-        return this;
-    }
-
-    /**
-     * Set the offset to apply prior to computing buckets.
-     */
-    public DateHistogramBuilder preOffset(String preOffset) {
-        this.preOffset = preOffset;
-        return this;
-    }
-
-    /**
-     * Set the offset to apply after having computed buckets.
-     */
-    public DateHistogramBuilder postOffset(String postOffset) {
-        this.postOffset = postOffset;
-        return this;
+    public DateHistogramBuilder offset(String offset) {
+       this.offset = offset;
+       return this;
     }
 
     /**
@@ -194,24 +168,12 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
             order.toXContent(builder, params);
         }
 
-        if (preZone != null) {
-            builder.field("pre_zone", preZone);
+        if (timeZone != null) {
+            builder.field("time_zone", timeZone);
         }
 
-        if (postZone != null) {
-            builder.field("post_zone", postZone);
-        }
-
-        if (preZoneAdjustLargeInterval) {
-            builder.field("pre_zone_adjust_large_interval", true);
-        }
-
-        if (preOffset != null) {
-            builder.field("pre_offset", preOffset);
-        }
-
-        if (postOffset != null) {
-            builder.field("post_offset", postOffset);
+        if (offset != null) {
+            builder.field("offset", offset);
         }
 
         if (factor != 1.0f) {
@@ -235,5 +197,4 @@ public class DateHistogramBuilder extends ValuesSourceAggregationBuilder<DateHis
 
         return builder;
     }
-
 }

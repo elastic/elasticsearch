@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query;
 
-
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.index.*;
 import org.apache.lucene.index.memory.MemoryIndex;
@@ -30,15 +30,16 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.*;
 import org.apache.lucene.spatial.prefix.IntersectsPrefixTreeFilter;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.CharsRef;
+import org.apache.lucene.util.BytesRefBuilder;
+import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.NumericUtils;
-import org.apache.lucene.util.UnicodeUtil;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.termvectors.*;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.*;
 import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
@@ -47,9 +48,9 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.search.NumericRangeFieldDataFilter;
@@ -59,7 +60,7 @@ import org.elasticsearch.index.search.geo.GeoDistanceFilter;
 import org.elasticsearch.index.search.geo.GeoPolygonFilter;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxFilter;
 import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.hamcrest.Matchers;
@@ -68,7 +69,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
-import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 
@@ -110,15 +111,15 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     private BytesRef longToPrefixCoded(long val, int shift) {
-        BytesRef bytesRef = new BytesRef();
+        BytesRefBuilder bytesRef = new BytesRefBuilder();
         NumericUtils.longToPrefixCoded(val, shift, bytesRef);
-        return bytesRef;
+        return bytesRef.get();
     }
 
     @Test
     public void testQueryStringBuilder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(queryString("test").defaultField("content").phraseSlop(1)).query();
+        Query parsedQuery = queryParser.parse(queryStringQuery("test").defaultField("content").phraseSlop(1)).query();
 
         assertThat(parsedQuery, instanceOf(TermQuery.class));
         TermQuery termQuery = (TermQuery) parsedQuery;
@@ -138,7 +139,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testQueryStringBoostsBuilder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
-        QueryStringQueryBuilder builder = queryString("field:boosted^2");
+        QueryStringQueryBuilder builder = queryStringQuery("field:boosted^2");
         Query parsedQuery = queryParser.parse(builder).query();
         assertThat(parsedQuery, instanceOf(TermQuery.class));
         assertThat(((TermQuery) parsedQuery).getTerm(), equalTo(new Term("field", "boosted")));
@@ -147,7 +148,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         parsedQuery = queryParser.parse(builder).query();
         assertThat(parsedQuery.getBoost(), equalTo(4.0f));
 
-        builder = queryString("((field:boosted^2) AND (field:foo^1.5))^3");
+        builder = queryStringQuery("((field:boosted^2) AND (field:foo^1.5))^3");
         parsedQuery = queryParser.parse(builder).query();
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
         assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 0).getTerm(), equalTo(new Term("field", "boosted")));
@@ -163,7 +164,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testQueryStringFields1Builder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(queryString("test").field("content").field("name").useDisMax(false)).query();
+        Query parsedQuery = queryParser.parse(queryStringQuery("test").field("content").field("name").useDisMax(false)).query();
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
         BooleanQuery bQuery = (BooleanQuery) parsedQuery;
         assertThat(bQuery.clauses().size(), equalTo(2));
@@ -191,14 +192,15 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat(parsedQuery, instanceOf(BooleanQuery.class));
         BooleanQuery bQuery = (BooleanQuery) parsedQuery;
         assertThat(bQuery.clauses().size(), equalTo(2));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 0).getTerm(), equalTo(new Term("name.first", "test")));
-        assertThat(assertBooleanSubQuery(parsedQuery, TermQuery.class, 1).getTerm(), equalTo(new Term("name.last", "test")));
+        assertEquals(Sets.newHashSet(new Term("name.first", "test"), new Term("name.last", "test")),
+                Sets.newHashSet(assertBooleanSubQuery(parsedQuery, TermQuery.class, 0).getTerm(),
+                        assertBooleanSubQuery(parsedQuery, TermQuery.class, 1).getTerm()));
     }
 
     @Test
     public void testQueryStringFields2Builder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(queryString("test").field("content").field("name").useDisMax(true)).query();
+        Query parsedQuery = queryParser.parse(queryStringQuery("test").field("content").field("name").useDisMax(true)).query();
         assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) parsedQuery;
         List<Query> disjuncts = disMaxQuery.getDisjuncts();
@@ -221,7 +223,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     @Test
     public void testQueryStringFields3Builder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(queryString("test").field("content", 2.2f).field("name").useDisMax(true)).query();
+        Query parsedQuery = queryParser.parse(queryStringQuery("test").field("content", 2.2f).field("name").useDisMax(true)).query();
         assertThat(parsedQuery, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) parsedQuery;
         List<Query> disjuncts = disMaxQuery.getDisjuncts();
@@ -243,6 +245,44 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         assertThat((double) disjuncts.get(0).getBoost(), closeTo(2.2, 0.01));
         assertThat(((TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term("name", "test")));
         assertThat((double) disjuncts.get(1).getBoost(), closeTo(1, 0.01));
+    }
+
+    @Test
+    public void testQueryStringTimezone() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/query-timezone.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(TermRangeQuery.class));
+
+        try {
+            queryParser.parse(copyToStringFromClasspath("/org/elasticsearch/index/query/query-timezone-incorrect.json"));
+            fail("we expect a QueryParsingException as we are providing an unknown time_zome");
+        } catch (QueryParsingException e) {
+            // We expect this one
+        }
+    }
+
+    @Test
+    public void testQueryStringRegexp() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/query-regexp-max-determinized-states.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(RegexpQuery.class));
+        RegexpQuery regexpQuery = (RegexpQuery) parsedQuery;
+        assertTrue(regexpQuery.toString().contains("/foo*bar/"));
+    }
+
+    @Test
+    public void testQueryStringRegexpTooManyDeterminizedStates() throws Exception {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/query-regexp-too-many-determinized-states.json");
+        try {
+            queryParser.parse(query).query();
+            fail("did not hit exception");
+        } catch (QueryParsingException qpe) {
+            // expected
+            assertTrue(qpe.getCause() instanceof TooComplexToDeterminizeException);
+        }
     }
 
     @Test
@@ -290,7 +330,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
         ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
-        Filter internalFilter = constantScoreQuery.getFilter();
+        Filter internalFilter = (Filter) constantScoreQuery.getQuery();
         assertThat(internalFilter, instanceOf(MatchAllDocsFilter.class));
     }
 
@@ -493,22 +533,22 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testPrefixFilteredQueryBuilder() throws IOException {
+    public void testPrefiFilteredQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), prefixFilter("name.first", "sh"))).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         PrefixFilter prefixFilter = (PrefixFilter) filteredQuery.getFilter();
         assertThat(prefixFilter.getPrefix(), equalTo(new Term("name.first", "sh")));
     }
 
     @Test
-    public void testPrefixFilteredQuery() throws IOException {
+    public void testPrefiFilteredQuery() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/prefix-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         PrefixFilter prefixFilter = (PrefixFilter) filteredQuery.getFilter();
         assertThat(prefixFilter.getPrefix(), equalTo(new Term("name.first", "sh")));
     }
@@ -519,8 +559,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/prefix-filter-named.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        assertThat(parsedQuery.query(), instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery.query();
+        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
         PrefixFilter prefixFilter = (PrefixFilter) filteredQuery.getFilter();
         assertThat(prefixFilter.getPrefix(), equalTo(new Term("name.first", "sh")));
     }
@@ -576,12 +616,35 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
+    public void testRegexpQueryWithMaxDeterminizedStates() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/regexp-max-determinized-states.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(RegexpQuery.class));
+        RegexpQuery regexpQuery = (RegexpQuery) parsedQuery;
+        assertThat(regexpQuery.getField(), equalTo("name.first"));
+    }
+
+    @Test
     public void testRegexpFilteredQuery() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/regexp-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        Filter filter = ((XFilteredQuery) parsedQuery).getFilter();
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        Filter filter = ((FilteredQuery) parsedQuery).getFilter();
+        assertThat(filter, instanceOf(RegexpFilter.class));
+        RegexpFilter regexpFilter = (RegexpFilter) filter;
+        assertThat(regexpFilter.field(), equalTo("name.first"));
+        assertThat(regexpFilter.regexp(), equalTo("s.*y"));
+    }
+
+    @Test
+    public void testRegexpFilteredQueryWithMaxDeterminizedStates() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/regexp-filter-max-determinized-states.json");
+        Query parsedQuery = queryParser.parse(query).query();
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        Filter filter = ((FilteredQuery) parsedQuery).getFilter();
         assertThat(filter, instanceOf(RegexpFilter.class));
         RegexpFilter regexpFilter = (RegexpFilter) filter;
         assertThat(regexpFilter.field(), equalTo("name.first"));
@@ -594,8 +657,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/regexp-filter-named.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        assertThat(parsedQuery.query(), instanceOf(XFilteredQuery.class));
-        Filter filter = ((XFilteredQuery) parsedQuery.query()).getFilter();
+        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
+        Filter filter = ((FilteredQuery) parsedQuery.query()).getFilter();
         assertThat(filter, instanceOf(RegexpFilter.class));
         RegexpFilter regexpFilter = (RegexpFilter) filter;
         assertThat(regexpFilter.field(), equalTo("name.first"));
@@ -607,8 +670,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/regexp-filter-flags.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
-        assertThat(parsedQuery.query(), instanceOf(XFilteredQuery.class));
-        Filter filter = ((XFilteredQuery) parsedQuery.query()).getFilter();
+        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
+        Filter filter = ((FilteredQuery) parsedQuery.query()).getFilter();
         assertThat(filter, instanceOf(RegexpFilter.class));
         RegexpFilter regexpFilter = (RegexpFilter) filter;
         assertThat(regexpFilter.field(), equalTo("name.first"));
@@ -621,13 +684,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/regexp-filter-flags-named-cached.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
-        assertThat(parsedQuery.query(), instanceOf(XFilteredQuery.class));
-        Filter filter = ((XFilteredQuery) parsedQuery.query()).getFilter();
-        assertThat(filter, instanceOf(CacheKeyFilter.Wrapper.class));
-        CacheKeyFilter.Wrapper wrapper = (CacheKeyFilter.Wrapper) filter;
-        assertThat(new BytesRef(wrapper.cacheKey().bytes()).utf8ToString(), equalTo("key"));
-        assertThat(wrapper.wrappedFilter(), instanceOf(RegexpFilter.class));
-        RegexpFilter regexpFilter = (RegexpFilter) wrapper.wrappedFilter();
+        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
+        Filter filter = ((FilteredQuery) parsedQuery.query()).getFilter();
+        assertThat(filter, instanceOf(RegexpFilter.class));
+        RegexpFilter regexpFilter = (RegexpFilter) filter;
         assertThat(regexpFilter.field(), equalTo("name.first"));
         assertThat(regexpFilter.regexp(), equalTo("s.*y"));
         assertThat(regexpFilter.flags(), equalTo(INTERSECTION.value() | COMPLEMENT.value() | EMPTY.value()));
@@ -723,8 +783,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), rangeFilter("age").from(23).to(54).includeLower(true).includeUpper(false))).query();
         // since age is automatically registered in data, we encode it as numeric
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        Filter filter = ((XFilteredQuery) parsedQuery).getFilter();
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        Filter filter = ((FilteredQuery) parsedQuery).getFilter();
         assertThat(filter, instanceOf(NumericRangeFilter.class));
         NumericRangeFilter rangeFilter = (NumericRangeFilter) filter;
         assertThat(rangeFilter.getField(), equalTo("age"));
@@ -740,8 +800,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/range-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
         // since age is automatically registered in data, we encode it as numeric
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        Filter filter = ((XFilteredQuery) parsedQuery).getFilter();
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        Filter filter = ((FilteredQuery) parsedQuery).getFilter();
         assertThat(filter, instanceOf(NumericRangeFilter.class));
         NumericRangeFilter rangeFilter = (NumericRangeFilter) filter;
         assertThat(rangeFilter.getField(), equalTo("age"));
@@ -757,8 +817,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/range-filter-named.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        assertThat(parsedQuery.query(), instanceOf(XFilteredQuery.class));
-        Filter filter = ((XFilteredQuery) parsedQuery.query()).getFilter();
+        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
+        Filter filter = ((FilteredQuery) parsedQuery.query()).getFilter();
         assertThat(filter, instanceOf(NumericRangeFilter.class));
         NumericRangeFilter rangeFilter = (NumericRangeFilter) filter;
         assertThat(rangeFilter.getField(), equalTo("age"));
@@ -772,8 +832,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     public void testRangeFilteredQueryBuilder_executionFieldData() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), rangeFilter("age").from(23).to(54).includeLower(true).includeUpper(false).setExecution("fielddata"))).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        Filter filter = ((XFilteredQuery) parsedQuery).getFilter();
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        Filter filter = ((FilteredQuery) parsedQuery).getFilter();
         assertThat(filter, instanceOf(NumericRangeFieldDataFilter.class));
         NumericRangeFieldDataFilter<Number> rangeFilter = (NumericRangeFieldDataFilter<Number>) filter;
         assertThat(rangeFilter.getField(), equalTo("age"));
@@ -788,30 +848,30 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), boolFilter().must(termFilter("name.first", "shay1"), termFilter("name.first", "shay4")).mustNot(termFilter("name.first", "shay2")).should(termFilter("name.first", "shay3")))).query();
 
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         XBooleanFilter booleanFilter = (XBooleanFilter) filteredQuery.getFilter();
 
         Iterator<FilterClause> iterator = booleanFilter.iterator();
         assertThat(iterator.hasNext(), equalTo(true));
         FilterClause clause = iterator.next();
         assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST));
-        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay1")));
+        assertThat(getTerm(clause.getFilter()), equalTo(new Term("name.first", "shay1")));
 
         assertThat(iterator.hasNext(), equalTo(true));
         clause = iterator.next();
         assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST));
-        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay4")));
+        assertThat(getTerm(clause.getFilter()), equalTo(new Term("name.first", "shay4")));
 
         assertThat(iterator.hasNext(), equalTo(true));
         clause = iterator.next();
         assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
-        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay2")));
+        assertThat(getTerm(clause.getFilter()), equalTo(new Term("name.first", "shay2")));
 
         assertThat(iterator.hasNext(), equalTo(true));
         clause = iterator.next();
         assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay3")));
+        assertThat(getTerm(clause.getFilter()), equalTo(new Term("name.first", "shay3")));
 
         assertThat(iterator.hasNext(), equalTo(false));
     }
@@ -822,30 +882,30 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/bool-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         XBooleanFilter booleanFilter = (XBooleanFilter) filteredQuery.getFilter();
 
         Iterator<FilterClause> iterator = booleanFilter.iterator();
         assertThat(iterator.hasNext(), equalTo(true));
         FilterClause clause = iterator.next();
         assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST));
-        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay1")));
+        assertThat(getTerm(clause.getFilter()), equalTo(new Term("name.first", "shay1")));
 
         assertThat(iterator.hasNext(), equalTo(true));
         clause = iterator.next();
         assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST));
-        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay4")));
+        assertThat(getTerm(clause.getFilter()), equalTo(new Term("name.first", "shay4")));
 
         assertThat(iterator.hasNext(), equalTo(true));
         clause = iterator.next();
         assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.MUST_NOT));
-        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay2")));
+        assertThat(getTerm(clause.getFilter()), equalTo(new Term("name.first", "shay2")));
 
         assertThat(iterator.hasNext(), equalTo(true));
         clause = iterator.next();
         assertThat(clause.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
-        assertThat(((TermFilter) clause.getFilter()).getTerm(), equalTo(new Term("name.first", "shay3")));
+        assertThat(getTerm(clause.getFilter()), equalTo(new Term("name.first", "shay3")));
 
         assertThat(iterator.hasNext(), equalTo(false));
     }
@@ -854,13 +914,13 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     public void testAndFilteredQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(matchAllQuery(), andFilter(termFilter("name.first", "shay1"), termFilter("name.first", "shay4")))).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
 
-        AndFilter andFilter = (AndFilter) constantScoreQuery.getFilter();
+        AndFilter andFilter = (AndFilter) constantScoreQuery.getQuery();
         assertThat(andFilter.filters().size(), equalTo(2));
-        assertThat(((TermFilter) andFilter.filters().get(0)).getTerm(), equalTo(new Term("name.first", "shay1")));
-        assertThat(((TermFilter) andFilter.filters().get(1)).getTerm(), equalTo(new Term("name.first", "shay4")));
+        assertThat(getTerm(andFilter.filters().get(0)), equalTo(new Term("name.first", "shay1")));
+        assertThat(getTerm(andFilter.filters().get(1)), equalTo(new Term("name.first", "shay4")));
     }
 
     @Test
@@ -868,13 +928,13 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/and-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
 
         AndFilter andFilter = (AndFilter) filteredQuery.getFilter();
         assertThat(andFilter.filters().size(), equalTo(2));
-        assertThat(((TermFilter) andFilter.filters().get(0)).getTerm(), equalTo(new Term("name.first", "shay1")));
-        assertThat(((TermFilter) andFilter.filters().get(1)).getTerm(), equalTo(new Term("name.first", "shay4")));
+        assertThat(getTerm(andFilter.filters().get(0)), equalTo(new Term("name.first", "shay1")));
+        assertThat(getTerm(andFilter.filters().get(1)), equalTo(new Term("name.first", "shay4")));
     }
 
     @Test
@@ -883,13 +943,13 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/and-filter-named.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        assertThat(parsedQuery.query(), instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery.query();
+        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
 
         AndFilter andFilter = (AndFilter) filteredQuery.getFilter();
         assertThat(andFilter.filters().size(), equalTo(2));
-        assertThat(((TermFilter) andFilter.filters().get(0)).getTerm(), equalTo(new Term("name.first", "shay1")));
-        assertThat(((TermFilter) andFilter.filters().get(1)).getTerm(), equalTo(new Term("name.first", "shay4")));
+        assertThat(getTerm(andFilter.filters().get(0)), equalTo(new Term("name.first", "shay1")));
+        assertThat(getTerm(andFilter.filters().get(1)), equalTo(new Term("name.first", "shay4")));
     }
 
     @Test
@@ -897,26 +957,26 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/and-filter2.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
 
         AndFilter andFilter = (AndFilter) filteredQuery.getFilter();
         assertThat(andFilter.filters().size(), equalTo(2));
-        assertThat(((TermFilter) andFilter.filters().get(0)).getTerm(), equalTo(new Term("name.first", "shay1")));
-        assertThat(((TermFilter) andFilter.filters().get(1)).getTerm(), equalTo(new Term("name.first", "shay4")));
+        assertThat(getTerm(andFilter.filters().get(0)), equalTo(new Term("name.first", "shay1")));
+        assertThat(getTerm(andFilter.filters().get(1)), equalTo(new Term("name.first", "shay4")));
     }
 
     @Test
     public void testOrFilteredQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(matchAllQuery(), orFilter(termFilter("name.first", "shay1"), termFilter("name.first", "shay4")))).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
 
-        OrFilter andFilter = (OrFilter) constantScoreQuery.getFilter();
+        OrFilter andFilter = (OrFilter) constantScoreQuery.getQuery();
         assertThat(andFilter.filters().size(), equalTo(2));
-        assertThat(((TermFilter) andFilter.filters().get(0)).getTerm(), equalTo(new Term("name.first", "shay1")));
-        assertThat(((TermFilter) andFilter.filters().get(1)).getTerm(), equalTo(new Term("name.first", "shay4")));
+        assertThat(getTerm(andFilter.filters().get(0)), equalTo(new Term("name.first", "shay1")));
+        assertThat(getTerm(andFilter.filters().get(1)), equalTo(new Term("name.first", "shay4")));
     }
 
     @Test
@@ -924,13 +984,13 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/or-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
 
         OrFilter orFilter = (OrFilter) filteredQuery.getFilter();
         assertThat(orFilter.filters().size(), equalTo(2));
-        assertThat(((TermFilter) orFilter.filters().get(0)).getTerm(), equalTo(new Term("name.first", "shay1")));
-        assertThat(((TermFilter) orFilter.filters().get(1)).getTerm(), equalTo(new Term("name.first", "shay4")));
+        assertThat(getTerm(orFilter.filters().get(0)), equalTo(new Term("name.first", "shay1")));
+        assertThat(getTerm(orFilter.filters().get(1)), equalTo(new Term("name.first", "shay4")));
     }
 
     @Test
@@ -938,24 +998,24 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/or-filter2.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
 
         OrFilter orFilter = (OrFilter) filteredQuery.getFilter();
         assertThat(orFilter.filters().size(), equalTo(2));
-        assertThat(((TermFilter) orFilter.filters().get(0)).getTerm(), equalTo(new Term("name.first", "shay1")));
-        assertThat(((TermFilter) orFilter.filters().get(1)).getTerm(), equalTo(new Term("name.first", "shay4")));
+        assertThat(getTerm(orFilter.filters().get(0)), equalTo(new Term("name.first", "shay1")));
+        assertThat(getTerm(orFilter.filters().get(1)), equalTo(new Term("name.first", "shay4")));
     }
 
     @Test
     public void testNotFilteredQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(matchAllQuery(), notFilter(termFilter("name.first", "shay1")))).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
 
-        NotFilter notFilter = (NotFilter) constantScoreQuery.getFilter();
-        assertThat(((TermFilter) notFilter.filter()).getTerm(), equalTo(new Term("name.first", "shay1")));
+        NotFilter notFilter = (NotFilter) constantScoreQuery.getQuery();
+        assertThat(getTerm(notFilter.filter()), equalTo(new Term("name.first", "shay1")));
     }
 
     @Test
@@ -963,12 +1023,12 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/not-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
 
         NotFilter notFilter = (NotFilter) filteredQuery.getFilter();
-        assertThat(((TermFilter) notFilter.filter()).getTerm(), equalTo(new Term("name.first", "shay1")));
+        assertThat(getTerm(notFilter.filter()), equalTo(new Term("name.first", "shay1")));
     }
 
     @Test
@@ -976,12 +1036,12 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/not-filter2.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
 
         NotFilter notFilter = (NotFilter) filteredQuery.getFilter();
-        assertThat(((TermFilter) notFilter.filter()).getTerm(), equalTo(new Term("name.first", "shay1")));
+        assertThat(getTerm(notFilter.filter()), equalTo(new Term("name.first", "shay1")));
     }
 
     @Test
@@ -989,12 +1049,12 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/not-filter3.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
 
         NotFilter notFilter = (NotFilter) filteredQuery.getFilter();
-        assertThat(((TermFilter) notFilter.filter()).getTerm(), equalTo(new Term("name.first", "shay1")));
+        assertThat(getTerm(notFilter.filter()), equalTo(new Term("name.first", "shay1")));
     }
 
     @Test
@@ -1107,6 +1167,38 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
+    public void testTermsQueryWithMultipleFields() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = XContentFactory.jsonBuilder().startObject()
+                .startObject("terms").array("foo", 123).array("bar", 456).endObject()
+                .endObject().string();
+        try {
+            queryParser.parse(query).query();
+            fail();
+        } catch (QueryParsingException ex) {
+            assertThat(ex.getMessage(), equalTo("[test] [terms] query does not support multiple fields"));
+        }
+    }
+
+    @Test
+    public void testTermsFilterWithMultipleFields() throws IOException {
+        IndexQueryParserService queryParser = queryParser();
+        String query = XContentFactory.jsonBuilder().startObject()
+                .startObject("filtered")
+                .startObject("query").startObject("match_all").endObject().endObject()
+                .startObject("filter").startObject("terms").array("foo", 123).array("bar", 456).endObject().endObject()
+                .endObject().string();
+        try {
+            queryParser.parse(query).query();
+            fail();
+        } catch (QueryParsingException ex) {
+            assertThat(ex.getMessage(), equalTo("[test] [terms] filter does not support multiple fields"));
+        }
+    }
+
+
+
+    @Test
     public void testInQuery() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(termsQuery("name.first", Lists.newArrayList("test1", "test2", "test3"))).query();
@@ -1130,10 +1222,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     public void testFilteredQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termFilter("name.last", "banon"))).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
-        assertThat(((TermFilter) filteredQuery.getFilter()).getTerm(), equalTo(new Term("name.last", "banon")));
+        assertThat(getTerm(filteredQuery.getFilter()), equalTo(new Term("name.last", "banon")));
     }
 
     @Test
@@ -1141,10 +1233,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/filtered-query.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
-        assertThat(((TermFilter) filteredQuery.getFilter()).getTerm(), equalTo(new Term("name.last", "banon")));
+        assertThat(getTerm(filteredQuery.getFilter()), equalTo(new Term("name.last", "banon")));
     }
 
     @Test
@@ -1152,10 +1244,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/filtered-query2.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
-        assertThat(((TermFilter) filteredQuery.getFilter()).getTerm(), equalTo(new Term("name.last", "banon")));
+        assertThat(getTerm(filteredQuery.getFilter()), equalTo(new Term("name.last", "banon")));
     }
 
     @Test
@@ -1163,8 +1255,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/filtered-query3.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
 
         Filter filter = filteredQuery.getFilter();
@@ -1180,13 +1272,13 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/filtered-query4.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         WildcardQuery wildcardQuery = (WildcardQuery) filteredQuery.getQuery();
         assertThat(wildcardQuery.getTerm(), equalTo(new Term("name.first", "sh*")));
         assertThat((double) wildcardQuery.getBoost(), closeTo(1.1, 0.001));
 
-        assertThat(((TermFilter) filteredQuery.getFilter()).getTerm(), equalTo(new Term("name.last", "banon")));
+        assertThat(getTerm(filteredQuery.getFilter()), equalTo(new Term("name.last", "banon")));
     }
 
     @Test
@@ -1194,8 +1286,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/limit-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         assertThat(filteredQuery.getFilter(), instanceOf(LimitFilter.class));
         assertThat(((LimitFilter) filteredQuery.getFilter()).getLimit(), equalTo(2));
 
@@ -1208,12 +1300,12 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/term-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         assertThat(filteredQuery.getFilter(), instanceOf(TermFilter.class));
         TermFilter termFilter = (TermFilter) filteredQuery.getFilter();
-        assertThat(termFilter.getTerm().field(), equalTo("name.last"));
-        assertThat(termFilter.getTerm().text(), equalTo("banon"));
+        assertThat(getTerm(termFilter).field(), equalTo("name.last"));
+        assertThat(getTerm(termFilter).text(), equalTo("banon"));
     }
 
     @Test
@@ -1222,20 +1314,20 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/term-filter-named.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        assertThat(parsedQuery.query(), instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery.query();
+        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
         assertThat(filteredQuery.getFilter(), instanceOf(TermFilter.class));
         TermFilter termFilter = (TermFilter) filteredQuery.getFilter();
-        assertThat(termFilter.getTerm().field(), equalTo("name.last"));
-        assertThat(termFilter.getTerm().text(), equalTo("banon"));
+        assertThat(getTerm(termFilter).field(), equalTo("name.last"));
+        assertThat(getTerm(termFilter).text(), equalTo("banon"));
     }
 
     @Test
     public void testTermsFilterQueryBuilder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), termsFilter("name.last", "banon", "kimchy"))).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         assertThat(filteredQuery.getFilter(), instanceOf(TermsFilter.class));
         TermsFilter termsFilter = (TermsFilter) filteredQuery.getFilter();
         //assertThat(termsFilter.getTerms().length, equalTo(2));
@@ -1248,8 +1340,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/terms-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         assertThat(filteredQuery.getFilter(), instanceOf(TermsFilter.class));
         TermsFilter termsFilter = (TermsFilter) filteredQuery.getFilter();
         //assertThat(termsFilter.getTerms().length, equalTo(2));
@@ -1262,8 +1354,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/terms-filter-named.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        assertThat(parsedQuery.query(), instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery.query();
+        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
         assertThat(filteredQuery.getFilter(), instanceOf(TermsFilter.class));
         TermsFilter termsFilter = (TermsFilter) filteredQuery.getFilter();
         //assertThat(termsFilter.getTerms().length, equalTo(2));
@@ -1274,9 +1366,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     public void testConstantScoreQueryBuilder() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(constantScoreQuery(termFilter("name.last", "banon"))).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        assertThat(((TermFilter) constantScoreQuery.getFilter()).getTerm(), equalTo(new Term("name.last", "banon")));
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        assertThat(getTerm(constantScoreQuery.getQuery()), equalTo(new Term("name.last", "banon")));
     }
 
     @Test
@@ -1284,9 +1376,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/constantScore-query.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        assertThat(((TermFilter) constantScoreQuery.getFilter()).getTerm(), equalTo(new Term("name.last", "banon")));
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        assertThat(getTerm(constantScoreQuery.getQuery()), equalTo(new Term("name.last", "banon")));
     }
 
     @Test
@@ -1305,8 +1397,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         Query parsedQuery = queryParser.parse(functionScoreQuery(factorFunction(1.3f))).query();
         assertThat(parsedQuery, instanceOf(FunctionScoreQuery.class));
         FunctionScoreQuery functionScoreQuery = (FunctionScoreQuery) parsedQuery;
-        assertThat(functionScoreQuery.getSubQuery() instanceof XConstantScoreQuery, equalTo(true));
-        assertThat(((XConstantScoreQuery) functionScoreQuery.getSubQuery()).getFilter() instanceof MatchAllDocsFilter, equalTo(true));
+        assertThat(functionScoreQuery.getSubQuery() instanceof ConstantScoreQuery, equalTo(true));
+        assertThat(((ConstantScoreQuery) functionScoreQuery.getSubQuery()).getQuery() instanceof MatchAllDocsFilter, equalTo(true));
         assertThat((double) ((BoostScoreFunction) functionScoreQuery.getFunction()).getBoost(), closeTo(1.3, 0.001));
     }
 
@@ -1531,8 +1623,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     public void testQueryFilterBuilder() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         Query parsedQuery = queryParser.parse(filteredQuery(termQuery("name.first", "shay"), queryFilter(termQuery("name.last", "banon")))).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         QueryWrapperFilter queryWrapperFilter = (QueryWrapperFilter) filteredQuery.getFilter();
         Field field = QueryWrapperFilter.class.getDeclaredField("query");
         field.setAccessible(true);
@@ -1546,8 +1638,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/query-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
         QueryWrapperFilter queryWrapperFilter = (QueryWrapperFilter) filteredQuery.getFilter();
         Field field = QueryWrapperFilter.class.getDeclaredField("query");
         field.setAccessible(true);
@@ -1562,8 +1654,8 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/fquery-filter.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        assertThat(parsedQuery.query(), instanceOf(XFilteredQuery.class));
-        XFilteredQuery filteredQuery = (XFilteredQuery) parsedQuery.query();
+        assertThat(parsedQuery.query(), instanceOf(FilteredQuery.class));
+        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery.query();
         QueryWrapperFilter queryWrapperFilter = (QueryWrapperFilter) filteredQuery.getFilter();
         Field field = QueryWrapperFilter.class.getDeclaredField("query");
         field.setAccessible(true);
@@ -1623,25 +1715,69 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         }
     }
 
+    @Test
+    public void testMLTPercentTermsToMatch() throws Exception {
+        // setup for mocking fetching items
+        MoreLikeThisQueryParser parser = (MoreLikeThisQueryParser) queryParser.queryParser("more_like_this");
+        parser.setFetchService(new MockMoreLikeThisFetchService());
+
+        // parsing the ES query
+        IndexQueryParserService queryParser = queryParser();
+        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/mlt-items.json");
+        BooleanQuery parsedQuery = (BooleanQuery) queryParser.parse(query).query();
+
+        // get MLT query, other clause is for include/exclude items
+        MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery.getClauses()[0].getQuery();
+
+        // all terms must match
+        mltQuery.setMinimumShouldMatch("100%");
+        mltQuery.setMinWordLen(0);
+        mltQuery.setMinDocFreq(0);
+
+        // one document has all values
+        MemoryIndex index = new MemoryIndex();
+        index.addField("name.first", "apache lucene", new WhitespaceAnalyzer());
+        index.addField("name.last", "1 2 3 4", new WhitespaceAnalyzer());
+
+        // two clauses, one for items and one for like_text if set
+        BooleanQuery luceneQuery = (BooleanQuery) mltQuery.rewrite(index.createSearcher().getIndexReader());
+        BooleanClause[] clauses = luceneQuery.getClauses();
+
+        // check for items
+        int minNumberShouldMatch = ((BooleanQuery) (clauses[0].getQuery())).getMinimumNumberShouldMatch();
+        assertThat(minNumberShouldMatch, is(4));
+
+        // and for like_text
+        minNumberShouldMatch = ((BooleanQuery) (clauses[1].getQuery())).getMinimumNumberShouldMatch();
+        assertThat(minNumberShouldMatch, is(2));
+    }
+
     private static class MockMoreLikeThisFetchService extends MoreLikeThisFetchService {
 
         public MockMoreLikeThisFetchService() {
             super(null, ImmutableSettings.Builder.EMPTY_SETTINGS);
         }
 
-        public Fields[] fetch(List<MultiGetRequest.Item> items) throws IOException {
-            List<Fields> likeTexts = new ArrayList<>();
-            for (MultiGetRequest.Item item : items) {
-                likeTexts.add(generateFields(item.fields(), item.id()));
+        @Override
+        public MultiTermVectorsResponse fetchResponse(MultiTermVectorsRequest items) throws IOException {
+            MultiTermVectorsItemResponse[] responses = new MultiTermVectorsItemResponse[items.size()];
+            int i = 0;
+            for (TermVectorsRequest item : items) {
+                TermVectorsResponse response = new TermVectorsResponse(item.index(), item.type(), item.id());
+                response.setExists(true);
+                Fields generatedFields = generateFields(item.selectedFields().toArray(Strings.EMPTY_ARRAY), item.id());
+                EnumSet<TermVectorsRequest.Flag> flags = EnumSet.of(TermVectorsRequest.Flag.Positions, TermVectorsRequest.Flag.Offsets);
+                response.setFields(generatedFields, item.selectedFields(), flags, generatedFields);
+                responses[i++] = new MultiTermVectorsItemResponse(response, null);
             }
-            return likeTexts.toArray(Fields.EMPTY_ARRAY);
+            return new MultiTermVectorsResponse(responses);
         }
     }
 
     private static Fields generateFields(String[] fieldNames, String text) throws IOException {
         MemoryIndex index = new MemoryIndex();
         for (String fieldName : fieldNames) {
-            index.addField(fieldName, text, new WhitespaceAnalyzer(Lucene.VERSION));
+            index.addField(fieldName, text, new WhitespaceAnalyzer());
         }
         return MultiFields.getFields(index.createSearcher().getIndexReader());
     }
@@ -1649,10 +1785,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     private static String termsToString(Terms terms) throws IOException {
         String strings = "";
         TermsEnum termsEnum = terms.iterator(null);
-        CharsRef spare = new CharsRef();
+        CharsRefBuilder spare = new CharsRefBuilder();
         BytesRef text;
         while((text = termsEnum.next()) != null) {
-            UnicodeUtil.UTF8toUTF16(text, spare);
+            spare.copyUTF8Bytes(text);
             String term = spare.toString();
             strings += term;
         }
@@ -1728,39 +1864,14 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testMoreLikeThisFieldBuilder() throws Exception {
-        IndexQueryParserService queryParser = queryParser();
-        Query parsedQuery = queryParser.parse(moreLikeThisFieldQuery("name.first").likeText("something").minTermFreq(1).maxQueryTerms(12)).query();
-        assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
-        MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery;
-        assertThat(mltQuery.getMoreLikeFields()[0], equalTo("name.first"));
-        assertThat(mltQuery.getLikeText(), equalTo("something"));
-        assertThat(mltQuery.getMinTermFrequency(), equalTo(1));
-        assertThat(mltQuery.getMaxQueryTerms(), equalTo(12));
-    }
-
-    @Test
-    public void testMoreLikeThisField() throws Exception {
-        IndexQueryParserService queryParser = queryParser();
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/mltField.json");
-        Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(MoreLikeThisQuery.class));
-        MoreLikeThisQuery mltQuery = (MoreLikeThisQuery) parsedQuery;
-        assertThat(mltQuery.getMoreLikeFields()[0], equalTo("name.first"));
-        assertThat(mltQuery.getLikeText(), equalTo("something"));
-        assertThat(mltQuery.getMinTermFrequency(), equalTo(1));
-        assertThat(mltQuery.getMaxQueryTerms(), equalTo(12));
-    }
-
-    @Test
     public void testGeoDistanceFilterNamed() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_distance-named.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        assertThat(parsedQuery.query(), instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery.query();
-        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery.query(), instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery.query();
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1772,9 +1883,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_distance1.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1786,9 +1897,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_distance2.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1800,9 +1911,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_distance3.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1814,9 +1925,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_distance4.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1828,9 +1939,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_distance5.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1842,9 +1953,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_distance6.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1856,9 +1967,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_distance7.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1870,9 +1981,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_distance8.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1884,9 +1995,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_distance9.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1898,9 +2009,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_distance10.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1912,9 +2023,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_distance11.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1926,9 +2037,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_distance12.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        GeoDistanceFilter filter = (GeoDistanceFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.lat(), closeTo(40, 0.00001));
         assertThat(filter.lon(), closeTo(-70, 0.00001));
@@ -1940,10 +2051,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_boundingbox-named.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
-        assertThat(parsedQuery.query(), instanceOf(XConstantScoreQuery.class));
+        assertThat(parsedQuery.query(), instanceOf(ConstantScoreQuery.class));
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery.query();
-        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getFilter();
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery.query();
+        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat(), closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon(), closeTo(-70, 0.00001));
@@ -1957,9 +2068,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_boundingbox1.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat(), closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon(), closeTo(-70, 0.00001));
@@ -1972,9 +2083,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_boundingbox2.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat(), closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon(), closeTo(-70, 0.00001));
@@ -1987,9 +2098,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_boundingbox3.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat(), closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon(), closeTo(-70, 0.00001));
@@ -2002,9 +2113,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_boundingbox4.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat(), closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon(), closeTo(-70, 0.00001));
@@ -2017,9 +2128,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_boundingbox5.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat(), closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon(), closeTo(-70, 0.00001));
@@ -2032,9 +2143,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_boundingbox6.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        InMemoryGeoBoundingBoxFilter filter = (InMemoryGeoBoundingBoxFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.topLeft().lat(), closeTo(40, 0.00001));
         assertThat(filter.topLeft().lon(), closeTo(-70, 0.00001));
@@ -2049,9 +2160,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_polygon-named.json");
         ParsedQuery parsedQuery = queryParser.parse(query);
         assertThat(parsedQuery.namedFilters().containsKey("test"), equalTo(true));
-        assertThat(parsedQuery.query(), instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery.query();
-        GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery.query(), instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery.query();
+        GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(4));
         assertThat(filter.points()[0].lat(), closeTo(40, 0.00001));
@@ -2090,9 +2201,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_polygon1.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(4));
         assertThat(filter.points()[0].lat(), closeTo(40, 0.00001));
@@ -2108,9 +2219,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_polygon2.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(4));
         assertThat(filter.points()[0].lat(), closeTo(40, 0.00001));
@@ -2126,9 +2237,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_polygon3.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(4));
         assertThat(filter.points()[0].lat(), closeTo(40, 0.00001));
@@ -2144,9 +2255,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geo_polygon4.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getFilter();
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        GeoPolygonFilter filter = (GeoPolygonFilter) constantScoreQuery.getQuery();
         assertThat(filter.fieldName(), equalTo("location"));
         assertThat(filter.points().length, equalTo(4));
         assertThat(filter.points()[0].lat(), closeTo(40, 0.00001));
@@ -2162,9 +2273,9 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/geoShape-filter.json");
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        XConstantScoreQuery constantScoreQuery = (XConstantScoreQuery) parsedQuery;
-        assertThat(constantScoreQuery.getFilter(), instanceOf(IntersectsPrefixTreeFilter.class));
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        ConstantScoreQuery constantScoreQuery = (ConstantScoreQuery) parsedQuery;
+        assertThat(constantScoreQuery.getQuery(), instanceOf(IntersectsPrefixTreeFilter.class));
     }
 
     @Test
@@ -2174,7 +2285,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         Query parsedQuery = queryParser.parse(query).query();
         assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
         ConstantScoreQuery csq = (ConstantScoreQuery) parsedQuery;
-        assertThat(csq.getFilter(), instanceOf(IntersectsPrefixTreeFilter.class));
+        assertThat(csq.getQuery(), instanceOf(IntersectsPrefixTreeFilter.class));
     }
 
     @Test
@@ -2314,10 +2425,10 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         XContentParser parser = XContentHelper.createParser(new BytesArray(query));
         ParsedFilter parsedQuery = queryParser.parseInnerFilter(parser);
         assertThat(parsedQuery.filter(), instanceOf(QueryWrapperFilter.class));
-        assertThat(((QueryWrapperFilter) parsedQuery.filter()).getQuery(), instanceOf(XFilteredQuery.class));
-        assertThat(((XFilteredQuery) ((QueryWrapperFilter) parsedQuery.filter()).getQuery()).getFilter(), instanceOf(TermFilter.class));
-        TermFilter filter = (TermFilter) ((XFilteredQuery) ((QueryWrapperFilter) parsedQuery.filter()).getQuery()).getFilter();
-        assertThat(filter.getTerm().toString(), equalTo("text:apache"));
+        assertThat(((QueryWrapperFilter) parsedQuery.filter()).getQuery(), instanceOf(FilteredQuery.class));
+        assertThat(((FilteredQuery) ((QueryWrapperFilter) parsedQuery.filter()).getQuery()).getFilter(), instanceOf(TermFilter.class));
+        TermFilter filter = (TermFilter) ((FilteredQuery) ((QueryWrapperFilter) parsedQuery.filter()).getQuery()).getFilter();
+        assertThat(getTerm(filter).toString(), equalTo("text:apache"));
     }
 
     @Test
@@ -2333,7 +2444,7 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testWeight1fStillProducesWeighFuction() throws IOException {
+    public void testWeight1fStillProducesWeighFunction() throws IOException {
         IndexQueryParserService queryParser = queryParser();
         String queryString = jsonBuilder().startObject()
                 .startObject("function_score")
@@ -2415,10 +2526,20 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
         SearchContext.setCurrent(createSearchContext(indexService));
         IndexQueryParserService queryParser = indexService.queryParserService();
         Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(XConstantScoreQuery.class));
-        assertThat(((XConstantScoreQuery) parsedQuery).getFilter(), instanceOf(CustomQueryWrappingFilter.class));
-        assertThat(((CustomQueryWrappingFilter) ((XConstantScoreQuery) parsedQuery).getFilter()).getQuery(), instanceOf(ParentConstantScoreQuery.class));
-        assertThat(((CustomQueryWrappingFilter) ((XConstantScoreQuery) parsedQuery).getFilter()).getQuery().toString(), equalTo("parent_filter[foo](*:*)"));
+        assertThat(parsedQuery, instanceOf(ConstantScoreQuery.class));
+        assertThat(((ConstantScoreQuery) parsedQuery).getQuery(), instanceOf(CustomQueryWrappingFilter.class));
+        assertThat(((CustomQueryWrappingFilter) ((ConstantScoreQuery) parsedQuery).getQuery()).getQuery(), instanceOf(ParentConstantScoreQuery.class));
+        assertThat(((CustomQueryWrappingFilter) ((ConstantScoreQuery) parsedQuery).getQuery()).getQuery().toString(), equalTo("parent_filter[foo](filtered(*:*)->cache(_type:foo))"));
         SearchContext.removeCurrent();
+    }
+    
+    /** 
+     * helper to extract term from TermFilter. 
+     * @deprecated transition device: use TermQuery instead.*/
+    @Deprecated
+    private Term getTerm(Query query) {
+        TermFilter filter = (TermFilter) query;
+        TermQuery wrapped = (TermQuery) filter.getQuery();
+        return wrapped.getTerm();
     }
 }

@@ -21,6 +21,7 @@ package org.elasticsearch.cluster;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -41,9 +42,11 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 
 /**
  * InternalClusterInfoService provides the ClusterInfoService interface,
@@ -56,9 +59,10 @@ import java.util.Map;
  * Every time the timer runs, gathers information about the disk usage and
  * shard sizes across the cluster.
  */
-public final class InternalClusterInfoService extends AbstractComponent implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
+public class InternalClusterInfoService extends AbstractComponent implements ClusterInfoService, LocalNodeMasterListener, ClusterStateListener {
 
     public static final String INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL = "cluster.info.update.interval";
+    public static final String INTERNAL_CLUSTER_INFO_TIMEOUT = "cluster.info.update.timeout";
 
     private volatile TimeValue updateFrequency;
 
@@ -66,10 +70,12 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
     private volatile ImmutableMap<String, Long> shardSizes;
     private volatile boolean isMaster = false;
     private volatile boolean enabled;
+    private volatile TimeValue fetchTimeout;
     private final TransportNodesStatsAction transportNodesStatsAction;
     private final TransportIndicesStatsAction transportIndicesStatsAction;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
+    private final Set<Listener> listeners = Collections.synchronizedSet(new HashSet<Listener>());
 
     @Inject
     public InternalClusterInfoService(Settings settings, NodeSettingsService nodeSettingsService,
@@ -84,7 +90,8 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         this.clusterService = clusterService;
         this.threadPool = threadPool;
         this.updateFrequency = settings.getAsTime(INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, TimeValue.timeValueSeconds(30));
-        this.enabled = settings.getAsBoolean(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, false);
+        this.fetchTimeout = settings.getAsTime(INTERNAL_CLUSTER_INFO_TIMEOUT, TimeValue.timeValueSeconds(15));
+        this.enabled = settings.getAsBoolean(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true);
         nodeSettingsService.addListener(new ApplySettings());
 
         // Add InternalClusterInfoService to listen for Master changes
@@ -110,6 +117,13 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                 }
             }
 
+            TimeValue newFetchTimeout = settings.getAsTime(INTERNAL_CLUSTER_INFO_TIMEOUT, null);
+            if (newFetchTimeout != null) {
+                logger.info("updating fetch timeout [{}] from [{}] to [{}]", INTERNAL_CLUSTER_INFO_TIMEOUT, fetchTimeout, newFetchTimeout);
+                InternalClusterInfoService.this.fetchTimeout = newFetchTimeout;
+            }
+
+
             // We don't log about enabling it here, because the DiskThresholdDecider will already be logging about enable/disable
             if (newEnabled != null) {
                 InternalClusterInfoService.this.enabled = newEnabled;
@@ -128,13 +142,23 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
             threadPool.schedule(updateFrequency, executorName(), new SubmitReschedulingClusterInfoUpdatedJob());
             if (clusterService.state().getNodes().getDataNodes().size() > 1) {
                 // Submit an info update job to be run immediately
-                threadPool.executor(executorName()).execute(new ClusterInfoUpdateJob(false));
+                updateOnce();
             }
         } catch (EsRejectedExecutionException ex) {
             if (logger.isDebugEnabled()) {
                 logger.debug("Couldn't schedule cluster info update task - node might be shutting down", ex);
             }
         }
+    }
+
+
+    // called from tests as well
+
+    /**
+     * will collect a fresh {@link ClusterInfo} from the nodes, without scheduling a future collection
+     */
+    void updateOnce() {
+        threadPool.executor(executorName()).execute(new ClusterInfoUpdateJob(false));
     }
 
     @Override
@@ -166,7 +190,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
             if (logger.isDebugEnabled()) {
                 logger.debug("data node was added, retrieving new cluster info");
             }
-            threadPool.executor(executorName()).execute(new ClusterInfoUpdateJob(false));
+            updateOnce();
         }
 
         if (this.isMaster && event.nodesRemoved()) {
@@ -186,6 +210,11 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
     @Override
     public ClusterInfo getClusterInfo() {
         return new ClusterInfo(usages, shardSizes);
+    }
+
+    @Override
+    public void addListener(Listener listener) {
+        this.listeners.add(listener);
     }
 
     /**
@@ -210,6 +239,34 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
         }
     }
 
+    /**
+     * Retrieve the latest nodes stats, calling the listener when complete
+     * @return a latch that can be used to wait for the nodes stats to complete if desired
+     */
+    protected CountDownLatch updateNodeStats(final ActionListener<NodesStatsResponse> listener) {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
+        nodesStatsRequest.clear();
+        nodesStatsRequest.fs(true);
+        nodesStatsRequest.timeout(fetchTimeout);
+
+        transportNodesStatsAction.execute(nodesStatsRequest, new LatchedActionListener<>(listener, latch));
+        return latch;
+    }
+
+    /**
+     * Retrieve the latest indices stats, calling the listener when complete
+     * @return a latch that can be used to wait for the indices stats to complete if desired
+     */
+    protected CountDownLatch updateIndicesStats(final ActionListener<IndicesStatsResponse> listener) {
+        final CountDownLatch latch = new CountDownLatch(1);
+        final IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
+        indicesStatsRequest.clear();
+        indicesStatsRequest.store(true);
+
+        transportIndicesStatsAction.execute(indicesStatsRequest, new LatchedActionListener<>(listener, latch));
+        return latch;
+    }
 
     /**
      * Runnable class that performs a {@Link NodesStatsRequest} to retrieve
@@ -252,12 +309,7 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                 return;
             }
 
-            NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
-            nodesStatsRequest.clear();
-            nodesStatsRequest.fs(true);
-            nodesStatsRequest.timeout(TimeValue.timeValueSeconds(15));
-
-            transportNodesStatsAction.execute(nodesStatsRequest, new ActionListener<NodesStatsResponse>() {
+            CountDownLatch nodeLatch = updateNodeStats(new ActionListener<NodesStatsResponse>() {
                 @Override
                 public void onResponse(NodesStatsResponse nodeStatses) {
                     Map<String, DiskUsage> newUsages = new HashMap<>();
@@ -273,10 +325,11 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
                                 total += info.getTotal().bytes();
                             }
                             String nodeId = nodeStats.getNode().id();
+                            String nodeName = nodeStats.getNode().getName();
                             if (logger.isTraceEnabled()) {
                                 logger.trace("node: [{}], total disk: {}, available disk: {}", nodeId, total, available);
                             }
-                            newUsages.put(nodeId, new DiskUsage(nodeId, total, available));
+                            newUsages.put(nodeId, new DiskUsage(nodeId, nodeName, total, available));
                         }
                     }
                     usages = ImmutableMap.copyOf(newUsages);
@@ -284,20 +337,23 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
 
                 @Override
                 public void onFailure(Throwable e) {
-                    if (e instanceof ClusterBlockException) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
-                        }
+                    if (e instanceof ReceiveTimeoutTransportException) {
+                        logger.error("NodeStatsAction timed out for ClusterInfoUpdateJob (reason [{}])", e.getMessage());
                     } else {
-                        logger.warn("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
+                        if (e instanceof ClusterBlockException) {
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
+                            }
+                        } else {
+                            logger.warn("Failed to execute NodeStatsAction for ClusterInfoUpdateJob", e);
+                        }
+                        // we empty the usages list, to be safe - we don't know what's going on.
+                        usages = ImmutableMap.of();
                     }
                 }
             });
 
-            IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest();
-            indicesStatsRequest.clear();
-            indicesStatsRequest.store(true);
-            transportIndicesStatsAction.execute(indicesStatsRequest, new ActionListener<IndicesStatsResponse>() {
+            CountDownLatch indicesLatch = updateIndicesStats(new ActionListener<IndicesStatsResponse>() {
                 @Override
                 public void onResponse(IndicesStatsResponse indicesStatsResponse) {
                     ShardStats[] stats = indicesStatsResponse.getShards();
@@ -315,18 +371,40 @@ public final class InternalClusterInfoService extends AbstractComponent implemen
 
                 @Override
                 public void onFailure(Throwable e) {
-                    if (e instanceof ClusterBlockException) {
-                        if (logger.isTraceEnabled()) {
-                            logger.trace("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
-                        }
+                    if (e instanceof ReceiveTimeoutTransportException) {
+                        logger.error("IndicesStatsAction timed out for ClusterInfoUpdateJob (reason [{}])", e.getMessage());
                     } else {
-                        logger.warn("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
+                        if (e instanceof ClusterBlockException) {
+                            if (logger.isTraceEnabled()) {
+                                logger.trace("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
+                            }
+                        } else {
+                            logger.warn("Failed to execute IndicesStatsAction for ClusterInfoUpdateJob", e);
+                        }
+                        // we empty the usages list, to be safe - we don't know what's going on.
+                        shardSizes = ImmutableMap.of();
                     }
                 }
             });
 
-            if (logger.isTraceEnabled()) {
-                logger.trace("Finished ClusterInfoUpdateJob");
+            try {
+                nodeLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                logger.warn("Failed to update node information for ClusterInfoUpdateJob within 15s timeout");
+            }
+
+            try {
+                indicesLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
+            } catch (InterruptedException e) {
+                logger.warn("Failed to update shard information for ClusterInfoUpdateJob within 15s timeout");
+            }
+
+            for (Listener l : listeners) {
+                try {
+                    l.onNewInfo(getClusterInfo());
+                } catch (Exception e) {
+                    logger.info("Failed executing ClusterInfoService listener", e);
+                }
             }
         }
     }

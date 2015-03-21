@@ -39,7 +39,7 @@ public class UpperCaseTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new UpperCaseFilter(version, tokenStream);
+        return new UpperCaseFilter(tokenStream);
     }
 }
 

@@ -29,22 +29,20 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.engine.internal.InternalEngine;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
-import org.junit.Ignore;
+import org.junit.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
@@ -56,13 +54,30 @@ import static org.hamcrest.Matchers.*;
 @Ignore
 public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase {
 
-    private static class Holder {
-        // lazy init on first access
-        private static final Node NODE = newNode();
+    private static Node NODE = null;
+
+    private static void reset() {
+        assert NODE != null;
+        stopNode();
+        startNode();
     }
 
-    static void cleanup() {
+    private static void startNode() {
+        assert NODE == null;
+        NODE = newNode();
+    }
+
+    private static void stopNode() {
+        Node node = NODE;
+        NODE = null;
+        Releasables.close(node);
+    }
+
+    static void cleanup(boolean resetNode) {
         assertAcked(client().admin().indices().prepareDelete("*").get());
+        if (resetNode) {
+            reset();
+        }
         MetaData metaData = client().admin().cluster().prepareState().get().getState().getMetaData();
         assertThat("test leaves persistent cluster metadata behind: " + metaData.persistentSettings().getAsMap(),
                 metaData.persistentSettings().getAsMap().size(), equalTo(0));
@@ -71,21 +86,42 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
     }
 
     @After
-    public void after() {
-        cleanup();
+    public void tearDown() throws Exception {
+        super.tearDown();
+        cleanup(resetNodeAfterTest());
+    }
+
+    @BeforeClass
+    public static void setUpClass() throws Exception {
+        stopNode();
+        startNode();
+    }
+
+    @AfterClass
+    public static void tearDownClass() {
+        stopNode();
+    }
+
+    /**
+     * This method returns <code>true</code> if the node that is used in the background should be reset
+     * after each test. This is useful if the test changes the cluster state metadata etc. The default is
+     * <code>false</code>.
+     */
+    protected boolean resetNodeAfterTest() {
+        return false;
     }
 
     private static Node newNode() {
         Node build = NodeBuilder.nodeBuilder().local(true).data(true).settings(ImmutableSettings.builder()
-                .put(ClusterName.SETTING, nodeName())
+                .put(ClusterName.SETTING, clusterName())
                 .put("node.name", nodeName())
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                .put("script.disable_dynamic", false)
                 .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
                 .put("http.enabled", false)
-                .put("index.store.type", "ram")
                 .put("config.ignore_system_properties", true) // make sure we get what we set :)
-                .put("gateway.type", "none")).build();
+        ).build();
         build.start();
         assertThat(DiscoveryNode.localNode(build.settings()), is(true));
         return build;
@@ -95,35 +131,35 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
      * Returns a client to the single-node cluster.
      */
     public static Client client() {
-        return Holder.NODE.client();
+        return NODE.client();
     }
 
     /**
      * Returns the single test nodes name.
      */
     public static String nodeName() {
-        return ElasticsearchSingleNodeTest.class.getName();
+        return "node_s_0";
     }
 
     /**
      * Returns the name of the cluster used for the single test node.
      */
     public static String clusterName() {
-        return ElasticsearchSingleNodeTest.class.getName();
+        return InternalTestCluster.clusterName("single-node", Integer.toString(CHILD_JVM_ID), randomLong());
     }
 
     /**
      * Return a reference to the singleton node.
      */
     protected static Node node() {
-        return Holder.NODE;
+        return NODE;
     }
 
     /**
      * Get an instance for a particular class using the injector of the singleton node.
      */
     protected static <T> T getInstanceFromNode(Class<T> clazz) {
-        return ((InternalNode) Holder.NODE).injector().getInstance(clazz);
+        return NODE.injector().getInstance(clazz);
     }
 
     /**
@@ -174,8 +210,8 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
         return instanceFromNode.indexServiceSafe(index);
     }
 
-    protected static InternalEngine engine(IndexService service) {
-       return ((InternalEngine)((InternalIndexShard)service.shard(0)).engine());
+    protected static org.elasticsearch.index.engine.Engine engine(IndexService service) {
+        return service.shard(0).engine();
     }
 
     /**
@@ -187,5 +223,35 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
         PageCacheRecycler pageCacheRecycler = indexService.injector().getInstance(PageCacheRecycler.class);
         return new TestSearchContext(threadPool, pageCacheRecycler, bigArrays, indexService, indexService.cache().filter(), indexService.fieldData());
     }
+
+    /**
+     * Ensures the cluster has a green state via the cluster health API. This method will also wait for relocations.
+     * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
+     * are now allocated and started.
+     */
+    public ClusterHealthStatus  ensureGreen(String... indices) {
+        return ensureGreen(TimeValue.timeValueSeconds(30), indices);
+    }
+
+
+    /**
+     * Ensures the cluster has a green state via the cluster health API. This method will also wait for relocations.
+     * It is useful to ensure that all action on the cluster have finished and all shards that were currently relocating
+     * are now allocated and started.
+     *
+     * @param timeout time out value to set on {@link org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest}
+     */
+    public ClusterHealthStatus ensureGreen(TimeValue timeout, String... indices) {
+        ClusterHealthResponse actionGet = client().admin().cluster()
+                .health(Requests.clusterHealthRequest(indices).timeout(timeout).waitForGreenStatus().waitForEvents(Priority.LANGUID).waitForRelocatingShards(0)).actionGet();
+        if (actionGet.isTimedOut()) {
+            logger.info("ensureGreen timed out, cluster state:\n{}\n{}", client().admin().cluster().prepareState().get().getState().prettyPrint(), client().admin().cluster().preparePendingClusterTasks().get().prettyPrint());
+            assertThat("timed out waiting for green state", actionGet.isTimedOut(), equalTo(false));
+        }
+        assertThat(actionGet.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        logger.debug("indices {} are green", indices.length == 0 ? "[_all]" : indices);
+        return actionGet.getStatus();
+    }
+
 
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.refresh;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -36,35 +37,20 @@ import java.io.IOException;
  */
 public class RefreshRequest extends BroadcastOperationRequest<RefreshRequest> {
 
-    private boolean force = true;
 
     RefreshRequest() {
+    }
+
+    /**
+     * Copy constructor that creates a new refresh request that is a copy of the one provided as an argument.
+     * The new request will inherit though headers and context from the original request that caused it.
+     */
+    public RefreshRequest(ActionRequest originalRequest) {
+        super(originalRequest);
     }
 
     public RefreshRequest(String... indices) {
         super(indices);
     }
 
-    public boolean force() {
-        return force;
-    }
-
-    /**
-     * Forces calling refresh, overriding the check that dirty operations even happened. Defaults
-     * to true (note, still lightweight if no refresh is needed).
-     */
-    public RefreshRequest force(boolean force) {
-        this.force = force;
-        return this;
-    }
-
-    public void readFrom(StreamInput in) throws IOException {
-        super.readFrom(in);
-        force = in.readBoolean();
-    }
-
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeBoolean(force);
-    }
 }

@@ -56,7 +56,6 @@ public class SingleThreadBulkStress {
                 .put("index.refresh_interval", "1s")
                 .put("index.merge.async", true)
                 .put("index.translog.flush_threshold_ops", 5000)
-                .put("gateway.type", "none")
                 .put(SETTING_NUMBER_OF_SHARDS, shardsCount)
                 .put(SETTING_NUMBER_OF_REPLICAS, replicaCount)
                 .build();

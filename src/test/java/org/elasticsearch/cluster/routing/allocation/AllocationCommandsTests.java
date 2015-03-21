@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -59,7 +60,7 @@ public class AllocationCommandsTests extends ElasticsearchAllocationTestCase {
 
         logger.info("creating an index with 1 shard, no replica");
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
@@ -106,7 +107,7 @@ public class AllocationCommandsTests extends ElasticsearchAllocationTestCase {
 
         logger.info("--> building initial routing table");
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
@@ -195,7 +196,7 @@ public class AllocationCommandsTests extends ElasticsearchAllocationTestCase {
 
         logger.info("--> building initial routing table");
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))

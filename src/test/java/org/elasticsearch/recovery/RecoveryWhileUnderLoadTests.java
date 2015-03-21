@@ -29,6 +29,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
@@ -50,14 +51,13 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadTests.class);
 
     @Test
-    @TestLogging("action.search.type:TRACE,action.admin.indices.refresh:TRACE")
     @Slow
     public void recoverWhileUnderLoadAllocateBackupsTest() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();
         assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
-        final int totalNumDocs = scaledRandomIntBetween(200, 20000);
+        final int totalNumDocs = scaledRandomIntBetween(200, 10000);
         int waitFor = totalNumDocs / 10;
         int extraDocs = waitFor;
         try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), extraDocs)) {
@@ -106,14 +106,13 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("action.search.type:TRACE,action.admin.indices.refresh:TRACE")
     @Slow
     public void recoverWhileUnderLoadAllocateBackupsRelocatePrimariesTest() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();
         assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
-        final int totalNumDocs = scaledRandomIntBetween(200, 20000);
+        final int totalNumDocs = scaledRandomIntBetween(200, 10000);
         int waitFor = totalNumDocs / 10;
         int extraDocs = waitFor;
         try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), extraDocs)) {
@@ -167,7 +166,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
         int numberOfShards = numberOfShards();
         assertAcked(prepareCreate("test", 2, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1)));
 
-        final int totalNumDocs = scaledRandomIntBetween(200, 20000);
+        final int totalNumDocs = scaledRandomIntBetween(200, 10000);
         int waitFor = totalNumDocs / 10;
         int extraDocs = waitFor;
         try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), extraDocs)) {
@@ -242,7 +241,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
         int allowNodes = 2;
         assertAcked(prepareCreate("test", 3, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numShards).put(SETTING_NUMBER_OF_REPLICAS, numReplicas)));
 
-        final int numDocs = scaledRandomIntBetween(200, 50000);
+        final int numDocs = scaledRandomIntBetween(200, 20000);
 
         try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), numDocs)) {
 
@@ -254,7 +253,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
                 allowNodes = 2 / allowNodes;
                 allowNodes("test", allowNodes);
                 logger.info("--> waiting for GREEN health status ...");
-                assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForGreenStatus());
+                ensureGreen(TimeValue.timeValueMinutes(5));
             }
 
             logger.info("--> marking and waiting for indexing threads to stop ...");
@@ -264,7 +263,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
             logger.info("--> bump up number of replicas to 1 and allow all nodes to hold the index");
             allowNodes("test", 3);
             assertAcked(client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder().put("number_of_replicas", 1)).get());
-            assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setTimeout("5m").setWaitForGreenStatus());
+            ensureGreen(TimeValue.timeValueMinutes(5));
 
             logger.info("--> refreshing the index");
             refreshAndAssert();
@@ -327,6 +326,7 @@ public class RecoveryWhileUnderLoadTests extends ElasticsearchIntegrationTest {
 
     private void refreshAndAssert() throws InterruptedException {
         assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object o) {
                 try {
                     RefreshResponse actionGet = client().admin().indices().prepareRefresh().execute().actionGet();

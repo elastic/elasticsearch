@@ -52,6 +52,14 @@ public class ClearScrollRequest extends ActionRequest<ClearScrollRequest> {
         scrollIds.add(scrollId);
     }
 
+    public List<String> scrollIds() {
+        return scrollIds;
+    }
+
+    public void scrollIds(List<String> scrollIds) {
+        this.scrollIds = scrollIds;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;

@@ -218,15 +218,7 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
         if (in.readBoolean()) {
             http = HttpStats.readHttpStats(in);
         }
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-            breaker = AllCircuitBreakerStats.readOptionalAllCircuitBreakerStats(in);
-        } else {
-            // If 1.3.0 or earlier, only a single CircuitBreakerStats can be read
-            CircuitBreakerStats fdStats = CircuitBreakerStats.readOptionalCircuitBreakerStats(in);
-            CircuitBreakerStats reqStats = new CircuitBreakerStats(CircuitBreaker.Name.REQUEST, 0, 0, 1.0, -1);
-            CircuitBreakerStats parentStats = new CircuitBreakerStats(CircuitBreaker.Name.PARENT, 0, 0, 1.0, -1);
-            breaker = new AllCircuitBreakerStats(new CircuitBreakerStats[] {parentStats, fdStats, reqStats});
-        }
+        breaker = AllCircuitBreakerStats.readOptionalAllCircuitBreakerStats(in);
 
     }
 
@@ -288,12 +280,7 @@ public class NodeStats extends NodeOperationResponse implements ToXContent {
             out.writeBoolean(true);
             http.writeTo(out);
         }
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-            out.writeOptionalStreamable(breaker);
-        } else {
-            // Writing to a 1.3.0 or earlier stream expects only a single breaker stats
-            out.writeOptionalStreamable(breaker == null ? null : breaker.getStats(CircuitBreaker.Name.FIELDDATA));
-        }
+        out.writeOptionalStreamable(breaker);
     }
 
     @Override

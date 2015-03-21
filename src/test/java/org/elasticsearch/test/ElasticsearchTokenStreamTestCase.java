@@ -28,13 +28,13 @@ import org.apache.lucene.analysis.BaseTokenStreamTestCase;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 
 @Listeners({
         ReproduceInfoPrinter.class
 })
-@ThreadLeakFilters(defaultFilters = true, filters = {ElasticsearchThreadFilter.class})
-@ThreadLeakScope(Scope.NONE)
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
 /**
@@ -45,5 +45,9 @@ public abstract class ElasticsearchTokenStreamTestCase extends BaseTokenStreamTe
 
     public static Version randomVersion() {
         return ElasticsearchTestCase.randomVersion(random());
+    }
+
+    public ImmutableSettings.Builder newAnalysisSettingsBuilder() {
+        return ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
     }
 }

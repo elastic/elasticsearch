@@ -19,6 +19,7 @@
 package org.elasticsearch.index.merge.policy;
 
 import org.apache.lucene.index.MergePolicy;
+import org.apache.lucene.index.TieredMergePolicy;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.store.Store;
@@ -31,7 +32,8 @@ public abstract class AbstractMergePolicyProvider<MP extends MergePolicy> extend
 
     protected AbstractMergePolicyProvider(Store store) {
         super(store.shardId(), store.indexSettings());
-        this.noCFSRatio = parseNoCFSRatio(indexSettings.get(INDEX_COMPOUND_FORMAT, Boolean.toString(store.suggestUseCompoundFile())));
+        // Default to Lucene's default:
+        this.noCFSRatio = parseNoCFSRatio(indexSettings.get(INDEX_COMPOUND_FORMAT, Double.toString(TieredMergePolicy.DEFAULT_NO_CFS_RATIO)));
     }
 
     public static double parseNoCFSRatio(String noCFSRatio) {

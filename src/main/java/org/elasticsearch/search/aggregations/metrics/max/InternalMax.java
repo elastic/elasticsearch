@@ -18,15 +18,18 @@
  */
 package org.elasticsearch.search.aggregations.metrics.max;
 
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
 *
@@ -52,8 +55,9 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
 
     InternalMax() {} // for serialization
 
-    public InternalMax(String name, double max) {
-        super(name);
+    public InternalMax(String name, double max, @Nullable ValueFormatter formatter, Map<String, Object> metaData) {
+        super(name, metaData);
+        this.valueFormatter = formatter;
         this.max = max;
     }
 
@@ -62,6 +66,7 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
         return max;
     }
 
+    @Override
     public double getValue() {
         return max;
     }
@@ -77,19 +82,17 @@ public class InternalMax extends InternalNumericMetricsAggregation.SingleValue i
         for (InternalAggregation aggregation : reduceContext.aggregations()) {
             max = Math.max(max, ((InternalMax) aggregation).max);
         }
-        return new InternalMax(name, max);
+        return new InternalMax(name, max, valueFormatter, getMetaData());
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         valueFormatter = ValueFormatterStreams.readOptional(in);
         max = in.readDouble();
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(valueFormatter, out);
         out.writeDouble(max);
     }

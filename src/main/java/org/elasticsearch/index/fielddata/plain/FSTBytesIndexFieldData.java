@@ -19,8 +19,9 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.*;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IntsRef;
+import org.apache.lucene.util.IntsRefBuilder;
 import org.apache.lucene.util.fst.FST;
 import org.apache.lucene.util.fst.FST.INPUT_TYPE;
 import org.apache.lucene.util.fst.PositiveIntOutputs;
@@ -58,13 +59,13 @@ public class FSTBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
     }
 
     @Override
-    public AtomicOrdinalsFieldData loadDirect(AtomicReaderContext context) throws Exception {
-        AtomicReader reader = context.reader();
+    public AtomicOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
+        LeafReader reader = context.reader();
 
         Terms terms = reader.terms(getFieldNames().indexName());
         AtomicOrdinalsFieldData data = null;
         // TODO: Use an actual estimator to estimate before loading.
-        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA));
+        NonEstimatingEstimator estimator = new NonEstimatingEstimator(breakerService.getBreaker(CircuitBreaker.FIELDDATA));
         if (terms == null) {
             data = AbstractAtomicOrdinalsFieldData.empty();
             estimator.afterLoad(null, data.ramBytesUsed());
@@ -72,7 +73,7 @@ public class FSTBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
         }
         PositiveIntOutputs outputs = PositiveIntOutputs.getSingleton();
         org.apache.lucene.util.fst.Builder<Long> fstBuilder = new org.apache.lucene.util.fst.Builder<>(INPUT_TYPE.BYTE1, outputs);
-        final IntsRef scratch = new IntsRef();
+        final IntsRefBuilder scratch = new IntsRefBuilder();
 
         final long numTerms;
         if (regex == null && frequency == null) {
@@ -87,12 +88,12 @@ public class FSTBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
             // we don't store an ord 0 in the FST since we could have an empty string in there and FST don't support
             // empty strings twice. ie. them merge fails for long output.
             TermsEnum termsEnum = filter(terms, reader);
-            DocsEnum docsEnum = null;
+            PostingsEnum docsEnum = null;
             for (BytesRef term = termsEnum.next(); term != null; term = termsEnum.next()) {
                 final long termOrd = builder.nextOrdinal();
                 fstBuilder.add(Util.toIntsRef(term, scratch), (long) termOrd);
-                docsEnum = termsEnum.docs(null, docsEnum, DocsEnum.FLAG_NONE);
-                for (int docId = docsEnum.nextDoc(); docId != DocsEnum.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
+                docsEnum = termsEnum.postings(null, docsEnum, PostingsEnum.NONE);
+                for (int docId = docsEnum.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docsEnum.nextDoc()) {
                     builder.addDoc(docId);
                 }
             }

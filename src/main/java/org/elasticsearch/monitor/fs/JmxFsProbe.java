@@ -25,6 +25,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.FileStore;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  */
@@ -39,19 +43,20 @@ public class JmxFsProbe extends AbstractComponent implements FsProbe {
     }
 
     @Override
-    public FsStats stats() {
+    public FsStats stats() throws IOException {
         if (!nodeEnv.hasNodeFile()) {
             return new FsStats(System.currentTimeMillis(), new FsStats.Info[0]);
         }
-        File[] dataLocations = nodeEnv.nodeDataLocations();
+        Path[] dataLocations = nodeEnv.nodeDataPaths();
         FsStats.Info[] infos = new FsStats.Info[dataLocations.length];
         for (int i = 0; i < dataLocations.length; i++) {
-            File dataLocation = dataLocations[i];
+            Path dataLocation = dataLocations[i];
             FsStats.Info info = new FsStats.Info();
-            info.path = dataLocation.getAbsolutePath();
-            info.total = dataLocation.getTotalSpace();
-            info.free = dataLocation.getFreeSpace();
-            info.available = dataLocation.getUsableSpace();
+            FileStore fileStore = Files.getFileStore(dataLocation);
+            info.path = dataLocation.toAbsolutePath().toString();
+            info.total = fileStore.getTotalSpace();
+            info.free = fileStore.getUnallocatedSpace();
+            info.available = fileStore.getUsableSpace();
             infos[i] = info;
         }
         return new FsStats(System.currentTimeMillis(), infos);

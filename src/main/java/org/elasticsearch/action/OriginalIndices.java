@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -31,23 +30,16 @@ import java.io.IOException;
  */
 public class OriginalIndices implements IndicesRequest {
 
-    public static OriginalIndices EMPTY = new OriginalIndices();
-
     private final String[] indices;
     private final IndicesOptions indicesOptions;
 
-    private OriginalIndices() {
-        this.indices = null;
-        this.indicesOptions = null;
-    }
-
     public OriginalIndices(IndicesRequest indicesRequest) {
-        this.indices = indicesRequest.indices();
-        this.indicesOptions = indicesRequest.indicesOptions();
+        this(indicesRequest.indices(), indicesRequest.indicesOptions());
     }
 
     public OriginalIndices(String[] indices, IndicesOptions indicesOptions) {
         this.indices = indices;
+        assert indicesOptions != null;
         this.indicesOptions = indicesOptions;
     }
 
@@ -61,39 +53,13 @@ public class OriginalIndices implements IndicesRequest {
         return indicesOptions;
     }
 
-    public static OriginalIndices readOptionalOriginalIndices(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-            boolean empty = in.readBoolean();
-            if (!empty) {
-                return new OriginalIndices(in.readStringArray(), IndicesOptions.readIndicesOptions(in));
-            }
-        }
-        return OriginalIndices.EMPTY;
-    }
-
-    public static void writeOptionalOriginalIndices(OriginalIndices originalIndices, StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-            boolean empty = originalIndices == EMPTY;
-            out.writeBoolean(empty);
-            if (!empty) {
-                out.writeStringArrayNullable(originalIndices.indices);
-                originalIndices.indicesOptions.writeIndicesOptions(out);
-            }
-        }
-    }
-
     public static OriginalIndices readOriginalIndices(StreamInput in) throws IOException {
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-            return new OriginalIndices(in.readStringArray(), IndicesOptions.readIndicesOptions(in));
-        }
-        return OriginalIndices.EMPTY;
+        return new OriginalIndices(in.readStringArray(), IndicesOptions.readIndicesOptions(in));
     }
 
 
     public static void writeOriginalIndices(OriginalIndices originalIndices, StreamOutput out) throws IOException {
-        if (out.getVersion().onOrAfter(Version.V_1_4_0)) {
-            out.writeStringArrayNullable(originalIndices.indices);
-            originalIndices.indicesOptions.writeIndicesOptions(out);
-        }
+        out.writeStringArrayNullable(originalIndices.indices);
+        originalIndices.indicesOptions.writeIndicesOptions(out);
     }
 }

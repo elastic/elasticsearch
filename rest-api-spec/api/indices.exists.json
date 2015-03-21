@@ -1,6 +1,6 @@
 {
   "indices.exists": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-get-settings.html",
+    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-exists.html",
     "methods": ["HEAD"],
     "url": {
       "path": "/{index}",
@@ -23,7 +23,7 @@
         },
         "expand_wildcards": {
             "type" : "enum",
-            "options" : ["open","closed"],
+            "options" : ["open","closed","none","all"],
             "default" : "open",
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         },

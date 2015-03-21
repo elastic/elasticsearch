@@ -22,19 +22,17 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
+import java.io.IOException;
+import java.util.Map;
+
 /**
  * A bucket aggregator that doesn't create new buckets.
  */
 public abstract class SingleBucketAggregator extends BucketsAggregator {
 
     protected SingleBucketAggregator(String name, AggregatorFactories factories,
-                                     AggregationContext aggregationContext, Aggregator parent) {
-        super(name, BucketAggregationMode.MULTI_BUCKETS, factories, parent == null ? 1 : parent.estimatedBucketCount(), aggregationContext, parent);
-    }
-
-    @Override
-    public boolean shouldCollect() {
-        return true;
+                                     AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
+        super(name, factories, aggregationContext, parent, metaData);
     }
 
 }

@@ -38,9 +38,9 @@ public class HungarianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Hun
     @Inject
     public HungarianAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        analyzer = new HungarianAnalyzer(version,
-                Analysis.parseStopWords(env, settings, HungarianAnalyzer.getDefaultStopSet(), version),
-                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET, version));
+        analyzer = new HungarianAnalyzer(Analysis.parseStopWords(env, settings, HungarianAnalyzer.getDefaultStopSet()),
+                                         Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer.setVersion(version);
     }
 
     @Override

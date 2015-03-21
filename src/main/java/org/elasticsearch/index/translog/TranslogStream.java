@@ -22,32 +22,21 @@ package org.elasticsearch.index.translog;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
-import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.nio.file.Path;
 
 /**
  * A translog stream that will read and write operations in the
  * version-specific format
  */
-public interface TranslogStream extends Closeable {
-
-    /**
-     * Read the next operation from the translog file, the stream <b>must</b>
-     * have been created through {@link TranslogStreams#translogStreamFor(java.io.File)}
-     */
-    public Translog.Operation read() throws IOException;
+public interface TranslogStream {
 
     /**
      * Read the next translog operation from the input stream
      */
     public Translog.Operation read(StreamInput in) throws IOException;
-
-    /**
-     * Read a translog operation from the given byte array, returning the
-     * {@link Translog.Source} object from the Operation
-     */
-    public Translog.Source readSource(byte[] data) throws IOException;
 
     /**
      * Write the given translog operation to the output stream
@@ -61,7 +50,8 @@ public interface TranslogStream extends Closeable {
     public int writeHeader(FileChannel channel) throws IOException;
 
     /**
-     * Close the stream opened with {@link TranslogStreams#translogStreamFor(java.io.File)}
+     * Seek past the header, if any header is present
      */
-    public void close() throws IOException;
+    public StreamInput openInput(Path translogFile) throws IOException;
+
 }

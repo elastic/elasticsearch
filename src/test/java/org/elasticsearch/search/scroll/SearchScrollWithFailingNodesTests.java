@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -53,7 +52,6 @@ public class SearchScrollWithFailingNodesTests extends ElasticsearchIntegrationT
     }
 
     @Test
-    @TestLogging("action.search:TRACE")
     public void testScanScrollWithShardExceptions() throws Exception {
         internalCluster().startNode();
         internalCluster().startNode();
@@ -108,7 +106,6 @@ public class SearchScrollWithFailingNodesTests extends ElasticsearchIntegrationT
             assertThat(searchResponse.getSuccessfulShards(), equalTo(numberOfSuccessfulShards));
         } while (searchResponse.getHits().hits().length > 0);
         assertThat(numHits, greaterThan(0l));
-        clearScroll("_all");
     }
 
 }

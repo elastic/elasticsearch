@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.util.English;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -36,8 +37,11 @@ import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.termvector.TermVectorResponse;
+import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -92,12 +96,12 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             final long version = randomIntBetween(0, Integer.MAX_VALUE);
             client().prepareIndex("test", "type1", id).setRouting(routingKey).setVersion(version).setVersionType(VersionType.EXTERNAL).setSource("field1", English.intToEnglish(i)).get();
             GetResponse get = client().prepareGet("test", "type1", id).setRouting(routingKey).setVersion(version).get();
-            assertThat("Document with ID " +id + " should exist but doesn't", get.isExists(), is(true));
+            assertThat("Document with ID " + id + " should exist but doesn't", get.isExists(), is(true));
             assertThat(get.getVersion(), equalTo(version));
             final long nextVersion = version + randomIntBetween(0, Integer.MAX_VALUE);
             client().prepareIndex("test", "type1", id).setRouting(routingKey).setVersion(nextVersion).setVersionType(VersionType.EXTERNAL).setSource("field1", English.intToEnglish(i)).get();
             get = client().prepareGet("test", "type1", id).setRouting(routingKey).setVersion(nextVersion).get();
-            assertThat("Document with ID " +id + " should exist but doesn't", get.isExists(), is(true));
+            assertThat("Document with ID " + id + " should exist but doesn't", get.isExists(), is(true));
             assertThat(get.getVersion(), equalTo(nextVersion));
         }
     }
@@ -115,11 +119,11 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             String id = Integer.toString(i);
             assertThat(id, client().prepareIndex("test", "type1", id).setRouting(routingKey).setSource("field1", English.intToEnglish(i)).get().isCreated(), is(true));
             GetResponse get = client().prepareGet("test", "type1", id).setRouting(routingKey).setVersion(1).get();
-            assertThat("Document with ID " +id + " should exist but doesn't", get.isExists(), is(true));
+            assertThat("Document with ID " + id + " should exist but doesn't", get.isExists(), is(true));
             assertThat(get.getVersion(), equalTo(1l));
             client().prepareIndex("test", "type1", id).setRouting(routingKey).setSource("field1", English.intToEnglish(i)).execute().actionGet();
             get = client().prepareGet("test", "type1", id).setRouting(routingKey).setVersion(2).get();
-            assertThat("Document with ID " +id + " should exist but doesn't", get.isExists(), is(true));
+            assertThat("Document with ID " + id + " should exist but doesn't", get.isExists(), is(true));
             assertThat(get.getVersion(), equalTo(2l));
         }
 
@@ -148,23 +152,54 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     @Test
     public void testRecoverFromPreviousVersion() throws ExecutionException, InterruptedException {
+        if (backwardsCluster().numNewDataNodes() == 0) {
+            backwardsCluster().startNewNode();
+        }
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings())));
         ensureYellow();
         assertAllShardsOnNodes("test", backwardsCluster().backwardsNodePattern());
         int numDocs = randomIntBetween(100, 150);
+        ArrayList<String> ids = new ArrayList<>();
+        logger.info(" --> indexing [{}] docs", numDocs);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];
         for (int i = 0; i < numDocs; i++) {
-            docs[i] = client().prepareIndex("test", "type1", randomRealisticUnicodeOfLength(10) + String.valueOf(i)).setSource("field1", English.intToEnglish(i));
+            String id = randomRealisticUnicodeOfLength(10) + String.valueOf(i);
+            ids.add(id);
+            docs[i] = client().prepareIndex("test", "type1", id).setSource("field1", English.intToEnglish(i));
         }
         indexRandom(true, docs);
         CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
-        backwardsCluster().allowOnlyNewNodes("test");
-        ensureYellow("test");// move all shards to the new node
+
+        if (randomBoolean()) {
+            logger.info(" --> moving index to new nodes");
+            backwardsCluster().allowOnlyNewNodes("test");
+        } else {
+            logger.info(" --> allow index to on all nodes");
+            backwardsCluster().allowOnAllNodes("test");
+        }
+
+        logger.info(" --> indexing [{}] more docs", numDocs);
+        // sometimes index while relocating
+        if (randomBoolean()) {
+            for (int i = 0; i < numDocs; i++) {
+                String id = randomRealisticUnicodeOfLength(10) + String.valueOf(numDocs + i);
+                ids.add(id);
+                docs[i] = client().prepareIndex("test", "type1", id).setSource("field1", English.intToEnglish(numDocs + i));
+            }
+            indexRandom(true, docs);
+            if (compatibilityVersion().before(Version.V_1_3_0)) {
+                // issue another refresh through a new node to side step issue #6545
+                assertNoFailures(backwardsCluster().internalCluster().dataNodeClient().admin().indices().prepareRefresh().setIndicesOptions(IndicesOptions.lenientExpandOpen()).execute().get());
+            }
+            numDocs *= 2;
+        }
+
+        logger.info(" --> waiting for relocation to complete", numDocs);
+        ensureYellow("test");// move all shards to the new node (it waits on relocation)
         final int numIters = randomIntBetween(10, 20);
         for (int i = 0; i < numIters; i++) {
-            countResponse = client().prepareCount().get();
-            assertHitCount(countResponse, numDocs);
+            assertSearchHits(client().prepareSearch().setSize(ids.size()).get(), ids.toArray(new String[ids.size()]));
         }
         assertVersionCreated(compatibilityVersion(), "test");
     }
@@ -190,7 +225,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         }
         indexRandom(true, docs);
         backwardsCluster().allowOnAllNodes("test");
-        while(ensureYellow() != ClusterHealthStatus.GREEN) {
+        while (ensureYellow() != ClusterHealthStatus.GREEN) {
             backwardsCluster().startNewNode();
         }
         assertAllShardsOnNodes("test", backwardsCluster().newNodePattern());
@@ -207,7 +242,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
 
     public void assertSimpleSort(String... numericFields) {
-        for(String field : numericFields) {
+        for (String field : numericFields) {
             SearchResponse searchResponse = client().prepareSearch().addSort(field, SortOrder.ASC).get();
             SearchHit[] hits = searchResponse.getHits().getHits();
             assertThat(hits.length, greaterThan(0));
@@ -222,12 +257,13 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         }
     }
 
+    @Override
     public void assertAllShardsOnNodes(String index, String pattern) {
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                 for (ShardRouting shardRouting : indexShardRoutingTable) {
-                    if (shardRouting.currentNodeId() != null &&  index.equals(shardRouting.getIndex())) {
+                    if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndex())) {
                         String name = clusterState.nodes().get(shardRouting.currentNodeId()).name();
                         assertThat("Allocated on new node: " + name, Regex.simpleMatch(pattern, name), is(true));
                     }
@@ -280,7 +316,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
      */
     @Test
     public void testIndexRollingUpgrade() throws Exception {
-        String[] indices = new String[randomIntBetween(1,3)];
+        String[] indices = new String[randomIntBetween(1, 3)];
         for (int i = 0; i < indices.length; i++) {
             indices[i] = "test" + i;
             assertAcked(prepareCreate(indices[i]).setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings())));
@@ -315,11 +351,12 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             indexRandom(true, docs);
         } while (upgraded);
         client().admin().indices().prepareUpdateSettings(indices).setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
-        CountResponse countResponse  = client().prepareCount().get();
+        ensureYellow();
+        CountResponse countResponse = client().prepareCount().get();
         assertHitCount(countResponse, numDocs);
         assertSimpleSort("num_double", "num_int");
 
-        String[] newIndices = new String[randomIntBetween(1,3)];
+        String[] newIndices = new String[randomIntBetween(1, 3)];
 
         for (int i = 0; i < newIndices.length; i++) {
             newIndices[i] = "new_index" + i;
@@ -331,7 +368,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     public void assertVersionCreated(Version version, String... indices) {
         GetSettingsResponse getSettingsResponse = client().admin().indices().prepareGetSettings(indices).get();
-        ImmutableOpenMap<String,Settings> indexToSettings = getSettingsResponse.getIndexToSettings();
+        ImmutableOpenMap<String, Settings> indexToSettings = getSettingsResponse.getIndexToSettings();
         for (String index : indices) {
             Settings settings = indexToSettings.get(index);
             assertThat(settings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null), notNullValue());
@@ -339,33 +376,27 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         }
     }
 
+
     @Test
     public void testUnsupportedFeatures() throws IOException {
-        if (compatibilityVersion().before(Version.V_1_3_0)) {
-            XContentBuilder mapping = XContentBuilder.builder(JsonXContent.jsonXContent)
-                    .startObject()
-                        .startObject("type")
-                            .startObject(FieldNamesFieldMapper.NAME)
-                               // by setting randomly index to no we also test the pre-1.3 behavior
-                                .field("index", randomFrom("no", "not_analyzed"))
-                                .field("store", randomFrom("no", "yes"))
-                            .endObject()
+        XContentBuilder mapping = XContentBuilder.builder(JsonXContent.jsonXContent)
+                .startObject()
+                    .startObject("type")
+                        .startObject(FieldNamesFieldMapper.NAME)
+                           // by setting randomly index to no we also test the pre-1.3 behavior
+                            .field("index", randomFrom("no", "not_analyzed"))
+                            .field("store", randomFrom("no", "yes"))
                         .endObject()
-                    .endObject();
+                    .endObject()
+                .endObject();
 
-            try {
-                assertAcked(prepareCreate("test").
+        try {
+            assertAcked(prepareCreate("test").
                     setSettings(ImmutableSettings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern()).put(indexSettings()))
                     .addMapping("type", mapping));
-            } catch (MapperParsingException ex) {
-                if (getMasterVersion().onOrAfter(Version.V_1_3_0)) {
-                    assertThat(ex.getCause(), instanceOf(ElasticsearchIllegalArgumentException.class));
-                    assertThat(ex.getCause().getMessage(), equalTo("type=_field_names is not supported on indices created before version 1.3.0 is your cluster running multiple datanode versions?"));
-                } else {
-                    assertThat(ex.getCause(), instanceOf(MapperParsingException.class));
-                    assertThat(ex.getCause().getMessage(), startsWith("Root type mapping not empty after parsing!"));
-                }
-            }
+        } catch (MapperParsingException ex) {
+            assertThat(ex.getCause(), instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(ExceptionsHelper.detailedMessage(ex).contains("type=_field_names is not supported on indices created before version 1.3.0"), equalTo(true));
         }
 
     }
@@ -376,15 +407,18 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
      */
     @Test
     public void testExistsFilter() throws IOException, ExecutionException, InterruptedException {
-        assumeTrue("this test fails often with 1.0.3 skipping for now....",compatibilityVersion().onOrAfter(Version.V_1_1_0));
-        for (;;)  {
-            createIndex("test");
+        int indexId = 0;
+        String indexName;
+
+        for (; ; ) {
+            indexName = "test_"+indexId++;
+            createIndex(indexName);
             ensureYellow();
             indexRandom(true,
-                    client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x1", "x_1").field("field1", "value1_1").field("field2", "value2_1").endObject()),
-                    client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x2", "x_2").field("field1", "value1_2").endObject()),
-                    client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y1", "y_1").field("field2", "value2_3").endObject()),
-                    client().prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y2", "y_2").field("field3", "value3_4").endObject()));
+                    client().prepareIndex(indexName, "type1", "1").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x1", "x_1").field("field1", "value1_1").field("field2", "value2_1").endObject()),
+                    client().prepareIndex(indexName, "type1", "2").setSource(jsonBuilder().startObject().startObject("obj1").field("obj1_val", "1").endObject().field("x2", "x_2").field("field1", "value1_2").endObject()),
+                    client().prepareIndex(indexName, "type1", "3").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y1", "y_1").field("field2", "value2_3").endObject()),
+                    client().prepareIndex(indexName, "type1", "4").setSource(jsonBuilder().startObject().startObject("obj2").field("obj2_val", "1").endObject().field("y2", "y_2").field("field3", "value3_4").endObject()));
 
             CountResponse countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field1"))).get();
             assertHitCount(countResponse, 2l);
@@ -392,7 +426,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             countResponse = client().prepareCount().setQuery(constantScoreQuery(existsFilter("field1"))).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(queryString("_exists_:field1")).get();
+            countResponse = client().prepareCount().setQuery(queryStringQuery("_exists_:field1")).get();
             assertHitCount(countResponse, 2l);
 
             countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), existsFilter("field2"))).get();
@@ -418,7 +452,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             countResponse = client().prepareCount().setQuery(constantScoreQuery(missingFilter("field1"))).get();
             assertHitCount(countResponse, 2l);
 
-            countResponse = client().prepareCount().setQuery(queryString("_missing_:field1")).get();
+            countResponse = client().prepareCount().setQuery(queryStringQuery("_missing_:field1")).get();
             assertHitCount(countResponse, 2l);
 
             // wildcard check
@@ -429,14 +463,14 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
             countResponse = client().prepareCount().setQuery(filteredQuery(matchAllQuery(), missingFilter("obj1"))).get();
             assertHitCount(countResponse, 2l);
             if (!backwardsCluster().upgradeOneNode()) {
-                 break;
+                break;
             }
             ensureYellow();
-            assertVersionCreated(compatibilityVersion(), "test"); // we had an old node in the cluster so we have to be on the compat version
-            assertAcked(client().admin().indices().prepareDelete("test"));
+            assertVersionCreated(compatibilityVersion(), indexName); // we had an old node in the cluster so we have to be on the compat version
+            assertAcked(client().admin().indices().prepareDelete(indexName));
         }
 
-        assertVersionCreated(Version.CURRENT, "test"); // after upgrade we have current version
+        assertVersionCreated(Version.CURRENT, indexName); // after upgrade we have current version
     }
 
 
@@ -459,13 +493,13 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
         SearchResponse searchResponse = client().prepareSearch("test").get();
         assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo((long)numDocs + 1));
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs + 1));
 
         DeleteByQueryResponse deleteByQueryResponse = client().prepareDeleteByQuery("test").setQuery(QueryBuilders.termQuery("field", "value")).get();
         assertThat(deleteByQueryResponse.getIndices().size(), equalTo(1));
         for (IndexDeleteByQueryResponse indexDeleteByQueryResponse : deleteByQueryResponse) {
             assertThat(indexDeleteByQueryResponse.getIndex(), equalTo("test"));
-            assertThat(indexDeleteByQueryResponse.getFailures().length, equalTo(0));
+            assertThat(indexDeleteByQueryResponse.getShardInfo().getFailures().length, equalTo(0));
         }
 
         refresh();
@@ -501,7 +535,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs));
 
-        //use routing
         DeleteResponse deleteResponse = client().prepareDelete("test", "test", firstDocId).setRouting("routing").get();
         assertThat(deleteResponse.isFound(), equalTo(true));
         GetResponse getResponse = client().prepareGet("test", "test", firstDocId).setRouting("routing").get();
@@ -510,17 +543,6 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         searchResponse = client().prepareSearch("test").get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs - 1));
-
-        //don't use routing and trigger a broadcast delete
-        deleteResponse = client().prepareDelete("test", "test", secondDocId).get();
-        assertThat(deleteResponse.isFound(), equalTo(true));
-
-        getResponse = client().prepareGet("test", "test", secondDocId).setRouting(secondRouting).get();
-        assertThat(getResponse.isExists(), equalTo(false));
-        refresh();
-        searchResponse = client().prepareSearch("test").setSize(numDocs).get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs - 2));
     }
 
     @Test
@@ -557,7 +579,7 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch(indexOrAlias()).get();
-        assertThat(searchResponse.getHits().totalHits(), equalTo((long)numDocs - 1));
+        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs - 1));
     }
 
     @Test
@@ -628,10 +650,10 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
                 .setSource("field", "the quick brown fox jumps over the lazy dog").get();
         refresh();
 
-        TermVectorResponse termVectorResponse = client().prepareTermVector(indexOrAlias(), "type1", "1").get();
-        assertThat(termVectorResponse.getIndex(), equalTo("test"));
-        assertThat(termVectorResponse.isExists(), equalTo(true));
-        Fields fields = termVectorResponse.getFields();
+        TermVectorsResponse termVectorsResponse = client().prepareTermVectors(indexOrAlias(), "type1", "1").get();
+        assertThat(termVectorsResponse.getIndex(), equalTo("test"));
+        assertThat(termVectorsResponse.isExists(), equalTo(true));
+        Fields fields = termVectorsResponse.getFields();
         assertThat(fields.size(), equalTo(1));
         assertThat(fields.terms("field").size(), equalTo(8l));
     }
@@ -679,16 +701,54 @@ public class BasicBackwardsCompatibilityTest extends ElasticsearchBackwardsCompa
 
     }
 
+    @Test
+    public void testScroll() throws ExecutionException, InterruptedException {
+        createIndex("test");
+        ensureYellow("test");
+
+        int numDocs = iterations(10, 100);
+        IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < numDocs; i++) {
+            indexRequestBuilders[i] = client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + Integer.toString(i));
+        }
+        indexRandom(true, indexRequestBuilders);
+
+        int size = randomIntBetween(1, 10);
+        SearchRequestBuilder searchRequestBuilder = client().prepareSearch("test").setScroll("1m").setSize(size);
+        boolean scan = randomBoolean();
+        if (scan) {
+            searchRequestBuilder.setSearchType(SearchType.SCAN);
+        }
+
+        SearchResponse searchResponse = searchRequestBuilder.get();
+        assertThat(searchResponse.getScrollId(), notNullValue());
+        assertHitCount(searchResponse, numDocs);
+        int hits = 0;
+        if (scan) {
+            assertThat(searchResponse.getHits().getHits().length, equalTo(0));
+        } else {
+            assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
+            hits += searchResponse.getHits().getHits().length;
+        }
+
+        try {
+            do {
+                searchResponse = client().prepareSearchScroll(searchResponse.getScrollId()).setScroll("1m").get();
+                assertThat(searchResponse.getScrollId(), notNullValue());
+                assertHitCount(searchResponse, numDocs);
+                hits += searchResponse.getHits().getHits().length;
+            } while (searchResponse.getHits().getHits().length > 0);
+            assertThat(hits, equalTo(numDocs));
+        } finally {
+            clearScroll(searchResponse.getScrollId());
+        }
+    }
+
     private static String indexOrAlias() {
         return randomBoolean() ? "test" : "alias";
     }
 
     private void createIndexWithAlias() {
-        if (compatibilityVersion().onOrAfter(Version.V_1_1_0)) {
-            assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
-        } else {
-            assertAcked(prepareCreate("test"));
-            assertAcked(client().admin().indices().prepareAliases().addAlias("test", "alias"));
-        }
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
     }
 }

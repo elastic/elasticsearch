@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.fielddata.ordinals;
 
+import org.apache.lucene.index.MultiDocValues.OrdinalMap;
 import org.apache.lucene.index.RandomAccessOrds;
-import org.apache.lucene.index.XOrdinalMap;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.index.fielddata.AbstractRandomAccessOrds;
@@ -31,11 +31,11 @@ import org.elasticsearch.index.fielddata.AbstractRandomAccessOrds;
 public class GlobalOrdinalMapping extends AbstractRandomAccessOrds {
 
     private final RandomAccessOrds values;
-    private final XOrdinalMap ordinalMap;
+    private final OrdinalMap ordinalMap;
     private final LongValues mapping;
     private final RandomAccessOrds[] bytesValues;
 
-    GlobalOrdinalMapping(XOrdinalMap ordinalMap, RandomAccessOrds[] bytesValues, int segmentIndex) {
+    GlobalOrdinalMapping(OrdinalMap ordinalMap, RandomAccessOrds[] bytesValues, int segmentIndex) {
         super();
         this.values = bytesValues[segmentIndex];
         this.bytesValues = bytesValues;

@@ -34,14 +34,11 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.gateway.IndexShardGatewayService;
-import org.elasticsearch.index.service.InternalIndexService;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryStatus;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -59,15 +56,13 @@ public class TransportRecoveryAction extends
         TransportBroadcastOperationAction<RecoveryRequest, RecoveryResponse, TransportRecoveryAction.ShardRecoveryRequest, ShardRecoveryResponse> {
 
     private final IndicesService indicesService;
-    private final RecoveryTarget recoveryTarget;
 
     @Inject
     public TransportRecoveryAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                   TransportService transportService, IndicesService indicesService, RecoveryTarget recoveryTarget, ActionFilters actionFilters) {
+                                   TransportService transportService, IndicesService indicesService, ActionFilters actionFilters) {
 
         super(settings, RecoveryAction.NAME, threadPool, clusterService, transportService, actionFilters);
         this.indicesService = indicesService;
-        this.recoveryTarget = recoveryTarget;
     }
 
     @Override
@@ -101,6 +96,12 @@ public class TransportRecoveryAction extends
             } else {
                 ShardRecoveryResponse recoveryResponse = (ShardRecoveryResponse) shardResponse;
                 successfulShards++;
+
+                if (recoveryResponse.recoveryState() == null) {
+                    // recovery not yet started
+                    continue;
+                }
+
                 String indexName = recoveryResponse.getIndex();
                 List<ShardRecoveryResponse> responses = shardResponses.get(indexName);
 
@@ -142,26 +143,11 @@ public class TransportRecoveryAction extends
     @Override
     protected ShardRecoveryResponse shardOperation(ShardRecoveryRequest request) throws ElasticsearchException {
 
-        InternalIndexService indexService = (InternalIndexService) indicesService.indexServiceSafe(request.shardId().getIndex());
-        InternalIndexShard indexShard = (InternalIndexShard) indexService.shardSafe(request.shardId().id());
-        ShardRouting shardRouting = indexShard.routingEntry();
+        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
         ShardRecoveryResponse shardRecoveryResponse = new ShardRecoveryResponse(request.shardId());
 
-        RecoveryState state;
-        RecoveryStatus recoveryStatus = indexShard.recoveryStatus();
-
-        if (recoveryStatus == null) {
-            recoveryStatus = recoveryTarget.recoveryStatus(indexShard);
-        }
-
-        if (recoveryStatus != null) {
-            state = recoveryStatus.recoveryState();
-        } else {
-            IndexShardGatewayService gatewayService =
-                    indexService.shardInjector(request.shardId().id()).getInstance(IndexShardGatewayService.class);
-            state = gatewayService.recoveryState();
-        }
-
+        RecoveryState state = indexShard.recoveryState();
         shardRecoveryResponse.recoveryState(state);
         return shardRecoveryResponse;
     }
@@ -183,7 +169,8 @@ public class TransportRecoveryAction extends
 
     static class ShardRecoveryRequest extends BroadcastShardOperationRequest {
 
-        ShardRecoveryRequest() { }
+        ShardRecoveryRequest() {
+        }
 
         ShardRecoveryRequest(ShardId shardId, RecoveryRequest request) {
             super(shardId, request);

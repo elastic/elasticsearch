@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.ObjectObjectOpenHashMap;
 import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -124,6 +125,26 @@ public abstract class ParseContext {
                 }
             }
             return f.toArray(new IndexableField[f.size()]);
+        }
+
+        /**
+         * Returns an array of values of the field specified as the method parameter.
+         * This method returns an empty array when there are no
+         * matching fields.  It never returns null.
+         * For {@link org.apache.lucene.document.IntField}, {@link org.apache.lucene.document.LongField}, {@link
+         * org.apache.lucene.document.FloatField} and {@link org.apache.lucene.document.DoubleField} it returns the string value of the number.
+         * If you want the actual numeric field instances back, use {@link #getFields}.
+         * @param name the name of the field
+         * @return a <code>String[]</code> of field values
+         */
+        public final String[] getValues(String name) {
+            List<String> result = new ArrayList<>();
+            for (IndexableField field : fields) {
+                if (field.name().equals(name) && field.stringValue() != null) {
+                    result.add(field.stringValue());
+                }
+            }
+            return result.toArray(new String[result.size()]);
         }
 
         public IndexableField getField(String name) {
@@ -334,16 +355,6 @@ public abstract class ParseContext {
         }
 
         @Override
-        public Analyzer analyzer() {
-            return in.analyzer();
-        }
-
-        @Override
-        public void analyzer(Analyzer analyzer) {
-            in.analyzer(analyzer);
-        }
-
-        @Override
         public boolean externalValueSet() {
             return in.externalValueSet();
         }
@@ -383,8 +394,6 @@ public abstract class ParseContext {
         private Document document;
 
         private List<Document> documents = Lists.newArrayList();
-
-        private Analyzer analyzer;
 
         private final String index;
 
@@ -428,7 +437,6 @@ public abstract class ParseContext {
             } else {
                 this.documents = null;
             }
-            this.analyzer = null;
             this.uid = null;
             this.version = null;
             this.id = null;
@@ -443,108 +451,134 @@ public abstract class ParseContext {
             this.docBoost = 1.0f;
         }
 
+        @Override
         public boolean flyweight() {
             return sourceToParse.flyweight();
         }
 
+        @Override
         public DocumentMapperParser docMapperParser() {
             return this.docMapperParser;
         }
 
+        @Override
         public boolean mappingsModified() {
             return this.mappingsModified;
         }
 
+        @Override
         public void setMappingsModified() {
             this.mappingsModified = true;
         }
 
+        @Override
         public void setWithinNewMapper() {
             this.withinNewMapper = true;
         }
 
+        @Override
         public void clearWithinNewMapper() {
             this.withinNewMapper = false;
         }
 
+        @Override
         public boolean isWithinNewMapper() {
             return withinNewMapper;
         }
 
+        @Override
         public String index() {
             return this.index;
         }
 
+        @Override
         @Nullable
         public Settings indexSettings() {
             return this.indexSettings;
         }
 
+        @Override
         public String type() {
             return sourceToParse.type();
         }
 
+        @Override
         public SourceToParse sourceToParse() {
             return this.sourceToParse;
         }
 
+        @Override
         public BytesReference source() {
             return source;
         }
 
         // only should be used by SourceFieldMapper to update with a compressed source
+        @Override
         public void source(BytesReference source) {
             this.source = source;
         }
 
+        @Override
         public ContentPath path() {
             return this.path;
         }
 
+        @Override
         public XContentParser parser() {
             return this.parser;
         }
 
+        @Override
         public DocumentMapper.ParseListener listener() {
             return this.listener;
         }
 
+        @Override
         public Document rootDoc() {
             return documents.get(0);
         }
 
+        @Override
         public List<Document> docs() {
             return this.documents;
         }
 
+        @Override
         public Document doc() {
             return this.document;
         }
 
+        @Override
         public void addDoc(Document doc) {
             this.documents.add(doc);
         }
 
+        @Override
         public RootObjectMapper root() {
             return docMapper.root();
         }
 
+        @Override
         public DocumentMapper docMapper() {
             return this.docMapper;
         }
 
+        @Override
         public AnalysisService analysisService() {
             return docMapperParser.analysisService;
         }
 
+        @Override
         public String id() {
             return id;
         }
 
+        @Override
         public void ignoredValue(String indexName, String value) {
             ignoredValues.put(indexName, value);
         }
 
+        @Override
         public String ignoredValue(String indexName) {
             return ignoredValues.get(indexName);
         }
@@ -552,10 +586,12 @@ public abstract class ParseContext {
         /**
          * Really, just the id mapper should set this.
          */
+        @Override
         public void id(String id) {
             this.id = id;
         }
 
+        @Override
         public Field uid() {
             return this.uid;
         }
@@ -563,34 +599,32 @@ public abstract class ParseContext {
         /**
          * Really, just the uid mapper should set this.
          */
+        @Override
         public void uid(Field uid) {
             this.uid = uid;
         }
 
+        @Override
         public Field version() {
             return this.version;
         }
 
+        @Override
         public void version(Field version) {
             this.version = version;
         }
 
+        @Override
         public AllEntries allEntries() {
             return this.allEntries;
         }
 
-        public Analyzer analyzer() {
-            return this.analyzer;
-        }
-
-        public void analyzer(Analyzer analyzer) {
-            this.analyzer = analyzer;
-        }
-
+        @Override
         public float docBoost() {
             return this.docBoost;
         }
 
+        @Override
         public void docBoost(float docBoost) {
             this.docBoost = docBoost;
         }
@@ -599,6 +633,7 @@ public abstract class ParseContext {
          * A string builder that can be used to construct complex names for example.
          * Its better to reuse the.
          */
+        @Override
         public StringBuilder stringBuilder() {
             stringBuilder.setLength(0);
             return this.stringBuilder;
@@ -741,7 +776,7 @@ public abstract class ParseContext {
     public abstract void version(Field version);
 
     public final boolean includeInAll(Boolean includeInAll, FieldMapper mapper) {
-        return includeInAll(includeInAll, mapper.fieldType().indexed());
+        return includeInAll(includeInAll, mapper.fieldType().indexOptions() != IndexOptions.NONE);
     }
 
     /**
@@ -767,10 +802,6 @@ public abstract class ParseContext {
     }
 
     public abstract AllEntries allEntries();
-
-    public abstract Analyzer analyzer();
-
-    public abstract void analyzer(Analyzer analyzer);
 
     /**
      * Return a new context that will have the external value set.

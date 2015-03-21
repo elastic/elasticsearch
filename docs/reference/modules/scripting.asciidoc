@@ -6,14 +6,80 @@ expressions. For example, scripts can be used to return "script fields"
 as part of a search request, or can be used to evaluate a custom score
 for a query and so on.
 
-deprecated[1.3.0,Mvel has been deprecated and will be removed in 1.4.0]
-
-added[1.3.0,Groovy scripting support]
-
 The scripting module uses by default http://groovy.codehaus.org/[groovy]
 (previously http://mvel.codehaus.org/[mvel] in 1.3.x and earlier) as the
 scripting language with some extensions. Groovy is used since it is extremely
 fast and very simple to use.
+
+.Groovy dynamic scripting disabled by default from v1.4.3
+[IMPORTANT]
+===================================================
+
+Elasticsearch versions 1.3.0-1.3.7 and 1.4.0-1.4.2 have a vulnerability in the
+Groovy scripting engine.  The vulnerability allows an attacker to construct
+Groovy scripts that escape the sandbox and execute shell commands as the user
+running the Elasticsearch Java VM.
+
+If you are running a vulnerable version of Elasticsearch, you should either
+upgrade to at least v1.3.8 or v1.4.3, or disable dynamic Groovy scripts by
+adding this setting to the `config/elasticsearch.yml` file in all nodes in the
+cluster:
+
+[source,yaml]
+-----------------------------------
+script.groovy.sandbox.enabled: false
+-----------------------------------
+
+This will turn off the Groovy sandbox, thus preventing dynamic Groovy scripts
+from being accepted as part of a request or retrieved from the special
+`.scripts` index. You will still be able to use Groovy scripts stored in files
+in the `config/scripts/` directory on every node.
+
+To convert an inline script to a file, take this simple script
+as an example:
+
+[source,json]
+-----------------------------------
+GET /_search
+{
+    "script_fields": {
+        "my_field": {
+            "script": "1 + my_var",
+            "params": {
+              "my_var": 2
+            }
+        }
+    }
+}
+-----------------------------------
+
+Save the contents of the script as a file called `config/scripts/my_script.groovy`
+on every data node in the cluster:
+
+[source,js]
+-----------------------------------
+1 + my_var
+-----------------------------------
+
+Now you can access the script by file name (without the extension):
+
+[source,json]
+-----------------------------------
+GET /_search
+{
+    "script_fields": {
+        "my_field": {
+            "script_file": "my_test",
+            "params": {
+              "my_var": 2
+            }
+        }
+    }
+}
+-----------------------------------
+
+===================================================
+
 
 Additional `lang` plugins are provided to allow to execute scripts in
 different languages. Currently supported plugins are `lang-javascript`
@@ -22,8 +88,6 @@ All places where a `script` parameter can be used, a `lang` parameter
 (on the same level) can be provided to define the language of the
 script. The `lang` options are `groovy`, `js`, `mvel`, `python`,
 `expression` and `native`.
-
-added[1.2.0, Dynamic scripting is disabled for non-sandboxed languages by default since version 1.2.0]
 
 To increase security, Elasticsearch does not allow you to specify scripts for
 non-sandboxed languages with a request. Instead, scripts must be placed in the
@@ -62,7 +126,7 @@ curl -XPOST localhost:9200/_search -d '{
       "functions": [
         {
           "script_score": {
-            "script": "calculate-score",
+            "script_file": "calculate-score",
             "params": {
               "my_modifier": 8
             }
@@ -230,12 +294,12 @@ that can be used for configuring this sandbox:
 
 `script.groovy.sandbox.enabled`::
 
-    Flag to disable the sandbox (defaults to `true` meaning the sandbox is
-    enabled).
+    Flag to disable the sandbox (defaults to `false` added[v1.4.3] meaning the sandbox is
+    disabled).
 
 When specifying whitelist or blacklist settings for the groovy sandbox, all
 options replace the current whitelist, they are not additive.
-    
+
 [float]
 === Automatic Script Reloading
 
@@ -305,8 +369,7 @@ There are a few limitations relative to other script languages:
 === Score
 
 In all scripts that can be used in aggregations, the current
-document's score is accessible in `doc.score`.  When using a `script_score`,
-the current score is available in `_score`.
+document's score is accessible in `_score`.
 
 [float]
 === Computing scores based on terms in scripts
@@ -321,7 +384,9 @@ The `doc['field_name']` can be used to access specific field data within
 a document (the document in question is usually derived by the context
 the script is used). Document fields are very fast to access since they
 end up being loaded into memory (all the relevant field values/tokens
-are loaded to memory).
+are loaded to memory). Note, however, that the `doc[...]` notation only
+allows for simple valued fields (can’t return a json object from it)
+and makes sense only on non-analyzed or single term based fields.
 
 The following data can be extracted from a field:
 
@@ -407,6 +472,13 @@ Stored fields can also be accessed when executing a script. Note, they
 are much slower to access compared with document fields, as they are not
 loaded into memory. They can be simply accessed using
 `_fields['my_field_name'].value` or `_fields['my_field_name'].values`.
+
+[float]
+=== Accessing the score of a document within a script
+
+When using scripting for calculating the score of a document (for instance, with
+the `function_score` query), you can access the score using the `_score`
+variable inside of a Groovy script.
 
 [float]
 === Source Field

@@ -19,21 +19,24 @@
 
 package org.elasticsearch.cluster.routing;
 
+
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.operation.OperationRouting;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ElasticsearchTestCase;
 
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.util.Arrays;
 
 public class RoutingBackwardCompatibilityTests extends ElasticsearchTestCase {
 
     public void testBackwardCompatibility() throws Exception {
-        InternalNode node = new InternalNode();
+        Node node = new Node();
         try {
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(RoutingBackwardCompatibilityTests.class.getResourceAsStream("/org/elasticsearch/cluster/routing/shard_routes.txt"), "UTF-8"))) {
                 for (String line = reader.readLine(); line != null; line = reader.readLine()) {
@@ -41,19 +44,29 @@ public class RoutingBackwardCompatibilityTests extends ElasticsearchTestCase {
                         continue;
                     }
                     String[] parts = line.split("\t");
-                    assertEquals(6, parts.length);
+                    assertEquals(Arrays.toString(parts), 7, parts.length);
                     final String index = parts[0];
                     final int numberOfShards = Integer.parseInt(parts[1]);
                     final String type = parts[2];
                     final String id = parts[3];
                     final String routing = "null".equals(parts[4]) ? null : parts[4];
-                    final int expectedShardId = Integer.parseInt(parts[5]);
-                    IndexMetaData indexMetaData = IndexMetaData.builder(index).numberOfShards(numberOfShards).numberOfReplicas(randomInt(3)).build();
-                    MetaData.Builder metaData = MetaData.builder().put(indexMetaData, false);
-                    RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetaData).build();
-                    ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+                    final int pre20ExpectedShardId = Integer.parseInt(parts[5]);
+                    final int currentExpectedShard = Integer.parseInt(parts[6]);
+
                     OperationRouting operationRouting = node.injector().getInstance(OperationRouting.class);
-                    assertEquals(expectedShardId, operationRouting.indexShards(clusterState, index, type, id, routing).shardId().getId());
+                    for (Version version : allVersions()) {
+                        final Settings settings = settings(version).build();
+                        IndexMetaData indexMetaData = IndexMetaData.builder(index).settings(settings).numberOfShards(numberOfShards).numberOfReplicas(randomInt(3)).build();
+                        MetaData.Builder metaData = MetaData.builder().put(indexMetaData, false);
+                        RoutingTable routingTable = RoutingTable.builder().addAsNew(indexMetaData).build();
+                        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+                        final int shardId = operationRouting.indexShards(clusterState, index, type, id, routing).shardId().getId();
+                        if (version.before(Version.V_2_0_0)) {
+                            assertEquals(pre20ExpectedShardId, shardId);
+                        } else {
+                            assertEquals(currentExpectedShard, shardId);
+                        }
+                    }
                 }
             }
         } finally {

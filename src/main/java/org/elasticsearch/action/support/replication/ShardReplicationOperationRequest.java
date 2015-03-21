@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.support.replication;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -46,24 +45,36 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     protected String index;
 
     private boolean threadedOperation = true;
-    private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
-    private boolean canHaveDuplicates = false;
+    private volatile boolean canHaveDuplicates = false;
 
     protected ShardReplicationOperationRequest() {
 
     }
 
+    /**
+     * Creates a new request that inherits headers and context from the request provided as argument.
+     */
     protected ShardReplicationOperationRequest(ActionRequest request) {
         super(request);
     }
 
+    /**
+     * Copy constructor that creates a new request that is a copy of the one provided as an argument.
+     */
     protected ShardReplicationOperationRequest(T request) {
-        super(request);
+        this(request, request);
+    }
+
+    /**
+     * Copy constructor that creates a new request that is a copy of the one provided as an argument.
+     * The new request will inherit though headers and context from the original request that caused it.
+     */
+    protected ShardReplicationOperationRequest(T request, ActionRequest originalRequest) {
+        super(originalRequest);
         this.timeout = request.timeout();
         this.index = request.index();
         this.threadedOperation = request.operationThreaded();
-        this.replicationType = request.replicationType();
         this.consistencyLevel = request.consistencyLevel();
     }
 
@@ -135,29 +146,6 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         return IndicesOptions.strictSingleIndexNoExpandForbidClosed();
     }
 
-    /**
-     * The replication type.
-     */
-    public ReplicationType replicationType() {
-        return this.replicationType;
-    }
-
-    /**
-     * Sets the replication type.
-     */
-    @SuppressWarnings("unchecked")
-    public final T replicationType(ReplicationType replicationType) {
-        this.replicationType = replicationType;
-        return (T) this;
-    }
-
-    /**
-     * Sets the replication type.
-     */
-    public final T replicationType(String replicationType) {
-        return replicationType(ReplicationType.fromString(replicationType));
-    }
-
     public WriteConsistencyLevel consistencyLevel() {
         return this.consistencyLevel;
     }
@@ -183,26 +171,20 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
-        index = in.readSharedString();
-        if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-            canHaveDuplicates = in.readBoolean();
-        }
+        index = in.readString();
+        canHaveDuplicates = in.readBoolean();
         // no need to serialize threaded* parameters, since they only matter locally
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
-        out.writeSharedString(index);
-        if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-            out.writeBoolean(canHaveDuplicates);
-        }
+        out.writeString(index);
+        out.writeBoolean(canHaveDuplicates);
     }
 
     /**

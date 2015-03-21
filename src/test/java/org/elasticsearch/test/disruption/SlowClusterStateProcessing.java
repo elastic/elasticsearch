@@ -26,6 +26,7 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class SlowClusterStateProcessing extends SingleNodeDisruption {
 
@@ -99,11 +100,19 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
         if (clusterService == null) {
             return false;
         }
+        final AtomicBoolean stopped = new AtomicBoolean(false);
         clusterService.submitStateUpdateTask("service_disruption_delay", Priority.IMMEDIATE, new ClusterStateNonMasterUpdateTask() {
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                Thread.sleep(duration.millis());
+                long count = duration.millis() / 200;
+                // wait while checking for a stopped
+                for (; count > 0 && !stopped.get(); count--) {
+                    Thread.sleep(200);
+                }
+                if (!stopped.get()) {
+                    Thread.sleep(duration.millis() % 200);
+                }
                 countDownLatch.countDown();
                 return currentState;
             }
@@ -116,6 +125,7 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
         try {
             countDownLatch.await();
         } catch (InterruptedException e) {
+            stopped.set(true);
             // try to wait again, we really want the cluster state thread to be freed up when stopping disruption
             countDownLatch.await();
         }
@@ -137,10 +147,11 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
                     if (!interruptClusterStateProcessing(duration)) {
                         continue;
                     }
-
-                    duration = new TimeValue(intervalBetweenDelaysMin + random.nextInt((int) (intervalBetweenDelaysMax - intervalBetweenDelaysMin)));
-                    if (disrupting && disruptedNode != null) {
-                        Thread.sleep(duration.millis());
+                    if (intervalBetweenDelaysMax > 0) {
+                        duration = new TimeValue(intervalBetweenDelaysMin + random.nextInt((int) (intervalBetweenDelaysMax - intervalBetweenDelaysMin)));
+                        if (disrupting && disruptedNode != null) {
+                            Thread.sleep(duration.millis());
+                        }
                     }
                 } catch (InterruptedException e) {
                 } catch (Exception e) {

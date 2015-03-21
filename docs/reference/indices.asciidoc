@@ -13,6 +13,7 @@ and warmers.
 
 * <<indices-create-index>>
 * <<indices-delete-index>>
+* <<indices-get-index>>
 * <<indices-exists>>
 * <<indices-open-close>>
 
@@ -41,6 +42,11 @@ and warmers.
 * <<indices-warmers>>
 
 [float]
+[[shadow-replicas]]
+== Replica configurations
+* <<indices-shadow-replicas>>
+
+[float]
 [[monitoring]]
 == Monitoring:
 * <<indices-stats>>
@@ -54,12 +60,15 @@ and warmers.
 * <<indices-refresh>>
 * <<indices-flush>>
 * <<indices-optimize>>
+* <<indices-upgrade>>
 
 --
 
 include::indices/create-index.asciidoc[]
 
 include::indices/delete-index.asciidoc[]
+
+include::indices/get-index.asciidoc[]
 
 include::indices/indices-exists.asciidoc[]
 
@@ -101,3 +110,6 @@ include::indices/refresh.asciidoc[]
 
 include::indices/optimize.asciidoc[]
 
+include::indices/upgrade.asciidoc[]
+
+include::indices/shadow-replicas.asciidoc[]

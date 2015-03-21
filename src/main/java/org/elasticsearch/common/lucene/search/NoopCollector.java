@@ -19,16 +19,16 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.Collector;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SimpleCollector;
 
 import java.io.IOException;
 
 /**
  *
  */
-public class NoopCollector extends Collector {
+public class NoopCollector extends SimpleCollector {
 
     public static final NoopCollector NOOP_COLLECTOR = new NoopCollector();
 
@@ -41,11 +41,11 @@ public class NoopCollector extends Collector {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext context) throws IOException {
+    protected void doSetNextReader(LeafReaderContext context) throws IOException {
     }
 
     @Override
-    public boolean acceptsDocsOutOfOrder() {
-        return true;
+    public boolean needsScores() {
+        return false;
     }
 }

@@ -9,7 +9,6 @@ following types are supported:
 <<brazilian-analyzer,`brazilian`>>,
 <<bulgarian-analyzer,`bulgarian`>>,
 <<catalan-analyzer,`catalan`>>,
-<<chinese-analyzer,`chinese`>>,
 <<cjk-analyzer,`cjk`>>,
 <<czech-analyzer,`czech`>>,
 <<danish-analyzer,`danish`>>,
@@ -338,15 +337,6 @@ The `catalan` analyzer could be reimplemented as a `custom` analyzer as follows:
     or `stopwords_path` parameters.
 <2> This filter should be removed unless there are words which should
     be excluded from stemming.
-
-[[chinese-analyzer]]
-===== `chinese` analyzer
-
-The `chinese` analyzer cannot be reimplemented as a `custom` analyzer
-because it depends on the ChineseTokenizer and ChineseFilter classes,
-which are not exposed in Elasticsearch.  These classes are
-deprecated in Lucene 4 and the `chinese` analyzer will be replaced
-with the <<analysis-standard-analyzer>> in Lucene 5.
 
 [[cjk-analyzer]]
 ===== `cjk` analyzer
@@ -1067,7 +1057,7 @@ The `latvian` analyzer could be reimplemented as a `custom` analyzer as follows:
           "type":       "keyword_marker",
           "keywords":   [] <2>
         },
-        "italian_stemmer": {
+        "latvian_stemmer": {
           "type":       "stemmer",
           "language":   "latvian"
         }

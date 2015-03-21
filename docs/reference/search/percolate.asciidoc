@@ -1,8 +1,6 @@
 [[search-percolate]]
 == Percolator
 
-added[1.0.0.Beta1]
-
 Traditionally you design documents based on your data and store them into an index and then define queries via the search api
 in order to retrieve these documents. The percolator works in the opposite direction, first you store queries into an
 index and then via the percolate api you define documents in order to retrieve these queries.
@@ -15,10 +13,42 @@ in a request to the percolate api.
 The percolator and most of its features work in realtime, so once a percolate query is indexed it can immediately be used
 in the percolate api.
 
+[IMPORTANT]
+=====================================
+
+Field referred to in a percolator query must *already* exist in the mapping
+associated with the index used for percolation.
+There are two ways to make sure that a field mapping exist:
+
+* Add or update a mapping via the <<indices-create-index,create index>> or
+  <<indices-put-mapping,put mapping>> apis.
+* Percolate a document before registering a query. Percolating a document can
+  add field mappings dynamically, in the same way as happens when indexing a
+  document.
+
+=====================================
+
 [float]
 === Sample usage
 
-Adding a query to the percolator:
+Create an index with a mapping for the field `message`:
+
+[source,js]
+--------------------------------------------------
+curl -XPUT 'localhost:9200/my-index' -d '{
+  "mappings": {
+    "my-type": {
+      "properties": {
+        "message": {
+          "type": "string"
+        }
+      }
+    }
+  }
+}'
+--------------------------------------------------
+
+Register a query in the percolator:
 
 [source,js]
 --------------------------------------------------
@@ -31,11 +61,11 @@ curl -XPUT 'localhost:9200/my-index/.percolator/1' -d '{
 }'
 --------------------------------------------------
 
-Matching documents to the added queries:
+Match a document to the registered percolator queries:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/my-index/message/_percolate' -d '{
+curl -XGET 'localhost:9200/my-index/my-type/_percolate' -d '{
     "doc" : {
         "message" : "A new bonsai tree in the office"
     }
@@ -54,16 +84,16 @@ The above request will yield the following response:
         "failed" : 0
     },
     "total" : 1,
-    "matches" : [
+    "matches" : [ <1>
     	{
-    	     "_index" : "my-index",
-    	     "_id" : "1"
+    	  "_index" : "my-index",
+    	  "_id" : "1"
     	}
     ]
 }
 --------------------------------------------------
 
-The percolate api returns matches that refer to percolate queries that have matched with the document defined in the percolate api.
+<1> The percolate query with id `1` matches our document.
 
 [float]
 === Indexing percolator queries
@@ -190,9 +220,9 @@ occurred for the filter to included the latest percolate queries.
 * `query` - Same as the `filter` option, but also the score is computed. The computed scores can then be used by the
 `track_scores` and `sort` option.
 * `size` - Defines to maximum number of matches (percolate queries) to be returned. Defaults to unlimited.
-* `track_scores` - Whether the `_score` is included for each match. The is based on the query and represents how the query matched
-to the percolate query's metadata and *not* how the document being percolated matched to the query. The `query` option
-is required for this option. Defaults to `false`.
+* `track_scores` - Whether the `_score` is included for each match. The `_score` is based on the query and represents
+how the query matched the *percolate query's metadata*, *not* how the document (that is being percolated) matched
+the query. The `query` option is required for this option. Defaults to `false`.
 * `sort` - Define a sort specification like in the search api. Currently only sorting `_score` reverse (default relevancy)
 is supported. Other sort fields will throw an exception. The `size` and `query` option are required for this setting. Like
 `track_score` the score is based on the query and represents how the query matched to the percolate query's metadata
@@ -312,8 +342,8 @@ The multi percolate api allows to bundle multiple percolate requests into a sing
 search api does to search requests. The request body format is line based. Each percolate request item takes two lines,
 the first line is the header and the second line is the body.
 
-The header can contain any parameter that normally would be set via the request path or query string parameters. T
-here are several percolate actions, because there are multiple types of percolate requests.
+The header can contain any parameter that normally would be set via the request path or query string parameters.
+There are several percolate actions, because there are multiple types of percolate requests.
 
 .Supported actions:
 * `percolate` - Action for defining a regular percolate request.
@@ -346,15 +376,15 @@ requests.txt:
 
 [source,js]
 --------------------------------------------------
-{"percolate" : {"index" : twitter", "type" : "tweet"}}
+{"percolate" : {"index" : "twitter", "type" : "tweet"}}
 {"doc" : {"message" : "some text"}}
-{"percolate" : {"index" : twitter", "type" : "tweet", "id" : "1"}}
+{"percolate" : {"index" : "twitter", "type" : "tweet", "id" : "1"}}
 {}
-{"percolate" : {"index" : users", "type" : "user", "id" : "3", "percolate_index" : "users_2012" }}
+{"percolate" : {"index" : "users", "type" : "user", "id" : "3", "percolate_index" : "users_2012" }}
 {"size" : 10}
-{"count" : {"index" : twitter", "type" : "tweet"}}
+{"count" : {"index" : "twitter", "type" : "tweet"}}
 {"doc" : {"message" : "some other text"}}
-{"count" : {"index" : twitter", "type" : "tweet", "id" : "1"}}
+{"count" : {"index" : "twitter", "type" : "tweet", "id" : "1"}}
 {}
 --------------------------------------------------
 
@@ -412,7 +442,7 @@ Response:
 }
 --------------------------------------------------
 
-Each item represents a percolate response, the order of the items maps to the order in where the percolate requests
+Each item represents a percolate response, the order of the items maps to the order in which the percolate requests
 were specified. In case a percolate request failed, the item response is substituted with an error message.
 
 [float]
@@ -442,3 +472,14 @@ achieve the same result (with way less memory being used).
 
 The delete-by-query api doesn't work to unregister a query, it only deletes the percolate documents from disk. In order
 to update the registered queries in memory the index needs be closed and opened.
+
+[float]
+=== Forcing unmapped fields to be handled as string
+
+In certain cases it is unknown what kind of percolator queries do get registered and if no field mapping exist for fields
+that are referred by percolator queries then adding a percolator query fails. This means the mapping needs to be updated
+to have the field with the appropriate settings and then the percolator query can be added. But sometimes it is sufficient
+if all unmapped fields are handled as if these were default string fields. In those cases one can configure the
+`index.percolator.map_unmapped_fields_as_string` setting to `true` (default to `false`) and then if a field referred in
+a percolator query does not exist, it will be handled as a default string field, so adding the percolator query doesn't
+fail.

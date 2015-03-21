@@ -20,23 +20,20 @@
 package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadOperationAction;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 
 /**
  *
@@ -54,8 +51,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
 
     @Override
     protected String executor() {
-        // we block here...
-        return ThreadPool.Names.GENERIC;
+        // this should be executing quickly no need to fork off
+        return ThreadPool.Names.SAME;
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(ClusterHealthRequest request, ClusterState state) {
+        return null; // we want users to be able to call this even when there are global blocks, just to check the health (are there blocks?)
     }
 
     @Override
@@ -70,10 +72,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
 
     @Override
     protected void masterOperation(final ClusterHealthRequest request, final ClusterState unusedState, final ActionListener<ClusterHealthResponse> listener) throws ElasticsearchException {
-        long endTime = System.currentTimeMillis() + request.timeout().millis();
-
         if (request.waitForEvents() != null) {
-            final CountDownLatch latch = new CountDownLatch(1);
+            final long endTime = System.currentTimeMillis() + request.timeout().millis();
             clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])", request.waitForEvents(), new ProcessedClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -82,23 +82,30 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
 
                 @Override
                 public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                    latch.countDown();
+                    final long timeoutInMillis = Math.max(0, endTime - System.currentTimeMillis());
+                    final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
+                    request.timeout(newTimeout);
+                    executeHealth(request, listener);
                 }
 
                 @Override
                 public void onFailure(String source, Throwable t) {
                     logger.error("unexpected failure during [{}]", t, source);
+                    listener.onFailure(t);
+                }
+
+                @Override
+                public boolean runOnlyOnMaster() {
+                    return !request.local();
                 }
             });
-
-            try {
-                latch.await(request.timeout().millis(), TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                // ignore
-            }
+        } else {
+            executeHealth(request, listener);
         }
 
+    }
 
+    private void executeHealth(final ClusterHealthRequest request, final ActionListener<ClusterHealthResponse> listener) {
         int waitFor = 5;
         if (request.waitForStatus() == null) {
             waitFor--;
@@ -115,103 +122,138 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
         if (request.indices().length == 0) { // check that they actually exists in the meta data
             waitFor--;
         }
-        if (waitFor == 0) {
-            // no need to wait for anything
-            ClusterState clusterState = clusterService.state();
-            listener.onResponse(clusterHealth(request, clusterState));
+
+        assert waitFor >= 0;
+        final ClusterStateObserver observer = new ClusterStateObserver(clusterService, logger);
+        final ClusterState state = observer.observedState();
+        if (waitFor == 0 || request.timeout().millis() == 0) {
+            listener.onResponse(getResponse(request, state, waitFor, request.timeout().millis() == 0));
             return;
         }
-        while (true) {
-            int waitForCounter = 0;
-            ClusterState clusterState = clusterService.state();
-            ClusterHealthResponse response = clusterHealth(request, clusterState);
-            if (request.waitForStatus() != null && response.getStatus().value() <= request.waitForStatus().value()) {
-                waitForCounter++;
+        final int concreteWaitFor = waitFor;
+        final ClusterStateObserver.ChangePredicate validationPredicate = new ClusterStateObserver.ValidationPredicate() {
+            @Override
+            protected boolean validate(ClusterState newState) {
+                return newState.status() == ClusterState.ClusterStateStatus.APPLIED && validateRequest(request, newState, concreteWaitFor);
             }
-            if (request.waitForRelocatingShards() != -1 && response.getRelocatingShards() <= request.waitForRelocatingShards()) {
-                waitForCounter++;
+        };
+
+        final ClusterStateObserver.Listener stateListener = new ClusterStateObserver.Listener() {
+            @Override
+            public void onNewClusterState(ClusterState clusterState) {
+                listener.onResponse(getResponse(request, clusterState, concreteWaitFor, false));
             }
-            if (request.waitForActiveShards() != -1 && response.getActiveShards() >= request.waitForActiveShards()) {
-                waitForCounter++;
+
+            @Override
+            public void onClusterServiceClose() {
+                listener.onFailure(new ElasticsearchIllegalStateException("ClusterService was close during health call"));
             }
-            if (request.indices().length > 0) {
-                try {
-                    clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), request.indices());
-                    waitForCounter++;
-                } catch (IndexMissingException e) {
-                    response.status = ClusterHealthStatus.RED; // no indices, make sure its RED
-                    // missing indices, wait a bit more...
-                }
-            }
-            if (!request.waitForNodes().isEmpty()) {
-                if (request.waitForNodes().startsWith(">=")) {
-                    int expected = Integer.parseInt(request.waitForNodes().substring(2));
-                    if (response.getNumberOfNodes() >= expected) {
-                        waitForCounter++;
-                    }
-                } else if (request.waitForNodes().startsWith("ge(")) {
-                    int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
-                    if (response.getNumberOfNodes() >= expected) {
-                        waitForCounter++;
-                    }
-                } else if (request.waitForNodes().startsWith("<=")) {
-                    int expected = Integer.parseInt(request.waitForNodes().substring(2));
-                    if (response.getNumberOfNodes() <= expected) {
-                        waitForCounter++;
-                    }
-                } else if (request.waitForNodes().startsWith("le(")) {
-                    int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
-                    if (response.getNumberOfNodes() <= expected) {
-                        waitForCounter++;
-                    }
-                } else if (request.waitForNodes().startsWith(">")) {
-                    int expected = Integer.parseInt(request.waitForNodes().substring(1));
-                    if (response.getNumberOfNodes() > expected) {
-                        waitForCounter++;
-                    }
-                } else if (request.waitForNodes().startsWith("gt(")) {
-                    int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
-                    if (response.getNumberOfNodes() > expected) {
-                        waitForCounter++;
-                    }
-                } else if (request.waitForNodes().startsWith("<")) {
-                    int expected = Integer.parseInt(request.waitForNodes().substring(1));
-                    if (response.getNumberOfNodes() < expected) {
-                        waitForCounter++;
-                    }
-                } else if (request.waitForNodes().startsWith("lt(")) {
-                    int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
-                    if (response.getNumberOfNodes() < expected) {
-                        waitForCounter++;
-                    }
-                } else {
-                    int expected = Integer.parseInt(request.waitForNodes());
-                    if (response.getNumberOfNodes() == expected) {
-                        waitForCounter++;
-                    }
-                }
-            }
-            if (waitForCounter == waitFor) {
+
+            @Override
+            public void onTimeout(TimeValue timeout) {
+                final ClusterState clusterState = clusterService.state();
+                final ClusterHealthResponse response = getResponse(request, clusterState, concreteWaitFor, true);
                 listener.onResponse(response);
-                return;
             }
-            if (System.currentTimeMillis() > endTime) {
-                response.timedOut = true;
-                listener.onResponse(response);
-                return;
-            }
-            try {
-                Thread.sleep(200);
-            } catch (InterruptedException e) {
-                response.timedOut = true;
-                listener.onResponse(response);
-                return;
-            }
+        };
+        if (state.status() == ClusterState.ClusterStateStatus.APPLIED && validateRequest(request, state, concreteWaitFor)) {
+            stateListener.onNewClusterState(state);
+        } else {
+            observer.waitForNextChange(stateListener, validationPredicate, request.timeout());
         }
     }
 
+    private boolean validateRequest(final ClusterHealthRequest request, ClusterState clusterState, final int waitFor) {
+        ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.numberOfPendingTasks());
+        return prepareResponse(request, response, clusterState, waitFor);
+    }
 
-    private ClusterHealthResponse clusterHealth(ClusterHealthRequest request, ClusterState clusterState) {
+    private ClusterHealthResponse getResponse(final ClusterHealthRequest request, ClusterState clusterState, final int waitFor, boolean timedOut) {
+        ClusterHealthResponse response = clusterHealth(request, clusterState, clusterService.numberOfPendingTasks());
+        boolean valid = prepareResponse(request, response, clusterState, waitFor);
+        assert valid || timedOut;
+        // we check for a timeout here since this method might be called from the wait_for_events
+        // response handler which might have timed out already.
+        // if the state is sufficient for what we where waiting for we don't need to mark this as timedOut.
+        // We spend too much time in waiting for events such that we might already reached a valid state.
+        // this should not mark the request as timed out
+        response.timedOut = timedOut && valid == false;
+        return response;
+    }
+
+    private boolean prepareResponse(final ClusterHealthRequest request, final ClusterHealthResponse response, ClusterState clusterState, final int waitFor) {
+        int waitForCounter = 0;
+        if (request.waitForStatus() != null && response.getStatus().value() <= request.waitForStatus().value()) {
+            waitForCounter++;
+        }
+        if (request.waitForRelocatingShards() != -1 && response.getRelocatingShards() <= request.waitForRelocatingShards()) {
+            waitForCounter++;
+        }
+        if (request.waitForActiveShards() != -1 && response.getActiveShards() >= request.waitForActiveShards()) {
+            waitForCounter++;
+        }
+        if (request.indices().length > 0) {
+            try {
+                clusterState.metaData().concreteIndices(IndicesOptions.strictExpand(), request.indices());
+                waitForCounter++;
+            } catch (IndexMissingException e) {
+                response.status = ClusterHealthStatus.RED; // no indices, make sure its RED
+                // missing indices, wait a bit more...
+            }
+        }
+        if (!request.waitForNodes().isEmpty()) {
+            if (request.waitForNodes().startsWith(">=")) {
+                int expected = Integer.parseInt(request.waitForNodes().substring(2));
+                if (response.getNumberOfNodes() >= expected) {
+                    waitForCounter++;
+                }
+            } else if (request.waitForNodes().startsWith("ge(")) {
+                int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
+                if (response.getNumberOfNodes() >= expected) {
+                    waitForCounter++;
+                }
+            } else if (request.waitForNodes().startsWith("<=")) {
+                int expected = Integer.parseInt(request.waitForNodes().substring(2));
+                if (response.getNumberOfNodes() <= expected) {
+                    waitForCounter++;
+                }
+            } else if (request.waitForNodes().startsWith("le(")) {
+                int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
+                if (response.getNumberOfNodes() <= expected) {
+                    waitForCounter++;
+                }
+            } else if (request.waitForNodes().startsWith(">")) {
+                int expected = Integer.parseInt(request.waitForNodes().substring(1));
+                if (response.getNumberOfNodes() > expected) {
+                    waitForCounter++;
+                }
+            } else if (request.waitForNodes().startsWith("gt(")) {
+                int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
+                if (response.getNumberOfNodes() > expected) {
+                    waitForCounter++;
+                }
+            } else if (request.waitForNodes().startsWith("<")) {
+                int expected = Integer.parseInt(request.waitForNodes().substring(1));
+                if (response.getNumberOfNodes() < expected) {
+                    waitForCounter++;
+                }
+            } else if (request.waitForNodes().startsWith("lt(")) {
+                int expected = Integer.parseInt(request.waitForNodes().substring(3, request.waitForNodes().length() - 1));
+                if (response.getNumberOfNodes() < expected) {
+                    waitForCounter++;
+                }
+            } else {
+                int expected = Integer.parseInt(request.waitForNodes());
+                if (response.getNumberOfNodes() == expected) {
+                    waitForCounter++;
+                }
+            }
+        }
+        return waitForCounter == waitFor;
+    }
+
+
+    private ClusterHealthResponse clusterHealth(ClusterHealthRequest request, ClusterState clusterState, int numberOfPendingTasks) {
         if (logger.isTraceEnabled()) {
             logger.trace("Calculating health based on state version [{}]", clusterState.version());
         }
@@ -220,11 +262,11 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadOperati
             concreteIndices = clusterState.metaData().concreteIndices(request.indicesOptions(), request.indices());
         } catch (IndexMissingException e) {
             // one of the specified indices is not there - treat it as RED.
-            ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState);
+            ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState, numberOfPendingTasks);
             response.status = ClusterHealthStatus.RED;
             return response;
         }
 
-        return new ClusterHealthResponse(clusterName.value(), concreteIndices, clusterState);
+        return new ClusterHealthResponse(clusterName.value(), concreteIndices, clusterState, numberOfPendingTasks);
     }
 }

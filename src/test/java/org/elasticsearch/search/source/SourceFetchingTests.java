@@ -46,9 +46,6 @@ public class SourceFetchingTests extends ElasticsearchIntegrationTest {
         response = client().prepareSearch("test").addField("_source").get();
         assertThat(response.getHits().getAt(0).getSourceAsString(), notNullValue());
 
-        response = client().prepareSearch("test").addPartialField("test", "field", null).get();
-        assertThat(response.getHits().getAt(0).getSourceAsString(), nullValue());
-
     }
 
     @Test

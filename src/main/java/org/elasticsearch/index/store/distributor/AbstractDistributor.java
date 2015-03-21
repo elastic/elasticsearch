@@ -21,10 +21,14 @@ package org.elasticsearch.index.store.distributor;
 
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
-import org.elasticsearch.index.store.DirectoryUtils;
+import org.apache.lucene.store.StoreUtils;
 import org.elasticsearch.index.store.DirectoryService;
+import org.elasticsearch.index.store.DirectoryUtils;
 
 import java.io.IOException;
+import java.nio.file.FileStore;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 
 public abstract class AbstractDistributor implements Distributor {
@@ -35,6 +39,7 @@ public abstract class AbstractDistributor implements Distributor {
         delegates = directoryService.build();
     }
 
+    @Override
     public Directory[] all() {
         return delegates;
     }
@@ -45,7 +50,7 @@ public abstract class AbstractDistributor implements Distributor {
     }
 
     @Override
-    public Directory any() {
+    public Directory any() throws IOException {
         if (delegates.length == 1) {
             return delegates[0];
         } else {
@@ -54,10 +59,10 @@ public abstract class AbstractDistributor implements Distributor {
     }
 
     @SuppressWarnings("unchecked")
-    protected long getUsableSpace(Directory directory) {
+    protected long getUsableSpace(Directory directory) throws IOException {
         final FSDirectory leaf = DirectoryUtils.getLeaf(directory, FSDirectory.class);
         if (leaf != null) {
-            return leaf.getDirectory().getUsableSpace();
+            return Files.getFileStore(leaf.getDirectory()).getUsableSpace();
         } else {
             return 0;
         }
@@ -65,10 +70,10 @@ public abstract class AbstractDistributor implements Distributor {
 
     @Override
     public String toString() {
-        return name() + Arrays.toString(delegates);
+        return name() + StoreUtils.toString(delegates);
     }
 
-    protected abstract Directory doAny();
+    protected abstract Directory doAny() throws IOException;
 
     protected abstract String name();
 

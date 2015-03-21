@@ -29,8 +29,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -47,7 +47,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class UnicastZenPingTests extends ElasticsearchTestCase {
 
     @Test
-    public void testSimplePings() {
+    public void testSimplePings() throws InterruptedException {
         Settings settings = ImmutableSettings.EMPTY;
         int startPort = 11000 + randomIntBetween(0, 1000);
         int endPort = startPort + 10;
@@ -76,7 +76,7 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
                 .build();
 
         UnicastZenPing zenPingA = new UnicastZenPing(hostsSettings, threadPool, transportServiceA, clusterName, Version.CURRENT, electMasterService, null);
-        zenPingA.setNodesProvider(new DiscoveryNodesProvider() {
+        zenPingA.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
                 return DiscoveryNodes.builder().put(nodeA).localNodeId("UZP_A").build();
@@ -86,11 +86,16 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
             public NodeService nodeService() {
                 return null;
             }
+
+            @Override
+            public boolean nodeHasJoinedClusterOnce() {
+                return false;
+            }
         });
         zenPingA.start();
 
         UnicastZenPing zenPingB = new UnicastZenPing(hostsSettings, threadPool, transportServiceB, clusterName, Version.CURRENT, electMasterService, null);
-        zenPingB.setNodesProvider(new DiscoveryNodesProvider() {
+        zenPingB.setPingContextProvider(new PingContextProvider() {
             @Override
             public DiscoveryNodes nodes() {
                 return DiscoveryNodes.builder().put(nodeB).localNodeId("UZP_B").build();
@@ -100,19 +105,34 @@ public class UnicastZenPingTests extends ElasticsearchTestCase {
             public NodeService nodeService() {
                 return null;
             }
+
+            @Override
+            public boolean nodeHasJoinedClusterOnce() {
+                return true;
+            }
         });
         zenPingB.start();
 
         try {
+            logger.info("ping from UZP_A");
             ZenPing.PingResponse[] pingResponses = zenPingA.pingAndWait(TimeValue.timeValueSeconds(1));
             assertThat(pingResponses.length, equalTo(1));
-            assertThat(pingResponses[0].target().id(), equalTo("UZP_B"));
+            assertThat(pingResponses[0].node().id(), equalTo("UZP_B"));
+            assertTrue(pingResponses[0].hasJoinedOnce());
+
+            // ping again, this time from B,
+            logger.info("ping from UZP_B");
+            pingResponses = zenPingB.pingAndWait(TimeValue.timeValueSeconds(1));
+            assertThat(pingResponses.length, equalTo(1));
+            assertThat(pingResponses[0].node().id(), equalTo("UZP_A"));
+            assertFalse(pingResponses[0].hasJoinedOnce());
+
         } finally {
             zenPingA.close();
             zenPingB.close();
             transportServiceA.close();
             transportServiceB.close();
-            threadPool.shutdown();
+            terminate(threadPool);
         }
     }
 }

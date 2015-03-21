@@ -19,18 +19,38 @@
 
 package org.elasticsearch.common.lucene;
 
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
-import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.ComplexExplanation;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SimpleCollector;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TimeLimitingCollector;
+import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.TopFieldDocs;
+import org.apache.lucene.search.TotalHitCountCollector;
+import org.apache.lucene.store.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Counter;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -42,7 +62,8 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 
 import java.io.IOException;
-import java.util.Locale;
+import java.text.ParseException;
+import java.util.*;
 
 import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTOR;
 
@@ -51,14 +72,23 @@ import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTO
  */
 public class Lucene {
 
-    public static final Version VERSION = Version.LUCENE_4_9;
+    // TODO: remove VERSION, and have users use Version.LATEST.
+    public static final Version VERSION = Version.LATEST;
     public static final Version ANALYZER_VERSION = VERSION;
     public static final Version QUERYPARSER_VERSION = VERSION;
+    public static final String LATEST_DOC_VALUES_FORMAT = "Lucene50";
+    public static final String LATEST_POSTINGS_FORMAT = "Lucene50";
+    public static final String LATEST_CODEC = "Lucene50";
 
-    public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer(ANALYZER_VERSION));
+    static {
+        Deprecated annotation = PostingsFormat.forName(LATEST_POSTINGS_FORMAT).getClass().getAnnotation(Deprecated.class);
+        assert annotation == null : "PostingsFromat " + LATEST_POSTINGS_FORMAT + " is deprecated" ;
+        annotation = DocValuesFormat.forName(LATEST_DOC_VALUES_FORMAT).getClass().getAnnotation(Deprecated.class);
+        assert annotation == null : "DocValuesFormat " + LATEST_DOC_VALUES_FORMAT + " is deprecated" ;
+    }
+
+    public static final NamedAnalyzer STANDARD_ANALYZER = new NamedAnalyzer("_standard", AnalyzerScope.GLOBAL, new StandardAnalyzer());
     public static final NamedAnalyzer KEYWORD_ANALYZER = new NamedAnalyzer("_keyword", AnalyzerScope.GLOBAL, new KeywordAnalyzer());
-
-    public static final int NO_DOC = -1;
 
     public static final ScoreDoc[] EMPTY_SCORE_DOCS = new ScoreDoc[0];
 
@@ -69,27 +99,11 @@ public class Lucene {
         if (version == null) {
             return defaultVersion;
         }
-        switch(version) {
-            case "4.9": return VERSION.LUCENE_4_9;
-            case "4.8": return VERSION.LUCENE_4_8;
-            case "4.7": return VERSION.LUCENE_4_7;
-            case "4.6": return VERSION.LUCENE_4_6;
-            case "4.5": return VERSION.LUCENE_4_5;
-            case "4.4": return VERSION.LUCENE_4_4;
-            case "4.3": return VERSION.LUCENE_4_3;
-            case "4.2": return VERSION.LUCENE_4_2;
-            case "4.1": return VERSION.LUCENE_4_1;
-            case "4.0": return VERSION.LUCENE_4_0;
-            case "3.6": return VERSION.LUCENE_3_6;
-            case "3.5": return VERSION.LUCENE_3_5;
-            case "3.4": return VERSION.LUCENE_3_4;
-            case "3.3": return VERSION.LUCENE_3_3;
-            case "3.2": return VERSION.LUCENE_3_2;
-            case "3.1": return VERSION.LUCENE_3_1;
-            case "3.0": return VERSION.LUCENE_3_0;
-            default:
-                logger.warn("no version match {}, default to {}", version, defaultVersion);
-                return defaultVersion;
+        try {
+            return Version.parse(version);
+        } catch (ParseException e) {
+            logger.warn("no version match {}, default to {}", version, defaultVersion, e);
+            return defaultVersion;
         }
     }
 
@@ -97,18 +111,105 @@ public class Lucene {
      * Reads the segments infos, failing if it fails to load
      */
     public static SegmentInfos readSegmentInfos(Directory directory) throws IOException {
-        final SegmentInfos sis = new SegmentInfos();
-        sis.read(directory);
-        return sis;
+        return SegmentInfos.readLatestCommit(directory);
+    }
+
+    /**
+     * Returns an iterable that allows to iterate over all files in this segments info
+     */
+    public static Iterable<String> files(SegmentInfos infos) throws IOException {
+        final List<Collection<String>> list = new ArrayList<>();
+        list.add(Collections.singleton(infos.getSegmentsFileName()));
+        for (SegmentCommitInfo info : infos) {
+            list.add(info.files());
+        }
+        return Iterables.concat(list.toArray(new Collection[0]));
     }
 
     /**
      * Reads the segments infos from the given commit, failing if it fails to load
      */
     public static SegmentInfos readSegmentInfos(IndexCommit commit, Directory directory) throws IOException {
-        final SegmentInfos sis = new SegmentInfos();
-        sis.read(directory, commit.getSegmentsFileName());
-        return sis;
+        return SegmentInfos.readCommit(directory, commit.getSegmentsFileName());
+    }
+
+    /**
+     * Reads the segments infos from the given segments file name, failing if it fails to load
+     */
+    private static SegmentInfos readSegmentInfos(String segmentsFileName, Directory directory) throws IOException {
+        return SegmentInfos.readCommit(directory, segmentsFileName);
+    }
+
+    /**
+     * This method removes all files from the given directory that are not referenced by the given segments file.
+     * This method will open an IndexWriter and relies on index file deleter to remove all unreferenced files. Segment files
+     * that are newer than the given segments file are removed forcefully to prevent problems with IndexWriter opening a potentially
+     * broken commit point / leftover.
+     * <b>Note:</b> this method will fail if there is another IndexWriter open on the given directory. This method will also acquire
+     * a write lock from the directory while pruning unused files. This method expects an existing index in the given directory that has
+     * the given segments file.
+     */
+    public static SegmentInfos pruneUnreferencedFiles(String segmentsFileName, Directory directory) throws IOException {
+        final SegmentInfos si = readSegmentInfos(segmentsFileName, directory);
+        try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
+            if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
+                throw new LockObtainFailedException("Index locked for write: " + writeLock);
+            }
+            int foundSegmentFiles = 0;
+            for (final String file : directory.listAll()) {
+                /**
+                 * we could also use a deletion policy here but in the case of snapshot and restore
+                 * sometimes we restore an index and override files that were referenced by a "future"
+                 * commit. If such a commit is opened by the IW it would likely throw a corrupted index exception
+                 * since checksums don's match anymore. that's why we prune the name here directly.
+                 * We also want the caller to know if we were not able to remove a segments_N file.
+                 */
+                if (file.startsWith(IndexFileNames.SEGMENTS) || file.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
+                    foundSegmentFiles++;
+                    if (file.equals(si.getSegmentsFileName()) == false) {
+                        directory.deleteFile(file); // remove all segment_N files except of the one we wanna keep
+                    }
+                }
+            }
+            assert SegmentInfos.getLastCommitSegmentsFileName(directory).equals(segmentsFileName);
+            if (foundSegmentFiles == 0) {
+                throw new IllegalStateException("no commit found in the directory");
+            }
+        }
+        final CommitPoint cp = new CommitPoint(si, directory);
+        try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
+                .setIndexCommit(cp)
+                .setCommitOnClose(false)
+                .setMergePolicy(NoMergePolicy.INSTANCE)
+                .setOpenMode(IndexWriterConfig.OpenMode.APPEND))) {
+            // do nothing and close this will kick of IndexFileDeleter which will remove all pending files
+        }
+        return si;
+    }
+
+    /**
+     * This method removes all lucene files from the given directory. It will first try to delete all commit points / segments
+     * files to ensure broken commits or corrupted indices will not be opened in the future. If any of the segment files can't be deleted
+     * this operation fails.
+     */
+    public static void cleanLuceneIndex(Directory directory) throws IOException {
+        try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
+            if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
+                throw new LockObtainFailedException("Index locked for write: " + writeLock);
+            }
+            for (final String file : directory.listAll()) {
+                if (file.startsWith(IndexFileNames.SEGMENTS) || file.equals(IndexFileNames.OLD_SEGMENTS_GEN)) {
+                    directory.deleteFile(file); // remove all segment_N files
+                }
+            }
+        }
+        try (IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
+                .setMergePolicy(NoMergePolicy.INSTANCE) // no merges
+                .setCommitOnClose(false) // no commits
+                .setOpenMode(IndexWriterConfig.OpenMode.CREATE))) // force creation - don't append...
+        {
+            // do nothing and close this will kick of IndexFileDeleter which will remove all pending files
+        }
     }
 
     public static void checkSegmentInfoIntegrity(final Directory directory) throws IOException {
@@ -167,8 +268,8 @@ public class Lucene {
     /**
      * Wraps <code>delegate</code> with a time limited collector with a timeout of <code>timeoutInMillis</code>
      */
-    public final static TimeLimitingCollector wrapTimeLimitingCollector(final Collector delegate, long timeoutInMillis) {
-        return new TimeLimitingCollector(delegate, TimeLimitingCollector.getGlobalCounter(), timeoutInMillis);
+    public final static TimeLimitingCollector wrapTimeLimitingCollector(final Collector delegate, final Counter counter, long timeoutInMillis) {
+        return new TimeLimitingCollector(delegate, counter, timeoutInMillis);
     }
 
     /**
@@ -257,10 +358,6 @@ public class Lucene {
     }
 
     public static TopDocs readTopDocs(StreamInput in) throws IOException {
-        if (!in.readBoolean()) {
-            // no docs
-            return null;
-        }
         if (in.readBoolean()) {
             int totalHits = in.readVInt();
             float maxScore = in.readFloat();
@@ -327,11 +424,7 @@ public class Lucene {
     }
 
     public static void writeTopDocs(StreamOutput out, TopDocs topDocs, int from) throws IOException {
-        if (topDocs.scoreDocs.length - from < 0) {
-            out.writeBoolean(false);
-            return;
-        }
-        out.writeBoolean(true);
+        from = Math.min(from, topDocs.scoreDocs.length);
         if (topDocs instanceof TopFieldDocs) {
             out.writeBoolean(true);
             TopFieldDocs topFieldDocs = (TopFieldDocs) topDocs;
@@ -356,11 +449,8 @@ public class Lucene {
             }
 
             out.writeVInt(topDocs.scoreDocs.length - from);
-            int index = 0;
-            for (ScoreDoc doc : topFieldDocs.scoreDocs) {
-                if (index++ < from) {
-                    continue;
-                }
+            for (int i = from; i < topFieldDocs.scoreDocs.length; ++i) {
+                ScoreDoc doc = topFieldDocs.scoreDocs[i];
                 writeFieldDoc(out, (FieldDoc) doc);
             }
         } else {
@@ -369,11 +459,8 @@ public class Lucene {
             out.writeFloat(topDocs.getMaxScore());
 
             out.writeVInt(topDocs.scoreDocs.length - from);
-            int index = 0;
-            for (ScoreDoc doc : topDocs.scoreDocs) {
-                if (index++ < from) {
-                    continue;
-                }
+            for (int i = from; i < topDocs.scoreDocs.length; ++i) {
+                ScoreDoc doc = topDocs.scoreDocs[i];
                 writeScoreDoc(out, doc);
             }
         }
@@ -441,7 +528,7 @@ public class Lucene {
 
     public static Explanation readExplanation(StreamInput in) throws IOException {
         Explanation explanation;
-        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0) && in.readBoolean()) {
+        if (in.readBoolean()) {
             Boolean match = in.readOptionalBoolean();
             explanation = new ComplexExplanation();
             ((ComplexExplanation) explanation).setMatch(match);
@@ -462,13 +549,11 @@ public class Lucene {
 
     public static void writeExplanation(StreamOutput out, Explanation explanation) throws IOException {
 
-        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0)) {
-            if (explanation instanceof ComplexExplanation) {
-                out.writeBoolean(true);
-                out.writeOptionalBoolean(((ComplexExplanation) explanation).getMatch());
-            } else {
-                out.writeBoolean(false);
-            }
+        if (explanation instanceof ComplexExplanation) {
+            out.writeBoolean(true);
+            out.writeOptionalBoolean(((ComplexExplanation) explanation).getMatch());
+        } else {
+            out.writeBoolean(false);
         }
         out.writeFloat(explanation.getValue());
         out.writeString(explanation.getDescription());
@@ -499,11 +584,13 @@ public class Lucene {
      * A collector that terminates early by throwing {@link org.elasticsearch.common.lucene.Lucene.EarlyTerminationException}
      * when count of matched documents has reached <code>maxCountHits</code>
      */
-    public final static class EarlyTerminatingCollector extends Collector {
+    public final static class EarlyTerminatingCollector extends SimpleCollector {
 
         private final int maxCountHits;
         private final Collector delegate;
+
         private int count = 0;
+        private LeafCollector leafCollector;
 
         EarlyTerminatingCollector(int maxCountHits) {
             this.maxCountHits = maxCountHits;
@@ -528,12 +615,12 @@ public class Lucene {
 
         @Override
         public void setScorer(Scorer scorer) throws IOException {
-            delegate.setScorer(scorer);
+            leafCollector.setScorer(scorer);
         }
 
         @Override
         public void collect(int doc) throws IOException {
-            delegate.collect(doc);
+            leafCollector.collect(doc);
 
             if (++count >= maxCountHits) {
                 throw new EarlyTerminationException("early termination [CountBased]");
@@ -541,13 +628,13 @@ public class Lucene {
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext atomicReaderContext) throws IOException {
-            delegate.setNextReader(atomicReaderContext);
+        public void doSetNextReader(LeafReaderContext atomicReaderContext) throws IOException {
+            leafCollector = delegate.getLeafCollector(atomicReaderContext);
         }
 
         @Override
-        public boolean acceptsDocsOutOfOrder() {
-            return delegate.acceptsDocsOutOfOrder();
+        public boolean needsScores() {
+            return delegate.needsScores();
         }
     }
 
@@ -561,10 +648,11 @@ public class Lucene {
 
     /**
      * Returns <tt>true</tt> iff the given exception or
-     * one of it's causes is an instance of {@link CorruptIndexException} otherwise <tt>false</tt>.
+     * one of it's causes is an instance of {@link CorruptIndexException}, 
+     * {@link IndexFormatTooOldException}, or {@link IndexFormatTooNewException} otherwise <tt>false</tt>.
      */
     public static boolean isCorruptionException(Throwable t) {
-        return ExceptionsHelper.unwrap(t, CorruptIndexException.class) != null;
+        return ExceptionsHelper.unwrapCorruption(t) != null;
     }
 
     /**
@@ -579,14 +667,107 @@ public class Lucene {
             if (Strings.hasLength(toParse)) {
                 try {
                     return Version.parseLeniently(toParse);
-                } catch (IllegalArgumentException e) {
-                    final String parsedMatchVersion = toParse
-                            .toUpperCase(Locale.ROOT)
-                            .replaceFirst("^(\\d+)\\.(\\d+)(.(\\d+))+$", "LUCENE_$1_$2");
-                    return Version.valueOf(parsedMatchVersion);
+                } catch (ParseException e) {
+                    // pass to default
                 }
             }
             return defaultValue;
+        }
+    }
+
+    /**
+     * Return a Scorer that throws an ElasticsearchIllegalStateException
+     * on all operations with the given message.
+     */
+    public static Scorer illegalScorer(final String message) {
+        return new Scorer(null) {
+            @Override
+            public float score() throws IOException {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+            @Override
+            public int freq() throws IOException {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+            @Override
+            public int advance(int arg0) throws IOException {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+            @Override
+            public long cost() {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+            @Override
+            public int docID() {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+            @Override
+            public int nextDoc() throws IOException {
+                throw new ElasticsearchIllegalStateException(message);
+            }
+        };
+    }
+
+    private static final class CommitPoint extends IndexCommit {
+        private String segmentsFileName;
+        private final Collection<String> files;
+        private final Directory dir;
+        private final long generation;
+        private final Map<String,String> userData;
+        private final int segmentCount;
+
+        private CommitPoint(SegmentInfos infos, Directory dir) throws IOException {
+            segmentsFileName = infos.getSegmentsFileName();
+            this.dir = dir;
+            userData = infos.getUserData();
+            files = Collections.unmodifiableCollection(infos.files(dir, true));
+            generation = infos.getGeneration();
+            segmentCount = infos.size();
+        }
+
+        @Override
+        public String toString() {
+            return "DirectoryReader.ReaderCommit(" + segmentsFileName + ")";
+        }
+
+        @Override
+        public int getSegmentCount() {
+            return segmentCount;
+        }
+
+        @Override
+        public String getSegmentsFileName() {
+            return segmentsFileName;
+        }
+
+        @Override
+        public Collection<String> getFileNames() {
+            return files;
+        }
+
+        @Override
+        public Directory getDirectory() {
+            return dir;
+        }
+
+        @Override
+        public long getGeneration() {
+            return generation;
+        }
+
+        @Override
+        public boolean isDeleted() {
+            return false;
+        }
+
+        @Override
+        public Map<String,String> getUserData() {
+            return userData;
+        }
+
+        @Override
+        public void delete() {
+            throw new UnsupportedOperationException("This IndexCommit does not support deletions");
         }
     }
 }

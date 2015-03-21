@@ -29,15 +29,21 @@ import org.elasticsearch.search.internal.SearchContext;
  */
 public class PercentileRanksParser extends AbstractPercentilesParser {
 
+    public PercentileRanksParser() {
+        super(false);
+    }
+
     @Override
     public String type() {
         return InternalPercentileRanks.TYPE.name();
     }
 
+    @Override
     protected String keysFieldName() {
         return "values";
     }
     
+    @Override
     protected AggregatorFactory buildFactory(SearchContext context, String aggregationName, ValuesSourceConfig<Numeric> valuesSourceConfig, double[] keys, double compression, boolean keyed) {
         if (keys == null) {
             throw new SearchParseException(context, "Missing token values in [" + aggregationName + "].");

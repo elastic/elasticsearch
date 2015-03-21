@@ -19,7 +19,9 @@
 
 package org.elasticsearch.action.delete;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.support.replication.ShardReplicationOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,7 +44,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see org.elasticsearch.client.Client#delete(DeleteRequest)
  * @see org.elasticsearch.client.Requests#deleteRequest(String)
  */
-public class DeleteRequest extends ShardReplicationOperationRequest<DeleteRequest> {
+public class DeleteRequest extends ShardReplicationOperationRequest<DeleteRequest> implements DocumentRequest<DeleteRequest> {
 
     private String type;
     private String id;
@@ -51,6 +53,9 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
     private boolean refresh;
     private long version = Versions.MATCH_ANY;
     private VersionType versionType = VersionType.INTERNAL;
+
+    public DeleteRequest() {
+    }
 
     /**
      * Constructs a new delete request against the specified index. The {@link #type(String)} and {@link #id(String)}
@@ -73,8 +78,19 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
         this.id = id;
     }
 
+    /**
+     * Copy constructor that creates a new delete request that is a copy of the one provided as an argument.
+     */
     public DeleteRequest(DeleteRequest request) {
-        super(request);
+        this(request, request);
+    }
+
+    /**
+     * Copy constructor that creates a new delete request that is a copy of the one provided as an argument.
+     * The new request will inherit though headers and context from the original request that caused it.
+     */
+    public DeleteRequest(DeleteRequest request, ActionRequest originalRequest) {
+        super(request, originalRequest);
         this.type = request.type();
         this.id = request.id();
         this.routing = request.routing();
@@ -83,7 +99,12 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
         this.versionType = request.versionType();
     }
 
-    public DeleteRequest() {
+    /**
+     * Creates a delete request caused by some other request, which is provided as an
+     * argument so that its headers and context can be copied to the new request
+     */
+    public DeleteRequest(ActionRequest request) {
+        super(request);
     }
 
     @Override
@@ -104,6 +125,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
     /**
      * The type of the document to delete.
      */
+    @Override
     public String type() {
         return type;
     }
@@ -119,6 +141,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
     /**
      * The id of the document to delete.
      */
+    @Override
     public String id() {
         return id;
     }
@@ -146,6 +169,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */
+    @Override
     public DeleteRequest routing(String routing) {
         if (routing != null && routing.length() == 0) {
             this.routing = null;
@@ -159,6 +183,7 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
      * Controls the shard routing of the delete request. Using this value to hash the shard
      * and not the id.
      */
+    @Override
     public String routing() {
         return this.routing;
     }
@@ -202,22 +227,22 @@ public class DeleteRequest extends ShardReplicationOperationRequest<DeleteReques
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        type = in.readSharedString();
+        type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
         refresh = in.readBoolean();
-        version = Versions.readVersion(in);
+        version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeSharedString(type);
+        out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing());
         out.writeBoolean(refresh);
-        Versions.writeVersion(version, out);
+        out.writeLong(version);
         out.writeByte(versionType.getValue());
     }
 

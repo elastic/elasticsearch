@@ -19,6 +19,7 @@
 
 package org.elasticsearch.script;
 
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.search.lookup.DocLookup;
 
 import java.io.IOException;
@@ -29,17 +30,17 @@ import java.io.IOException;
  * The provided {@link DocLookup} is used to retrieve the score
  * for the current document.
  */
-public final class ScoreAccessor extends Number {
+public final class ScoreAccessor extends Number implements Comparable<Number> {
 
-    final DocLookup doc;
+    Scorer scorer;
 
-    public ScoreAccessor(DocLookup d) {
-        doc = d;
+    public ScoreAccessor(Scorer scorer) {
+        this.scorer = scorer;
     }
 
     float score() {
         try {
-            return doc.score();
+            return scorer.score();
         } catch (IOException e) {
             throw new RuntimeException("Could not get score", e);
         }
@@ -63,5 +64,10 @@ public final class ScoreAccessor extends Number {
     @Override
     public double doubleValue() {
         return score();
+    }
+
+    @Override
+    public int compareTo(Number o) {
+        return Float.compare(this.score(), o.floatValue());
     }
 }

@@ -224,7 +224,6 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
                 .startObject("area")
                 .field("type", "geo_shape")
                 .field("tree", "geohash")
-                .field("store", true)
                 .endObject()
                 .endObject()
                 .endObject()
@@ -405,8 +404,6 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
                 .endObject()
                 .startObject("location")
                 .field("type", "geo_shape")
-                .field("lat_lon", true)
-                .field("store", true)
                 .endObject()
                 .endObject()
                 .endObject()
@@ -477,7 +474,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
 
         ensureYellow();
 
-        client().admin().indices().prepareCreate("locations").addMapping("location", "pin", "type=geo_point,geohash_prefix=true,latlon=false").execute().actionGet();
+        client().admin().indices().prepareCreate("locations").addMapping("location", "pin", "type=geo_point,geohash_prefix=true,lat_lon=false").execute().actionGet();
 
         // Index a pin
         client().prepareIndex("locations", "location", "1").setCreate(true).setSource("pin", geohash).execute().actionGet();
@@ -607,6 +604,10 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
     }
 
     protected static boolean testRelationSupport(SpatialOperation relation) {
+        if (relation == SpatialOperation.IsDisjointTo) {
+            // disjoint works in terms of intersection
+            relation = SpatialOperation.Intersects;
+        }
         try {
             GeohashPrefixTree tree = new GeohashPrefixTree(SpatialContext.GEO, 3);
             RecursivePrefixTreeStrategy strategy = new RecursivePrefixTreeStrategy(tree, "area");
@@ -615,6 +616,7 @@ public class GeoFilterTests extends ElasticsearchIntegrationTest {
             strategy.makeFilter(args);
             return true;
         } catch (UnsupportedSpatialOperation e) {
+            e.printStackTrace();
             return false;
         }
     }

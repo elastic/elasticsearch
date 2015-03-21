@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.AtomicReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.CollectionStatistics;
 import org.elasticsearch.common.util.MinimalMap;
 
@@ -57,7 +57,7 @@ public class IndexField extends MinimalMap<String, IndexFieldTerm> {
     /*
      * Uodate posting lists in all TermInfo objects
      */
-    void setReader(AtomicReader reader) {
+    void setReader(LeafReader reader) {
         for (IndexFieldTerm ti : terms.values()) {
             ti.setNextReader(reader);
         }
@@ -123,6 +123,7 @@ public class IndexField extends MinimalMap<String, IndexFieldTerm> {
      * Returns a TermInfo object that can be used to access information on
      * specific terms. flags can be set as described in TermInfo.
      */
+    @Override
     public IndexFieldTerm get(Object key) {
         // per default, do not initialize any positions info
         return get(key, IndexLookup.FLAG_FREQUENCIES);

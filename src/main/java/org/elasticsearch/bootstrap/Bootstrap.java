@@ -23,10 +23,10 @@ import com.google.common.base.Charsets;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.inject.spi.Message;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.jna.Natives;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -43,11 +43,13 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
 import static com.google.common.collect.Sets.newHashSet;
+import static org.elasticsearch.common.jna.Kernel32Library.ConsoleCtrlHandler;
 import static org.elasticsearch.common.settings.ImmutableSettings.Builder.EMPTY_SETTINGS;
 
 /**
@@ -59,15 +61,12 @@ public class Bootstrap {
 
     private static volatile Thread keepAliveThread;
     private static volatile CountDownLatch keepAliveLatch;
-
     private static Bootstrap bootstrap;
 
     private void setup(boolean addShutdownHook, Tuple<Settings, Environment> tuple) throws Exception {
-//        Loggers.getLogger(Bootstrap.class, tuple.v1().get("name")).info("heap_size {}/{}", JvmStats.jvmStats().mem().heapCommitted(), JvmInfo.jvmInfo().mem().heapMax());
         if (tuple.v1().getAsBoolean("bootstrap.mlockall", false)) {
             Natives.tryMlockall();
         }
-        tuple = setupJmx(tuple);
 
         NodeBuilder nodeBuilder = NodeBuilder.nodeBuilder().settings(tuple.v1()).loadConfigSettings(false);
         node = nodeBuilder.build();
@@ -79,16 +78,22 @@ public class Bootstrap {
                 }
             });
         }
-    }
 
-    private static Tuple<Settings, Environment> setupJmx(Tuple<Settings, Environment> tuple) {
-        // We disable JMX on by default, since we don't really want the overhead of RMI (and RMI GC...)
-//        if (tuple.v1().get(JmxService.SettingsConstants.CREATE_CONNECTOR) == null) {
-//            // automatically create the connector if we are bootstrapping
-//            Settings updated = settingsBuilder().put(tuple.v1()).put(JmxService.SettingsConstants.CREATE_CONNECTOR, true).build();
-//            tuple = new Tuple<Settings, Environment>(updated, tuple.v2());
-//        }
-        return tuple;
+        if (tuple.v1().getAsBoolean("bootstrap.ctrlhandler", true)) {
+            Natives.addConsoleCtrlHandler(new ConsoleCtrlHandler() {
+                @Override
+                public boolean handle(int code) {
+                    if (CTRL_CLOSE_EVENT == code) {
+                        ESLogger logger = Loggers.getLogger(Bootstrap.class);
+                        logger.info("running graceful exit on windows");
+
+                        System.exit(0);
+                        return true;
+                    }
+                    return false;
+                }
+            });
+        }
     }
 
     private static void setupLogging(Tuple<Settings, Environment> tuple) {
@@ -129,7 +134,7 @@ public class Bootstrap {
      * hook for JSVC
      */
     public void stop() {
-        node.stop();
+       destroy();
     }
 
 
@@ -152,15 +157,7 @@ public class Bootstrap {
 
         if (pidFile != null) {
             try {
-                File fPidFile = new File(pidFile);
-                if (fPidFile.getParentFile() != null) {
-                    FileSystemUtils.mkdirs(fPidFile.getParentFile());
-                }
-                FileOutputStream outputStream = new FileOutputStream(fPidFile);
-                outputStream.write(Long.toString(JvmInfo.jvmInfo().pid()).getBytes(Charsets.UTF_8));
-                outputStream.close();
-
-                fPidFile.deleteOnExit();
+                PidFile.create(Paths.get(pidFile), true);
             } catch (Exception e) {
                 String errorMessage = buildErrorMessage("pid", e);
                 System.err.println(errorMessage);
@@ -168,7 +165,6 @@ public class Bootstrap {
                 System.exit(3);
             }
         }
-
         boolean foreground = System.getProperty("es.foreground", System.getProperty("es-foreground")) != null;
         // handle the wrapper system property, if its a service, don't run as a service
         if (System.getProperty("wrapper.service", "XXX").equalsIgnoreCase("true")) {
@@ -250,13 +246,10 @@ public class Bootstrap {
             if (foreground) {
                 System.err.println(errorMessage);
                 System.err.flush();
-            } else {
-                logger.error(errorMessage);
+                Loggers.disableConsoleLogging();
             }
-            Loggers.disableConsoleLogging();
-            if (logger.isDebugEnabled()) {
-                logger.debug("Exception", e);
-            }
+            logger.error("Exception", e);
+            
             System.exit(3);
         }
     }

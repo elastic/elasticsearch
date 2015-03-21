@@ -120,32 +120,42 @@ public class BytesRestResponse extends RestResponse {
     }
 
     private static XContentBuilder convert(RestChannel channel, RestStatus status, Throwable t) throws IOException {
-        XContentBuilder builder = channel.newBuilder().startObject()
-                .field("error", detailedMessage(t))
-                .field("status", status.getStatus());
-        if (t != null && channel.request().paramAsBoolean("error_trace", false)) {
-            builder.startObject("error_trace");
-            boolean first = true;
-            int counter = 0;
-            while (t != null) {
-                // bail if there are more than 10 levels, becomes useless really...
-                if (counter++ > 10) {
-                    break;
-                }
-                if (!first) {
-                    builder.startObject("cause");
-                }
-                buildThrowable(t, builder);
-                if (!first) {
-                    builder.endObject();
-                }
-                t = t.getCause();
-                first = false;
+        XContentBuilder builder = channel.newBuilder().startObject();
+        if (t == null) {
+            builder.field("error", "Unknown");
+        } else if (channel.detailedErrorsEnabled()) {
+            builder.field("error", detailedMessage(t));
+            if (channel.request().paramAsBoolean("error_trace", false)) {
+                buildErrorTrace(t, builder);
             }
-            builder.endObject();
+        } else {
+            builder.field("error", simpleMessage(t));
         }
+        builder.field("status", status.getStatus());
         builder.endObject();
         return builder;
+    }
+
+    private static void buildErrorTrace(Throwable t, XContentBuilder builder) throws IOException {
+        builder.startObject("error_trace");
+        boolean first = true;
+        int counter = 0;
+        while (t != null) {
+            // bail if there are more than 10 levels, becomes useless really...
+            if (counter++ > 10) {
+                break;
+            }
+            if (!first) {
+                builder.startObject("cause");
+            }
+            buildThrowable(t, builder);
+            if (!first) {
+                builder.endObject();
+            }
+            t = t.getCause();
+            first = false;
+        }
+        builder.endObject();
     }
 
     private static void buildThrowable(Throwable t, XContentBuilder builder) throws IOException {
@@ -162,5 +172,21 @@ public class BytesRestResponse extends RestResponse {
             }
             builder.endObject();
         }
+    }
+
+    /*
+     * Builds a simple error string from the message of the first ElasticsearchException
+     */
+    private static String simpleMessage(Throwable t) throws IOException {
+        int counter = 0;
+        Throwable next = t;
+        while (next != null && counter++ < 10) {
+            if (t instanceof ElasticsearchException) {
+                return next.getClass().getSimpleName() + "[" + next.getMessage() + "]";
+            }
+            next = next.getCause();
+        }
+
+        return "No ElasticsearchException found";
     }
 }

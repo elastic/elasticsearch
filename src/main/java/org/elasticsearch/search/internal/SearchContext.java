@@ -25,6 +25,7 @@ import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
+import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.Nullable;
@@ -32,9 +33,8 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.docset.DocSetCache;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -43,7 +43,8 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
@@ -52,7 +53,7 @@ import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
-import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
@@ -65,6 +66,7 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  */
@@ -88,12 +90,16 @@ public abstract class SearchContext implements Releasable {
     }
 
     private Multimap<Lifetime, Releasable> clearables = null;
+    private final AtomicBoolean closed = new AtomicBoolean(false);
 
+    @Override
     public final void close() {
-        try {
-            clearReleasables(Lifetime.CONTEXT);
-        } finally {
-            doClose();
+        if (closed.compareAndSet(false, true)) { // prevent double release
+            try {
+                clearReleasables(Lifetime.CONTEXT);
+            } finally {
+                doClose();
+            }
         }
     }
 
@@ -153,6 +159,10 @@ public abstract class SearchContext implements Releasable {
 
     public abstract void highlight(SearchContextHighlight highlight);
 
+    public abstract void innerHits(InnerHitsContext innerHitsContext);
+
+    public abstract InnerHitsContext innerHits();
+
     public abstract SuggestionSearchContext suggest();
 
     public abstract void suggest(SuggestionSearchContext suggest);
@@ -171,10 +181,6 @@ public abstract class SearchContext implements Releasable {
     public abstract boolean hasScriptFields();
 
     public abstract ScriptFieldsContext scriptFields();
-
-    public abstract boolean hasPartialFields();
-
-    public abstract PartialFieldsContext partialFields();
 
     /**
      * A shortcut function to see whether there is a fetchSourceContext and it says the source is requested.
@@ -209,9 +215,7 @@ public abstract class SearchContext implements Releasable {
 
     public abstract FilterCache filterCache();
 
-    public abstract FixedBitSetFilterCache fixedBitSetFilterCache();
-
-    public abstract DocSetCache docSetCache();
+    public abstract BitsetFilterCache bitsetFilterCache();
 
     public abstract IndexFieldDataService fieldData();
 
@@ -347,11 +351,14 @@ public abstract class SearchContext implements Releasable {
 
     public abstract FieldMapper smartNameFieldMapper(String name);
 
+    /**
+     * Looks up the given field, but does not restrict to fields in the types set on this context.
+     */
+    public abstract FieldMapper smartNameFieldMapperFromAnyType(String name);
+
     public abstract MapperService.SmartNameObjectMapper smartNameObjectMapper(String name);
 
-    public abstract boolean useSlowScroll();
-
-    public abstract SearchContext useSlowScroll(boolean useSlowScroll);
+    public abstract Counter timeEstimateCounter();
 
     /**
      * The life time of an object that is used during search execution.

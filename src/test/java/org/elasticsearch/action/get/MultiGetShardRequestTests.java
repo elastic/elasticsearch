@@ -82,21 +82,12 @@ public class MultiGetShardRequestTests extends ElasticsearchTestCase {
         assertThat(multiGetShardRequest2.preference(), equalTo(multiGetShardRequest.preference()));
         assertThat(multiGetShardRequest2.realtime(), equalTo(multiGetShardRequest.realtime()));
         assertThat(multiGetShardRequest2.refresh(), equalTo(multiGetShardRequest.refresh()));
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-            assertThat(multiGetShardRequest2.ignoreErrorsOnGeneratedFields(), equalTo(multiGetShardRequest.ignoreErrorsOnGeneratedFields()));
-        } else {
-            assertThat(multiGetShardRequest2.ignoreErrorsOnGeneratedFields(), equalTo(false));
-        }
+        assertThat(multiGetShardRequest2.ignoreErrorsOnGeneratedFields(), equalTo(multiGetShardRequest.ignoreErrorsOnGeneratedFields()));
         assertThat(multiGetShardRequest2.items.size(), equalTo(multiGetShardRequest.items.size()));
         for (int i = 0; i < multiGetShardRequest2.items.size(); i++) {
             MultiGetRequest.Item item = multiGetShardRequest.items.get(i);
             MultiGetRequest.Item item2 = multiGetShardRequest2.items.get(i);
-            if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
                 assertThat(item2.index(), equalTo(item.index()));
-            } else {
-                //before 1.4 we have only one index, the concrete one
-                assertThat(item2.index(), equalTo(multiGetShardRequest.index()));
-            }
             assertThat(item2.type(), equalTo(item.type()));
             assertThat(item2.id(), equalTo(item.id()));
             assertThat(item2.fields(), equalTo(item.fields()));
@@ -104,10 +95,7 @@ public class MultiGetShardRequestTests extends ElasticsearchTestCase {
             assertThat(item2.versionType(), equalTo(item.versionType()));
             assertThat(item2.fetchSourceContext(), equalTo(item.fetchSourceContext()));
         }
-        if (in.getVersion().onOrAfter(Version.V_1_4_0)) {
-            //we don't serialize the original index before 1.4, it'll get the concrete one
-            assertThat(multiGetShardRequest2.indices(), equalTo(multiGetShardRequest.indices()));
-            assertThat(multiGetShardRequest2.indicesOptions(), equalTo(multiGetShardRequest.indicesOptions()));
-        }
+        assertThat(multiGetShardRequest2.indices(), equalTo(multiGetShardRequest.indices()));
+        assertThat(multiGetShardRequest2.indicesOptions(), equalTo(multiGetShardRequest.indicesOptions()));
     }
 }

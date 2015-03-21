@@ -18,14 +18,16 @@
  */
 package org.elasticsearch.common.blobstore;
 
+import java.io.IOException;
+
 /**
  *
  */
 public interface BlobStore {
 
-    ImmutableBlobContainer immutableBlobContainer(BlobPath path);
+    BlobContainer blobContainer(BlobPath path);
 
-    void delete(BlobPath path);
+    void delete(BlobPath path) throws IOException;
 
     void close();
 }

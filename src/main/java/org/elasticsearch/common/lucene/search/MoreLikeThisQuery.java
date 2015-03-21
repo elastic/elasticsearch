@@ -20,20 +20,23 @@
 package org.elasticsearch.common.lucene.search;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
 import java.io.Reader;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -42,15 +45,17 @@ import java.util.Set;
  */
 public class MoreLikeThisQuery extends Query {
 
-    public static final float DEFAULT_PERCENT_TERMS_TO_MATCH = 0.3f;
+    public static final String DEFAULT_MINIMUM_SHOULD_MATCH = "30%";
 
     private TFIDFSimilarity similarity;
 
     private String[] likeText;
     private Fields[] likeFields;
+    private String[] ignoreText;
+    private Fields[] ignoreFields;
     private String[] moreLikeFields;
     private Analyzer analyzer;
-    private float percentTermsToMatch = DEFAULT_PERCENT_TERMS_TO_MATCH;
+    private String minimumShouldMatch = DEFAULT_MINIMUM_SHOULD_MATCH;
     private int minTermFrequency = XMoreLikeThis.DEFAULT_MIN_TERM_FREQ;
     private int maxQueryTerms = XMoreLikeThis.DEFAULT_MAX_QUERY_TERMS;
     private Set<?> stopWords = XMoreLikeThis.DEFAULT_STOP_WORDS;
@@ -84,7 +89,7 @@ public class MoreLikeThisQuery extends Query {
         result = 31 * result + minTermFrequency;
         result = 31 * result + minWordLen;
         result = 31 * result + Arrays.hashCode(moreLikeFields);
-        result = 31 * result + Float.floatToIntBits(percentTermsToMatch);
+        result = 31 * result + minimumShouldMatch.hashCode();
         result = 31 * result + (stopWords == null ? 0 : stopWords.hashCode());
         result = 31 * result + Float.floatToIntBits(getBoost());
         return result;
@@ -119,7 +124,7 @@ public class MoreLikeThisQuery extends Query {
             return false;
         if (!Arrays.equals(moreLikeFields, other.moreLikeFields))
             return false;
-        if (percentTermsToMatch != other.percentTermsToMatch)
+        if (!minimumShouldMatch.equals(other.minimumShouldMatch))
             return false;
         if (similarity == null) {
             if (other.similarity != null)
@@ -150,9 +155,15 @@ public class MoreLikeThisQuery extends Query {
         mlt.setBoost(boostTerms);
         mlt.setBoostFactor(boostTermsFactor);
 
+        if (this.ignoreText != null || this.ignoreFields != null) {
+            handleSkipTerms(mlt, this.ignoreText, this.ignoreFields);
+        }
+
         BooleanQuery bq = new BooleanQuery();
         if (this.likeFields != null) {
-            bq.add((BooleanQuery) mlt.like(this.likeFields), BooleanClause.Occur.SHOULD);
+            Query mltQuery = mlt.like(this.likeFields);
+            Queries.applyMinimumShouldMatch((BooleanQuery) mltQuery, minimumShouldMatch);
+            bq.add(mltQuery, BooleanClause.Occur.SHOULD);
         }
         if (this.likeText != null) {
             Reader[] readers = new Reader[likeText.length];
@@ -160,14 +171,48 @@ public class MoreLikeThisQuery extends Query {
                 readers[i] = new FastStringReader(likeText[i]);
             }
             //LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
-            bq.add((BooleanQuery) mlt.like(moreLikeFields[0], readers), BooleanClause.Occur.SHOULD);
+            Query mltQuery = mlt.like(moreLikeFields[0], readers);
+            Queries.applyMinimumShouldMatch((BooleanQuery) mltQuery, minimumShouldMatch);
+            bq.add(mltQuery, BooleanClause.Occur.SHOULD);
         }
-
-        BooleanClause[] clauses = bq.getClauses();
-        bq.setMinimumNumberShouldMatch((int) (clauses.length * percentTermsToMatch));
 
         bq.setBoost(getBoost());
         return bq;
+    }
+
+    private void handleSkipTerms(XMoreLikeThis mlt, String[] ignoreText, Fields[] ignoreFields) throws IOException {
+        Set<Term> skipTerms = new HashSet<>();
+        // handle like text
+        if (ignoreText != null) {
+            for (String text : ignoreText) {
+                // only use the first field to be consistent
+                String fieldName = moreLikeFields[0];
+                try (TokenStream ts = analyzer.tokenStream(fieldName, text)) {
+                    CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
+                    ts.reset();
+                    while (ts.incrementToken()) {
+                        skipTerms.add(new Term(fieldName, termAtt.toString()));
+                    }
+                    ts.end();
+                }
+            }
+        }
+        // handle like fields
+        if (ignoreFields != null) {
+            for (Fields fields : ignoreFields) {
+                for (String fieldName : fields) {
+                    Terms terms = fields.terms(fieldName);
+                    final TermsEnum termsEnum = terms.iterator(null);
+                    BytesRef text;
+                    while ((text = termsEnum.next()) != null) {
+                        skipTerms.add(new Term(fieldName, text.utf8ToString()));
+                    }
+                }
+            }
+        }
+        if (!skipTerms.isEmpty()) {
+            mlt.setSkipTerms(skipTerms);
+        }
     }
 
     @Override
@@ -203,6 +248,14 @@ public class MoreLikeThisQuery extends Query {
         setLikeText(likeText.toArray(Strings.EMPTY_ARRAY));
     }
 
+    public void setIgnoreText(Fields... ignoreFields) {
+        this.ignoreFields = ignoreFields;
+    }
+
+    public void setIgnoreText(List<String> ignoreText) {
+        this.ignoreText = ignoreText.toArray(Strings.EMPTY_ARRAY);
+    }
+
     public String[] getMoreLikeFields() {
         return moreLikeFields;
     }
@@ -230,12 +283,24 @@ public class MoreLikeThisQuery extends Query {
         this.analyzer = analyzer;
     }
 
-    public float getPercentTermsToMatch() {
-        return percentTermsToMatch;
+    /**
+     * Number of terms that must match the generated query expressed in the
+     * common syntax for minimum should match.
+     *
+     * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
+     */
+    public String getMinimumShouldMatch() {
+        return minimumShouldMatch;
     }
 
-    public void setPercentTermsToMatch(float percentTermsToMatch) {
-        this.percentTermsToMatch = percentTermsToMatch;
+    /**
+     * Number of terms that must match the generated query expressed in the
+     * common syntax for minimum should match. Defaults to <tt>30%</tt>.
+     *
+     * @see    org.elasticsearch.common.lucene.search.Queries#calculateMinShouldMatch(int, String)
+     */
+    public void setMinimumShouldMatch(String minimumShouldMatch) {
+        this.minimumShouldMatch = minimumShouldMatch;
     }
 
     public int getMinTermFrequency() {

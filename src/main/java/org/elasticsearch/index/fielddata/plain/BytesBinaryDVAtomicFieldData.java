@@ -21,14 +21,18 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
 
 final class BytesBinaryDVAtomicFieldData implements AtomicFieldData {
 
@@ -41,7 +45,12 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData {
 
     @Override
     public long ramBytesUsed() {
-        return -1; // not exposed by Lucene
+        return 0; // not exposed by Lucene
+    }
+
+    @Override
+    public Collection<Accountable> getChildResources() {
+        return Collections.emptyList();
     }
 
     @Override
@@ -49,7 +58,7 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData {
         return new SortedBinaryDocValues() {
 
             int count;
-            BytesRef[] refs = new BytesRef[0];
+            BytesRefBuilder[] refs = new BytesRefBuilder[0];
             final ByteArrayDataInput in = new ByteArrayDataInput();
 
             @Override
@@ -64,16 +73,15 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData {
                         final int previousLength = refs.length;
                         refs = Arrays.copyOf(refs, ArrayUtil.oversize(count, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
                         for (int i = previousLength; i < refs.length; ++i) {
-                            refs[i] = new BytesRef();
+                            refs[i] = new BytesRefBuilder();
                         }
                     }
                     for (int i = 0; i < count; ++i) {
                         final int length = in.readVInt();
-                        final BytesRef scratch = refs[i];
+                        final BytesRefBuilder scratch = refs[i];
                         scratch.grow(length);
-                        in.readBytes(scratch.bytes, 0, length);
-                        scratch.length = length;
-                        scratch.offset = 0;
+                        in.readBytes(scratch.bytes(), 0, length);
+                        scratch.setLength(length);
                     }
                 }
             }
@@ -85,7 +93,7 @@ final class BytesBinaryDVAtomicFieldData implements AtomicFieldData {
 
             @Override
             public BytesRef valueAt(int index) {
-                return refs[index];
+                return refs[index].get();
             }
 
         };

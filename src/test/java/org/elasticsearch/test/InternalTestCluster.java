@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.google.common.base.Predicate;
 import com.google.common.base.Predicates;
 import com.google.common.collect.*;
@@ -42,9 +44,14 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -63,21 +70,26 @@ import org.elasticsearch.common.util.BigArraysModule;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.cache.filter.AutoFilterCachingPolicy;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
 import org.elasticsearch.index.cache.filter.none.NoneFilterCache;
 import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
-import org.elasticsearch.index.engine.IndexEngineModule;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.shard.IndexShardModule;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.cache.recycler.MockBigArraysModule;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecyclerModule;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.engine.MockEngineModule;
+import org.elasticsearch.test.engine.MockEngineFactory;
 import org.elasticsearch.test.store.MockFSIndexStoreModule;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -89,24 +101,23 @@ import org.elasticsearch.transport.netty.NettyTransport;
 import org.junit.Assert;
 
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
 import static junit.framework.Assert.fail;
-import static org.apache.lucene.util.LuceneTestCase.rarely;
-import static org.apache.lucene.util.LuceneTestCase.usually;
+import static org.apache.lucene.util.LuceneTestCase.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 import static org.elasticsearch.test.ElasticsearchTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertThat;
 
@@ -141,7 +152,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public static final String SETTING_CLUSTER_NODE_SEED = "test.cluster.node.seed";
 
-    private static final boolean ENABLE_MOCK_MODULES = systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
+    private static final boolean ENABLE_MOCK_MODULES = RandomizedTest.systemPropertyAsBoolean(TESTS_ENABLE_MOCK_MODULES, true);
 
     static final int DEFAULT_MIN_NUM_DATA_NODES = 2;
     static final int DEFAULT_MAX_NUM_DATA_NODES = 6;
@@ -151,13 +162,14 @@ public final class InternalTestCluster extends TestCluster {
     static final int DEFAULT_MAX_NUM_CLIENT_NODES = 1;
 
     static final boolean DEFAULT_ENABLE_RANDOM_BENCH_NODES = true;
+    static final boolean DEFAULT_ENABLE_HTTP_PIPELINING = true;
 
     public static final String NODE_MODE = nodeMode();
 
     /* sorted map to make traverse order reproducible, concurrent since we do checks on it not within a sync block */
     private final NavigableMap<String, NodeAndClient> nodes = new TreeMap<>();
 
-    private final Set<File> dataDirToClean = new HashSet<>();
+    private final Set<Path> dataDirToClean = new HashSet<>();
 
     private final String clusterName;
 
@@ -182,8 +194,6 @@ public final class InternalTestCluster extends TestCluster {
 
     private final ExecutorService executor;
 
-    private final boolean hasFilterCache;
-
     /**
      * All nodes started by the cluster will have their name set to nodePrefix followed by a positive number
      */
@@ -192,14 +202,15 @@ public final class InternalTestCluster extends TestCluster {
     private ServiceDisruptionScheme activeDisruptionScheme;
 
     public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes, boolean enableRandomBenchNodes,
-                               int jvmOrdinal, String nodePrefix) {
-        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableRandomBenchNodes, jvmOrdinal, nodePrefix);
+                               boolean enableHttpPipelining, int jvmOrdinal, String nodePrefix) {
+        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableRandomBenchNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
     }
 
     public InternalTestCluster(long clusterSeed,
                                int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes,
-                               boolean enableRandomBenchNodes,
+                               boolean enableRandomBenchNodes, boolean enableHttpPipelining,
                                int jvmOrdinal, String nodePrefix) {
+        super(clusterSeed);
         this.clusterName = clusterName;
 
         if (minNumDataNodes < 0 || maxNumDataNodes < 0) {
@@ -254,26 +265,43 @@ public final class InternalTestCluster extends TestCluster {
             if (numOfDataPaths > 0) {
                 StringBuilder dataPath = new StringBuilder();
                 for (int i = 0; i < numOfDataPaths; i++) {
-                    dataPath.append(new File("data/d" + i).getAbsolutePath()).append(',');
+                    dataPath.append(Paths.get("data/d" + i).toAbsolutePath()).append(',');
                 }
                 builder.put("path.data", dataPath.toString());
             }
         }
         final int basePort = 9300 + (100 * (jvmOrdinal+1));
-        builder.put("transport.tcp.port", basePort + "-" + (basePort+199));
+        builder.put("transport.tcp.port", basePort + "-" + (basePort+100));
+        builder.put("http.port", basePort+101 + "-" + (basePort+200));
         builder.put("config.ignore_system_properties", true);
         builder.put("node.mode", NODE_MODE);
         builder.put("script.disable_dynamic", false);
+        builder.put("http.pipelining", enableHttpPipelining);
         builder.put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false);
+        builder.put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true);
         if (Strings.hasLength(System.getProperty("es.logger.level"))) {
             builder.put("logger.level", System.getProperty("es.logger.level"));
         }
         if (Strings.hasLength(System.getProperty("es.logger.prefix"))) {
-            builder.put("logger.prefix", System.getProperty("es.logger.level"));
+            builder.put("logger.prefix", System.getProperty("es.logger.prefix"));
         }
+        // Default the watermarks to absurdly low to prevent the tests
+        // from failing on nodes without enough disk space
+        builder.put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "1b");
+        builder.put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "1b");
+        if (TEST_NIGHTLY) {
+            builder.put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_STREAMS, RandomInts.randomIntBetween(random, 10, 15));
+            builder.put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, RandomInts.randomIntBetween(random, 10, 15));
+            builder.put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, RandomInts.randomIntBetween(random, 5, 10));
+        } else if (random.nextInt(100) <= 90) {
+            builder.put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_STREAMS, RandomInts.randomIntBetween(random, 3, 6));
+            builder.put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, RandomInts.randomIntBetween(random, 3, 6));
+            builder.put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, RandomInts.randomIntBetween(random, 2, 5));
+        }
+        // always reduce this - it can make tests really slow
+        builder.put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC, TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 20, 50)));
         defaultSettings = builder.build();
-        executor = EsExecutors.newCached(1, TimeUnit.MINUTES, EsExecutors.daemonThreadFactory("test_" + clusterName));
-        this.hasFilterCache = random.nextBoolean();
+        executor = EsExecutors.newCached(0, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory("test_" + clusterName));
     }
 
     public static String nodeMode() {
@@ -312,8 +340,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private Settings getSettings(int nodeOrdinal, long nodeSeed, Settings others) {
         Builder builder = ImmutableSettings.settingsBuilder().put(defaultSettings)
-                .put(getRandomNodeSettings(nodeSeed))
-                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, hasFilterCache() ? WeightedFilterCache.class : NoneFilterCache.class);
+                .put(getRandomNodeSettings(nodeSeed));
         Settings settings = settingsSource.node(nodeOrdinal);
         if (settings != null) {
             if (settings.get(ClusterName.SETTING) != null) {
@@ -331,16 +358,12 @@ public final class InternalTestCluster extends TestCluster {
     private static Settings getRandomNodeSettings(long seed) {
         Random random = new Random(seed);
         Builder builder = ImmutableSettings.settingsBuilder()
-        /* use RAM directories in 10% of the runs */
-                //.put("index.store.type", random.nextInt(10) == 0 ? MockRamIndexStoreModule.class.getName() : MockFSIndexStoreModule.class.getName())
                 // decrease the routing schedule so new nodes will be added quickly - some random value between 30 and 80 ms
                 .put("cluster.routing.schedule", (30 + random.nextInt(50)) + "ms")
-                        // default to non gateway
-                .put("gateway.type", "none")
                 .put(SETTING_CLUSTER_NODE_SEED, seed);
         if (ENABLE_MOCK_MODULES && usually(random)) {
             builder.put("index.store.type", MockFSIndexStoreModule.class.getName()); // no RAM dir for now!
-            builder.put(IndexEngineModule.EngineSettings.ENGINE_TYPE, MockEngineModule.class.getName());
+            builder.put(IndexShardModule.ENGINE_FACTORY, MockEngineFactory.class);
             builder.put(PageCacheRecyclerModule.CACHE_IMPL, MockPageCacheRecyclerModule.class.getName());
             builder.put(BigArraysModule.IMPL, MockBigArraysModule.class.getName());
             builder.put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName());
@@ -359,14 +382,14 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(SearchService.KEEPALIVE_INTERVAL_KEY, TimeValue.timeValueSeconds(10 + random.nextInt(5 * 60)));
         }
         if (random.nextBoolean()) { // sometimes set a
-            builder.put(SearchService.DEFAUTL_KEEPALIVE_KEY, TimeValue.timeValueSeconds(100 + random.nextInt(5 * 60)));
+            builder.put(SearchService.DEFAULT_KEEPALIVE_KEY, TimeValue.timeValueSeconds(100 + random.nextInt(5 * 60)));
         }
         if (random.nextBoolean()) {
             // change threadpool types to make sure we don't have components that rely on the type of thread pools
             for (String name : Arrays.asList(ThreadPool.Names.BULK, ThreadPool.Names.FLUSH, ThreadPool.Names.GET,
-                    ThreadPool.Names.INDEX, ThreadPool.Names.MANAGEMENT, ThreadPool.Names.MERGE, ThreadPool.Names.OPTIMIZE,
+                    ThreadPool.Names.INDEX, ThreadPool.Names.MANAGEMENT, ThreadPool.Names.OPTIMIZE,
                     ThreadPool.Names.PERCOLATE, ThreadPool.Names.REFRESH, ThreadPool.Names.SEARCH, ThreadPool.Names.SNAPSHOT,
-                    ThreadPool.Names.SNAPSHOT_DATA, ThreadPool.Names.SUGGEST, ThreadPool.Names.WARMER)) {
+                    ThreadPool.Names.SUGGEST, ThreadPool.Names.WARMER)) {
                 if (random.nextBoolean()) {
                     final String type = RandomPicks.randomFrom(random, Arrays.asList("fixed", "cached", "scaling"));
                     builder.put(ThreadPool.THREADPOOL_GROUP + name + ".type", type);
@@ -399,8 +422,29 @@ public final class InternalTestCluster extends TestCluster {
         if (random.nextBoolean()) {
             builder.put(MappingUpdatedAction.INDICES_MAPPING_ADDITIONAL_MAPPING_CHANGE_TIME, RandomInts.randomIntBetween(random, 0, 500) /*milliseconds*/);
         }
+
+        if (random.nextInt(10) == 0) {
+            builder.put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_TYPE_SETTING, "noop");
+            builder.put(HierarchyCircuitBreakerService.FIELDDATA_CIRCUIT_BREAKER_TYPE_SETTING, "noop");
+        }
+
         if (random.nextBoolean()) {
-            builder.put(MapperService.DEFAULT_FIELD_MAPPERS_COLLECTION_SWITCH, RandomInts.randomIntBetween(random, 0, 5));
+            builder.put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, random.nextBoolean() ? WeightedFilterCache.class : NoneFilterCache.class);
+        }
+
+        if (random.nextBoolean()) {
+            final int freqCacheable = 1 + random.nextInt(5);
+            final int freqCostly = 1 + random.nextInt(5);
+            final int freqOther = Math.max(freqCacheable, freqCostly) + random.nextInt(2);
+            int historySize = 3 + random.nextInt(100);
+            historySize = Math.max(historySize, freqCacheable);
+            historySize = Math.max(historySize, freqCostly);
+            historySize = Math.max(historySize, freqOther);
+            builder.put(AutoFilterCachingPolicy.HISTORY_SIZE, historySize);
+            builder.put(AutoFilterCachingPolicy.MIN_FREQUENCY_CACHEABLE, freqCacheable);
+            builder.put(AutoFilterCachingPolicy.MIN_FREQUENCY_COSTLY, freqCostly);
+            builder.put(AutoFilterCachingPolicy.MIN_FREQUENCY_OTHER, freqOther);
+            builder.put(AutoFilterCachingPolicy.MIN_SEGMENT_SIZE_RATIO, random.nextFloat());
         }
 
         return builder.build();
@@ -609,7 +653,7 @@ public final class InternalTestCluster extends TestCluster {
 
     public synchronized Client startNodeClient(Settings settings) {
         ensureOpen(); // currently unused
-        Builder builder = settingsBuilder().put(settings).put("node.client", true).put("node.data", false);
+        Builder builder = settingsBuilder().put(settings).put("node.client", true);
         if (size() == 0) {
             // if we are the first node - don't wait for a state
             builder.put("discovery.initial_state_timeout", 0);
@@ -686,14 +730,14 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private final class NodeAndClient implements Closeable {
-        private InternalNode node;
+        private Node node;
         private Client nodeClient;
         private Client transportClient;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final String name;
 
         NodeAndClient(String name, Node node) {
-            this.node = (InternalNode) node;
+            this.node = node;
             this.name = name;
         }
 
@@ -710,8 +754,8 @@ public final class InternalTestCluster extends TestCluster {
             }
             double nextDouble = random.nextDouble();
             if (nextDouble < transportClientRatio) {
-                if (logger.isDebugEnabled()) {
-                    logger.debug("Using transport client for node [{}] sniff: [{}]", node.settings().get("name"), false);
+                if (logger.isTraceEnabled()) {
+                    logger.trace("Using transport client for node [{}] sniff: [{}]", node.settings().get("name"), false);
                 }
                 return getOrBuildTransportClient();
             } else {
@@ -747,7 +791,7 @@ public final class InternalTestCluster extends TestCluster {
             /* no sniff client for now - doesn't work will all tests since it might throw NoNodeAvailableException if nodes are shut down.
              * we first need support of transportClientRatio as annotations or so
              */
-            return transportClient = TransportClientFactory.noSniff(settingsSource.transportClient()).client(node, clusterName, random);
+            return transportClient = TransportClientFactory.noSniff(settingsSource.transportClient()).client(node, clusterName);
         }
 
         void resetClient() throws IOException {
@@ -759,11 +803,16 @@ public final class InternalTestCluster extends TestCluster {
             transportClient = null;
         }
 
+        void closeNode() {
+            registerDataPath();
+            node.close();
+        }
+
         void restart(RestartCallback callback) throws Exception {
             assert callback != null;
             resetClient();
             if (!node.isClosed()) {
-                node.close();
+                closeNode();
             }
             Settings newSettings = callback.onNodeStopped(name);
             if (newSettings == null) {
@@ -772,10 +821,17 @@ public final class InternalTestCluster extends TestCluster {
             if (callback.clearData(name)) {
                 NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class, node);
                 if (nodeEnv.hasNodeFile()) {
-                    FileSystemUtils.deleteRecursively(nodeEnv.nodeDataLocations());
+                    IOUtils.rm(nodeEnv.nodeDataPaths());
                 }
             }
-            node = (InternalNode) nodeBuilder().settings(node.settings()).settings(newSettings).node();
+            node = nodeBuilder().settings(node.settings()).settings(newSettings).node();
+        }
+
+        void registerDataPath() {
+            NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class, node);
+            if (nodeEnv.hasNodeFile()) {
+                dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataPaths()));
+            }
         }
 
 
@@ -783,7 +839,7 @@ public final class InternalTestCluster extends TestCluster {
         public void close() throws IOException {
             resetClient();
             closed.set(true);
-            node.close();
+            closeNode();
         }
     }
 
@@ -814,8 +870,8 @@ public final class InternalTestCluster extends TestCluster {
             this.settings = settings != null ? settings : ImmutableSettings.EMPTY;
         }
 
-        public Client client(Node node, String clusterName, Random random) {
-            TransportAddress addr = ((InternalNode) node).injector().getInstance(TransportService.class).boundAddress().publishAddress();
+        public Client client(Node node, String clusterName) {
+            TransportAddress addr = node.injector().getInstance(TransportService.class).boundAddress().publishAddress();
             Settings nodeSettings = node.settings();
             Builder builder = settingsBuilder()
                     .put("client.transport.nodes_sampler_interval", "1s")
@@ -846,7 +902,9 @@ public final class InternalTestCluster extends TestCluster {
         for (NodeAndClient nodeAndClient : nodes.values()) {
             TransportService transportService = nodeAndClient.node.injector().getInstance(TransportService.class);
             if (transportService instanceof MockTransportService) {
-                ((MockTransportService) transportService).clearAllRules();
+                final MockTransportService mockTransportService = (MockTransportService) transportService;
+                mockTransportService.clearAllRules();
+                mockTransportService.clearTracers();
             }
         }
         randomlyResetClients();
@@ -879,8 +937,8 @@ public final class InternalTestCluster extends TestCluster {
             NodeAndClient nodeAndClient = nodes.get(buildNodeName);
             if (nodeAndClient == null) {
                 changed = true;
-                Builder clientSettingsBuilder = ImmutableSettings.builder().put("node.data", false).put("node.master", false);
-                if (enableRandomBenchNodes && frequently()) {
+                Builder clientSettingsBuilder = ImmutableSettings.builder().put("node.client", true);
+                if (enableRandomBenchNodes && usually(random)) {
                     //client nodes might also be bench nodes
                     clientSettingsBuilder.put("node.bench", true);
                 }
@@ -927,7 +985,7 @@ public final class InternalTestCluster extends TestCluster {
 
     private void randomlyResetClients() throws IOException {
         // only reset the clients on nightly tests, it causes heavy load...
-        if (isNightly() && rarely(random)) {
+        if (RandomizedTest.isNightly() && rarely(random)) {
             final Collection<NodeAndClient> nodesAndClients = nodes.values();
             for (NodeAndClient nodeAndClient : nodesAndClients) {
                 nodeAndClient.resetClient();
@@ -937,21 +995,33 @@ public final class InternalTestCluster extends TestCluster {
 
     private void wipeDataDirectories() {
         if (!dataDirToClean.isEmpty()) {
-            boolean deleted = false;
             try {
-                deleted = FileSystemUtils.deleteSubDirectories(dataDirToClean.toArray(new File[dataDirToClean.size()]));
+                for (Path path : dataDirToClean) {
+                    try {
+                        FileSystemUtils.deleteSubDirectories(path);
+                        logger.info("Successfully wiped data directory for node location: {}", path);
+                    } catch (IOException e) {
+                        logger.info("Failed to wipe data directory for node location: {}", path);
+                    }
+                }
             } finally {
-                logger.info("Wipe data directory for all nodes locations: {} success: {}", this.dataDirToClean, deleted);
-                this.dataDirToClean.clear();
+                dataDirToClean.clear();
             }
         }
     }
 
     /**
-     * Returns a reference to a random nodes {@link ClusterService}
+     * Returns a reference to a random node's {@link ClusterService}
      */
-    public synchronized ClusterService clusterService() {
-        return getInstance(ClusterService.class);
+    public ClusterService clusterService() {
+        return clusterService(null);
+    }
+
+    /**
+     * Returns a reference to a node's {@link ClusterService}. If the given node is null, a random node will be selected.
+     */
+    public synchronized ClusterService clusterService(@Nullable String node) {
+        return getInstance(ClusterService.class, node);
     }
 
     /**
@@ -988,6 +1058,7 @@ public final class InternalTestCluster extends TestCluster {
         final Predicate<InternalTestCluster.NodeAndClient> predicate;
         if (node != null) {
             predicate = new Predicate<InternalTestCluster.NodeAndClient>() {
+                @Override
                 public boolean apply(NodeAndClient nodeAndClient) {
                     return node.equals(nodeAndClient.name);
                 }
@@ -1015,7 +1086,7 @@ public final class InternalTestCluster extends TestCluster {
         return getInstance(clazz, Predicates.<NodeAndClient>alwaysTrue());
     }
 
-    private synchronized <T> T getInstanceFromNode(Class<T> clazz, InternalNode node) {
+    private synchronized <T> T getInstanceFromNode(Class<T> clazz, Node node) {
         return node.injector().getInstance(clazz);
     }
 
@@ -1034,9 +1105,9 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
-     * Stops a random data node in the cluster.
+     * Stops a random data node in the cluster. Returns true if a node was found to stop, false otherwise.
      */
-    public synchronized void stopRandomDataNode() throws IOException {
+    public synchronized boolean stopRandomDataNode() throws IOException {
         ensureOpen();
         NodeAndClient nodeAndClient = getRandomNodeAndClient(new DataNodePredicate());
         if (nodeAndClient != null) {
@@ -1044,7 +1115,9 @@ public final class InternalTestCluster extends TestCluster {
             removeDisruptionSchemeFromNode(nodeAndClient);
             nodes.remove(nodeAndClient.name);
             nodeAndClient.close();
+            return true;
         }
+        return false;
     }
 
     /**
@@ -1175,7 +1248,7 @@ public final class InternalTestCluster extends TestCluster {
                 if (activeDisruptionScheme != null) {
                     activeDisruptionScheme.removeFromNode(nodeAndClient.name, this);
                 }
-                nodeAndClient.node.close();
+                nodeAndClient.closeNode();
             }
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 logger.info("Starting node [{}] ", nodeAndClient.name);
@@ -1192,6 +1265,7 @@ public final class InternalTestCluster extends TestCluster {
 
 
     private static final RestartCallback EMPTY_CALLBACK = new RestartCallback() {
+        @Override
         public Settings onNodeStopped(String node) {
             return null;
         }
@@ -1227,11 +1301,20 @@ public final class InternalTestCluster extends TestCluster {
 
 
     /**
-     * get the name of the current master node
+     * Returns the name of the current master node in the cluster.
      */
     public String getMasterName() {
+        return getMasterName(null);
+    }
+
+    /**
+     * Returns the name of the current master node in the cluster and executes the request via the node specified
+     * in the viaNode parameter. If viaNode isn't specified a random node will be picked to the send the request to.
+     */
+    public String getMasterName(@Nullable String viaNode) {
         try {
-            ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
+            Client client = viaNode != null ? client(viaNode) : client();
+            ClusterState state = client.admin().cluster().prepareState().execute().actionGet().getState();
             return state.nodes().masterNode().name();
         } catch (Throwable e) {
             logger.warn("Can't fetch cluster state", e);
@@ -1383,7 +1466,7 @@ public final class InternalTestCluster extends TestCluster {
         assert !nodeAndClient.node().isClosed();
         NodeEnvironment nodeEnv = getInstanceFromNode(NodeEnvironment.class, nodeAndClient.node);
         if (nodeEnv.hasNodeFile()) {
-            dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataLocations()));
+            dataDirToClean.addAll(Arrays.asList(nodeEnv.nodeDataPaths()));
         }
         nodes.put(nodeAndClient.name, nodeAndClient);
         applyDisruptionSchemeToNode(nodeAndClient);
@@ -1399,13 +1482,13 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public int numBenchNodes() {
-        return benchNodeAndClients().size();
+    public int numDataAndMasterNodes() {
+        return dataAndMasterNodes().size();
     }
 
     @Override
-    public boolean hasFilterCache() {
-        return hasFilterCache;
+    public int numBenchNodes() {
+        return benchNodeAndClients().size();
     }
 
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
@@ -1454,10 +1537,22 @@ public final class InternalTestCluster extends TestCluster {
         return Collections2.filter(nodes.values(), new DataNodePredicate());
     }
 
+    private synchronized Collection<NodeAndClient> dataAndMasterNodes() {
+        return Collections2.filter(nodes.values(), new DataOrMasterNodePredicate());
+    }
+
     private static final class DataNodePredicate implements Predicate<NodeAndClient> {
         @Override
         public boolean apply(NodeAndClient nodeAndClient) {
-            return nodeAndClient.node.settings().getAsBoolean("node.data", true);
+            return DiscoveryNode.dataNode(nodeAndClient.node.settings());
+        }
+    }
+
+    private static final class DataOrMasterNodePredicate implements Predicate<NodeAndClient> {
+        @Override
+        public boolean apply(NodeAndClient nodeAndClient) {
+            return DiscoveryNode.dataNode(nodeAndClient.node.settings()) ||
+                    DiscoveryNode.masterNode(nodeAndClient.node.settings());
         }
     }
 
@@ -1477,7 +1572,7 @@ public final class InternalTestCluster extends TestCluster {
     private static final class ClientNodePredicate implements Predicate<NodeAndClient> {
         @Override
         public boolean apply(NodeAndClient nodeAndClient) {
-            return nodeAndClient.node.settings().getAsBoolean("node.client", false);
+            return DiscoveryNode.clientNode(nodeAndClient.node.settings());
         }
     }
 
@@ -1503,6 +1598,30 @@ public final class InternalTestCluster extends TestCluster {
         public boolean apply(Map.Entry<String, NodeAndClient> entry) {
             return delegateNodePredicate.apply(entry.getValue());
         }
+    }
+
+    synchronized String routingKeyForShard(String index, String type, int shard, Random random) {
+        assertThat(shard, greaterThanOrEqualTo(0));
+        assertThat(shard, greaterThanOrEqualTo(0));
+        for (NodeAndClient n : nodes.values()) {
+            Node node = n.node;
+            IndicesService indicesService = getInstanceFromNode(IndicesService.class, node);
+            ClusterService clusterService = getInstanceFromNode(ClusterService.class, node);
+            IndexService indexService = indicesService.indexService(index);
+            if (indexService != null) {
+                assertThat(indexService.settingsService().getSettings().getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), greaterThan(shard));
+                OperationRouting operationRouting = indexService.injector().getInstance(OperationRouting.class);
+                while (true) {
+                    String routing = RandomStrings.randomAsciiOfLength(random, 10);
+                    final int targetShard = operationRouting.indexShards(clusterService.state(), index, type, null, routing).shardId().getId();
+                    if (shard == targetShard) {
+                        return routing;
+                    }
+                }
+            }
+        }
+        fail("Could not find a node that holds " + index);
+        return null;
     }
 
     @Override
@@ -1602,9 +1721,13 @@ public final class InternalTestCluster extends TestCluster {
             // network request, because a network request can increment one
             // of the breakers
             for (NodeAndClient nodeAndClient : nodes.values()) {
+                final IndicesFieldDataCache fdCache = getInstanceFromNode(IndicesFieldDataCache.class, nodeAndClient.node);
+                // Clean up the cache, ensuring that entries' listeners have been called
+                fdCache.getCache().cleanUp();
+
                 final String name = nodeAndClient.name;
                 final CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class, nodeAndClient.node);
-                CircuitBreaker fdBreaker = breakerService.getBreaker(CircuitBreaker.Name.FIELDDATA);
+                CircuitBreaker fdBreaker = breakerService.getBreaker(CircuitBreaker.FIELDDATA);
                 assertThat("Fielddata breaker not reset to 0 on node: " + name, fdBreaker.getUsed(), equalTo(0L));
                 // Anything that uses transport or HTTP can increase the
                 // request breaker (because they use bigarrays), because of
@@ -1618,7 +1741,7 @@ public final class InternalTestCluster extends TestCluster {
                     assertBusy(new Runnable() {
                         @Override
                         public void run() {
-                            CircuitBreaker reqBreaker = breakerService.getBreaker(CircuitBreaker.Name.REQUEST);
+                            CircuitBreaker reqBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
                             assertThat("Request breaker not reset to 0 on node: " + name, reqBreaker.getUsed(), equalTo(0L));
                         }
                     });
@@ -1630,7 +1753,22 @@ public final class InternalTestCluster extends TestCluster {
                 NodeStats stats = nodeService.stats(CommonStatsFlags.ALL, false, false, false, false, false, false, false, false, false);
                 assertThat("Fielddata size must be 0 on node: " + stats.getNode(), stats.getIndices().getFieldData().getMemorySizeInBytes(), equalTo(0l));
                 assertThat("Filter cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getFilterCache().getMemorySizeInBytes(), equalTo(0l));
-                assertThat("FixedBitSet cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
+                assertThat("FixedBitSet cache size must be 0 on node: " + stats.getNode(), stats.getIndices().getSegments().getBitsetMemoryInBytes(), equalTo(0l));
+            }
+        }
+    }
+
+    @Override
+    public void assertAfterTest() throws IOException {
+        super.assertAfterTest();
+        for (NodeEnvironment env : this.getInstances(NodeEnvironment.class)) {
+            Set<ShardId> shardIds = env.lockedShards();
+            for (ShardId id : shardIds) {
+                try {
+                    env.shardLock(id, TimeUnit.SECONDS.toMillis(5)).close();
+                } catch (IOException ex) {
+                    fail("Shard " + id + " is still locked after 5 sec waiting");
+                }
             }
         }
     }

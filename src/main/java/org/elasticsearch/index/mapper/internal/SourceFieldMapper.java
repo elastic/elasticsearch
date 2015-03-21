@@ -23,7 +23,7 @@ import com.google.common.base.Objects;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
@@ -36,6 +36,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -47,6 +48,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -72,10 +74,9 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexed(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE); // not indexed
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
             FIELD_TYPE.freeze();
         }
 
@@ -130,7 +131,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
         @Override
         public SourceFieldMapper build(BuilderContext context) {
-            return new SourceFieldMapper(name, enabled, format, compress, compressThreshold, includes, excludes);
+            return new SourceFieldMapper(name, enabled, format, compress, compressThreshold, includes, excludes, context.indexSettings());
         }
     }
 
@@ -139,23 +140,32 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             SourceFieldMapper.Builder builder = source();
 
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("enabled")) {
                     builder.enabled(nodeBooleanValue(fieldNode));
-                } else if (fieldName.equals("compress") && fieldNode != null) {
-                    builder.compress(nodeBooleanValue(fieldNode));
-                } else if (fieldName.equals("compress_threshold") && fieldNode != null) {
-                    if (fieldNode instanceof Number) {
-                        builder.compressThreshold(((Number) fieldNode).longValue());
-                        builder.compress(true);
-                    } else {
-                        builder.compressThreshold(ByteSizeValue.parseBytesSizeValue(fieldNode.toString()).bytes());
-                        builder.compress(true);
+                    iterator.remove();
+                } else if (fieldName.equals("compress")) {
+                    if (fieldNode != null) {
+                        builder.compress(nodeBooleanValue(fieldNode));
                     }
+                    iterator.remove();
+                } else if (fieldName.equals("compress_threshold")) {
+                    if (fieldNode != null) {
+                        if (fieldNode instanceof Number) {
+                            builder.compressThreshold(((Number) fieldNode).longValue());
+                            builder.compress(true);
+                        } else {
+                            builder.compressThreshold(ByteSizeValue.parseBytesSizeValue(fieldNode.toString()).bytes());
+                            builder.compress(true);
+                        }
+                    }
+                    iterator.remove();
                 } else if ("format".equals(fieldName)) {
                     builder.format(nodeStringValue(fieldNode, null));
+                    iterator.remove();
                 } else if (fieldName.equals("includes")) {
                     List<Object> values = (List<Object>) fieldNode;
                     String[] includes = new String[values.size()];
@@ -163,6 +173,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                         includes[i] = values.get(i).toString();
                     }
                     builder.includes(includes);
+                    iterator.remove();
                 } else if (fieldName.equals("excludes")) {
                     List<Object> values = (List<Object>) fieldNode;
                     String[] excludes = new String[values.size()];
@@ -170,6 +181,7 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
                         excludes[i] = values.get(i).toString();
                     }
                     builder.excludes(excludes);
+                    iterator.remove();
                 }
             }
             return builder;
@@ -189,14 +201,14 @@ public class SourceFieldMapper extends AbstractFieldMapper<byte[]> implements In
 
     private XContentType formatContentType;
 
-    public SourceFieldMapper() {
-        this(Defaults.NAME, Defaults.ENABLED, Defaults.FORMAT, null, -1, null, null);
+    public SourceFieldMapper(Settings indexSettings) {
+        this(Defaults.NAME, Defaults.ENABLED, Defaults.FORMAT, null, -1, null, null, indexSettings);
     }
 
     protected SourceFieldMapper(String name, boolean enabled, String format, Boolean compress, long compressThreshold,
-                                String[] includes, String[] excludes) {
+                                String[] includes, String[] excludes, Settings indexSettings) {
         super(new Names(name, name, name, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, null, null, null, null); // Only stored.
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, null, indexSettings); // Only stored.
         this.enabled = enabled;
         this.compress = compress;
         this.compressThreshold = compressThreshold;

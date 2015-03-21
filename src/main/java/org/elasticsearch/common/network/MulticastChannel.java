@@ -21,7 +21,6 @@ package org.elasticsearch.common.network;
 
 import com.google.common.collect.Maps;
 import org.apache.lucene.util.IOUtils;
-
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.ESLogger;
@@ -144,6 +143,7 @@ public abstract class MulticastChannel implements Closeable {
     /**
      * Close the channel.
      */
+    @Override
     public void close() {
         if (closed.compareAndSet(false, true)) {
             close(listener);
@@ -301,6 +301,7 @@ public abstract class MulticastChannel implements Closeable {
             return this.config;
         }
 
+        @Override
         public void send(BytesReference data) throws Exception {
             synchronized (sendMutex) {
                 datagramPacketSend.setData(data.toBytes());
@@ -315,6 +316,11 @@ public abstract class MulticastChannel implements Closeable {
             if (multicastSocket != null) {
                 IOUtils.closeWhileHandlingException(multicastSocket);
                 multicastSocket = null;
+            }
+            try {
+                receiverThread.join(10000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         }
 

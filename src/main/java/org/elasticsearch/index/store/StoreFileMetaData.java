@@ -99,6 +99,7 @@ public class StoreFileMetaData implements Streamable {
      */
     public boolean isSame(StoreFileMetaData other) {
         if (checksum == null || other.checksum == null) {
+            // we can't tell if either or is null so we return false in this case! this is why we don't use equals for this!
             return false;
         }
         return length == other.length && checksum.equals(other.checksum) && hash.equals(other.hash);
@@ -120,15 +121,9 @@ public class StoreFileMetaData implements Streamable {
         name = in.readString();
         length = in.readVLong();
         checksum = in.readOptionalString();
-        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_3_0)) {
-            String versionString = in.readOptionalString();
-            writtenBy = Lucene.parseVersionLenient(versionString, null);
-        }
-        if (in.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0)) {
-            hash = in.readBytesRef();
-        } else {
-            hash = new BytesRef();
-        }
+        String versionString = in.readOptionalString();
+        writtenBy = Lucene.parseVersionLenient(versionString, null);
+        hash = in.readBytesRef();
     }
 
     @Override
@@ -136,12 +131,8 @@ public class StoreFileMetaData implements Streamable {
         out.writeString(name);
         out.writeVLong(length);
         out.writeOptionalString(checksum);
-        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_3_0)) {
-            out.writeOptionalString(writtenBy == null ? null : writtenBy.name());
-        }
-        if (out.getVersion().onOrAfter(org.elasticsearch.Version.V_1_4_0)) {
-            out.writeBytesRef(hash);
-        }
+        out.writeOptionalString(writtenBy == null ? null : writtenBy.toString());
+        out.writeBytesRef(hash);
     }
 
     /**
@@ -156,7 +147,7 @@ public class StoreFileMetaData implements Streamable {
      * a Lucene version greater or equal to Lucene 4.8
      */
     public boolean hasLegacyChecksum() {
-        return checksum != null && ((writtenBy != null  && writtenBy.onOrAfter(Version.LUCENE_4_8)) == false);
+        return checksum != null && (writtenBy == null || writtenBy.onOrAfter(Version.LUCENE_4_8) == false);
     }
 
     /**

@@ -19,11 +19,15 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import com.carrotsearch.hppc.LongOpenHashSet;
+
+import org.apache.tools.ant.filters.TokenFilter.ContainsString;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
@@ -39,10 +43,19 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.matchAllFilter;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
@@ -115,63 +128,85 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
 
         assertSearchResponse(response);
 
-
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
-        assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(numValueBuckets));
 
         for (int i = 0; i < numValueBuckets; ++i) {
-            Histogram.Bucket bucket = histo.getBucketByKey(i * interval);
+            Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
         }
     }
 
-    @Test
-    public void singleValuedField_withPreOffset() throws Exception {
-        long preOffsetMultiplier = randomIntBetween(2, 10);
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).preOffset(preOffsetMultiplier * interval))
+    public void singleValuedField_withOffset() throws Exception {
+        int interval1 = 10;
+        int offset = 5;
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval1).offset(offset))
                 .execute().actionGet();
 
-        assertSearchResponse(response);
-
-
+        // from setup we have between 6 and 20 documents, each with value 1 in test field
+        int expectedNumberOfBuckets = (offset >= (numDocs % interval + 1)) ? numValueBuckets   : numValueBuckets + 1;
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
-        assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
+        assertThat(histo.getBuckets().size(), equalTo(expectedNumberOfBuckets));
 
-        for (int i = 0; i < numValueBuckets; ++i) {
-            Histogram.Bucket bucket = histo.getBucketByKey((i + preOffsetMultiplier) * interval);
-            assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) (i + preOffsetMultiplier) * interval));
-            assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
-        }
+        // first bucket should start at -5, contain 4 documents
+        Histogram.Bucket bucket = histo.getBuckets().get(0);
+        assertThat(bucket, notNullValue());
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(-5L));
+        assertThat(bucket.getDocCount(), equalTo(4L));
+
+        // last bucket should have (numDocs % interval + 1) docs
+        bucket = histo.getBuckets().get(0);
+        assertThat(bucket, notNullValue());
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo(numDocs%interval1 + 5L));
+        assertThat(bucket.getDocCount(), equalTo((numDocs % interval) + 1L));
     }
 
+    /**
+     * Shift buckets by random offset between [2..interval]. From setup we have 1 doc per values from 1..numdocs.
+     * Special care needs to be taken for expecations on counts in first and last bucket.
+     */
     @Test
-    public void singleValuedField_withPostOffset() throws Exception {
-        long postOffsetMultiplier = randomIntBetween(2, 10);
-        SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).postOffset(postOffsetMultiplier * interval))
+    public void singleValuedField_withRandomOffset() throws Exception {
+        int offset = randomIntBetween(2, interval);
+        SearchResponse response = client()
+                .prepareSearch("idx")
+                .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).offset(offset))
                 .execute().actionGet();
-
         assertSearchResponse(response);
-
+        // shifting by offset>2 creates new extra bucket [0,offset-1]
+        // if offset is >= number of values in original last bucket, that effect is canceled
+        int expectedNumberOfBuckets = (offset >= (numDocs % interval + 1)) ? numValueBuckets   : numValueBuckets + 1;
 
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
-        assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
+        assertThat(histo.getBuckets().size(), equalTo(expectedNumberOfBuckets));
 
-        for (int i = 0; i < numValueBuckets; ++i) {
-            Histogram.Bucket bucket = histo.getBucketByKey((i + postOffsetMultiplier) * interval);
+        int docsCounted = 0;
+        for (int i = 0; i < expectedNumberOfBuckets; ++i) {
+            Histogram.Bucket bucket = histo.getBuckets().get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) (i + postOffsetMultiplier) * interval));
-            assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) ((i-1) * interval  + offset)));
+            if (i==0) {
+                // first bucket
+                long expectedFirstBucketCount = offset-1;
+                assertThat(bucket.getDocCount(), equalTo(expectedFirstBucketCount));
+                docsCounted += expectedFirstBucketCount;
+            } else if(i<expectedNumberOfBuckets-1) {
+                assertThat(bucket.getDocCount(), equalTo((long) interval));
+                docsCounted += interval;
+            } else {
+                assertThat(bucket.getDocCount(), equalTo((long) numDocs - docsCounted));
+            }
         }
     }
 
@@ -193,7 +228,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
         }
     }
@@ -216,7 +251,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(numValueBuckets - i - 1);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
         }
     }
@@ -241,7 +276,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = histoBuckets.get(i);
             assertThat(bucket, notNullValue());
-            long key = bucket.getKeyAsNumber().longValue();
+            long key = ((Number) bucket.getKey()).longValue();
             assertEquals(0, key % interval);
             assertTrue(buckets.add(key));
             assertThat(bucket.getDocCount(), equalTo(valueCounts[(int) (key / interval)]));
@@ -270,7 +305,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = histoBuckets.get(i);
             assertThat(bucket, notNullValue());
-            long key = bucket.getKeyAsNumber().longValue();
+            long key = ((Number) bucket.getKey()).longValue();
             assertEquals(0, key % interval);
             assertTrue(buckets.add(key));
             assertThat(bucket.getDocCount(), equalTo(valueCounts[(int) (key / interval)]));
@@ -293,12 +328,15 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
+        Object[] propertiesKeys = (Object[]) histo.getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) histo.getProperty("_count");
+        Object[] propertiesCounts = (Object[]) histo.getProperty("sum.value");
 
         List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
             assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
             Sum sum = bucket.getAggregations().get("sum");
@@ -310,6 +348,9 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
                 }
             }
             assertThat(sum.getValue(), equalTo((double) s));
+            assertThat((long) propertiesKeys[i], equalTo((long) i * interval));
+            assertThat((long) propertiesDocCounts[i], equalTo(valueCounts[i]));
+            assertThat((double) propertiesCounts[i], equalTo((double) s));
         }
     }
 
@@ -332,7 +373,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
             assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
             Sum sum = bucket.getAggregations().get("sum");
@@ -368,7 +409,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            long key = bucket.getKeyAsNumber().longValue();
+            long key = ((Number) bucket.getKey()).longValue();
             assertTrue(visited.add(key));
             int b = (int) (key / interval);
             assertThat(bucket.getDocCount(), equalTo(valueCounts[b]));
@@ -408,7 +449,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            long key = bucket.getKeyAsNumber().longValue();
+            long key = ((Number) bucket.getKey()).longValue();
             assertTrue(visited.add(key));
             int b = (int) (key / interval);
             assertThat(bucket.getDocCount(), equalTo(valueCounts[b]));
@@ -448,7 +489,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            long key = bucket.getKeyAsNumber().longValue();
+            long key = ((Number) bucket.getKey()).longValue();
             assertTrue(visited.add(key));
             int b = (int) (key / interval);
             assertThat(bucket.getDocCount(), equalTo(valueCounts[b]));
@@ -488,7 +529,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            long key = bucket.getKeyAsNumber().longValue();
+            long key = ((Number) bucket.getKey()).longValue();
             assertTrue(visited.add(key));
             int b = (int) (key / interval);
             assertThat(bucket.getDocCount(), equalTo(valueCounts[b]));
@@ -530,7 +571,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            long key = bucket.getKeyAsNumber().longValue();
+            long key = ((Number) bucket.getKey()).longValue();
             assertTrue(visited.add(key));
             int b = (int) (key / interval);
             assertThat(bucket.getDocCount(), equalTo(valueCounts[b]));
@@ -563,13 +604,15 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
-        assertThat(histo.getBuckets().size(), equalTo(numBuckets));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(numBuckets));
 
-        for (int i = 2 / interval; i <= (numDocs + 1) / interval; ++i) {
-            Histogram.Bucket bucket = histo.getBucketByKey(i * interval);
+        for (int i = 0; i < numBuckets; i++) {
+            Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
-            assertThat(bucket.getDocCount(), equalTo(counts[i]));
+            int key = ((2 / interval) + i) * interval;
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) key));
+            assertThat(bucket.getDocCount(), equalTo(counts[key / interval]));
         }
     }
 
@@ -585,12 +628,13 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
-        assertThat(histo.getBuckets().size(), equalTo(numValuesBuckets));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(numValuesBuckets));
 
         for (int i = 0; i < numValuesBuckets; ++i) {
-            Histogram.Bucket bucket = histo.getBucketByKey(i * interval);
+            Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(valuesCounts[i]));
         }
     }
@@ -613,7 +657,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValuesBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(numValuesBuckets - i - 1);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(valuesCounts[i]));
         }
     }
@@ -641,13 +685,15 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
-        assertThat(histo.getBuckets().size(), equalTo(numBuckets));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(numBuckets));
 
-        for (int i = 2 / interval; i <= (numDocs + 2) / interval; ++i) {
-            Histogram.Bucket bucket = histo.getBucketByKey(i * interval);
+        for (int i = 0; i < numBuckets; i++) {
+            Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
-            assertThat(bucket.getDocCount(), equalTo(counts[i]));
+            int key = ((2 / interval) + i) * interval;
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) key));
+            assertThat(bucket.getDocCount(), equalTo(counts[key / interval]));
         }
     }
 
@@ -676,18 +722,20 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
-        assertThat(histo.getBuckets().size(), equalTo(numBuckets));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(numBuckets));
 
-        for (int i = 2 / interval; i < (numDocs + 2) / interval; ++i) {
-            Histogram.Bucket bucket = histo.getBucketByKey(i * interval);
+        for (int i = 0; i < numBuckets; i++) {
+            Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
-            assertThat(bucket.getDocCount(), equalTo(counts[i]));
+            int key = ((2 / interval) + i) * interval;
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) key));
+            assertThat(bucket.getDocCount(), equalTo(counts[key / interval]));
             Terms terms = bucket.getAggregations().get(MULTI_VALUED_FIELD_NAME);
             assertThat(terms, notNullValue());
             assertThat(terms.getName(), equalTo(MULTI_VALUED_FIELD_NAME));
-            int minTerm = Math.max(2, i * interval - 1);
-            int maxTerm = Math.min(numDocs + 2, (i + 1) * interval);
+            int minTerm = Math.max(2, key - 1);
+            int maxTerm = Math.min(numDocs + 2, (key / interval + 1) * interval);
             assertThat(terms.getBuckets().size(), equalTo(maxTerm - minTerm + 1));
             Iterator<Terms.Bucket> iter = terms.getBuckets().iterator();
             for (int j = minTerm; j <= maxTerm; ++j) {
@@ -708,12 +756,13 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
-        assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(numValueBuckets));
 
         for (int i = 0; i < numValueBuckets; ++i) {
-            Histogram.Bucket bucket = histo.getBucketByKey(i * interval);
+            Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
         }
     }
@@ -737,7 +786,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
             assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
             Sum sum = bucket.getAggregations().get("sum");
@@ -755,7 +804,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
     @Test
     public void script_MultiValued() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values").interval(interval))
+                .addAggregation(histogram("histo").script("doc['" + MULTI_VALUED_FIELD_NAME + "']").interval(interval))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -764,12 +813,13 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
-        assertThat(histo.getBuckets().size(), equalTo(numValuesBuckets));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(numValuesBuckets));
 
         for (int i = 0; i < numValuesBuckets; ++i) {
-            Histogram.Bucket bucket = histo.getBucketByKey(i * interval);
+            Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(valuesCounts[i]));
         }
     }
@@ -777,7 +827,7 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
     @Test
     public void script_MultiValued_WithAggregatorInherited() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(histogram("histo").script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values").interval(interval)
+                .addAggregation(histogram("histo").script("doc['" + MULTI_VALUED_FIELD_NAME + "']").interval(interval)
                         .subAggregation(sum("sum")))
                 .execute().actionGet();
 
@@ -787,12 +837,13 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
-        assertThat(histo.getBuckets().size(), equalTo(numValuesBuckets));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(numValuesBuckets));
 
         for (int i = 0; i < numValuesBuckets; ++i) {
-            Histogram.Bucket bucket = histo.getBucketByKey(i * interval);
+            Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(valuesCounts[i]));
             assertThat(bucket.getAggregations().asList().isEmpty(), is(false));
             Sum sum = bucket.getAggregations().get("sum");
@@ -835,12 +886,13 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
-        assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(numValueBuckets));
 
         for (int i = 0; i < numValueBuckets; ++i) {
-            Histogram.Bucket bucket = histo.getBucketByKey(i * interval);
+            Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo((long) i * interval));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) i * interval));
             assertThat(bucket.getDocCount(), equalTo(valueCounts[i]));
         }
     }
@@ -856,7 +908,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
-        Histogram.Bucket bucket = histo.getBucketByKey(1l);
+        List<? extends Bucket> buckets = histo.getBuckets();
+        Histogram.Bucket bucket = buckets.get(1);
         assertThat(bucket, Matchers.notNullValue());
 
         histo = bucket.getAggregations().get("sub_histo");
@@ -929,15 +982,29 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo, notNullValue());
         assertThat(histo.getName(), equalTo("histo"));
-        assertThat(histo.getBuckets().size(), equalTo(bucketsCount));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(bucketsCount));
 
         long key = Math.min(boundsMinKey, 0);
         for (int i = 0; i < bucketsCount; i++) {
-            Histogram.Bucket bucket = histo.getBucketByKey(key);
+            Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
-            assertThat(bucket.getKeyAsNumber().longValue(), equalTo(key));
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo(key));
             assertThat(bucket.getDocCount(), equalTo(extendedValueCounts[i]));
             key += interval;
+        }
+    }
+
+    /**
+     * see issue #9634, negative interval in histogram should raise exception
+     */
+    public void testExeptionOnNegativerInterval() {
+        try {
+            client().prepareSearch("empty_bucket_idx")
+                    .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(-1).minDocCount(0)).execute().actionGet();
+            fail();
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getMessage(), containsString("Missing required field [interval]"));
         }
     }
 

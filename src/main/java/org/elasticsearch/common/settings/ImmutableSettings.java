@@ -20,7 +20,9 @@
 package org.elasticsearch.common.settings;
 
 import com.google.common.base.Charsets;
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -41,8 +43,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.Strings.toCamelCase;
 import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
@@ -55,6 +61,7 @@ import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 public class ImmutableSettings implements Settings {
 
     public static final Settings EMPTY = new Builder().build();
+    private final static Pattern ARRAY_PATTERN = Pattern.compile("(.*)\\.\\d+$");
 
     private ImmutableMap<String, String> settings;
     private final ImmutableMap<String, String> forcedUnderscoreSettings;
@@ -181,34 +188,13 @@ public class ImmutableSettings implements Settings {
         return map;
     }
 
-
-    @Override
-    public Settings getComponentSettings(Class component) {
-        if (component.getName().startsWith("org.elasticsearch")) {
-            return getComponentSettings("org.elasticsearch", component);
-        }
-        // not starting with org.elasticsearch, just remove the first package part (probably org/net/com)
-        return getComponentSettings(component.getName().substring(0, component.getName().indexOf('.')), component);
-    }
-
-    @Override
-    public Settings getComponentSettings(String prefix, Class component) {
-        String type = component.getName();
-        if (!type.startsWith(prefix)) {
-            throw new SettingsException("Component [" + type + "] does not start with prefix [" + prefix + "]");
-        }
-        String settingPrefix = type.substring(prefix.length() + 1); // 1 for the '.'
-        settingPrefix = settingPrefix.substring(0, settingPrefix.length() - component.getSimpleName().length()); // remove the simple class name (keep the dot)
-        return getByPrefix(settingPrefix);
-    }
-
     @Override
     public Settings getByPrefix(String prefix) {
         Builder builder = new Builder();
         for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
             if (entry.getKey().startsWith(prefix)) {
                 if (entry.getKey().length() < prefix.length()) {
-                    // ignore this one
+                    // ignore this. one
                     continue;
                 }
                 builder.put(entry.getKey().substring(prefix.length()), entry.getValue());
@@ -641,12 +627,13 @@ public class ImmutableSettings implements Settings {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        Settings settings = SettingsFilter.filterSettings(params, this);
         if (!params.paramAsBoolean("flat_settings", false)) {
-            for (Map.Entry<String, Object> entry : getAsStructuredMap().entrySet()) {
+            for (Map.Entry<String, Object> entry : settings.getAsStructuredMap().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
         } else {
-            for (Map.Entry<String, String> entry : getAsMap().entrySet()) {
+            for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue(), XContentBuilder.FieldCaseConversion.NONE);
             }
         }
@@ -871,6 +858,7 @@ public class ImmutableSettings implements Settings {
          * Sets all the provided settings.
          */
         public Builder put(Settings settings) {
+            removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings.getAsMap());
             map.putAll(settings.getAsMap());
             classLoader = settings.getClassLoaderIfSet();
             return this;
@@ -880,8 +868,40 @@ public class ImmutableSettings implements Settings {
          * Sets all the provided settings.
          */
         public Builder put(Map<String, String> settings) {
+            removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(settings);
             map.putAll(settings);
             return this;
+        }
+
+        /**
+         * Removes non array values from the existing map, if settings contains an array value instead
+         *
+         * Example:
+         *   Existing map contains: {key:value}
+         *   New map contains: {key:[value1,value2]} (which has been flattened to {}key.0:value1,key.1:value2})
+         *
+         *   This ensure that that the 'key' field gets removed from the map in order to override all the
+         *   data instead of merging
+         */
+        private void removeNonArraysFieldsIfNewSettingsContainsFieldAsArray(Map<String, String> settings) {
+            List<String> prefixesToRemove = new ArrayList<>();
+            for (final Map.Entry<String, String> entry : settings.entrySet()) {
+                final Matcher matcher = ARRAY_PATTERN.matcher(entry.getKey());
+                if (matcher.matches()) {
+                    prefixesToRemove.add(matcher.group(1));
+                } else if (Iterables.any(map.keySet(), startsWith(entry.getKey() + "."))) {
+                    prefixesToRemove.add(entry.getKey());
+                }
+            }
+            for (String prefix : prefixesToRemove) {
+                Iterator<Map.Entry<String, String>> iterator = map.entrySet().iterator();
+                while (iterator.hasNext()) {
+                    Map.Entry<String, String> entry = iterator.next();
+                    if (entry.getKey().startsWith(prefix + ".") || entry.getKey().equals(prefix)) {
+                        iterator.remove();
+                    }
+                }
+            }
         }
 
         /**
@@ -930,6 +950,18 @@ public class ImmutableSettings implements Settings {
                 return loadFromStream(url.toExternalForm(), url.openStream());
             } catch (IOException e) {
                 throw new SettingsException("Failed to open stream for url [" + url.toExternalForm() + "]", e);
+            }
+        }
+
+        /**
+         * Loads settings from a url that represents them using the
+         * {@link SettingsLoaderFactory#loaderFromSource(String)}.
+         */
+        public Builder loadFromPath(Path path) throws SettingsException {
+            try {
+                return loadFromStream(path.getFileName().toString(), Files.newInputStream(path));
+            } catch (IOException e) {
+                throw new SettingsException("Failed to open stream for url [" + path + "]", e);
             }
         }
 
@@ -1072,8 +1104,27 @@ public class ImmutableSettings implements Settings {
          * Builds a {@link Settings} (underlying uses {@link ImmutableSettings}) based on everything
          * set on this builder.
          */
+        @Override
         public Settings build() {
             return new ImmutableSettings(Collections.unmodifiableMap(map), classLoader);
+        }
+    }
+
+    private static StartsWithPredicate startsWith(String prefix) {
+        return new StartsWithPredicate(prefix);
+    }
+
+    private static final class StartsWithPredicate implements Predicate<String> {
+
+        private String prefix;
+
+        public StartsWithPredicate(String prefix) {
+            this.prefix = prefix;
+        }
+
+        @Override
+        public boolean apply(String input) {
+            return input.startsWith(prefix);
         }
     }
 }

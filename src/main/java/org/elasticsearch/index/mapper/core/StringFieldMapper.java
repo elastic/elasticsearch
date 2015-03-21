@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedSetDocValuesField;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -34,14 +34,17 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -126,20 +129,20 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             // we also change the values on the default field type so that toXContent emits what
             // differs from the defaults
             FieldType defaultFieldType = new FieldType(Defaults.FIELD_TYPE);
-            if (fieldType.indexed() && !fieldType.tokenized()) {
+            if (fieldType.indexOptions() != IndexOptions.NONE && !fieldType.tokenized()) {
                 defaultFieldType.setOmitNorms(true);
-                defaultFieldType.setIndexOptions(IndexOptions.DOCS_ONLY);
+                defaultFieldType.setIndexOptions(IndexOptions.DOCS);
                 if (!omitNormsSet && boost == Defaults.BOOST) {
                     fieldType.setOmitNorms(true);
                 }
                 if (!indexOptionsSet) {
-                    fieldType.setIndexOptions(IndexOptions.DOCS_ONLY);
+                    fieldType.setIndexOptions(IndexOptions.DOCS);
                 }
             }
             defaultFieldType.freeze();
             StringFieldMapper fieldMapper = new StringFieldMapper(buildNames(context),
                     boost, fieldType, defaultFieldType, docValues, nullValue, indexAnalyzer, searchAnalyzer, searchQuotedAnalyzer,
-                    positionOffsetGap, ignoreAbove, postingsProvider, docValuesProvider, similarity, normsLoading, 
+                    positionOffsetGap, ignoreAbove, similarity, normsLoading, 
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -151,17 +154,23 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             StringFieldMapper.Builder builder = stringField(name);
             parseField(builder, name, node, parserContext);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());
                 Object propNode = entry.getValue();
                 if (propName.equals("null_value")) {
+                    if (propNode == null) {
+                        throw new MapperParsingException("Property [null_value] cannot be null.");
+                    }
                     builder.nullValue(propNode.toString());
+                    iterator.remove();
                 } else if (propName.equals("search_quote_analyzer")) {
                     NamedAnalyzer analyzer = parserContext.analysisService().analyzer(propNode.toString());
                     if (analyzer == null) {
                         throw new MapperParsingException("Analyzer [" + propNode.toString() + "] not found for field [" + name + "]");
                     }
                     builder.searchQuotedAnalyzer(analyzer);
+                    iterator.remove();
                 } else if (propName.equals("position_offset_gap")) {
                     builder.positionOffsetGap(XContentMapValues.nodeIntegerValue(propNode, -1));
                     // we need to update to actual analyzers if they are not set in this case...
@@ -175,10 +184,12 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
                     if (builder.searchQuotedAnalyzer == null) {
                         builder.searchQuotedAnalyzer = parserContext.analysisService().defaultSearchQuoteAnalyzer();
                     }
+                    iterator.remove();
                 } else if (propName.equals("ignore_above")) {
                     builder.ignoreAbove(XContentMapValues.nodeIntegerValue(propNode, -1));
-                } else {
-                    parseMultiField(builder, name, parserContext, propName, propNode);
+                    iterator.remove();
+                } else if (parseMultiField(builder, name, parserContext, propName, propNode)) {
+                    iterator.remove();
                 }
             }
             return builder;
@@ -192,15 +203,14 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
     private int ignoreAbove;
     private final FieldType defaultFieldType;
 
-    protected StringFieldMapper(Names names, float boost, FieldType fieldType,FieldType defaultFieldType, Boolean docValues,
+    protected StringFieldMapper(Names names, float boost, FieldType fieldType, FieldType defaultFieldType, Boolean docValues,
                                 String nullValue, NamedAnalyzer indexAnalyzer, NamedAnalyzer searchAnalyzer,
                                 NamedAnalyzer searchQuotedAnalyzer, int positionOffsetGap, int ignoreAbove,
-                                PostingsFormatProvider postingsFormat, DocValuesFormatProvider docValuesFormat,
                                 SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsFormat, docValuesFormat, 
+        super(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer,
                 similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
-        if (fieldType.tokenized() && fieldType.indexed() && hasDocValues()) {
+        if (fieldType.tokenized() && fieldType.indexOptions() != IndexOptions.NONE && hasDocValues()) {
             throw new MapperParsingException("Field [" + names.fullName() + "] cannot be analyzed and have doc values");
         }
         this.defaultFieldType = defaultFieldType;
@@ -256,6 +266,10 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
         return this.positionOffsetGap;
     }
 
+    public int getIgnoreAbove() {
+        return ignoreAbove;
+    }
+
     @Override
     public Analyzer searchQuoteAnalyzer() {
         return this.searchQuotedAnalyzer;
@@ -282,7 +296,7 @@ public class StringFieldMapper extends AbstractFieldMapper<String> implements Al
             context.allEntries().addText(names.fullName(), valueAndBoost.value(), valueAndBoost.boost());
         }
 
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             Field field = new Field(names.indexName(), valueAndBoost.value(), fieldType);
             field.setBoost(valueAndBoost.boost());
             fields.add(field);

@@ -22,12 +22,18 @@ package org.elasticsearch.index.fielddata.ordinals;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LongsRef;
-import org.apache.lucene.util.packed.AppendingPackedLongBuffer;
-import org.apache.lucene.util.packed.MonotonicAppendingLongBuffer;
 import org.apache.lucene.util.packed.PackedInts;
+import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.index.fielddata.AbstractRandomAccessOrds;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * {@link Ordinals} implementation which is efficient at storing field data ordinals for multi-valued or sparse fields.
@@ -57,26 +63,26 @@ public class MultiOrdinals extends Ordinals {
 
     private final boolean multiValued;
     private final long valueCount;
-    private final MonotonicAppendingLongBuffer endOffsets;
-    private final AppendingPackedLongBuffer ords;
+    private final PackedLongValues endOffsets;
+    private final PackedLongValues ords;
 
     public MultiOrdinals(OrdinalsBuilder builder, float acceptableOverheadRatio) {
         multiValued = builder.getNumMultiValuesDocs() > 0;
         valueCount = builder.getValueCount();
-        endOffsets = new MonotonicAppendingLongBuffer(OFFSET_INIT_PAGE_COUNT, OFFSETS_PAGE_SIZE, acceptableOverheadRatio);
-        ords = new AppendingPackedLongBuffer(OFFSET_INIT_PAGE_COUNT, OFFSETS_PAGE_SIZE, acceptableOverheadRatio);
+        PackedLongValues.Builder endOffsetsBuilder = PackedLongValues.monotonicBuilder(OFFSETS_PAGE_SIZE, acceptableOverheadRatio);
+        PackedLongValues.Builder ordsBuilder = PackedLongValues.packedBuilder(OFFSETS_PAGE_SIZE, acceptableOverheadRatio);
         long lastEndOffset = 0;
         for (int i = 0; i < builder.maxDoc(); ++i) {
             final LongsRef docOrds = builder.docOrds(i);
             final long endOffset = lastEndOffset + docOrds.length;
-            endOffsets.add(endOffset);
+            endOffsetsBuilder.add(endOffset);
             for (int j = 0; j < docOrds.length; ++j) {
-                ords.add(docOrds.longs[docOrds.offset + j]);
+                ordsBuilder.add(docOrds.longs[docOrds.offset + j]);
             }
             lastEndOffset = endOffset;
         }
-        endOffsets.freeze();
-        ords.freeze();
+        endOffsets = endOffsetsBuilder.build();
+        ords = ordsBuilder.build();
         assert endOffsets.size() == builder.maxDoc();
         assert ords.size() == builder.getTotalNumOrds() : ords.size() + " != " + builder.getTotalNumOrds();
     }
@@ -84,6 +90,14 @@ public class MultiOrdinals extends Ordinals {
     @Override
     public long ramBytesUsed() {
         return endOffsets.ramBytesUsed() + ords.ramBytesUsed();
+    }
+
+    @Override
+    public Collection<Accountable> getChildResources() {
+        List<Accountable> resources = new ArrayList<>();
+        resources.add(Accountables.namedAccountable("offsets", endOffsets));
+        resources.add(Accountables.namedAccountable("ordinals", ords));
+        return Collections.unmodifiableCollection(resources);
     }
 
     @Override
@@ -98,8 +112,8 @@ public class MultiOrdinals extends Ordinals {
     private static class SingleDocs extends SortedDocValues {
 
         private final int valueCount;
-        private final MonotonicAppendingLongBuffer endOffsets;
-        private final AppendingPackedLongBuffer ords;
+        private final PackedLongValues endOffsets;
+        private final PackedLongValues ords;
         private final ValuesHolder values;
 
         SingleDocs(MultiOrdinals ordinals, ValuesHolder values) {
@@ -131,8 +145,8 @@ public class MultiOrdinals extends Ordinals {
     private static class MultiDocs extends AbstractRandomAccessOrds {
 
         private final long valueCount;
-        private final MonotonicAppendingLongBuffer endOffsets;
-        private final AppendingPackedLongBuffer ords;
+        private final PackedLongValues endOffsets;
+        private final PackedLongValues ords;
         private long offset;
         private int cardinality;
         private final ValuesHolder values;

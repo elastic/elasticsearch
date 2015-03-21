@@ -19,13 +19,13 @@
 
 package org.elasticsearch.action.support.replication;
 
-import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ShardOperationFailedException;
+import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.ActionWriteResponse.ShardInfo.Failure;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,8 +34,11 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
@@ -45,15 +48,15 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * It relies on a shard sub-action that gets sent over the transport and executed on each of the shard.
  * The index provided with the request is expected to be a concrete index, properly resolved by the callers (parent actions).
  */
-public abstract class TransportIndexReplicationOperationAction<Request extends IndexReplicationOperationRequest, Response extends ActionResponse, ShardRequest extends ShardReplicationOperationRequest, ShardReplicaRequest extends ShardReplicationOperationRequest, ShardResponse extends ActionResponse>
+public abstract class TransportIndexReplicationOperationAction<Request extends IndexReplicationOperationRequest, Response extends ActionResponse, ShardRequest extends ShardReplicationOperationRequest, ShardResponse extends ActionWriteResponse>
         extends TransportAction<Request, Response> {
 
     protected final ClusterService clusterService;
 
-    protected final TransportShardReplicationOperationAction<ShardRequest, ShardReplicaRequest, ShardResponse> shardAction;
+    protected final TransportShardReplicationOperationAction<ShardRequest, ShardRequest, ShardResponse> shardAction;
 
     protected TransportIndexReplicationOperationAction(Settings settings, String actionName, ClusterService clusterService,
-                                                       ThreadPool threadPool, TransportShardReplicationOperationAction<ShardRequest, ShardReplicaRequest, ShardResponse> shardAction, ActionFilters actionFilters) {
+                                                       ThreadPool threadPool, TransportShardReplicationOperationAction<ShardRequest, ShardRequest, ShardResponse> shardAction, ActionFilters actionFilters) {
         super(settings, actionName, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.shardAction = shardAction;
@@ -71,7 +74,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
             throw blockException;
         }
 
-        GroupShardsIterator groups;
+        final GroupShardsIterator groups;
         try {
             groups = shards(request);
         } catch (Throwable e) {
@@ -84,7 +87,7 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
         final AtomicReferenceArray<ShardActionResult> shardsResponses = new AtomicReferenceArray<>(groups.size());
 
         for (final ShardIterator shardIt : groups) {
-            ShardRequest shardRequest = newShardRequestInstance(request, shardIt.shardId().id());
+            final ShardRequest shardRequest = newShardRequestInstance(request, shardIt.shardId().id());
 
             // TODO for now, we fork operations on shardIt of the index
             shardRequest.beforeLocalFork(); // optimize for local fork
@@ -103,46 +106,71 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
                 public void onFailure(Throwable e) {
                     failureCounter.getAndIncrement();
                     int index = indexCounter.getAndIncrement();
-                    if (accumulateExceptions()) {
-                        shardsResponses.set(index, new ShardActionResult(
-                                new DefaultShardOperationFailedException(request.index(), shardIt.shardId().id(), e)));
+                    // this is a failure for an entire shard group, constructs shard info accordingly
+                    final RestStatus status;
+                    if (e != null && e instanceof ElasticsearchException) {
+                        status = ((ElasticsearchException) e).status();
+                    } else {
+                        status = RestStatus.INTERNAL_SERVER_ERROR;
                     }
+                    Failure failure = new Failure(request.index(), shardIt.shardId().id(), null,
+                            "Failed to execute on all shard copies [" + ExceptionsHelper.detailedMessage(e) + "]", status, true);
+                    shardsResponses.set(index, new ShardActionResult(new ActionWriteResponse.ShardInfo(shardIt.size(), 0, failure)));
                     returnIfNeeded();
                 }
 
                 private void returnIfNeeded() {
                     if (completionCounter.decrementAndGet() == 0) {
-                        List<ShardResponse> responses = Lists.newArrayList();
-                        List<ShardOperationFailedException> failures = Lists.newArrayList();
+                        List<ShardResponse> responses = new ArrayList<>();
+                        List<Failure> failureList = new ArrayList<>();
+
+                        int total = 0;
+                        int successful = 0;
                         for (int i = 0; i < shardsResponses.length(); i++) {
                             ShardActionResult shardActionResult = shardsResponses.get(i);
-                            if (shardActionResult == null) {
-                                assert !accumulateExceptions();
-                                continue;
-                            }
+                            final ActionWriteResponse.ShardInfo sf;
                             if (shardActionResult.isFailure()) {
-                                assert accumulateExceptions() && shardActionResult.shardFailure != null;
-                                failures.add(shardActionResult.shardFailure);
+                                assert shardActionResult.shardInfoOnFailure != null;
+                                sf = shardActionResult.shardInfoOnFailure;
                             } else {
                                 responses.add(shardActionResult.shardResponse);
+                                sf = shardActionResult.shardResponse.getShardInfo();
                             }
+                            total += sf.getTotal();
+                            successful += sf.getSuccessful();
+                            failureList.addAll(Arrays.asList(sf.getFailures()));
                         }
+                        assert failureList.size() == 0 || numShardGroupFailures(failureList) == failureCounter.get();
 
-                        assert failures.size() == 0 || failures.size() == failureCounter.get();
-                        listener.onResponse(newResponseInstance(request, responses, failureCounter.get(), failures));
+                        final Failure[] failures;
+                        if (failureList.isEmpty()) {
+                            failures = ActionWriteResponse.EMPTY;
+                        } else {
+                            failures = failureList.toArray(new Failure[failureList.size()]);
+                        }
+                        listener.onResponse(newResponseInstance(request, responses, new ActionWriteResponse.ShardInfo(total, successful, failures)));
                     }
                 }
+
+                private int numShardGroupFailures(List<Failure> failures) {
+                    int numShardGroupFailures = 0;
+                    for (Failure failure : failures) {
+                        if (failure.primary()) {
+                            numShardGroupFailures++;
+                        }
+                    }
+                    return numShardGroupFailures;
+                }
             });
+
         }
     }
 
-    protected abstract Response newResponseInstance(Request request, List<ShardResponse> shardResponses, int failuresCount, List<ShardOperationFailedException> shardFailures);
+    protected abstract Response newResponseInstance(Request request, List<ShardResponse> shardResponses, ActionWriteResponse.ShardInfo shardInfo);
 
     protected abstract GroupShardsIterator shards(Request request) throws ElasticsearchException;
 
     protected abstract ShardRequest newShardRequestInstance(Request request, int shardId);
-
-    protected abstract boolean accumulateExceptions();
 
     protected ClusterBlockException checkGlobalBlock(ClusterState state, Request request) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
@@ -155,22 +183,22 @@ public abstract class TransportIndexReplicationOperationAction<Request extends I
     private class ShardActionResult {
 
         private final ShardResponse shardResponse;
-        private final ShardOperationFailedException shardFailure;
+        private final ActionWriteResponse.ShardInfo shardInfoOnFailure;
 
         private ShardActionResult(ShardResponse shardResponse) {
             assert shardResponse != null;
             this.shardResponse = shardResponse;
-            this.shardFailure = null;
+            this.shardInfoOnFailure = null;
         }
 
-        private ShardActionResult(ShardOperationFailedException shardOperationFailedException) {
-            assert shardOperationFailedException != null;
-            this.shardFailure = shardOperationFailedException;
+        private ShardActionResult(ActionWriteResponse.ShardInfo shardInfoOnFailure) {
+            assert shardInfoOnFailure != null;
+            this.shardInfoOnFailure = shardInfoOnFailure;
             this.shardResponse = null;
         }
 
         boolean isFailure() {
-            return shardFailure != null;
+            return shardInfoOnFailure != null;
         }
     }
 }

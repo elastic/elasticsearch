@@ -39,8 +39,8 @@ import static org.elasticsearch.rest.action.support.RestActions.buildBroadcastSh
 public class RestIndicesSegmentsAction extends BaseRestHandler {
 
     @Inject
-    public RestIndicesSegmentsAction(Settings settings, Client client, RestController controller) {
-        super(settings, client);
+    public RestIndicesSegmentsAction(Settings settings, RestController controller, Client client) {
+        super(settings, controller, client);
         controller.registerHandler(GET, "/_segments", this);
         controller.registerHandler(GET, "/{index}/_segments", this);
     }
@@ -48,6 +48,7 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest(Strings.splitStringByCommaToArray(request.param("index")));
+        indicesSegmentsRequest.verbose(request.paramAsBoolean("verbose", false));
         indicesSegmentsRequest.listenerThreaded(false);
         indicesSegmentsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesSegmentsRequest.indicesOptions()));
         client.admin().indices().segments(indicesSegmentsRequest, new RestBuilderListener<IndicesSegmentResponse>(channel) {

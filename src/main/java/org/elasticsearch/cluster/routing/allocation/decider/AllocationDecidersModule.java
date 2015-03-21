@@ -53,10 +53,10 @@ public class AllocationDecidersModule extends AbstractModule {
     protected void configure() {
         Multibinder<AllocationDecider> allocationMultibinder = Multibinder.newSetBinder(binder(), AllocationDecider.class);
         for (Class<? extends AllocationDecider> deciderClass : DEFAULT_ALLOCATION_DECIDERS) {
-            allocationMultibinder.addBinding().to(deciderClass);
+            allocationMultibinder.addBinding().to(deciderClass).asEagerSingleton();
         }
         for (Class<? extends AllocationDecider> allocation : allocations) {
-            allocationMultibinder.addBinding().to(allocation);
+            allocationMultibinder.addBinding().to(allocation).asEagerSingleton();
         }
 
         bind(AllocationDeciders.class).asEagerSingleton();

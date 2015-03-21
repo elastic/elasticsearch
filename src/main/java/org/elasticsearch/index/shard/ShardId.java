@@ -30,7 +30,7 @@ import java.io.Serializable;
 /**
  * Allows for shard level components to be injected with the shard id.
  */
-public class ShardId implements Serializable, Streamable {
+public class ShardId implements Serializable, Streamable, Comparable<ShardId> {
 
     private Index index;
 
@@ -39,7 +39,6 @@ public class ShardId implements Serializable, Streamable {
     private int hashCode;
 
     private ShardId() {
-
     }
 
     public ShardId(String index, int shardId) {
@@ -109,5 +108,13 @@ public class ShardId implements Serializable, Streamable {
     public void writeTo(StreamOutput out) throws IOException {
         index.writeTo(out);
         out.writeVInt(shardId);
+    }
+
+    @Override
+    public int compareTo(ShardId o) {
+        if (o.getId() == shardId) {
+            return index.name().compareTo(o.getIndex());
+        }
+        return Integer.compare(shardId, o.getId());
     }
 }

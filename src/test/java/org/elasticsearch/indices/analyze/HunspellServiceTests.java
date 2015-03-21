@@ -19,6 +19,7 @@
 package org.elasticsearch.indices.analyze;
 
 import org.apache.lucene.analysis.hunspell.Dictionary;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -44,7 +45,7 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
     @Test
     public void testLocaleDirectoryWithNodeLevelConfig() throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("path.conf", getResource("/indices/analyze/conf_dir"))
+                .put("path.conf", getResourcePath("/indices/analyze/conf_dir"))
                 .put(HUNSPELL_LAZY_LOAD, randomBoolean())
                 .put(HUNSPELL_IGNORE_CASE, true)
                 .build();
@@ -58,7 +59,7 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
     @Test
     public void testLocaleDirectoryWithLocaleSpecificConfig() throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("path.conf", getResource("/indices/analyze/conf_dir"))
+                .put("path.conf", getResourcePath("/indices/analyze/conf_dir"))
                 .put(HUNSPELL_LAZY_LOAD, randomBoolean())
                 .put(HUNSPELL_IGNORE_CASE, true)
                 .put("indices.analysis.hunspell.dictionary.en_US.strict_affix_parsing", false)
@@ -81,7 +82,7 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
     @Test
     public void testCustomizeLocaleDirectory() throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put(HUNSPELL_LOCATION, getResource("/indices/analyze/conf_dir/hunspell"))
+                .put(HUNSPELL_LOCATION, getResourcePath("/indices/analyze/conf_dir/hunspell"))
                 .build();
 
         internalCluster().startNode(settings);
@@ -90,9 +91,10 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9849")
     public void testDicWithNoAff() throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("path.conf", getResource("/indices/analyze/no_aff_conf_dir"))
+                .put("path.conf", getResourcePath("/indices/analyze/no_aff_conf_dir"))
                 .put(HUNSPELL_LAZY_LOAD, randomBoolean())
                 .build();
 
@@ -109,9 +111,10 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9849")
     public void testDicWithTwoAffs() throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("path.conf", getResource("/indices/analyze/two_aff_conf_dir"))
+                .put("path.conf", getResourcePath("/indices/analyze/two_aff_conf_dir"))
                 .put(HUNSPELL_LAZY_LOAD, randomBoolean())
                 .build();
 

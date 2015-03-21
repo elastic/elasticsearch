@@ -33,13 +33,15 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
 
     private long recoveryId;
     private ShardId shardId;
+    private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
 
     RecoveryPrepareForTranslogOperationsRequest() {
     }
 
-    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId) {
+    RecoveryPrepareForTranslogOperationsRequest(long recoveryId, ShardId shardId, int totalTranslogOps) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
+        this.totalTranslogOps = totalTranslogOps;
     }
 
     public long recoveryId() {
@@ -50,11 +52,16 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         return shardId;
     }
 
+    public int totalTranslogOps() {
+        return totalTranslogOps;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
+        totalTranslogOps = in.readVInt();
     }
 
     @Override
@@ -62,5 +69,6 @@ class RecoveryPrepareForTranslogOperationsRequest extends TransportRequest {
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
+        out.writeVInt(totalTranslogOps);
     }
 }

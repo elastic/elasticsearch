@@ -29,8 +29,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettings;
 
-import java.io.Reader;
-
 public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
 
     private final int bufferSize;
@@ -66,10 +64,10 @@ public class PathHierarchyTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Override
-    public Tokenizer create(Reader reader) {
+    public Tokenizer create() {
         if (reverse) {
-            return new ReversePathHierarchyTokenizer(reader, bufferSize, delimiter, replacement, skip);
+            return new ReversePathHierarchyTokenizer(bufferSize, delimiter, replacement, skip);
         }
-        return new PathHierarchyTokenizer(reader, bufferSize, delimiter, replacement, skip);
+        return new PathHierarchyTokenizer(bufferSize, delimiter, replacement, skip);
     }
 }

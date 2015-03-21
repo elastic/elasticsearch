@@ -38,7 +38,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  *
  * Note: neither the search request nor the name must be <code>null</code>
  */
-public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> implements IndicesRequest {
+public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> implements IndicesRequest.Replaceable {
 
     private String name;
 
@@ -64,7 +64,7 @@ public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> impl
         return this;
     }
 
-    String name() {
+    public String name() {
         return this.name;
     }
 
@@ -84,7 +84,7 @@ public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> impl
         return this;
     }
 
-    SearchRequest searchRequest() {
+    public SearchRequest searchRequest() {
         return this.searchRequest;
     }
 
@@ -108,6 +108,15 @@ public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> impl
             throw new IllegalStateException("unable to retrieve indices, search request is null");
         }
         return searchRequest.indices();
+    }
+
+    @Override
+    public IndicesRequest indices(String[] indices) {
+        if (searchRequest == null) {
+            throw new IllegalStateException("unable to set indices, search request is null");
+        }
+        searchRequest.indices(indices);
+        return this;
     }
 
     @Override

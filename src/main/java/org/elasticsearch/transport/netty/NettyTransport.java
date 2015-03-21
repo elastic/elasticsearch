@@ -1142,24 +1142,21 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             for (Map.Entry<DiscoveryNode, NodeChannels> entry : connectedNodes.entrySet()) {
                 DiscoveryNode node = entry.getKey();
                 NodeChannels channels = entry.getValue();
-                // we only support the ping message format since 1.6
-                if (node.version().onOrAfter(Version.V_1_6_0)) {
-                    for (Channel channel : channels.allChannels) {
-                        try {
-                            ChannelFuture future = channel.write(NettyHeader.pingHeader());
-                            future.addListener(new ChannelFutureListener() {
-                                @Override
-                                public void operationComplete(ChannelFuture future) throws Exception {
-                                    successfulPings.inc();
-                                }
-                            });
-                        } catch (Throwable t) {
-                            if (channel.isOpen()) {
-                                logger.debug("[{}] failed to send ping transport message", t, node);
-                                failedPings.inc();
-                            } else {
-                                logger.trace("[{}] failed to send ping transport message (channel closed)", t, node);
+                for (Channel channel : channels.allChannels) {
+                    try {
+                        ChannelFuture future = channel.write(NettyHeader.pingHeader());
+                        future.addListener(new ChannelFutureListener() {
+                            @Override
+                            public void operationComplete(ChannelFuture future) throws Exception {
+                                successfulPings.inc();
                             }
+                        });
+                    } catch (Throwable t) {
+                        if (channel.isOpen()) {
+                            logger.debug("[{}] failed to send ping transport message", t, node);
+                            failedPings.inc();
+                        } else {
+                            logger.trace("[{}] failed to send ping transport message (channel closed)", t, node);
                         }
                     }
                 }

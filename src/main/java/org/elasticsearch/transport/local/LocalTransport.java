@@ -270,7 +270,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             final TransportRequest request = handler.newInstance();
             request.remoteAddress(sourceTransport.boundAddress.publishAddress());
             request.readFrom(stream);
-            if (handler.executor() == ThreadPool.Names.SAME) {
+            if (ThreadPool.Names.SAME.equals(handler.executor())) {
                 //noinspection unchecked
                 handler.messageReceived(request, transportChannel);
             } else {

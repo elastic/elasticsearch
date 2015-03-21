@@ -193,6 +193,10 @@ public class Bootstrap {
                 Loggers.disableConsoleLogging();
                 System.out.close();
             }
+
+            // fail if using broken version
+            JVMCheck.check();
+
             bootstrap.setup(true, tuple);
 
             stage = "Startup";

@@ -102,7 +102,7 @@ Used to check if the template exists or not. For example:
 
 [source,js]
 -----------------------------------------------
-curl -XHEAD localhost:9200/_template/template_1
+curl -XHEAD -i localhost:9200/_template/template_1
 -----------------------------------------------
 
 The HTTP status code indicates if the template with the given name

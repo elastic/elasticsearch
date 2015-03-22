@@ -269,6 +269,7 @@ public class AllFieldMapper extends AbstractFieldMapper<String> implements Inter
             // if all are defaults, no need to write it at all - generating is twice is ok though
             BytesStreamOutput bytesStreamOutput = new BytesStreamOutput(0);
             XContentBuilder b =  new XContentBuilder(builder.contentType().xContent(), bytesStreamOutput);
+            b.startObject().flush();
             long pos = bytesStreamOutput.position();
             innerToXContent(b, false);
             b.flush();

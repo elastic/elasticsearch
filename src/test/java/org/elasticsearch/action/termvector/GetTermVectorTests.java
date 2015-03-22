@@ -70,7 +70,7 @@ public class GetTermVectorTests extends AbstractTermVectorTests {
             assertThat(actionGet.getIndex(), equalTo("test"));
             assertThat(actionGet.isExists(), equalTo(false));
             // check response is nevertheless serializable to json
-            actionGet.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS);
+            actionGet.toXContent(jsonBuilder().startObject(), ToXContent.EMPTY_PARAMS);
         }
     }
 

@@ -55,7 +55,7 @@ public class RestFielddataAction extends AbstractCatAction {
     @Override
     void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
 
-        final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
+        final NodesStatsRequest nodesStatsRequest = new NodesStatsRequest("data:true");
         nodesStatsRequest.clear();
         nodesStatsRequest.indices(true);
         String[] fields = request.paramAsStringArray("fields", null);
@@ -94,9 +94,6 @@ public class RestFielddataAction extends AbstractCatAction {
 
         // Collect all the field names so a new table can be built
         for (NodeStats ns : nodeStatses.getNodes()) {
-            if (!ns.getNode().dataNode()) {
-                continue;
-            }
             ObjectLongOpenHashMap<String> fields = ns.getIndices().getFieldData().getFields();
             nodesFields.put(ns, fields);
             if (fields != null) {

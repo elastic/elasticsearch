@@ -258,34 +258,32 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             throw new ElasticsearchIllegalStateException("can't send request to a null node");
         }
         final long requestId = newRequestId();
-        TimeoutHandler timeoutHandler = null;
+        final TimeoutHandler timeoutHandler;
         try {
+
+            if (options.timeout() == null) {
+                timeoutHandler = null;
+            } else {
+                timeoutHandler = new TimeoutHandler(requestId);
+            }
             clientHandlers.put(requestId, new RequestHolder<>(handler, node, action, timeoutHandler));
             if (started.get() == false) {
                 // if we are not started the exception handling will remove the RequestHolder again and calls the handler to notify the caller.
                 // it will only notify if the toStop code hasn't done the work yet.
                 throw new TransportException("TransportService is closed stopped can't send request");
             }
-            if (options.timeout() != null) {
-                // we acquire the mutex here to make sure the timeout handler doesn't run until the future is set
-                // this is to avoid race conditions when the timeout value is ridiculously low
-                synchronized (timeoutHandlingMutex) {
-                    timeoutHandler = new TimeoutHandler(requestId);
-                    timeoutHandler.future = threadPool.schedule(options.timeout(), ThreadPool.Names.GENERIC, timeoutHandler);
-                }
+            if (timeoutHandler != null) {
+                assert options.timeout() != null;
+                timeoutHandler.future = threadPool.schedule(options.timeout(), ThreadPool.Names.GENERIC, timeoutHandler);
             }
             transport.sendRequest(node, requestId, action, request, options);
         } catch (final Throwable e) {
             // usually happen either because we failed to connect to the node
             // or because we failed serializing the message
             final RequestHolder holderToNotify = clientHandlers.remove(requestId);
-            // if the scheduler raise a EsRejectedExecutionException (due to shutdown), we may have a timeout handler, but no future
-            if (timeoutHandler != null) {
-                FutureUtils.cancel(timeoutHandler.future);
-            }
-
             // If holderToNotify == null then handler has already been taken care of.
             if (holderToNotify != null) {
+                holderToNotify.cancelTimeout();
                 // callback that an exception happened, but on a different thread since we don't
                 // want handlers to worry about stack overflows
                 final SendRequestTransportException sendRequestException = new SendRequestTransportException(node, action, e);
@@ -402,7 +400,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 checkForTimeout(requestId);
                 return null;
             }
-            holder.cancel();
+            holder.cancelTimeout();
             if (traceEnabled() && shouldTraceAction(holder.action())) {
                 traceReceivedResponse(requestId, holder.node(), holder.action());
             }
@@ -529,9 +527,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         @Override
         public void run() {
             synchronized (timeoutHandlingMutex) {
-                if (future.isCancelled()) {
-                    return;
-                }
                 final RequestHolder holder = clientHandlers.remove(requestId);
                 if (holder != null) {
                     // add it to the timeout information holder, in case we are going to get a response later
@@ -540,6 +535,15 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                     holder.handler().handleException(new ReceiveTimeoutTransportException(holder.node(), holder.action(), "request_id [" + requestId + "] timed out after [" + (timeoutTime - sentTime) + "ms]"));
                 }
             }
+        }
+
+        /**
+         * cancels timeout handling. this is a best effort only to avoid running it. remove the requestId from {@link #clientHandlers}
+         * to make sure this doesn't run.
+         */
+        public void cancel() {
+            assert clientHandlers.get(requestId) == null : "cancel must be called after the requestId [" + requestId + "] has been removed from clientHandlers";
+            FutureUtils.cancel(future);
         }
     }
 
@@ -585,13 +589,13 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
         private final String action;
 
-        private final TimeoutHandler timeout;
+        private final TimeoutHandler timeoutHandler;
 
-        RequestHolder(TransportResponseHandler<T> handler, DiscoveryNode node, String action, TimeoutHandler timeout) {
+        RequestHolder(TransportResponseHandler<T> handler, DiscoveryNode node, String action, TimeoutHandler timeoutHandler) {
             this.handler = handler;
             this.node = node;
             this.action = action;
-            this.timeout = timeout;
+            this.timeoutHandler = timeoutHandler;
         }
 
         public TransportResponseHandler<T> handler() {
@@ -606,9 +610,9 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             return this.action;
         }
 
-        public void cancel() {
-            if (timeout != null) {
-                FutureUtils.cancel(timeout.future);
+        public void cancelTimeout() {
+            if (timeoutHandler != null) {
+                timeoutHandler.cancel();
             }
         }
     }

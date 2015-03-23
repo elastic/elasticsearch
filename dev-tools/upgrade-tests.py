@@ -107,7 +107,8 @@ def start_node(version, data_dir, node_dir, unicast_host_list, tcp_port, http_po
     '-Des.path.data=%s' % data_dir, '-Des.cluster.name=upgrade_test',  
     '-Des.discovery.zen.ping.unicast.hosts=%s' % unicast_host_list, 
     '-Des.discovery.zen.ping.multicast.enabled=false',
-    '-Des.script.disable_dynamic=true',
+    '-Des.script.dynamic=on',
+    '-Des.script.indexed=on',
     '-Des.transport.tcp.port=%s' % tcp_port,
     '-Des.http.port=%s' % http_port,
     foreground], stdout=subprocess.PIPE, stderr=subprocess.PIPE)

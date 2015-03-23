@@ -60,7 +60,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
     private static final Map<ScriptType, ScriptMode> DEFAULT_SCRIPT_MODES = new HashMap<>();
 
     static {
-        DEFAULT_SCRIPT_MODES.put(ScriptType.FILE, ScriptMode.ENABLE);
+        DEFAULT_SCRIPT_MODES.put(ScriptType.FILE, ScriptMode.ON);
         DEFAULT_SCRIPT_MODES.put(ScriptType.INDEXED, ScriptMode.SANDBOX);
         DEFAULT_SCRIPT_MODES.put(ScriptType.INLINE, ScriptMode.SANDBOX);
     }
@@ -152,13 +152,13 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
         //rarely inject the default settings, which have no effect
         if (rarely()) {
-            builder.put("script.file", randomFrom(ScriptModesTests.ENABLE.values()));
+            builder.put("script.file", randomFrom(ScriptModesTests.ENABLE_VALUES));
         }
         if (rarely()) {
-            builder.put("script.indexed", randomFrom(ScriptModesTests.SANDBOX.values()));
+            builder.put("script.indexed", ScriptMode.SANDBOX);
         }
         if (rarely()) {
-            builder.put("script.dynamic", randomFrom(ScriptModesTests.SANDBOX.values()));
+            builder.put("script.dynamic", ScriptMode.SANDBOX);
         }
         buildScriptService(builder.build());
         createFileScripts("groovy", "expression", "mustache", "test");
@@ -269,27 +269,27 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
         for (Map.Entry<ScriptType, ScriptMode> entry : scriptSourceSettings.entrySet()) {
             switch (entry.getValue()) {
-                case ENABLE:
-                    builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + entry.getKey(), randomFrom(ScriptModesTests.ENABLE.values()));
+                case ON:
+                    builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + entry.getKey(), randomFrom(ScriptModesTests.ENABLE_VALUES));
                     break;
-                case DISABLE:
-                    builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + entry.getKey(), randomFrom(ScriptModesTests.DISABLE.values()));
+                case OFF:
+                    builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + entry.getKey(), randomFrom(ScriptModesTests.DISABLE_VALUES));
                     break;
                 case SANDBOX:
-                    builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + entry.getKey(), randomFrom(ScriptModesTests.SANDBOX.values()));
+                    builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + entry.getKey(), ScriptMode.SANDBOX);
                     break;
             }
         }
         for (Map.Entry<ScriptedOp, ScriptMode> entry : scriptedOpSettings.entrySet()) {
             switch (entry.getValue()) {
-                case ENABLE:
-                    builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + entry.getKey(), randomFrom(ScriptModesTests.ENABLE.values()));
+                case ON:
+                    builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + entry.getKey(), randomFrom(ScriptModesTests.ENABLE_VALUES));
                     break;
-                case DISABLE:
-                    builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + entry.getKey(), randomFrom(ScriptModesTests.DISABLE.values()));
+                case OFF:
+                    builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + entry.getKey(), randomFrom(ScriptModesTests.DISABLE_VALUES));
                     break;
                 case SANDBOX:
-                    builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + entry.getKey(), randomFrom(ScriptModesTests.SANDBOX.values()));
+                    builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + entry.getKey(), ScriptMode.SANDBOX);
                     break;
             }
         }
@@ -300,14 +300,14 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
             String lang = randomFrom(scriptEnginesByLangMap.get(part1).types());
             switch (entry.getValue()) {
-                case ENABLE:
-                    builder.put(ScriptModes.ENGINE_SETTINGS_PREFIX + "." + lang + "." + part2, randomFrom(ScriptModesTests.ENABLE.values()));
+                case ON:
+                    builder.put(ScriptModes.ENGINE_SETTINGS_PREFIX + "." + lang + "." + part2, randomFrom(ScriptModesTests.ENABLE_VALUES));
                     break;
-                case DISABLE:
-                    builder.put(ScriptModes.ENGINE_SETTINGS_PREFIX + "." + lang + "." + part2, randomFrom(ScriptModesTests.DISABLE.values()));
+                case OFF:
+                    builder.put(ScriptModes.ENGINE_SETTINGS_PREFIX + "." + lang + "." + part2, randomFrom(ScriptModesTests.DISABLE_VALUES));
                     break;
                 case SANDBOX:
-                    builder.put(ScriptModes.ENGINE_SETTINGS_PREFIX + "." + lang + "." + part2, randomFrom(ScriptModesTests.SANDBOX.values()));
+                    builder.put(ScriptModes.ENGINE_SETTINGS_PREFIX + "." + lang + "." + part2, ScriptMode.SANDBOX);
                     break;
             }
         }
@@ -336,10 +336,10 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
                     for (String lang : scriptEngineService.types()) {
                         switch (scriptMode) {
-                            case ENABLE:
+                            case ON:
                                 assertCompileAccepted(lang, script, scriptType, scriptedOp);
                                 break;
-                            case DISABLE:
+                            case OFF:
                                 assertCompileRejected(lang, script, scriptType, scriptedOp);
                                 break;
                             case SANDBOX:

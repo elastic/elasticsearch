@@ -244,8 +244,8 @@ every script engine, through the following settings that need to be added to the
 
 [source,yaml]
 -----------------------------------
-script.dynamic: enable
-script.indexed: enable
+script.dynamic: on
+script.indexed: on
 
 -----------------------------------
 
@@ -261,8 +261,8 @@ script settings:
 [cols="<,<",options="header",]
 |=======================================================================
 |Value |Description
-| `disable` |scripting is turned off completely, in the context of the setting being set.
-| `enable`  |scripting is turned on, in the context of the setting being set.
+| `off` |scripting is turned off completely, in the context of the setting being set.
+| `on`  |scripting is turned on, in the context of the setting being set.
 | `sandbox` |scripts may be executed only for languages that are sandboxed (`mustache` and `expressions`)
 |=======================================================================
 
@@ -272,7 +272,7 @@ The default values are the following:
 -----------------------------------
 script.dynamic: sandbox
 script.indexed: sandbox
-script.file: enable
+script.file: on
 
 -----------------------------------
 
@@ -301,8 +301,8 @@ operations though, as the above defaults still get applied.
 
 [source,yaml]
 -----------------------------------
-script.update: disable
-script.mapping: disable
+script.update: off
+script.mapping: off
 
 -----------------------------------
 
@@ -314,17 +314,17 @@ precedence over any other generic settings.
 [source,yaml]
 -----------------------------------
 script.engine.groovy.dynamic.aggs: sandbox
-script.engine.groovy.dynamic.mapping: disable
+script.engine.groovy.dynamic.mapping: off
 script.engine.groovy.dynamic.search: sandbox
-script.engine.groovy.dynamic.update: disable
-script.engine.groovy.file.aggs: enable
-script.engine.groovy.file.mapping: enable
-script.engine.groovy.file.search: enable
-script.engine.groovy.file.update: enable
+script.engine.groovy.dynamic.update: off
+script.engine.groovy.file.aggs: on
+script.engine.groovy.file.mapping: on
+script.engine.groovy.file.search: on
+script.engine.groovy.file.update: on
 script.engine.groovy.indexed.aggs: sandbox
-script.engine.groovy.indexed.mapping: disable
+script.engine.groovy.indexed.mapping: off
 script.engine.groovy.indexed.search: sandbox
-script.engine.groovy.indexed.update: disable
+script.engine.groovy.indexed.update: off
 
 -----------------------------------
 

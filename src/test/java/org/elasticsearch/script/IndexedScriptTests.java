@@ -45,14 +45,14 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal));
-        builder.put("script.engine.groovy.indexed.update", "disable");
-        builder.put("script.engine.groovy.indexed.search", "enable");
-        builder.put("script.engine.groovy.indexed.aggs", "enable");
-        builder.put("script.engine.groovy.dynamic.aggs", "disable");
-        builder.put("script.engine.expression.indexed.update", "disable");
-        builder.put("script.engine.expression.indexed.search", "disable");
-        builder.put("script.engine.expression.indexed.aggs", "disable");
-        builder.put("script.engine.expression.indexed.mapping", "disable");
+        builder.put("script.engine.groovy.indexed.update", "off");
+        builder.put("script.engine.groovy.indexed.search", "on");
+        builder.put("script.engine.groovy.indexed.aggs", "on");
+        builder.put("script.engine.groovy.dynamic.aggs", "off");
+        builder.put("script.engine.expression.indexed.update", "off");
+        builder.put("script.engine.expression.indexed.search", "off");
+        builder.put("script.engine.expression.indexed.aggs", "off");
+        builder.put("script.engine.expression.indexed.mapping", "off");
         return builder.build();
     }
 

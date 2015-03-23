@@ -45,11 +45,11 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
         //Set path so ScriptService will pick up the test scripts
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put("path.conf", this.getResource("config").getPath())
-                .put("script.engine.expression.file.aggs", "disable")
-                .put("script.engine.mustache.file.aggs", "disable")
-                .put("script.engine.mustache.file.search", "disable")
-                .put("script.engine.mustache.file.mapping", "disable")
-                .put("script.engine.mustache.file.update", "disable").build();
+                .put("script.engine.expression.file.aggs", "off")
+                .put("script.engine.mustache.file.aggs", "off")
+                .put("script.engine.mustache.file.search", "off")
+                .put("script.engine.mustache.file.mapping", "off")
+                .put("script.engine.mustache.file.update", "off").build();
     }
 
     @Test

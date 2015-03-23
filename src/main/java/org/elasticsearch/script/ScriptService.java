@@ -456,9 +456,9 @@ public class ScriptService extends AbstractComponent implements Closeable {
         assert lang != null;
         ScriptMode mode = scriptModes.getScriptMode(lang, scriptType, scriptedOp);
         switch (mode) {
-            case ENABLE:
+            case ON:
                 return true;
-            case DISABLE:
+            case OFF:
                 return false;
             case SANDBOX:
                 return scriptEngineService.sandboxed();

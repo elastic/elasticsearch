@@ -55,7 +55,7 @@ public class ScriptModes {
         HashMap<String, ScriptMode> scriptModesMap = Maps.newHashMap();
 
         //file scripts are enabled by default, for any language
-        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.FILE, ScriptMode.ENABLE, scriptModesMap);
+        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.FILE, ScriptMode.ON, scriptModesMap);
         //indexed scripts are enabled by default only for sandboxed languages
         addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INDEXED, ScriptMode.SANDBOX, scriptModesMap);
         //dynamic scripts are enabled by default only for sandboxed languages
@@ -70,7 +70,7 @@ public class ScriptModes {
     }
 
     private static void processSourceBasedGlobalSettings(Settings settings, Map<String, ScriptEngineService> scriptEngines, List<String> processedSettings, Map<String, ScriptMode> scriptModes) {
-        //read custom source based settings for all operations (e.g. script.indexed: enable)
+        //read custom source based settings for all operations (e.g. script.indexed: on)
         for (ScriptType scriptType : ScriptType.values()) {
             String scriptTypeSetting = settings.get(SCRIPT_SETTINGS_PREFIX + scriptType);
             if (Strings.hasLength(scriptTypeSetting)) {
@@ -82,7 +82,7 @@ public class ScriptModes {
     }
 
     private static void processOperationBasedGlobalSettings(Settings settings, Map<String, ScriptEngineService> scriptEngines, List<String> processedSettings, Map<String, ScriptMode> scriptModes) {
-        //read custom op based settings for all sources (e.g. script.aggs: disable)
+        //read custom op based settings for all sources (e.g. script.aggs: off)
         //op based settings take precedence over source based settings, hence they get expanded later
         for (ScriptedOp scriptedOp : ScriptedOp.values()) {
             ScriptMode scriptMode = getScriptedOpMode(settings, SCRIPT_SETTINGS_PREFIX, scriptedOp);
@@ -122,12 +122,12 @@ public class ScriptModes {
                 ScriptService.DynamicScriptDisabling dynamicScriptDisabling = ScriptService.DynamicScriptDisabling.parse(disableDynamicSetting);
                 switch(dynamicScriptDisabling) {
                     case EVERYTHING_ALLOWED:
-                        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INDEXED, ScriptMode.ENABLE, scriptModes);
-                        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INLINE, ScriptMode.ENABLE, scriptModes);
+                        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INDEXED, ScriptMode.ON, scriptModes);
+                        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INLINE, ScriptMode.ON, scriptModes);
                         break;
                     case ONLY_DISK_ALLOWED:
-                        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INDEXED, ScriptMode.DISABLE, scriptModes);
-                        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INLINE, ScriptMode.DISABLE, scriptModes);
+                        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INDEXED, ScriptMode.OFF, scriptModes);
+                        addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INLINE, ScriptMode.OFF, scriptModes);
                         break;
                 }
             } else {
@@ -187,12 +187,12 @@ public class ScriptModes {
      * @param lang the language that the script is written in
      * @param scriptType the type of the script
      * @param scriptedOp the api that requires the execution of the script
-     * @return whether the script is enabled, disabled, or only enabled for sandboxed languages
+     * @return whether scripts are on, on, or enabled only for sandboxed languages
      */
     public ScriptMode getScriptMode(String lang, ScriptType scriptType, ScriptedOp scriptedOp) {
         //native scripts are always on as they are static by definition
         if (NativeScriptEngineService.NAME.equals(lang)) {
-            return ScriptMode.ENABLE;
+            return ScriptMode.ON;
         }
         ScriptMode scriptMode = scriptModes.get(ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + scriptedOp);
         if (scriptMode == null) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.script;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.Booleans;
 
 import java.util.Locale;
 
@@ -29,29 +30,22 @@ import java.util.Locale;
  * only be executed by a sandboxed scripting language.
  */
 enum ScriptMode {
-    ENABLE,
-    DISABLE,
+    ON,
+    OFF,
     SANDBOX;
 
     static ScriptMode parse(String input) {
         input = input.toLowerCase(Locale.ROOT);
-        switch(input) {
-            case "enable":
-            case "enabled":
-            case "on":
-            case "true":
-                return ENABLE;
-            case "disable":
-            case "disabled":
-            case "off":
-            case "false":
-                return DISABLE;
-            case "sandbox":
-            case "sandboxed":
-                return SANDBOX;
-            default:
-                throw new ElasticsearchIllegalArgumentException("script mode [" + input + "] not supported");
+        if (Booleans.isExplicitTrue(input)) {
+            return ON;
         }
+        if (Booleans.isExplicitFalse(input)) {
+            return OFF;
+        }
+        if (SANDBOX.toString().equals(input)) {
+            return SANDBOX;
+        }
+        throw new ElasticsearchIllegalArgumentException("script mode [" + input + "] not supported");
     }
 
 

@@ -18,12 +18,11 @@
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.custom.SingleCustomOperationRequest;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -37,56 +36,102 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest> {
 
-    private BytesReference source;
-    private boolean unsafe;
+    private String text;
+
+    private String analyzer;
+
+    private String tokenizer;
+
+    private String[] tokenFilters = Strings.EMPTY_ARRAY;
+
+    private String[] charFilters = Strings.EMPTY_ARRAY;
+
+    private String field;
 
     AnalyzeRequest() {
 
     }
+
+    /**
+     * Constructs a new analyzer request for the provided text.
+     *
+     * @param text The text to analyze
+     */
+    public AnalyzeRequest(String text) {
+        this.text = text;
+    }
+
     /**
      * Constructs a new analyzer request for the provided index and text.
      *
      * @param index The index name
+     * @param text  The text to analyze
      */
-    public AnalyzeRequest(@Nullable String index) {
+    public AnalyzeRequest(@Nullable String index, String text) {
         this.index(index);
+        this.text = text;
     }
 
-    public BytesReference source() {
-        return source;
+    public String text() {
+        return this.text;
     }
 
-    @Override
-    public void beforeLocalFork() {
-        if (unsafe) {
-            source = source.copyBytesArray();
-            unsafe = false;
-        }
-    }
-
-    public AnalyzeRequest source(String source) {
-        this.source = new BytesArray(source);
-        this.unsafe = false;
+    public AnalyzeRequest analyzer(String analyzer) {
+        this.analyzer = analyzer;
         return this;
     }
 
-    public AnalyzeRequest source(BytesReference source, boolean unsafe) {
-        this.source = source;
-        this.unsafe = unsafe;
+    public String analyzer() {
+        return this.analyzer;
+    }
+
+    public AnalyzeRequest tokenizer(String tokenizer) {
+        this.tokenizer = tokenizer;
         return this;
     }
 
-    public AnalyzeRequest source(AnalyzeSourceBuilder sourceBuilder) {
-        this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        this.unsafe = false;
+    public String tokenizer() {
+        return this.tokenizer;
+    }
+
+    public AnalyzeRequest tokenFilters(String... tokenFilters) {
+        this.tokenFilters = tokenFilters;
         return this;
+    }
+
+    public String[] tokenFilters() {
+        return this.tokenFilters;
+    }
+
+    public AnalyzeRequest charFilters(String... charFilters) {
+        this.charFilters = charFilters;
+        return this;
+    }
+
+    public String[] charFilters() {
+        return this.charFilters;
+    }
+
+    public AnalyzeRequest field(String field) {
+        this.field = field;
+        return this;
+    }
+
+    public String field() {
+        return this.field;
     }
 
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
-        if (source == null) {
-            validationException = addValidationError("source is missing", validationException);
+        if (text == null) {
+            validationException = addValidationError("text is missing", validationException);
+        }
+        if (tokenFilters == null) {
+            validationException = addValidationError("token filters must not be null", validationException);
+        }
+        if (charFilters == null) {
+            validationException = addValidationError("char filters must not be null", validationException);
         }
         return validationException;
     }
@@ -94,13 +139,22 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        unsafe = false;
-        source = in.readBytesReference();
+        text = in.readString();
+        analyzer = in.readOptionalString();
+        tokenizer = in.readOptionalString();
+        tokenFilters = in.readStringArray();
+        charFilters = in.readStringArray();
+        field = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBytesReference(source);
+        out.writeString(text);
+        out.writeOptionalString(analyzer);
+        out.writeOptionalString(tokenizer);
+        out.writeStringArray(tokenFilters);
+        out.writeStringArray(charFilters);
+        out.writeOptionalString(field);
     }
 }

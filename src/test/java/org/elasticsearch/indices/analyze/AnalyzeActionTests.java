@@ -23,14 +23,13 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.settings.ImmutableSettings.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -191,30 +190,5 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
 
     private static String indexOrAlias() {
         return randomBoolean() ? "test" : "alias";
-    }
-
-    @Test
-    public void testSourceInAnalyzeRequest() {
-        AnalyzeRequestBuilder builder = new AnalyzeRequestBuilder(client().admin().indices());
-        AnalyzeSourceBuilder sourceBuilder = new AnalyzeSourceBuilder();
-        sourceBuilder.setText("THIS IS A TEST").setTokenizer("keyword").setTokenFilters("lowercase");
-
-        builder.setSource(sourceBuilder);
-        AnalyzeResponse analyzeResponse = builder.get();
-        assertThat(analyzeResponse.getTokens().size(), equalTo(1));
-        assertThat(analyzeResponse.getTokens().get(0).getTerm(), equalTo("this is a test"));
-    }
-    @Test
-    public void testParseAnalyzeRequestThrowsException() throws Exception {
-        AnalyzeRequestBuilder builder = new AnalyzeRequestBuilder(client().admin().indices());
-        builder.setSource("{ \"invalid_json\" ");
-
-        try {
-            builder.get();
-            fail("expected parseContent failure");
-        } catch (Exception e) {
-            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
-            assertThat(e.getMessage(), equalTo("Failed to parse request body"));
-        }
     }
 }

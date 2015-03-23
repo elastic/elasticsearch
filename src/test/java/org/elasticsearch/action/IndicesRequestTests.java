@@ -22,7 +22,6 @@ package org.elasticsearch.action;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeSourceBuilder;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
@@ -179,7 +178,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         String analyzeShardAction = AnalyzeAction.NAME + "[s]";
         interceptTransportActions(analyzeShardAction);
 
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest(randomIndexOrAlias()).source(new AnalyzeSourceBuilder().setText("text"));
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest(randomIndexOrAlias(), "text");
         internalCluster().clientNodeClient().admin().indices().analyze(analyzeRequest).actionGet();
 
         clearInterceptedActions();

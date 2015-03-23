@@ -158,7 +158,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
             builder.put("script.indexed", ScriptMode.SANDBOX);
         }
         if (rarely()) {
-            builder.put("script.dynamic", ScriptMode.SANDBOX);
+            builder.put("script.inline", ScriptMode.SANDBOX);
         }
         buildScriptService(builder.build());
         createFileScripts("groovy", "expression", "mustache", "test");
@@ -317,7 +317,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
         for (ScriptEngineService scriptEngineService : scriptEngineServices) {
             for (ScriptType scriptType : ScriptType.values()) {
-                //make sure file scripts have a different name than dynamic ones.
+                //make sure file scripts have a different name than inline ones.
                 //Otherwise they are always considered file ones as they can be found in the static cache.
                 String script = scriptType == ScriptType.FILE ? "file_script" : "script";
                 for (ScriptContext scriptContext : ScriptContext.values()) {

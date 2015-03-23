@@ -160,16 +160,16 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testEnableDynamicGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.dynamic", randomFrom(ENABLE_VALUES));
+    public void testEnableInlineGenericSettings() {
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.inline", randomFrom(ENABLE_VALUES));
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE, ScriptType.INLINE);
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
     }
 
     @Test
-    public void testDisableDynamicGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.dynamic", randomFrom(DISABLE_VALUES));
+    public void testDisableInlineGenericSettings() {
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.inline", randomFrom(DISABLE_VALUES));
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
@@ -177,8 +177,8 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testSandboxDynamicGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.dynamic", randomFrom(ScriptMode.SANDBOX));
+    public void testSandboxInlineGenericSettings() {
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.inline", randomFrom(ScriptMode.SANDBOX));
         //nothing changes if setting set is same as default
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
@@ -238,7 +238,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testMultipleScriptTypeGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.file", ScriptMode.SANDBOX).put("script.dynamic", randomFrom(DISABLE_VALUES));
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.file", ScriptMode.SANDBOX).put("script.inline", randomFrom(DISABLE_VALUES));
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.FILE);
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
@@ -369,7 +369,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     @Test
     public void testConflictingScriptTypeAndOpGenericSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.update", randomFrom(DISABLE_VALUES))
-                .put("script.indexed", randomFrom(ENABLE_VALUES)).put("script.dynamic", ScriptMode.SANDBOX);
+                .put("script.indexed", randomFrom(ENABLE_VALUES)).put("script.inline", ScriptMode.SANDBOX);
         //operations generic settings have precedence over script type generic settings
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, ScriptContext.UPDATE);
@@ -395,7 +395,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testInteractionBetweenGenericAndEngineSpecificSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.dynamic", randomFrom(DISABLE_VALUES))
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.inline", randomFrom(DISABLE_VALUES))
                 .put(specificEngineOpSettings(MustacheScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.AGGS), randomFrom(ENABLE_VALUES))
                 .put(specificEngineOpSettings(MustacheScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.SEARCH), randomFrom(ENABLE_VALUES));
         ImmutableSet<String> mustacheLangSet = ImmutableSet.of(MustacheScriptEngineService.NAME);
@@ -414,10 +414,6 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         assertAllSettingsWereChecked = false;
         this.scriptModes = new ScriptModes(scriptEngines, ImmutableSettings.EMPTY);
         assertThat(scriptModes.toString(), equalTo(
-                "script.engine.custom.dynamic.aggs: sandbox\n" +
-                        "script.engine.custom.dynamic.mapping: sandbox\n" +
-                        "script.engine.custom.dynamic.search: sandbox\n" +
-                        "script.engine.custom.dynamic.update: sandbox\n" +
                         "script.engine.custom.file.aggs: on\n" +
                         "script.engine.custom.file.mapping: on\n" +
                         "script.engine.custom.file.search: on\n" +
@@ -426,10 +422,10 @@ public class ScriptModesTests extends ElasticsearchTestCase {
                         "script.engine.custom.indexed.mapping: sandbox\n" +
                         "script.engine.custom.indexed.search: sandbox\n" +
                         "script.engine.custom.indexed.update: sandbox\n" +
-                        "script.engine.expression.dynamic.aggs: sandbox\n" +
-                        "script.engine.expression.dynamic.mapping: sandbox\n" +
-                        "script.engine.expression.dynamic.search: sandbox\n" +
-                        "script.engine.expression.dynamic.update: sandbox\n" +
+                        "script.engine.custom.inline.aggs: sandbox\n" +
+                        "script.engine.custom.inline.mapping: sandbox\n" +
+                        "script.engine.custom.inline.search: sandbox\n" +
+                        "script.engine.custom.inline.update: sandbox\n" +
                         "script.engine.expression.file.aggs: on\n" +
                         "script.engine.expression.file.mapping: on\n" +
                         "script.engine.expression.file.search: on\n" +
@@ -438,10 +434,10 @@ public class ScriptModesTests extends ElasticsearchTestCase {
                         "script.engine.expression.indexed.mapping: sandbox\n" +
                         "script.engine.expression.indexed.search: sandbox\n" +
                         "script.engine.expression.indexed.update: sandbox\n" +
-                        "script.engine.groovy.dynamic.aggs: sandbox\n" +
-                        "script.engine.groovy.dynamic.mapping: sandbox\n" +
-                        "script.engine.groovy.dynamic.search: sandbox\n" +
-                        "script.engine.groovy.dynamic.update: sandbox\n" +
+                        "script.engine.expression.inline.aggs: sandbox\n" +
+                        "script.engine.expression.inline.mapping: sandbox\n" +
+                        "script.engine.expression.inline.search: sandbox\n" +
+                        "script.engine.expression.inline.update: sandbox\n" +
                         "script.engine.groovy.file.aggs: on\n" +
                         "script.engine.groovy.file.mapping: on\n" +
                         "script.engine.groovy.file.search: on\n" +
@@ -450,10 +446,10 @@ public class ScriptModesTests extends ElasticsearchTestCase {
                         "script.engine.groovy.indexed.mapping: sandbox\n" +
                         "script.engine.groovy.indexed.search: sandbox\n" +
                         "script.engine.groovy.indexed.update: sandbox\n" +
-                        "script.engine.mustache.dynamic.aggs: sandbox\n" +
-                        "script.engine.mustache.dynamic.mapping: sandbox\n" +
-                        "script.engine.mustache.dynamic.search: sandbox\n" +
-                        "script.engine.mustache.dynamic.update: sandbox\n" +
+                        "script.engine.groovy.inline.aggs: sandbox\n" +
+                        "script.engine.groovy.inline.mapping: sandbox\n" +
+                        "script.engine.groovy.inline.search: sandbox\n" +
+                        "script.engine.groovy.inline.update: sandbox\n" +
                         "script.engine.mustache.file.aggs: on\n" +
                         "script.engine.mustache.file.mapping: on\n" +
                         "script.engine.mustache.file.search: on\n" +
@@ -462,10 +458,10 @@ public class ScriptModesTests extends ElasticsearchTestCase {
                         "script.engine.mustache.indexed.mapping: sandbox\n" +
                         "script.engine.mustache.indexed.search: sandbox\n" +
                         "script.engine.mustache.indexed.update: sandbox\n" +
-                        "script.engine.test.dynamic.aggs: sandbox\n" +
-                        "script.engine.test.dynamic.mapping: sandbox\n" +
-                        "script.engine.test.dynamic.search: sandbox\n" +
-                        "script.engine.test.dynamic.update: sandbox\n" +
+                        "script.engine.mustache.inline.aggs: sandbox\n" +
+                        "script.engine.mustache.inline.mapping: sandbox\n" +
+                        "script.engine.mustache.inline.search: sandbox\n" +
+                        "script.engine.mustache.inline.update: sandbox\n" +
                         "script.engine.test.file.aggs: on\n" +
                         "script.engine.test.file.mapping: on\n" +
                         "script.engine.test.file.search: on\n" +
@@ -473,7 +469,11 @@ public class ScriptModesTests extends ElasticsearchTestCase {
                         "script.engine.test.indexed.aggs: sandbox\n" +
                         "script.engine.test.indexed.mapping: sandbox\n" +
                         "script.engine.test.indexed.search: sandbox\n" +
-                        "script.engine.test.indexed.update: sandbox\n"));
+                        "script.engine.test.indexed.update: sandbox\n" +
+                        "script.engine.test.inline.aggs: sandbox\n" +
+                        "script.engine.test.inline.mapping: sandbox\n" +
+                        "script.engine.test.inline.search: sandbox\n" +
+                        "script.engine.test.inline.update: sandbox\n"));
     }
 
     private void assertScriptModesAllOps(ScriptMode expectedScriptMode, Set<String> langs, ScriptType... scriptTypes) {

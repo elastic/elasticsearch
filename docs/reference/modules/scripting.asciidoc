@@ -223,7 +223,7 @@ curl -XDELETE localhost:9200/_scripts/groovy/indexedCalculateScore
 
 We recommend running Elasticsearch behind an application or proxy, which
 protects Elasticsearch from the outside world. If users are allowed to run
-dynamic scripts (even in a search request) or indexed scripts, then they have
+inline scripts (even in a search request) or indexed scripts, then they have
 the same access to your box as the user that Elasticsearch is running as. For
 this reason dynamic scripting is allowed only for sandboxed languages by default.
 The script engines that currently support sandboxing are `mustache` and
@@ -244,7 +244,7 @@ every script engine, through the following settings that need to be added to the
 
 [source,yaml]
 -----------------------------------
-script.dynamic: on
+script.inline: on
 script.indexed: on
 
 -----------------------------------
@@ -270,7 +270,7 @@ The default values are the following:
 
 [source,yaml]
 -----------------------------------
-script.dynamic: sandbox
+script.inline: sandbox
 script.indexed: sandbox
 script.file: on
 
@@ -315,10 +315,10 @@ precedence over any other generic settings.
 
 [source,yaml]
 -----------------------------------
-script.engine.groovy.dynamic.aggs: sandbox
-script.engine.groovy.dynamic.mapping: off
-script.engine.groovy.dynamic.search: sandbox
-script.engine.groovy.dynamic.update: off
+script.engine.groovy.inline.aggs: sandbox
+script.engine.groovy.inline.mapping: off
+script.engine.groovy.inline.search: sandbox
+script.engine.groovy.inline.update: off
 script.engine.groovy.file.aggs: on
 script.engine.groovy.file.mapping: on
 script.engine.groovy.file.search: on

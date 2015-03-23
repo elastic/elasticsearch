@@ -269,7 +269,7 @@ public final class InternalTestCluster extends TestCluster {
         builder.put("config.ignore_system_properties", true);
         builder.put("node.mode", NODE_MODE);
         builder.put("script.indexed", "on");
-        builder.put("script.dynamic", "on");
+        builder.put("script.inline", "on");
         builder.put("http.pipelining", enableHttpPipelining);
         builder.put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false);
         builder.put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true);

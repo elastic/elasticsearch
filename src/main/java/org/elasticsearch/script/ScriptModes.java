@@ -187,7 +187,7 @@ public class ScriptModes {
      * @param lang the language that the script is written in
      * @param scriptType the type of the script
      * @param scriptedOp the api that requires the execution of the script
-     * @return whether scripts are on, on, or enabled only for sandboxed languages
+     * @return whether scripts are on, off, or enabled only for sandboxed languages
      */
     public ScriptMode getScriptMode(String lang, ScriptType scriptType, ScriptedOp scriptedOp) {
         //native scripts are always on as they are static by definition

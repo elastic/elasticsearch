@@ -309,8 +309,8 @@ def wait_for_node_startup(host='127.0.0.1', port=9200,timeout=15):
 # Ensures we are using a true Lucene release, not a snapshot build:
 def verify_lucene_version():
   s = open('pom.xml', encoding='utf-8').read()
-  if 'download.elasticsearch.org/lucenesnapshots' in s:
-    raise RuntimeError('pom.xml contains download.elasticsearch.org/lucenesnapshots repository: remove that before releasing')
+  if 'download.elastic.co/lucenesnapshots' in s:
+    raise RuntimeError('pom.xml contains download.elastic.co/lucenesnapshots repository: remove that before releasing')
 
   m = re.search(r'<lucene.version>(.*?)</lucene.version>', s)
   if m is None:
@@ -388,7 +388,7 @@ def generate_checksums(files):
     res = res + [os.path.join(directory, checksum_file), release_file]
   return res
 
-def download_and_verify(release, files, plugins=None, base_url='https://download.elasticsearch.org/elasticsearch/elasticsearch'):
+def download_and_verify(release, files, plugins=None, base_url='https://download.elastic.co/elasticsearch/elasticsearch'):
   print('Downloading and verifying release %s from %s' % (release, base_url))
   tmp_dir = tempfile.mkdtemp()
   try:
@@ -692,7 +692,7 @@ if __name__ == '__main__':
         cherry_pick_command = ' and cherry-pick the documentation changes: \'git cherry-pick %s\' to the development branch' % (version_head_hash)
       pending_msg = """
       Release successful pending steps:
-        * create a new vX.Y.Z label on github for the next release, with label color #dddddd (https://github.com/elasticsearch/elasticsearch/labels)
+        * create a new vX.Y.Z label on github for the next release, with label color #dddddd (https://github.com/elastic/elasticsearch/labels)
         * publish the maven artifacts on Sonatype: https://oss.sonatype.org/index.html
            - here is a guide: http://central.sonatype.org/pages/releasing-the-deployment.html
         * check if the release is there https://oss.sonatype.org/content/repositories/releases/org/elasticsearch/elasticsearch/%(version)s

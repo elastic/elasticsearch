@@ -151,7 +151,7 @@ def generate_index(client):
     }
     # completion type was added in 0.90.3
     if not version.startswith('0.20') and not version in ['0.90.0.Beta1', '0.90.0.RC1', '0.90.0.RC2', '0.90.0', '0.90.1', '0.90.2']:
-      mappings['analyzer_1']['properties']['completion_with_index_analyzer'] = {
+      mappings['analyzer_type1']['properties']['completion_with_index_analyzer'] = {
         'type': 'completion',
         'index_analyzer': 'standard'
       }

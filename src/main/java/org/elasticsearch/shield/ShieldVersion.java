@@ -28,8 +28,14 @@ public class ShieldVersion implements Serializable {
     public static final ShieldVersion V_1_0_0 = new ShieldVersion(V_1_0_0_ID, false, Version.V_1_4_2, LicenseVersion.V_1_0_0);
     public static final int V_1_0_1_ID = /*00*/1000199;
     public static final ShieldVersion V_1_0_1 = new ShieldVersion(V_1_0_1_ID, false, Version.V_1_4_2, LicenseVersion.V_1_0_0);
+    public static final int V_1_1_0_ID = /*00*/1010099;
+    public static final ShieldVersion V_1_1_0 = new ShieldVersion(V_1_1_0_ID, false, Version.V_1_4_2, LicenseVersion.V_1_0_0);
+    public static final int V_1_2_0_ID = /*00*/1020099;
+    public static final ShieldVersion V_1_2_0 = new ShieldVersion(V_1_2_0_ID, false, Version.V_1_5_0, LicenseVersion.V_1_0_0);
+    public static final int V_1_3_0_ID = /*00*/1030099;
+    public static final ShieldVersion V_1_3_0 = new ShieldVersion(V_1_3_0_ID, true, Version.V_1_5_0, LicenseVersion.V_1_0_0);
     public static final int V_2_0_0_ID = /*00*/2000099;
-    public static final ShieldVersion V_2_0_0 = new ShieldVersion(V_2_0_0_ID, true, Version.V_1_4_2, LicenseVersion.V_1_0_0);
+    public static final ShieldVersion V_2_0_0 = new ShieldVersion(V_2_0_0_ID, true, Version.V_1_5_0, LicenseVersion.V_1_0_0);
 
     public static final ShieldVersion CURRENT = V_2_0_0;
 
@@ -41,6 +47,9 @@ public class ShieldVersion implements Serializable {
         switch (id) {
             case V_1_0_0_ID:    return V_1_0_0;
             case V_1_0_1_ID:    return V_1_0_1;
+            case V_1_1_0_ID:    return V_1_1_0;
+            case V_1_2_0_ID:    return V_1_2_0;
+            case V_1_3_0_ID:    return V_1_3_0;
             case V_2_0_0_ID:    return V_2_0_0;
 
             default:

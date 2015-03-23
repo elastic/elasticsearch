@@ -156,14 +156,13 @@ public class RecoveriesCollection {
         boolean cancelled = false;
         for (RecoveryStatus status : onGoingRecoveries.values()) {
             if (status.shardId().equals(shardId)) {
-                boolean cancel = true;
-                if (shouldCancel != null) {
-                    if (status.tryIncRef()) {
-                        try {
-                            cancel = shouldCancel.apply(status);
-                        } finally {
-                            status.decRef();
-                        }
+                boolean cancel = false;
+                // if we can't increment the status, the recovery is not there any more.
+                if (status.tryIncRef()) {
+                    try {
+                        cancel = shouldCancel.apply(status);
+                    } finally {
+                        status.decRef();
                     }
                 }
                 if (cancel && cancelRecovery(status.recoveryId(), reason)) {

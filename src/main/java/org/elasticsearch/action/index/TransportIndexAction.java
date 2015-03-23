@@ -221,7 +221,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             assert request.versionType().validateVersionForWrites(request.version());
 
             IndexResponse response = new IndexResponse(shardRequest.shardId.getIndex(), request.type(), request.id(), version, created);
-            return new PrimaryResponse<>(shardRequest.request, response, op);
+            return new PrimaryResponse<>(shardRequest.request, response);
 
         } catch (WriteFailureException e) {
             if (e.getMappingTypeToUpdate() != null) {

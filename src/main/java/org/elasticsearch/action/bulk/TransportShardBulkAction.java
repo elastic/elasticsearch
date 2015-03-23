@@ -133,7 +133,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
         final BulkShardRequest request = shardRequest.request;
         IndexService indexService = indicesService.indexServiceSafe(request.index());
         IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
-        Engine.IndexingOperation[] ops = null;
         final Set<String> mappingTypesToUpdate = Sets.newHashSet();
 
         long[] preVersions = new long[request.items().length];
@@ -152,12 +151,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                         setResponse(item, new BulkItemResponse(item.id(), indexRequest.opType().lowercase(), indexResponse));
                         if (result.mappingTypeToUpdate != null) {
                             mappingTypesToUpdate.add(result.mappingTypeToUpdate);
-                        }
-                        if (result.op != null) {
-                            if (ops == null) {
-                                ops = new Engine.IndexingOperation[request.items().length];
-                            }
-                            ops[requestIndex] = result.op;
                         }
                     } catch (WriteFailureException e) {
                         if (e.getMappingTypeToUpdate() != null) {
@@ -260,13 +253,6 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
                                 if (result.mappingTypeToUpdate != null) {
                                     mappingTypesToUpdate.add(result.mappingTypeToUpdate);
                                 }
-                                if (result.op != null) {
-                                    if (ops == null) {
-                                        ops = new Engine.IndexingOperation[request.items().length];
-                                    }
-                                    ops[requestIndex] = result.op;
-                                }
-                                // Replace the update request to the translated index request to execute on the replica.
                                 break;
                             case DELETE:
                                 DeleteResponse response = updateResult.writeResult.response();
@@ -365,7 +351,7 @@ public class TransportShardBulkAction extends TransportShardReplicationOperation
             responses[i] = items[i].getPrimaryResponse();
         }
         BulkShardResponse response = new BulkShardResponse(shardRequest.shardId, responses);
-        return new PrimaryResponse<>(shardRequest.request, response, ops);
+        return new PrimaryResponse<>(shardRequest.request, response);
     }
 
     private void setResponse(BulkItemRequest request, BulkItemResponse response) {

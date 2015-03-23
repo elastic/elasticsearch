@@ -830,12 +830,10 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     public static class PrimaryResponse<Response, ReplicaRequest> {
         private final ReplicaRequest replicaRequest;
         private final Response response;
-        private final Object payload;
 
-        public PrimaryResponse(ReplicaRequest replicaRequest, Response response, Object payload) {
+        public PrimaryResponse(ReplicaRequest replicaRequest, Response response) {
             this.replicaRequest = replicaRequest;
             this.response = response;
-            this.payload = payload;
         }
 
         public ReplicaRequest replicaRequest() {
@@ -846,9 +844,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
             return response;
         }
 
-        public Object payload() {
-            return payload;
-        }
     }
 
     /**

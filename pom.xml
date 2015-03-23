@@ -48,7 +48,7 @@
     <properties>
         <lucene.version>4.10.4</lucene.version>
         <lucene.maven.version>4.10.4</lucene.maven.version>
-        <elasticsearch.version>1.5.0-SNAPSHOT</elasticsearch.version>
+        <elasticsearch.version>1.5.0</elasticsearch.version>
         <license.plugin.version>1.0.0</license.plugin.version>
 
         <tests.jvms>auto</tests.jvms>

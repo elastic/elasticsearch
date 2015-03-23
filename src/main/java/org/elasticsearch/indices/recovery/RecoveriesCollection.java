@@ -20,9 +20,9 @@
 package org.elasticsearch.indices.recovery;
 
 import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -137,16 +137,9 @@ public class RecoveriesCollection {
         return onGoingRecoveries.size();
     }
 
-    public static final Predicate<RecoveryStatus> ALLWAYS_MATCH_STATUS = new Predicate<RecoveryStatus>() {
-        @Override
-        public boolean apply(@Nullable RecoveryStatus input) {
-            return true;
-        }
-    };
-
     /** cancel all ongoing recoveries for the given shard. typically because the shards is closed */
     public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
-        return cancelRecoveriesForShard(shardId, reason, ALLWAYS_MATCH_STATUS);
+        return cancelRecoveriesForShard(shardId, reason, Predicates.<RecoveryStatus>alwaysTrue());
     }
 
     /**

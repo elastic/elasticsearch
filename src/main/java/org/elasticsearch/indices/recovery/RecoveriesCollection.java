@@ -98,13 +98,14 @@ public class RecoveriesCollection {
     /** cancel the recovery with the given id (if found) and remove it from the recovery collection */
     public boolean cancelRecovery(long id, String reason) {
         RecoveryStatus removed = onGoingRecoveries.remove(id);
-        if (removed == null) {
-            return false;
+        boolean cancelled = false;
+        if (removed != null) {
+            logger.trace("{} canceled recovery from {}, id [{}] (reason [{}])",
+                    removed.shardId(), removed.sourceNode(), removed.recoveryId(), reason);
+            removed.cancel(reason);
+            cancelled = true;
         }
-        logger.trace("{} canceled recovery from {}, id [{}] (reason [{}])",
-                removed.shardId(), removed.sourceNode(), removed.recoveryId(), reason);
-        removed.cancel(reason);
-        return true;
+        return cancelled;
     }
 
     /**
@@ -136,9 +137,16 @@ public class RecoveriesCollection {
         return onGoingRecoveries.size();
     }
 
+    public static final Predicate<RecoveryStatus> ALLWAYS_MATCH_STATUS = new Predicate<RecoveryStatus>() {
+        @Override
+        public boolean apply(@Nullable RecoveryStatus input) {
+            return true;
+        }
+    };
+
     /** cancel all ongoing recoveries for the given shard. typically because the shards is closed */
     public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
-        return cancelRecoveriesForShard(shardId, reason, null);
+        return cancelRecoveriesForShard(shardId, reason, ALLWAYS_MATCH_STATUS);
     }
 
     /**
@@ -146,12 +154,12 @@ public class RecoveriesCollection {
      *
      * @param reason       reason for cancellation
      * @param shardId      shardId for which to cancel recoveries
-     * @param shouldCancel a predicate to check if a recovery should be cancelled or not. Null means cancel without an extra check.
-     *                     note that the recovery state can change after this check, but before it is being cancelled via other
+     * @param shouldCancel a predicate to check if a recovery should be cancelled or not.
+     *                     Note that the recovery state can change after this check, but before it is being cancelled via other
      *                     already issued outstanding references.
      * @return true if a recovery was cancelled
      */
-    public boolean cancelRecoveriesForShard(ShardId shardId, String reason, @Nullable Predicate<RecoveryStatus> shouldCancel) {
+    public boolean cancelRecoveriesForShard(ShardId shardId, String reason, Predicate<RecoveryStatus> shouldCancel) {
         boolean cancelled = false;
         for (RecoveryStatus status : onGoingRecoveries.values()) {
             if (status.shardId().equals(shardId)) {

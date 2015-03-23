@@ -151,8 +151,9 @@ def generate_index(client):
         },
       }
     }
-    if not version.startswith('0.20') or version == '0.20.6':
-      mappings['analyzer_1']['properties']['completion_with_index_analyzer'] = {
+    # completion type was added in 0.90.3
+    if not version.startswith('0.20') and not version in ['0.90.0.Beta1', '0.90.0.RC1', '0.90.0.RC2', '0.90.0', '0.90.1', '0.90.2']:
+      mappings['analyzer_type1']['properties']['completion_with_index_analyzer'] = {
         'type': 'completion',
         'index_analyzer': 'standard'
       }

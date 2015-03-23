@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.store;
 
 import com.google.common.base.Predicate;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterService;
@@ -39,6 +38,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.File;
@@ -46,7 +46,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -61,7 +60,7 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
     private static final Settings SETTINGS = settingsBuilder().put("gateway.type", "local").build();
 
     @Test
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/10018")
+    @Ignore("https://github.com/elastic/elasticsearch/issues/10018")
     public void indexCleanup() throws Exception {
         final String masterNode = internalCluster().startNode(ImmutableSettings.builder().put(SETTINGS).put("node.data", false));
         final String node_1 = internalCluster().startNode(ImmutableSettings.builder().put(SETTINGS).put("node.master", false));

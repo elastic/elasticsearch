@@ -41,6 +41,7 @@ import org.elasticsearch.index.query.GeoShapeFilterBuilder;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -394,7 +395,7 @@ public class GeoShapeIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(locationMap.size(), equalTo(2));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9904")
+    @Ignore("https://github.com/elasticsearch/elasticsearch/issues/9904")
     @Test
     public void testShapeFilterWithRandomGeoCollection() throws Exception {
         // Create a random geometry collection.

@@ -66,6 +66,10 @@ public abstract class AggregatorFactory {
         return this;
     }
 
+    public String name() {
+        return name;
+    }
+
     /**
      * Validates the state of this factory (makes sure the factory is properly configured)
      */

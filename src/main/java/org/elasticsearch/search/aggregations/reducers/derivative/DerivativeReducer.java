@@ -22,18 +22,24 @@ package org.elasticsearch.search.aggregations.reducers.derivative;
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 
-
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
-import org.elasticsearch.search.aggregations.reducers.*;
+import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
+import org.elasticsearch.search.aggregations.reducers.InternalSimpleValue;
+import org.elasticsearch.search.aggregations.reducers.Reducer;
+import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
+import org.elasticsearch.search.aggregations.reducers.ReducerStreams;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
@@ -43,7 +49,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
 import static org.elasticsearch.search.aggregations.reducers.BucketHelpers.resolveBucketValue;
 
 public class DerivativeReducer extends Reducer {
@@ -141,6 +146,24 @@ public class DerivativeReducer extends Reducer {
         protected Reducer createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
                 Map<String, Object> metaData) throws IOException {
             return new DerivativeReducer(name, bucketsPaths, formatter, gapPolicy, metaData);
+        }
+
+        @Override
+        public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories, List<ReducerFactory> reducerFactories) {
+            if (bucketsPaths.length != 1) {
+                throw new ElasticsearchIllegalStateException(Reducer.Parser.BUCKETS_PATH.getPreferredName()
+                        + " must contain a single entry for reducer [" + name + "]");
+            }
+            if (!(parent instanceof HistogramAggregator.Factory)) {
+                throw new ElasticsearchIllegalStateException("derivative reducer [" + name
+                        + "] must have a histogram or date_histogram as parent");
+            } else {
+                HistogramAggregator.Factory histoParent = (HistogramAggregator.Factory) parent;
+                if (histoParent.minDocCount() != 0) {
+                    throw new ElasticsearchIllegalStateException("parent histogram of derivative reducer [" + name
+                            + "] must have min_doc_count of 0");
+                }
+            }
         }
 
     }

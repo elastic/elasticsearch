@@ -109,7 +109,7 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH)
+                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH).minDocCount(0)
                                 .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -152,7 +152,7 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH)
+                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH).minDocCount(0)
                                 .subAggregation(derivative("deriv").setBucketsPaths("sum")).subAggregation(sum("sum").field("value")))
                 .execute().actionGet();
 
@@ -222,7 +222,7 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        dateHistogram("histo").field("dates").interval(DateHistogramInterval.MONTH)
+                        dateHistogram("histo").field("dates").interval(DateHistogramInterval.MONTH).minDocCount(0)
                                 .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -278,7 +278,7 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx_unmapped")
                 .addAggregation(
-                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH)
+                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH).minDocCount(0)
                                 .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -294,7 +294,7 @@ public class DateDerivativeTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx", "idx_unmapped")
                 .addAggregation(
-                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH)
+                        dateHistogram("histo").field("date").interval(DateHistogramInterval.MONTH).minDocCount(0)
                                 .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
 
         assertSearchResponse(response);

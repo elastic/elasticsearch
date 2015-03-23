@@ -34,7 +34,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -165,7 +164,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
                                 .subAggregation(derivative("deriv").setBucketsPaths("_count"))
                                 .subAggregation(derivative("2nd_deriv").setBucketsPaths("deriv"))).execute().actionGet();
 
@@ -202,7 +201,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
                                 .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME))
                                 .subAggregation(derivative("deriv").setBucketsPaths("sum"))).execute().actionGet();
 
@@ -248,7 +247,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx_unmapped")
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
                                 .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -264,7 +263,7 @@ public class DerivativeTests extends ElasticsearchIntegrationTest {
         SearchResponse response = client()
                 .prepareSearch("idx", "idx_unmapped")
                 .addAggregation(
-                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
                                 .subAggregation(derivative("deriv").setBucketsPaths("_count"))).execute().actionGet();
 
         assertSearchResponse(response);

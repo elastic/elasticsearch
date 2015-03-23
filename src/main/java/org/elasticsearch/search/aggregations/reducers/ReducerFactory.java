@@ -19,9 +19,11 @@
 package org.elasticsearch.search.aggregations.reducers;
 
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -49,10 +51,15 @@ public abstract class ReducerFactory {
     }
 
     /**
-     * Validates the state of this factory (makes sure the factory is properly configured)
+     * Validates the state of this factory (makes sure the factory is properly
+     * configured)
+     * 
+     * @param reducerFactories
+     * @param factories
+     * @param parent
      */
-    public final void validate() {
-        doValidate();
+    public final void validate(AggregatorFactory parent, AggregatorFactory[] factories, List<ReducerFactory> reducerFactories) {
+        doValidate(parent, factories, reducerFactories);
     }
 
     protected abstract Reducer createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
@@ -79,7 +86,7 @@ public abstract class ReducerFactory {
         return aggregator;
     }
 
-    public void doValidate() {
+    public void doValidate(AggregatorFactory parent, AggregatorFactory[] factories, List<ReducerFactory> reducerFactories) {
     }
 
     public void setMetaData(Map<String, Object> metaData) {

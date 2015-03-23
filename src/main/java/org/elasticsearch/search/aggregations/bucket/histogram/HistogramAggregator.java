@@ -169,6 +169,10 @@ public class HistogramAggregator extends BucketsAggregator {
             this.histogramFactory = histogramFactory;
         }
 
+        public long minDocCount() {
+            return minDocCount;
+        }
+
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<Reducer> reducers,
                 Map<String, Object> metaData) throws IOException {

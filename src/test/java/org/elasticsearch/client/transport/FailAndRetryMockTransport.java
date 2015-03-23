@@ -20,11 +20,7 @@
 package org.elasticsearch.client.transport;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -65,7 +61,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
 
         //we make sure that nodes get added to the connected ones when calling addTransportAddress, by returning proper nodes info
         if (connectMode) {
-            TransportResponseHandler transportResponseHandler = transportServiceAdapter.remove(requestId);
+            TransportResponseHandler transportResponseHandler = transportServiceAdapter.onResponseReceived(requestId);
             transportResponseHandler.handleResponse(new LivenessResponse(ClusterName.DEFAULT, node));
             return;
         }
@@ -82,7 +78,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                 //throw whatever exception that is not a subclass of ConnectTransportException
                 throw new IllegalStateException();
             } else {
-                TransportResponseHandler transportResponseHandler = transportServiceAdapter.remove(requestId);
+                TransportResponseHandler transportResponseHandler = transportServiceAdapter.onResponseReceived(requestId);
                 if (random.nextBoolean()) {
                     successes.incrementAndGet();
                     transportResponseHandler.handleResponse(newResponse());

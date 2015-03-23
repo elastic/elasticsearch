@@ -95,14 +95,15 @@ due to the terms with the highest tf-idf. Therefore, the terms of the input
 document that have the highest tf-idf are good representatives of that
 document, and could be used within a disjunctive query (or `OR`) to retrieve
 similar documents. The MLT query simply extracts the text from the input
-document, analyzes it, usually using the same analyzer at the field, then
+document, analyzes it, usually using the same analyzer as the field, then
 selects the top K terms with highest tf-idf to form a disjunctive query of
 these terms.
 
 IMPORTANT: The fields on which to perform MLT must be indexed and of type
 `string`. Additionally, when using `like` with documents, either `_source`
-must be enabled or the fields must be `stored` or store `term_vector`. In
-order to speed up analysis, it could help to store term vectors at index time.
+must be enabled or the fields must be `stored` or have `term_vector` enabled.
+In order to speed up analysis, it could help to store term vectors at index
+time, but at the expense of disk usage.
 
 For example, if we wish to perform MLT on the "title" and "tags.raw" fields,
 we can explicitly store their `term_vector` at index time. We can still

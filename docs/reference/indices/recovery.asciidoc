@@ -19,7 +19,7 @@ curl -XGET http://localhost:9200/_recovery?pretty&human
 --------------------------------------------------
 
 Response:
-coming[1.5.0, this syntax was change to fix inconsistencies with other API]
+added[1.5.0, this syntax was change to fix inconsistencies with other API]
 [source,js]
 --------------------------------------------------
 {
@@ -94,7 +94,7 @@ In some cases a higher level of detail may be preferable. Setting "detailed=true
 curl -XGET http://localhost:9200/_recovery?pretty&human&detailed=true
 --------------------------------------------------
 
-coming[1.5.0, this syntax was change to fix inconsistencies with other API]
+added[1.5.0, this syntax was change to fix inconsistencies with other API]
 Response:
 
 [source,js]

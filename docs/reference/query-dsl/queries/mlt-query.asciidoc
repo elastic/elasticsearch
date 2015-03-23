@@ -46,7 +46,7 @@ If only one document is specified, the query behaves the same as the
 }
 --------------------------------------------------
 
-Additionally coming[1.5.0], the `doc` syntax of the
+Additionally added[1.5.0], the `doc` syntax of the
 <<docs-multi-termvectors,Multi Term Vectors API>> is also supported. This is useful in
 order to specify one or more documents not present in the index, and in
 this case should be preferred over only using `like_text`.
@@ -124,7 +124,7 @@ The text is analyzed by the default analyzer at the field, unless specified by t
 |`include` | When using `ids` or `docs`, specifies whether the documents should be
 included from the search. Defaults to `false`.
 
-|`minimum_should_match`| coming[1.5.0] From the generated query, the number of terms that
+|`minimum_should_match`| added[1.5.0] From the generated query, the number of terms that
 must match following the <<query-dsl-minimum-should-match,minimum should
 syntax>>. (Defaults to `"30%"`).
 

@@ -85,7 +85,7 @@ the JVM. It is automatically enabled when using
 `NodeBuilder#local(true)`.
 
 [float]
-coming[1.5.0]
+added[1.5.0]
 === Transport Tracer
 
 The transport module has a dedicated tracer logger which, when activated, logs incoming and out going requests. The log can be dynamically activated

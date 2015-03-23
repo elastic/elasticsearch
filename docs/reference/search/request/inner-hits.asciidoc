@@ -1,7 +1,7 @@
 [[search-request-inner-hits]]
 === Inner hits
 
-coming[1.5.0]
+added[1.5.0]
 experimental[]
 
 The <<mapping-parent-field, parent/child>> and <<mapping-nested-type, nested>> features allow the return of documents that

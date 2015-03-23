@@ -347,7 +347,7 @@ It is hard to say which one of the different heuristics will be the best choice 
 If none of the above measures suits your usecase than another option is to implement a custom significance measure:
 
 ===== scripted
-coming[1.5.0]
+added[1.5.0]
 
 Customized scores can be implemented via a script:
 	

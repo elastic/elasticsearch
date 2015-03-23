@@ -317,13 +317,13 @@ http://en.wikipedia.org/wiki/.properties[properties] formats are also
 supported. Multiple configuration files can be loaded, in which case they will
 get merged, as long as they start with the `logging.` prefix and end with one
 of the supported suffixes (either `.yml`, `.yaml`, `.json` or `.properties`)
-coming[1.5.0,Previously only the `logging.` prefix was required].
+added[1.5.0,Previously only the `logging.` prefix was required].
 The logger section contains the java packages and their corresponding log
 level, where it is possible to omit the `org.elasticsearch` prefix. The
 appender section contains the destinations for the logs. Extensive information
 on how to customize logging and all the supported appenders can be found on
 the http://logging.apache.org/log4j/1.2/manual.html[log4j documentation].
 
-coming[1.5.0] Additional Appenders and other logging classes provided by 
+added[1.5.0] Additional Appenders and other logging classes provided by 
 http://logging.apache.org/log4j/extras/[log4j-extras] are also available, 
 out of the box.

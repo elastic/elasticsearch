@@ -197,7 +197,7 @@ and therefore can't be used in the `order` option of the `terms` aggregator.
 
 ==== top_hits support in a nested or reverse_nested aggregator
 
-coming[1.5.0]
+added[1.5.0]
 
 If the `top_hits` aggregator is wrapped in a `nested` or `reverse_nested` aggregator then nested hits are being returned.
 Nested hits are in a sense hidden mini documents that are part of regular document where in the mapping a nested field type

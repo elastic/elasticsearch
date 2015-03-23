@@ -272,7 +272,7 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_termvector' -d '{
 
 [float]
 [[docs-termvectors-per-field-analyzer]]
-=== Example 4 coming[1.5.0]
+=== Example 4 added[1.5.0]
 
 Additionally, a different analyzer than the one at the field may be provided
 by using the `per_field_analyzer` parameter. This is useful in order to

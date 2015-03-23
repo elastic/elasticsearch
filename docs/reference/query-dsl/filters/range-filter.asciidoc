@@ -59,7 +59,7 @@ In the above example, `gte` will be actually moved to `2011-12-31T23:00:00` UTC 
 NOTE: if you give a date with a timezone explicitly defined and use the `time_zone` parameter, `time_zone` will be
 ignored. For example, setting `gte` to `2012-01-01T00:00:00+01:00` with `"time_zone":"+10:00"` will still use `+01:00` time zone.
 
-coming[1.5.0,New feature added]
+added[1.5.0,New feature added]
 
 When applied on `date` fields the `range` filter accepts also a `format` parameter.
 The `format` parameter will help support another date format than the one defined in mapping:

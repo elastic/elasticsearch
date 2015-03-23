@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authc;
 
 import org.apache.commons.codec.binary.Base64;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
@@ -116,7 +117,7 @@ public class InternalAuthenticationService extends AbstractComponent implements 
     static User decodeUser(String text) {
         byte[] bytes = Base64.decodeBase64(text);
         try {
-            BytesStreamInput input = new BytesStreamInput(bytes, true);
+            BytesStreamInput input = new BytesStreamInput(new BytesArray(bytes));
             return User.readFrom(input);
         } catch (IOException ioe) {
             throw new AuthenticationException("could not read authenticated user", ioe);

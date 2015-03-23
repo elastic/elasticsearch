@@ -24,8 +24,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
@@ -43,15 +41,14 @@ public class ScriptModes {
     final ImmutableMap<String, ScriptMode> scriptModes;
 
     ScriptModes(Map<String, ScriptEngineService> scriptEngines, Settings settings) {
-        ESLogger logger = Loggers.getLogger(getClass(), settings);
         //filter out the native engine as we don't want to apply fine grained settings to it.
         //native scripts are always on as they are static by definition.
         Map<String, ScriptEngineService> filteredEngines = Maps.newHashMap(scriptEngines);
         filteredEngines.remove(NativeScriptEngineService.NAME);
-        this.scriptModes = buildScriptModeSettingsMap(settings, filteredEngines, logger);
+        this.scriptModes = buildScriptModeSettingsMap(settings, filteredEngines);
     }
 
-    private static ImmutableMap<String, ScriptMode> buildScriptModeSettingsMap(Settings settings, Map<String, ScriptEngineService> scriptEngines, ESLogger logger) {
+    private static ImmutableMap<String, ScriptMode> buildScriptModeSettingsMap(Settings settings, Map<String, ScriptEngineService> scriptEngines) {
         HashMap<String, ScriptMode> scriptModesMap = Maps.newHashMap();
 
         //file scripts are enabled by default, for any language
@@ -65,7 +62,7 @@ public class ScriptModes {
         processSourceBasedGlobalSettings(settings, scriptEngines, processedSettings, scriptModesMap);
         processOperationBasedGlobalSettings(settings, scriptEngines, processedSettings, scriptModesMap);
         processEngineSpecificSettings(settings, scriptEngines, processedSettings, scriptModesMap);
-        processDisableDynamicDeprecatedSetting(settings, scriptEngines, processedSettings, scriptModesMap, logger);
+        processDisableDynamicDeprecatedSetting(settings, scriptEngines, processedSettings, scriptModesMap);
         return ImmutableMap.copyOf(scriptModesMap);
     }
 
@@ -99,12 +96,13 @@ public class ScriptModes {
             //read engine specific settings that refer to a non existing script lang will be ignored
             ScriptEngineService scriptEngineService = scriptEngines.get(langSettings.getKey());
             if (scriptEngineService != null) {
+                String enginePrefix = ScriptModes.ENGINE_SETTINGS_PREFIX + "." + langSettings.getKey() + ".";
                 for (ScriptType scriptType : ScriptType.values()) {
+                    String scriptTypePrefix = scriptType + ".";
                     for (ScriptedOp scriptedOp : ScriptedOp.values()) {
-                        String scriptTypePrefix = scriptType + ".";
                         ScriptMode scriptMode = getScriptedOpMode(langSettings.getValue(), scriptTypePrefix, scriptedOp);
                         if (scriptMode != null) {
-                            processedSettings.add(scriptTypePrefix + scriptedOp + ": " + scriptMode);
+                            processedSettings.add(enginePrefix + scriptTypePrefix + scriptedOp + ": " + scriptMode);
                             addScriptMode(scriptEngineService, scriptType, scriptedOp, scriptMode, scriptModes);
                         }
                     }
@@ -114,7 +112,7 @@ public class ScriptModes {
     }
 
     private static void processDisableDynamicDeprecatedSetting(Settings settings, Map<String, ScriptEngineService> scriptEngines,
-                                                               List<String> processedSettings, Map<String, ScriptMode> scriptModes, ESLogger logger) {
+                                                               List<String> processedSettings, Map<String, ScriptMode> scriptModes) {
         //read deprecated disable_dynamic setting, apply only if none of the new settings is used
         String disableDynamicSetting = settings.get(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING);
         if (disableDynamicSetting != null) {
@@ -131,21 +129,15 @@ public class ScriptModes {
                         break;
                 }
             } else {
-                logger.warn("ignoring [{}] setting as conflicting scripting settings have been specified: {}", ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, processedSettings);
+                processedSettings.add(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING + ": " + disableDynamicSetting);
+                throw new ElasticsearchIllegalArgumentException("Conflicting scripting settings have been specified, use either "
+                        + ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING + " (deprecated) or the newer fine-grained settings, not both at the same time:\n" + processedSettings);
             }
         }
     }
 
     private static ScriptMode getScriptedOpMode(Settings settings, String prefix, ScriptedOp scriptedOp) {
         String settingValue = settings.get(prefix + scriptedOp);
-        if (Strings.hasLength(settingValue) == false) {
-            for (String alternateName : scriptedOp.alternateNames()) {
-                settingValue = settings.get(prefix + alternateName);
-                if (Strings.hasLength(settingValue)) {
-                    break;
-                }
-            }
-        }
         if (Strings.hasLength(settingValue)) {
             return ScriptMode.parse(settingValue);
         }

@@ -26,20 +26,10 @@ import java.util.Locale;
  * Note that the suggest api is considered part of search for simplicity, as well as the percolate api.
  */
 public enum ScriptedOp {
-    MAPPING("mappings"),
+    MAPPING,
     UPDATE,
     SEARCH,
-    AGGS("aggregations", "facets");
-
-    private final String[] alternateNames;
-
-    private ScriptedOp(String... alternateNames) {
-        this.alternateNames = alternateNames;
-    }
-
-    public String[] alternateNames() {
-        return alternateNames;
-    }
+    AGGS;
 
     @Override
     public String toString() {

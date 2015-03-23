@@ -24,6 +24,7 @@ import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
@@ -34,9 +35,14 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class ScriptModesTests extends ElasticsearchTestCase {
 
@@ -44,11 +50,12 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     static final String[] ENABLE_VALUES = new String[]{"on", "true", "yes", "1"};
     static final String[] DISABLE_VALUES = new String[]{"off", "false", "no", "0"};
-    
+
     private Map<String, ScriptEngineService> scriptEngines;
     private ScriptModes scriptModes;
     private Set<String> checkedSettings;
     private boolean assertAllSettingsWereChecked;
+    private boolean assertScriptModesNonNull;
 
     @Before
     public void setupScriptEngines() {
@@ -61,20 +68,26 @@ public class ScriptModesTests extends ElasticsearchTestCase {
                 new CustomScriptEngineService()));
         checkedSettings = new HashSet<>();
         assertAllSettingsWereChecked = true;
+        assertScriptModesNonNull = true;
     }
 
     @After
     public void assertNativeScriptsAreAlwaysAllowed() {
-        assertThat(scriptModes.getScriptMode(NativeScriptEngineService.NAME, randomFrom(ScriptType.values()), randomFrom(ScriptedOp.values())), equalTo(ScriptMode.ON));
+        if (assertScriptModesNonNull) {
+            assertThat(scriptModes.getScriptMode(NativeScriptEngineService.NAME, randomFrom(ScriptType.values()), randomFrom(ScriptedOp.values())), equalTo(ScriptMode.ON));
+        }
     }
 
     @After
     public void assertAllSettingsWereChecked() {
-        //4 is the number of engines (native excluded), custom is counted twice though as it's associated with two different names
-        int numberOfSettings = 5 * ScriptType.values().length * ScriptedOp.values().length;
-        assertThat(scriptModes.scriptModes.size(), equalTo(numberOfSettings));
-        if (assertAllSettingsWereChecked) {
-            assertThat(checkedSettings.size(), equalTo(numberOfSettings));
+        if (assertScriptModesNonNull) {
+            assertThat(scriptModes, notNullValue());
+            //4 is the number of engines (native excluded), custom is counted twice though as it's associated with two different names
+            int numberOfSettings = 5 * ScriptType.values().length * ScriptedOp.values().length;
+            assertThat(scriptModes.scriptModes.size(), equalTo(numberOfSettings));
+            if (assertAllSettingsWereChecked) {
+                assertThat(checkedSettings.size(), equalTo(numberOfSettings));
+            }
         }
     }
 
@@ -108,6 +121,37 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED, ScriptType.INLINE);
     }
 
+    @Test
+    public void testConflictingSettings() {
+        assertScriptModesNonNull = false;
+        ImmutableSettings.Builder builder = ImmutableSettings.builder()
+                .put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, randomFrom("all", "true", "none", "false", "sandbox", "sandboxed"));
+
+        int iterations = randomIntBetween(1, 5);
+        for (int i = 0; i < iterations; i++) {
+            if (randomBoolean()) {
+                builder.put("script." + randomFrom(ScriptType.values()), randomFrom(ScriptMode.values()));
+            } else {
+                if (randomBoolean()) {
+                    builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + randomFrom(ScriptedOp.values()), randomFrom(ScriptMode.values()));
+                } else {
+                    builder.put(specificEngineOpSettings(GroovyScriptEngineService.NAME, randomFrom(ScriptType.values()), randomFrom(ScriptedOp.values())), randomFrom(ScriptMode.values()));
+                }
+            }
+        }
+
+        Settings settings = builder.build();
+        try {
+            this.scriptModes = new ScriptModes(scriptEngines, settings);
+            fail("ScriptModes should have thrown an error due to conflicting settings");
+        } catch(ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("Conflicting scripting settings have been specified"));
+            for (Map.Entry<String, String> scriptSettingEntry : settings.getAsSettings("script").getAsMap().entrySet()) {
+                assertThat(e.getMessage(), containsString(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptSettingEntry.getKey() + ": " + scriptSettingEntry.getValue()));
+            }
+        }
+    }
+
     @Test(expected = ElasticsearchIllegalArgumentException.class)
     public void testMissingSetting() {
         assertAllSettingsWereChecked = false;
@@ -118,7 +162,6 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     @Test
     public void testEnableDynamicGenericSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.dynamic", randomFrom(ENABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE, ScriptType.INLINE);
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
@@ -127,7 +170,6 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     @Test
     public void testDisableDynamicGenericSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.dynamic", randomFrom(DISABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
@@ -137,7 +179,6 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     @Test
     public void testSandboxDynamicGenericSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.dynamic", randomFrom(ScriptMode.SANDBOX));
-        rarelyAddDisableDynamicSetting(builder);
         //nothing changes if setting set is same as default
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
@@ -147,7 +188,6 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     @Test
     public void testEnableIndexedGenericSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.indexed", randomFrom(ENABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE, ScriptType.INDEXED);
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INLINE);
@@ -156,7 +196,6 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     @Test
     public void testDisableIndexedGenericSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.indexed", randomFrom(DISABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
         assertScriptModesAllOps(ScriptMode.OFF, ALL_LANGS, ScriptType.INDEXED);
@@ -166,7 +205,6 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     @Test
     public void testSandboxIndexedGenericSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.indexed", ScriptMode.SANDBOX);
-        rarelyAddDisableDynamicSetting(builder);
         //nothing changes if setting set is same as default
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
@@ -176,7 +214,6 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     @Test
     public void testEnableFileGenericSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.file", randomFrom(ENABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
         //nothing changes if setting set is same as default
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
@@ -186,7 +223,6 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     @Test
     public void testDisableFileGenericSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.file", randomFrom(DISABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllOps(ScriptMode.OFF, ALL_LANGS, ScriptType.FILE);
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED, ScriptType.INLINE);
@@ -195,7 +231,6 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     @Test
     public void testSandboxFileGenericSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.file", ScriptMode.SANDBOX);
-        rarelyAddDisableDynamicSetting(builder);
         //nothing changes if setting set is same as default
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.FILE, ScriptType.INDEXED, ScriptType.INLINE);
@@ -204,7 +239,6 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     @Test
     public void testMultipleScriptTypeGenericSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.file", ScriptMode.SANDBOX).put("script.dynamic", randomFrom(DISABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.FILE);
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
@@ -213,8 +247,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testEnableMappingGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(randomGenericOpSettings(ScriptedOp.MAPPING), randomFrom(ENABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.mapping", randomFrom(ENABLE_VALUES));
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllTypes(ScriptMode.ON, ALL_LANGS, ScriptedOp.MAPPING);
         assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptedOp.AGGS, ScriptedOp.SEARCH, ScriptedOp.UPDATE);
@@ -223,8 +256,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testDisableMappingGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(randomGenericOpSettings(ScriptedOp.MAPPING), randomFrom(DISABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.mapping", randomFrom(DISABLE_VALUES));
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, ScriptedOp.MAPPING);
         assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptedOp.AGGS, ScriptedOp.SEARCH, ScriptedOp.UPDATE);
@@ -233,7 +265,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testSandboxMappingGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(randomGenericOpSettings(ScriptedOp.MAPPING), ScriptMode.SANDBOX);
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.mapping", ScriptMode.SANDBOX);
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllTypes(ScriptMode.SANDBOX, ALL_LANGS, ScriptedOp.MAPPING);
         assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptedOp.AGGS, ScriptedOp.SEARCH, ScriptedOp.UPDATE);
@@ -242,8 +274,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testEnableSearchGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(randomGenericOpSettings(ScriptedOp.SEARCH), randomFrom(ENABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.search", randomFrom(ENABLE_VALUES));
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllTypes(ScriptMode.ON, ALL_LANGS, ScriptedOp.SEARCH);
         assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptedOp.AGGS, ScriptedOp.MAPPING, ScriptedOp.UPDATE);
@@ -252,8 +283,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testDisableSearchGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(randomGenericOpSettings(ScriptedOp.SEARCH), randomFrom(DISABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.search", randomFrom(DISABLE_VALUES));
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, ScriptedOp.SEARCH);
         assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptedOp.AGGS, ScriptedOp.MAPPING, ScriptedOp.UPDATE);
@@ -262,8 +292,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testSandboxSearchGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(randomGenericOpSettings(ScriptedOp.SEARCH), ScriptMode.SANDBOX);
-        rarelyAddDisableDynamicSetting(builder);
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.search", ScriptMode.SANDBOX);
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllTypes(ScriptMode.SANDBOX, ALL_LANGS, ScriptedOp.SEARCH);
         assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptedOp.AGGS, ScriptedOp.MAPPING, ScriptedOp.UPDATE);
@@ -272,8 +301,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testEnableAggsGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(randomGenericOpSettings(ScriptedOp.AGGS), randomFrom(ENABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.aggs", randomFrom(ENABLE_VALUES));
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllTypes(ScriptMode.ON, ALL_LANGS, ScriptedOp.AGGS);
         assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptedOp.SEARCH, ScriptedOp.MAPPING, ScriptedOp.UPDATE);
@@ -282,8 +310,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testDisableAggsGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(randomGenericOpSettings(ScriptedOp.AGGS), randomFrom(DISABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.aggs", randomFrom(DISABLE_VALUES));
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, ScriptedOp.AGGS);
         assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptedOp.SEARCH, ScriptedOp.MAPPING, ScriptedOp.UPDATE);
@@ -292,8 +319,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testSandboxAggsGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(randomGenericOpSettings(ScriptedOp.AGGS), ScriptMode.SANDBOX);
-        rarelyAddDisableDynamicSetting(builder);
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.aggs", ScriptMode.SANDBOX);
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllTypes(ScriptMode.SANDBOX, ALL_LANGS, ScriptedOp.AGGS);
         assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptedOp.SEARCH, ScriptedOp.MAPPING, ScriptedOp.UPDATE);
@@ -302,8 +328,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testEnableUpdateGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(randomGenericOpSettings(ScriptedOp.UPDATE), randomFrom(ENABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.update", randomFrom(ENABLE_VALUES));
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllTypes(ScriptMode.ON, ALL_LANGS, ScriptedOp.UPDATE);
         assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptedOp.SEARCH, ScriptedOp.MAPPING, ScriptedOp.AGGS);
@@ -312,8 +337,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testDisableUpdateGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(randomGenericOpSettings(ScriptedOp.UPDATE), randomFrom(DISABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.update", randomFrom(DISABLE_VALUES));
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, ScriptedOp.UPDATE);
         assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptedOp.SEARCH, ScriptedOp.MAPPING, ScriptedOp.AGGS);
@@ -322,8 +346,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testSandboxUpdateGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(randomGenericOpSettings(ScriptedOp.UPDATE), ScriptMode.SANDBOX);
-        rarelyAddDisableDynamicSetting(builder);
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.update", ScriptMode.SANDBOX);
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllTypes(ScriptMode.SANDBOX, ALL_LANGS, ScriptedOp.UPDATE);
         assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptedOp.SEARCH, ScriptedOp.MAPPING, ScriptedOp.AGGS);
@@ -332,10 +355,9 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testMultipleScriptedOpGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(randomGenericOpSettings(ScriptedOp.UPDATE), ScriptMode.SANDBOX)
-                .put(randomGenericOpSettings(ScriptedOp.AGGS), randomFrom(DISABLE_VALUES))
-                .put(randomGenericOpSettings(ScriptedOp.SEARCH), randomFrom(ENABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.update", ScriptMode.SANDBOX)
+                .put("script.aggs", randomFrom(DISABLE_VALUES))
+                .put("script.search", randomFrom(ENABLE_VALUES));
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllTypes(ScriptMode.SANDBOX, ALL_LANGS, ScriptedOp.UPDATE);
         assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, ScriptedOp.AGGS);
@@ -346,9 +368,8 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Test
     public void testConflictingScriptTypeAndOpGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(randomGenericOpSettings(ScriptedOp.UPDATE), randomFrom(DISABLE_VALUES))
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.update", randomFrom(DISABLE_VALUES))
                 .put("script.indexed", randomFrom(ENABLE_VALUES)).put("script.dynamic", ScriptMode.SANDBOX);
-        rarelyAddDisableDynamicSetting(builder);
         //operations generic settings have precedence over script type generic settings
         this.scriptModes = new ScriptModes(scriptEngines, builder.build());
         assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, ScriptedOp.UPDATE);
@@ -359,9 +380,8 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     @Test
     public void testEngineSpecificSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder()
-                .put(randomSpecificEngineOpSettings(GroovyScriptEngineService.NAME, ScriptType.INLINE, ScriptedOp.MAPPING), randomFrom(DISABLE_VALUES))
-                .put(randomSpecificEngineOpSettings(GroovyScriptEngineService.NAME, ScriptType.INLINE, ScriptedOp.UPDATE), randomFrom(DISABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
+                .put(specificEngineOpSettings(GroovyScriptEngineService.NAME, ScriptType.INLINE, ScriptedOp.MAPPING), randomFrom(DISABLE_VALUES))
+                .put(specificEngineOpSettings(GroovyScriptEngineService.NAME, ScriptType.INLINE, ScriptedOp.UPDATE), randomFrom(DISABLE_VALUES));
         ImmutableSet<String> groovyLangSet = ImmutableSet.of(GroovyScriptEngineService.NAME);
         Set<String> allButGroovyLangSet = new HashSet<>(ALL_LANGS);
         allButGroovyLangSet.remove(GroovyScriptEngineService.NAME);
@@ -376,9 +396,8 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     @Test
     public void testInteractionBetweenGenericAndEngineSpecificSettings() {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.dynamic", randomFrom(DISABLE_VALUES))
-                .put(randomSpecificEngineOpSettings(MustacheScriptEngineService.NAME, ScriptType.INLINE, ScriptedOp.AGGS), randomFrom(ENABLE_VALUES))
-                .put(randomSpecificEngineOpSettings(MustacheScriptEngineService.NAME, ScriptType.INLINE, ScriptedOp.SEARCH), randomFrom(ENABLE_VALUES));
-        rarelyAddDisableDynamicSetting(builder);
+                .put(specificEngineOpSettings(MustacheScriptEngineService.NAME, ScriptType.INLINE, ScriptedOp.AGGS), randomFrom(ENABLE_VALUES))
+                .put(specificEngineOpSettings(MustacheScriptEngineService.NAME, ScriptType.INLINE, ScriptedOp.SEARCH), randomFrom(ENABLE_VALUES));
         ImmutableSet<String> mustacheLangSet = ImmutableSet.of(MustacheScriptEngineService.NAME);
         Set<String> allButMustacheLangSet = new HashSet<>(ALL_LANGS);
         allButMustacheLangSet.remove(MustacheScriptEngineService.NAME);
@@ -479,25 +498,8 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         }
     }
 
-    private static void rarelyAddDisableDynamicSetting(ImmutableSettings.Builder builder) {
-        if (rarely()) {
-            builder.put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, randomFrom("all", "true", "none", "false", "sandbox", "sandboxed"));
-        }
-    }
-
-    private static String randomGenericOpSettings(ScriptedOp scriptedOp) {
-        return ScriptModes.SCRIPT_SETTINGS_PREFIX + randomScriptedOpName(scriptedOp);
-    }
-
-    private static String randomSpecificEngineOpSettings(String lang, ScriptType scriptType, ScriptedOp scriptedOp) {
-        return ScriptModes.ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + randomScriptedOpName(scriptedOp);
-    }
-
-    private static String randomScriptedOpName(ScriptedOp scriptedOp) {
-        String[] names = new String[scriptedOp.alternateNames().length + 1];
-        names[0] = scriptedOp.toString();
-        System.arraycopy(scriptedOp.alternateNames(), 0, names, 1, scriptedOp.alternateNames().length);
-        return randomFrom(names);
+    private static String specificEngineOpSettings(String lang, ScriptType scriptType, ScriptedOp scriptedOp) {
+        return ScriptModes.ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + scriptedOp;
     }
 
     static ImmutableMap<String, ScriptEngineService> buildScriptEnginesByLangMap(Set<ScriptEngineService> scriptEngines) {

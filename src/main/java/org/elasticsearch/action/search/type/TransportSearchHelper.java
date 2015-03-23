@@ -20,7 +20,6 @@
 package org.elasticsearch.action.search.type;
 
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
@@ -33,19 +32,13 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Base64;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -138,60 +131,6 @@ public abstract class TransportSearchHelper {
 
     private TransportSearchHelper() {
 
-    }
-
-    public static String parseScrollIdFromSource(BytesReference source) throws ElasticsearchIllegalArgumentException {
-        List<String> scrollIds = parseScrollIdListFromSource(source);
-        return scrollIds.isEmpty() ? null : scrollIds.get(0);
-    }
-
-    public static List<String> parseScrollIdListFromSource(BytesReference source) throws ElasticsearchIllegalArgumentException {
-        List<String> scrollIds = Lists.newArrayList();
-        try (XContentParser parser = XContentHelper.createParser(source)) {
-            XContentParser.Token token;
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if ("scroll_id".equals(currentFieldName)) {
-                        scrollIds.add(parser.text());
-                    }
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    if ("scroll_id".equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                            if (!token.isValue()) {
-                                throw new ElasticsearchIllegalArgumentException("scroll_id array element should only contain scroll_id");
-                            }
-                            scrollIds.add(parser.text());
-                        }
-                    }
-                }
-            }
-        } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to parse request body", e);
-        }
-        return scrollIds;
-    }
-
-    public static Scroll parseScrollFromSource(BytesReference source) throws ElasticsearchIllegalArgumentException {
-        Scroll scroll = null;
-        try (XContentParser parser = XContentHelper.createParser(source)) {
-            XContentParser.Token token;
-            String currentFieldName = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if ("scroll".equals(currentFieldName)) {
-                        scroll = new Scroll(TimeValue.parseTimeValue(parser.text(), null));
-                    }
-                }
-            }
-        } catch (IOException e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to parse request body", e);
-        }
-        return scroll;
     }
 
 }

@@ -27,7 +27,6 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -40,12 +39,10 @@ import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.*;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
@@ -56,7 +53,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Transport action used to execute analyze requests
@@ -121,18 +117,17 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
         if (shardId != null) {
             indexService = indicesService.indexServiceSafe(shardId.getIndex());
         }
-        AnalyzeContext context = parseSource(request);
         Analyzer analyzer = null;
         boolean closeAnalyzer = false;
         String field = null;
-        if (context.field() != null) {
+        if (request.field() != null) {
             if (indexService == null) {
                 throw new ElasticsearchIllegalArgumentException("No index provided, and trying to analyzer based on a specific field which requires the index parameter");
             }
-            FieldMapper<?> fieldMapper = indexService.mapperService().smartNameFieldMapper(context.field());
+            FieldMapper<?> fieldMapper = indexService.mapperService().smartNameFieldMapper(request.field());
             if (fieldMapper != null) {
                 if (fieldMapper.isNumeric()) {
-                    throw new ElasticsearchIllegalArgumentException("Can't process field [" + context.field() + "], Analysis requests are not supported on numeric fields");
+                    throw new ElasticsearchIllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are not supported on numeric fields");
                 }
                 analyzer = fieldMapper.indexAnalyzer();
                 field = fieldMapper.names().indexName();
@@ -146,35 +141,35 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
                 field = AllFieldMapper.NAME;
             }
         }
-        if (analyzer == null && context.analyzer() != null) {
+        if (analyzer == null && request.analyzer() != null) {
             if (indexService == null) {
-                analyzer = indicesAnalysisService.analyzer(context.analyzer());
+                analyzer = indicesAnalysisService.analyzer(request.analyzer());
             } else {
-                analyzer = indexService.analysisService().analyzer(context.analyzer());
+                analyzer = indexService.analysisService().analyzer(request.analyzer());
             }
             if (analyzer == null) {
-                throw new ElasticsearchIllegalArgumentException("failed to find analyzer [" + context.analyzer() + "]");
+                throw new ElasticsearchIllegalArgumentException("failed to find analyzer [" + request.analyzer() + "]");
             }
-        } else if (context.tokenizer() != null) {
+        } else if (request.tokenizer() != null) {
             TokenizerFactory tokenizerFactory;
             if (indexService == null) {
-                TokenizerFactoryFactory tokenizerFactoryFactory = indicesAnalysisService.tokenizerFactoryFactory(context.tokenizer());
+                TokenizerFactoryFactory tokenizerFactoryFactory = indicesAnalysisService.tokenizerFactoryFactory(request.tokenizer());
                 if (tokenizerFactoryFactory == null) {
-                    throw new ElasticsearchIllegalArgumentException("failed to find global tokenizer under [" + context.tokenizer() + "]");
+                    throw new ElasticsearchIllegalArgumentException("failed to find global tokenizer under [" + request.tokenizer() + "]");
                 }
-                tokenizerFactory = tokenizerFactoryFactory.create(context.tokenizer(), DEFAULT_SETTINGS);
+                tokenizerFactory = tokenizerFactoryFactory.create(request.tokenizer(), DEFAULT_SETTINGS);
             } else {
-                tokenizerFactory = indexService.analysisService().tokenizer(context.tokenizer());
+                tokenizerFactory = indexService.analysisService().tokenizer(request.tokenizer());
                 if (tokenizerFactory == null) {
-                    throw new ElasticsearchIllegalArgumentException("failed to find tokenizer under [" + context.tokenizer() + "]");
+                    throw new ElasticsearchIllegalArgumentException("failed to find tokenizer under [" + request.tokenizer() + "]");
                 }
             }
 
             TokenFilterFactory[] tokenFilterFactories = new TokenFilterFactory[0];
-            if (context.tokenFilters() != null && context.tokenFilters().isEmpty() == false) {
-                tokenFilterFactories = new TokenFilterFactory[context.tokenFilters().size()];
-                for (int i = 0; i < context.tokenFilters().size(); i++) {
-                    String tokenFilterName = context.tokenFilters().get(i);
+            if (request.tokenFilters() != null && request.tokenFilters().length > 0) {
+                tokenFilterFactories = new TokenFilterFactory[request.tokenFilters().length];
+                for (int i = 0; i < request.tokenFilters().length; i++) {
+                    String tokenFilterName = request.tokenFilters()[i];
                     if (indexService == null) {
                         TokenFilterFactoryFactory tokenFilterFactoryFactory = indicesAnalysisService.tokenFilterFactoryFactory(tokenFilterName);
                         if (tokenFilterFactoryFactory == null) {
@@ -194,10 +189,10 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
             }
 
             CharFilterFactory[] charFilterFactories = new CharFilterFactory[0];
-            if (context.charFilters() != null && context.charFilters().isEmpty() == false) {
-                charFilterFactories = new CharFilterFactory[context.charFilters().size()];
-                for (int i = 0; i < context.charFilters().size(); i++) {
-                    String charFilterName = context.charFilters().get(i);
+            if (request.charFilters() != null && request.charFilters().length > 0) {
+                charFilterFactories = new CharFilterFactory[request.charFilters().length];
+                for (int i = 0; i < request.charFilters().length; i++) {
+                    String charFilterName = request.charFilters()[i];
                     if (indexService == null) {
                         CharFilterFactoryFactory charFilterFactoryFactory = indicesAnalysisService.charFilterFactoryFactory(charFilterName);
                         if (charFilterFactoryFactory == null) {
@@ -232,7 +227,7 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
         List<AnalyzeResponse.AnalyzeToken> tokens = Lists.newArrayList();
         TokenStream stream = null;
         try {
-            stream = analyzer.tokenStream(field, context.text());
+            stream = analyzer.tokenStream(field, request.text());
             stream.reset();
             CharTermAttribute term = stream.addAttribute(CharTermAttribute.class);
             PositionIncrementAttribute posIncr = stream.addAttribute(PositionIncrementAttribute.class);
@@ -264,99 +259,6 @@ public class TransportAnalyzeAction extends TransportSingleCustomOperationAction
         }
 
         return new AnalyzeResponse(tokens);
-    }
-
-
-    private AnalyzeContext parseSource(AnalyzeRequest request) {
-        AnalyzeContext context = new AnalyzeContext();
-        try {
-            Map<String, Object> contentMap = XContentHelper.convertToMap(request.source(), false).v2();
-            for (Map.Entry<String, Object> entry : contentMap.entrySet()) {
-                String name = entry.getKey();
-                if ("prefer_local".equals(name)) {
-                    request.preferLocal(XContentMapValues.nodeBooleanValue(entry.getValue(), request.preferLocalShard()));
-                } else if ("analyzer".equals(name)) {
-                    context.analyzer(XContentMapValues.nodeStringValue(entry.getValue(), null));
-                } else if ("field".equals(name)) {
-                    context.field(XContentMapValues.nodeStringValue(entry.getValue(), null));
-                } else if ("tokenizer".equals(name)) {
-                    context.tokenizer(XContentMapValues.nodeStringValue(entry.getValue(), null));
-                } else if ("token_filters".equals(name) || "filters".equals(name)) {
-                    if (XContentMapValues.isArray(entry.getValue())) {
-                        context.tokenFilters((List<String>) entry.getValue());
-                    }
-                } else if ("char_filters".equals(name)) {
-                    if (XContentMapValues.isArray(entry.getValue())) {
-                        context.charFilters((List<String>) entry.getValue());
-                    }
-                } else if ("text".equals(name)) {
-                    context.text(XContentMapValues.nodeStringValue(entry.getValue(), null));
-                }
-            }
-        } catch (ElasticsearchParseException e) {
-            throw new ElasticsearchIllegalArgumentException("Failed to parse request body", e);
-        }
-        if (context.text() == null) {
-            throw new ElasticsearchIllegalArgumentException("text is missing");
-        }
-        return context;
-    }
-
-    private class AnalyzeContext {
-        private String text;
-        private String analyzer;
-        private String tokenizer;
-        private List<String> tokenFilters = Lists.newArrayList();
-        private List<String> charFilters = Lists.newArrayList();
-        private String field;
-
-        public String text() {
-            return text;
-        }
-
-        public String analyzer() {
-            return analyzer;
-        }
-
-        public String tokenizer() {
-            return tokenizer;
-        }
-
-        public List<String> tokenFilters() {
-            return tokenFilters;
-        }
-
-        public List<String> charFilters() {
-            return charFilters;
-        }
-
-        public String field() {
-            return field;
-        }
-
-        public void text(String text) {
-            this.text = text;
-        }
-
-        public void analyzer(String analyzer) {
-            this.analyzer = analyzer;
-        }
-
-        public void tokenizer(String tokenizer) {
-            this.tokenizer = tokenizer;
-        }
-
-        public void tokenFilters(List<String> tokenFilters) {
-            this.tokenFilters = tokenFilters;
-        }
-
-        public void charFilters(List<String> charFilters) {
-            this.charFilters = charFilters;
-        }
-
-        public void field(String field) {
-            this.field = field;
-        }
     }
 
     private class TransportHandler extends BaseTransportRequestHandler<AnalyzeRequest> {

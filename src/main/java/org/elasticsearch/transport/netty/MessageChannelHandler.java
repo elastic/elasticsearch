@@ -121,9 +121,7 @@ public class MessageChannelHandler extends SimpleChannelUpstreamHandler {
                 buffer.readerIndex(expectedIndexReader);
             }
         } else {
-            // notify with response before we process it and before we remove information about it.
-            transportServiceAdapter.onResponseReceived(requestId);
-            TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
+            TransportResponseHandler handler = transportServiceAdapter.onResponseReceived(requestId);
             // ignore if its null, the adapter logs it
             if (handler != null) {
                 if (TransportStatus.isError(status)) {

@@ -42,9 +42,10 @@ public interface TransportServiceAdapter {
 
     /**
      * called by the {@link Transport) implementation when a response or an exception has been recieved for a previously
-     * sent request (before any processing or deserialization was done
+     * sent request (before any processing or deserialization was done). Returns the appropriate response handler or null if not
+     * found.
      */
-    void onResponseReceived(long requestId);
+    TransportResponseHandler onResponseReceived(long requestId);
 
     /**
      * called by the {@link Transport) implementation when an incoming request arrives but before
@@ -53,8 +54,6 @@ public interface TransportServiceAdapter {
     void onRequestReceived(long requestId, String action);
 
     TransportRequestHandler handler(String action, Version version);
-
-    TransportResponseHandler remove(long requestId);
 
     void raiseNodeConnected(DiscoveryNode node);
 

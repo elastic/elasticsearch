@@ -53,7 +53,7 @@ import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.ScriptedOp;
+import org.elasticsearch.script.ScriptContext;
 
 import java.io.IOException;
 import java.util.*;
@@ -845,7 +845,7 @@ public class DocumentMapper implements ToXContent {
         public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
             try {
                 // We use the ctx variable and the _source name to be consistent with the update api.
-                ExecutableScript executable = scriptService.executable(language, script, scriptType, ScriptedOp.MAPPING, parameters);
+                ExecutableScript executable = scriptService.executable(language, script, scriptType, ScriptContext.MAPPING, parameters);
                 Map<String, Object> ctx = new HashMap<>(1);
                 ctx.put("_source", sourceAsMap);
                 executable.setNextVar("ctx", ctx);

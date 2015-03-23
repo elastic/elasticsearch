@@ -27,7 +27,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptedOp;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
 import java.io.IOException;
@@ -77,7 +77,7 @@ public class TemplateQueryParser implements QueryParser {
     public Query parse(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         TemplateContext templateContext = parse(parser, PARAMS, parametersToTypes);
-        ExecutableScript executable = this.scriptService.executable(MustacheScriptEngineService.NAME, templateContext.template(), templateContext.scriptType(), ScriptedOp.SEARCH, templateContext.params());
+        ExecutableScript executable = this.scriptService.executable(MustacheScriptEngineService.NAME, templateContext.template(), templateContext.scriptType(), ScriptContext.SEARCH, templateContext.params());
 
         BytesReference querySource = (BytesReference) executable.run();
 

@@ -103,7 +103,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         resourceWatcherService.notifyNow();
 
         logger.info("--> verify that file with extension was correctly processed");
-        CompiledScript compiledScript = scriptService.compile("test", "test_script", ScriptType.FILE, ScriptedOp.SEARCH);
+        CompiledScript compiledScript = scriptService.compile("test", "test_script", ScriptType.FILE, ScriptContext.SEARCH);
         assertThat(compiledScript.compiled(), equalTo((Object) "compiled_test_file"));
 
         logger.info("--> delete both files");
@@ -113,7 +113,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
         logger.info("--> verify that file with extension was correctly removed");
         try {
-            scriptService.compile("test", "test_script", ScriptType.FILE, ScriptedOp.SEARCH);
+            scriptService.compile("test", "test_script", ScriptType.FILE, ScriptContext.SEARCH);
             fail("the script test_script should no longer exist");
         } catch (ElasticsearchIllegalArgumentException ex) {
             assertThat(ex.getMessage(), containsString("Unable to find on disk script test_script"));
@@ -124,17 +124,17 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
     public void testScriptsSameNameDifferentLanguage() throws IOException {
         buildScriptService(ImmutableSettings.EMPTY);
         createFileScripts("groovy", "expression");
-        CompiledScript groovyScript = scriptService.compile(GroovyScriptEngineService.NAME, "file_script", ScriptType.FILE, randomFrom(ScriptedOp.values()));
+        CompiledScript groovyScript = scriptService.compile(GroovyScriptEngineService.NAME, "file_script", ScriptType.FILE, randomFrom(ScriptContext.values()));
         assertThat(groovyScript.lang(), equalTo(GroovyScriptEngineService.NAME));
-        CompiledScript expressionScript = scriptService.compile(ExpressionScriptEngineService.NAME, "file_script", ScriptType.FILE, randomFrom(ScriptedOp.values()));
+        CompiledScript expressionScript = scriptService.compile(ExpressionScriptEngineService.NAME, "file_script", ScriptType.FILE, randomFrom(ScriptContext.values()));
         assertThat(expressionScript.lang(), equalTo(ExpressionScriptEngineService.NAME));
     }
 
     @Test
     public void testInlineScriptCompiledOnceMultipleLangAcronyms() throws IOException {
         buildScriptService(ImmutableSettings.EMPTY);
-        CompiledScript compiledScript1 = scriptService.compile("test", "script", ScriptType.INLINE, randomFrom(ScriptedOp.values()));
-        CompiledScript compiledScript2 = scriptService.compile("test2", "script", ScriptType.INLINE, randomFrom(ScriptedOp.values()));
+        CompiledScript compiledScript1 = scriptService.compile("test", "script", ScriptType.INLINE, randomFrom(ScriptContext.values()));
+        CompiledScript compiledScript2 = scriptService.compile("test2", "script", ScriptType.INLINE, randomFrom(ScriptContext.values()));
         assertThat(compiledScript1, sameInstance(compiledScript2));
     }
 
@@ -142,8 +142,8 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
     public void testFileScriptCompiledOnceMultipleLangAcronyms() throws IOException {
         buildScriptService(ImmutableSettings.EMPTY);
         createFileScripts("test");
-        CompiledScript compiledScript1 = scriptService.compile("test", "file_script", ScriptType.FILE, randomFrom(ScriptedOp.values()));
-        CompiledScript compiledScript2 = scriptService.compile("test2", "file_script", ScriptType.FILE, randomFrom(ScriptedOp.values()));
+        CompiledScript compiledScript1 = scriptService.compile("test", "file_script", ScriptType.FILE, randomFrom(ScriptContext.values()));
+        CompiledScript compiledScript2 = scriptService.compile("test2", "file_script", ScriptType.FILE, randomFrom(ScriptContext.values()));
         assertThat(compiledScript1, sameInstance(compiledScript2));
     }
 
@@ -163,23 +163,23 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         buildScriptService(builder.build());
         createFileScripts("groovy", "expression", "mustache", "test");
 
-        for (ScriptedOp scriptedOp : ScriptedOp.values()) {
+        for (ScriptContext scriptContext : ScriptContext.values()) {
             //groovy is not sandboxed, only file scripts are enabled by default
-            assertCompileRejected(GroovyScriptEngineService.NAME, "script", ScriptType.INLINE, scriptedOp);
-            assertCompileRejected(GroovyScriptEngineService.NAME, "script", ScriptType.INDEXED, scriptedOp);
-            assertCompileAccepted(GroovyScriptEngineService.NAME, "file_script", ScriptType.FILE, scriptedOp);
+            assertCompileRejected(GroovyScriptEngineService.NAME, "script", ScriptType.INLINE, scriptContext);
+            assertCompileRejected(GroovyScriptEngineService.NAME, "script", ScriptType.INDEXED, scriptContext);
+            assertCompileAccepted(GroovyScriptEngineService.NAME, "file_script", ScriptType.FILE, scriptContext);
             //expression engine is sandboxed, all scripts are enabled by default
-            assertCompileAccepted(ExpressionScriptEngineService.NAME, "script", ScriptType.INLINE, scriptedOp);
-            assertCompileAccepted(ExpressionScriptEngineService.NAME, "script", ScriptType.INDEXED, scriptedOp);
-            assertCompileAccepted(ExpressionScriptEngineService.NAME, "file_script", ScriptType.FILE, scriptedOp);
+            assertCompileAccepted(ExpressionScriptEngineService.NAME, "script", ScriptType.INLINE, scriptContext);
+            assertCompileAccepted(ExpressionScriptEngineService.NAME, "script", ScriptType.INDEXED, scriptContext);
+            assertCompileAccepted(ExpressionScriptEngineService.NAME, "file_script", ScriptType.FILE, scriptContext);
             //mustache engine is sandboxed, all scripts are enabled by default
-            assertCompileAccepted(MustacheScriptEngineService.NAME, "script", ScriptType.INLINE, scriptedOp);
-            assertCompileAccepted(MustacheScriptEngineService.NAME, "script", ScriptType.INDEXED, scriptedOp);
-            assertCompileAccepted(MustacheScriptEngineService.NAME, "file_script", ScriptType.FILE, scriptedOp);
+            assertCompileAccepted(MustacheScriptEngineService.NAME, "script", ScriptType.INLINE, scriptContext);
+            assertCompileAccepted(MustacheScriptEngineService.NAME, "script", ScriptType.INDEXED, scriptContext);
+            assertCompileAccepted(MustacheScriptEngineService.NAME, "file_script", ScriptType.FILE, scriptContext);
             //custom engine is sandboxed, all scripts are enabled by default
-            assertCompileAccepted("test", "script", ScriptType.INLINE, scriptedOp);
-            assertCompileAccepted("test", "script", ScriptType.INDEXED, scriptedOp);
-            assertCompileAccepted("test", "file_script", ScriptType.FILE, scriptedOp);
+            assertCompileAccepted("test", "script", ScriptType.INLINE, scriptContext);
+            assertCompileAccepted("test", "script", ScriptType.INDEXED, scriptContext);
+            assertCompileAccepted("test", "file_script", ScriptType.FILE, scriptContext);
         }
     }
 
@@ -202,27 +202,27 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         buildScriptService(builder.build());
         createFileScripts("groovy", "expression", "mustache", "test");
 
-        for (ScriptedOp scriptedOp : ScriptedOp.values()) {
+        for (ScriptContext scriptContext : ScriptContext.values()) {
             for (ScriptEngineService scriptEngineService : scriptEngineServices) {
                 for (String lang : scriptEngineService.types()) {
-                    assertCompileAccepted(lang, "file_script", ScriptType.FILE, scriptedOp);
+                    assertCompileAccepted(lang, "file_script", ScriptType.FILE, scriptContext);
 
                     switch (dynamicScriptDisabling) {
                         case EVERYTHING_ALLOWED:
-                            assertCompileAccepted(lang, "script", ScriptType.INDEXED, scriptedOp);
-                            assertCompileAccepted(lang, "script", ScriptType.INLINE, scriptedOp);
+                            assertCompileAccepted(lang, "script", ScriptType.INDEXED, scriptContext);
+                            assertCompileAccepted(lang, "script", ScriptType.INLINE, scriptContext);
                             break;
                         case ONLY_DISK_ALLOWED:
-                            assertCompileRejected(lang, "script", ScriptType.INDEXED, scriptedOp);
-                            assertCompileRejected(lang, "script", ScriptType.INLINE, scriptedOp);
+                            assertCompileRejected(lang, "script", ScriptType.INDEXED, scriptContext);
+                            assertCompileRejected(lang, "script", ScriptType.INLINE, scriptContext);
                             break;
                         case SANDBOXED_ONLY:
                             if (scriptEngineService.sandboxed()) {
-                                assertCompileAccepted(lang, "script", ScriptType.INDEXED, scriptedOp);
-                                assertCompileAccepted(lang, "script", ScriptType.INLINE, scriptedOp);
+                                assertCompileAccepted(lang, "script", ScriptType.INDEXED, scriptContext);
+                                assertCompileAccepted(lang, "script", ScriptType.INLINE, scriptContext);
                             } else {
-                                assertCompileRejected(lang, "script", ScriptType.INDEXED, scriptedOp);
-                                assertCompileRejected(lang, "script", ScriptType.INLINE, scriptedOp);
+                                assertCompileRejected(lang, "script", ScriptType.INDEXED, scriptContext);
+                                assertCompileRejected(lang, "script", ScriptType.INLINE, scriptContext);
                             }
                             break;
                     }
@@ -243,14 +243,14 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
             } while (scriptSourceSettings.containsKey(scriptType));
             scriptSourceSettings.put(scriptType, randomFrom(ScriptMode.values()));
         }
-        int numScriptedOpSettings = randomIntBetween(0, ScriptedOp.values().length);
-        Map<ScriptedOp, ScriptMode> scriptedOpSettings = new HashMap<>();
-        for (int i = 0; i < numScriptedOpSettings; i++) {
-            ScriptedOp scriptedOp;
+        int numScriptContextSettings = randomIntBetween(0, ScriptContext.values().length);
+        Map<ScriptContext, ScriptMode> scriptContextSettings = new HashMap<>();
+        for (int i = 0; i < numScriptContextSettings; i++) {
+            ScriptContext scriptContext;
             do {
-                scriptedOp = randomFrom(ScriptedOp.values());
-            } while (scriptedOpSettings.containsKey(scriptedOp));
-            scriptedOpSettings.put(scriptedOp, randomFrom(ScriptMode.values()));
+                scriptContext = randomFrom(ScriptContext.values());
+            } while (scriptContextSettings.containsKey(scriptContext));
+            scriptContextSettings.put(scriptContext, randomFrom(ScriptMode.values()));
         }
         int numEngineSettings = randomIntBetween(0, 10);
         Map<String, ScriptMode> engineSettings = new HashMap<>();
@@ -260,8 +260,8 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                 ScriptEngineService[] scriptEngineServices = this.scriptEngineServices.toArray(new ScriptEngineService[this.scriptEngineServices.size()]);
                 ScriptEngineService scriptEngineService = randomFrom(scriptEngineServices);
                 ScriptType scriptType = randomFrom(ScriptType.values());
-                ScriptedOp scriptedOp = randomFrom(ScriptedOp.values());
-                settingKey = scriptEngineService.types()[0] + "." + scriptType + "." + scriptedOp;
+                ScriptContext scriptContext = randomFrom(ScriptContext.values());
+                settingKey = scriptEngineService.types()[0] + "." + scriptType + "." + scriptContext;
             } while(engineSettings.containsKey(settingKey));
             engineSettings.put(settingKey, randomFrom(ScriptMode.values()));
         }
@@ -280,7 +280,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                     break;
             }
         }
-        for (Map.Entry<ScriptedOp, ScriptMode> entry : scriptedOpSettings.entrySet()) {
+        for (Map.Entry<ScriptContext, ScriptMode> entry : scriptContextSettings.entrySet()) {
             switch (entry.getValue()) {
                 case ON:
                     builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + entry.getKey(), randomFrom(ScriptModesTests.ENABLE_VALUES));
@@ -320,12 +320,12 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                 //make sure file scripts have a different name than dynamic ones.
                 //Otherwise they are always considered file ones as they can be found in the static cache.
                 String script = scriptType == ScriptType.FILE ? "file_script" : "script";
-                for (ScriptedOp scriptedOp : ScriptedOp.values()) {
+                for (ScriptContext scriptContext : ScriptContext.values()) {
                     //fallback mechanism: 1) engine specific settings 2) op based settings 3) source based settings
-                    ScriptMode scriptMode = engineSettings.get(scriptEngineService.types()[0] + "." + scriptType + "." + scriptedOp);
+                    ScriptMode scriptMode = engineSettings.get(scriptEngineService.types()[0] + "." + scriptType + "." + scriptContext);
                     ;
                     if (scriptMode == null) {
-                        scriptMode = scriptedOpSettings.get(scriptedOp);
+                        scriptMode = scriptContextSettings.get(scriptContext);
                     }
                     if (scriptMode == null) {
                         scriptMode = scriptSourceSettings.get(scriptType);
@@ -337,16 +337,16 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                     for (String lang : scriptEngineService.types()) {
                         switch (scriptMode) {
                             case ON:
-                                assertCompileAccepted(lang, script, scriptType, scriptedOp);
+                                assertCompileAccepted(lang, script, scriptType, scriptContext);
                                 break;
                             case OFF:
-                                assertCompileRejected(lang, script, scriptType, scriptedOp);
+                                assertCompileRejected(lang, script, scriptType, scriptContext);
                                 break;
                             case SANDBOX:
                                 if (scriptEngineService.sandboxed()) {
-                                    assertCompileAccepted(lang, script, scriptType, scriptedOp);
+                                    assertCompileAccepted(lang, script, scriptType, scriptContext);
                                 } else {
-                                    assertCompileRejected(lang, script, scriptType, scriptedOp);
+                                    assertCompileRejected(lang, script, scriptType, scriptContext);
                                 }
                                 break;
                         }
@@ -364,17 +364,17 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         resourceWatcherService.notifyNow();
     }
 
-    private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptedOp scriptedOp) {
+    private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
         try {
-            scriptService.compile(lang, script, scriptType, scriptedOp);
-            fail("compile should have been rejected for lang [" + lang + "], script_type [" + scriptType + "], scripted_op [" + scriptedOp + "]");
+            scriptService.compile(lang, script, scriptType, scriptContext);
+            fail("compile should have been rejected for lang [" + lang + "], script_type [" + scriptType + "], scripted_op [" + scriptContext + "]");
         } catch(ScriptException e) {
             //all good
         }
     }
 
-    private void assertCompileAccepted(String lang, String script, ScriptType scriptType, ScriptedOp scriptedOp) {
-        assertThat(scriptService.compile(lang, script, scriptType, scriptedOp), notNullValue());
+    private void assertCompileAccepted(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
+        assertThat(scriptService.compile(lang, script, scriptType, scriptContext), notNullValue());
     }
 
     public static class TestEngineService implements ScriptEngineService {

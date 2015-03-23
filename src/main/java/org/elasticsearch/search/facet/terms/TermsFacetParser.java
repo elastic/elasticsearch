@@ -32,7 +32,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptedOp;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
@@ -171,7 +171,7 @@ public class TermsFacetParser extends AbstractComponent implements FacetParser {
 
         SearchScript searchScript = null;
         if (script != null) {
-            searchScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, ScriptedOp.AGGS, params);
+            searchScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, ScriptContext.AGGS, params);
         }
 
         // shard_size cannot be smaller than size as we need to at least fetch <size> entries from every shards in order to return <size>

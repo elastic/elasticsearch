@@ -58,7 +58,7 @@ public class NativeScriptTests extends ElasticsearchTestCase {
 
         ScriptService scriptService = injector.getInstance(ScriptService.class);
 
-        ExecutableScript executable = scriptService.executable(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, ScriptedOp.SEARCH, null);
+        ExecutableScript executable = scriptService.executable(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, ScriptContext.SEARCH, null);
         assertThat(executable.run().toString(), equalTo("test"));
         terminate(injector.getInstance(ThreadPool.class));
     }
@@ -70,8 +70,8 @@ public class NativeScriptTests extends ElasticsearchTestCase {
             ScriptType scriptType = randomFrom(ScriptType.values());
             builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptType, randomFrom(ScriptMode.values()));
         } else {
-            ScriptedOp scriptedOp = randomFrom(ScriptedOp.values());
-            builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptedOp, randomFrom(ScriptMode.values()));
+            ScriptContext scriptContext = randomFrom(ScriptContext.values());
+            builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptContext, randomFrom(ScriptMode.values()));
         }
         Settings settings = builder.build();
         Environment environment = new Environment(settings);
@@ -81,8 +81,8 @@ public class NativeScriptTests extends ElasticsearchTestCase {
         Set<ScriptEngineService> scriptEngineServices = ImmutableSet.<ScriptEngineService>of(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
         ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, new NodeSettingsService(settings));
 
-        for (ScriptedOp scriptedOp : ScriptedOp.values()) {
-            assertThat(scriptService.compile(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, scriptedOp), notNullValue());
+        for (ScriptContext scriptContext : ScriptContext.values()) {
+            assertThat(scriptService.compile(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, scriptContext), notNullValue());
         }
     }
 
@@ -96,8 +96,8 @@ public class NativeScriptTests extends ElasticsearchTestCase {
         Set<ScriptEngineService> scriptEngineServices = ImmutableSet.<ScriptEngineService>of(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
         ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, new NodeSettingsService(settings));
 
-        for (ScriptedOp scriptedOp : ScriptedOp.values()) {
-            assertThat(scriptService.compile(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, scriptedOp), notNullValue());
+        for (ScriptContext scriptContext : ScriptContext.values()) {
+            assertThat(scriptService.compile(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, scriptContext), notNullValue());
         }
     }
 

@@ -242,8 +242,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
      */
-    public CompiledScript compile(String lang,  String script, ScriptType scriptType, ScriptedOp scriptedOp) {
-        assert scriptedOp != null;
+    public CompiledScript compile(String lang,  String script, ScriptType scriptType, ScriptContext scriptContext) {
+        assert scriptContext != null;
 
         //scriptType might not get serialized depending on the version of the node we talk to, if null treat as inline
         if (scriptType == null) {
@@ -260,15 +260,15 @@ public class ScriptService extends AbstractComponent implements Closeable {
             CompiledScript compiled = staticCache.get(cacheKey); //On disk scripts will be loaded into the staticCache by the listener
             if (compiled != null) {
                 scriptType = ScriptType.FILE;
-                if (canExecuteScript(lang, scriptEngineService, scriptType, scriptedOp) == false) {
-                    throw new ScriptException("scripts of type [" + scriptType + "], operation [" + scriptedOp + "] and lang [" + lang + "] are disabled");
+                if (canExecuteScript(lang, scriptEngineService, scriptType, scriptContext) == false) {
+                    throw new ScriptException("scripts of type [" + scriptType + "], operation [" + scriptContext + "] and lang [" + lang + "] are disabled");
                 }
                 return compiled;
             }
         }
 
-        if (canExecuteScript(lang, scriptEngineService, scriptType, scriptedOp) == false) {
-            throw new ScriptException("scripts of type [" + scriptType + "], operation [" + scriptedOp + "] and lang [" + lang + "] are disabled");
+        if (canExecuteScript(lang, scriptEngineService, scriptType, scriptContext) == false) {
+            throw new ScriptException("scripts of type [" + scriptType + "], operation [" + scriptContext + "] and lang [" + lang + "] are disabled");
         }
         return compileInternal(lang, script, scriptType);
     }
@@ -353,7 +353,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                 try {
                     //we don't know yet what the script will be used for, but if all of the operations for this lang with
                     //indexed scripts are disabled, it makes no sense to even compile it and cache it.
-                    if (isAnyScriptedOpEnabled(scriptLang, getScriptEngineServiceForLang(scriptLang), ScriptType.INDEXED) == false) {
+                    if (isAnyScriptContextEnabled(scriptLang, getScriptEngineServiceForLang(scriptLang), ScriptType.INDEXED) == false) {
                         logger.warn("skipping compile of script [{}], lang [{}] as all scripted operations are disabled for indexed scripts", context.template(), scriptLang);
                         return;
                     }
@@ -424,8 +424,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles (or retrieves from cache) and executes the provided script
      */
-    public ExecutableScript executable(String lang, String script, ScriptType scriptType, ScriptedOp scriptedOp, Map<String, Object> vars) {
-        return executable(compile(lang, script, scriptType, scriptedOp), vars);
+    public ExecutableScript executable(String lang, String script, ScriptType scriptType, ScriptContext scriptContext, Map<String, Object> vars) {
+        return executable(compile(lang, script, scriptType, scriptContext), vars);
     }
 
     /**
@@ -438,23 +438,23 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles (or retrieves from cache) and executes the provided search script
      */
-    public SearchScript search(SearchLookup lookup, String lang, String script, ScriptType scriptType, ScriptedOp scriptedOp, @Nullable Map<String, Object> vars) {
-            CompiledScript compiledScript = compile(lang, script, scriptType, scriptedOp);
+    public SearchScript search(SearchLookup lookup, String lang, String script, ScriptType scriptType, ScriptContext scriptContext, @Nullable Map<String, Object> vars) {
+            CompiledScript compiledScript = compile(lang, script, scriptType, scriptContext);
             return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript.compiled(), lookup, vars);
     }
 
-    private boolean isAnyScriptedOpEnabled(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType) {
-        for (ScriptedOp scriptedOp : ScriptedOp.values()) {
-            if (canExecuteScript(lang, scriptEngineService, scriptType, scriptedOp)) {
+    private boolean isAnyScriptContextEnabled(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType) {
+        for (ScriptContext scriptContext : ScriptContext.values()) {
+            if (canExecuteScript(lang, scriptEngineService, scriptType, scriptContext)) {
                 return true;
             }
         }
         return false;
     }
 
-    private boolean canExecuteScript(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType, ScriptedOp scriptedOp) {
+    private boolean canExecuteScript(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType, ScriptContext scriptContext) {
         assert lang != null;
-        ScriptMode mode = scriptModes.getScriptMode(lang, scriptType, scriptedOp);
+        ScriptMode mode = scriptModes.getScriptMode(lang, scriptType, scriptContext);
         switch (mode) {
             case ON:
                 return true;
@@ -519,7 +519,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     try {
                         //we don't know yet what the script will be used for, but if all of the operations for this lang
                         // with file scripts are disabled, it makes no sense to even compile it and cache it.
-                        if (isAnyScriptedOpEnabled(engineService.types()[0], engineService, ScriptType.FILE)) {
+                        if (isAnyScriptContextEnabled(engineService.types()[0], engineService, ScriptType.FILE)) {
                             logger.info("compiling script file [{}]", file.getAbsolutePath());
                             try(InputStreamReader reader = new InputStreamReader(new FileInputStream(file), Charsets.UTF_8)) {
                                 String script = Streams.copyToString(reader);

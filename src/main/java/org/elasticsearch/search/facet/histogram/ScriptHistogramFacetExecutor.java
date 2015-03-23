@@ -24,7 +24,7 @@ import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptedOp;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -48,8 +48,8 @@ public class ScriptHistogramFacetExecutor extends FacetExecutor {
     final Recycler.V<LongObjectOpenHashMap<InternalFullHistogramFacet.FullEntry>> entries;
 
     public ScriptHistogramFacetExecutor(String scriptLang, String keyScript, ScriptService.ScriptType keyScriptType, String valueScript, ScriptService.ScriptType valueScriptType, Map<String, Object> params, long interval, HistogramFacet.ComparatorType comparatorType, SearchContext context) {
-        this.keyScript = context.scriptService().search(context.lookup(), scriptLang, keyScript, keyScriptType, ScriptedOp.AGGS, params);
-        this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, valueScriptType, ScriptedOp.AGGS, params);
+        this.keyScript = context.scriptService().search(context.lookup(), scriptLang, keyScript, keyScriptType, ScriptContext.AGGS, params);
+        this.valueScript = context.scriptService().search(context.lookup(), scriptLang, valueScript, valueScriptType, ScriptContext.AGGS, params);
         this.interval = interval > 0 ? interval : 0;
         this.comparatorType = comparatorType;
 

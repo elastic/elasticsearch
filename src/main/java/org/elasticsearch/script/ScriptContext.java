@@ -25,7 +25,7 @@ import java.util.Locale;
  * Operation/api that uses a script as part of its execution.
  * Note that the suggest api is considered part of search for simplicity, as well as the percolate api.
  */
-public enum ScriptedOp {
+public enum ScriptContext {
     MAPPING,
     UPDATE,
     SEARCH,

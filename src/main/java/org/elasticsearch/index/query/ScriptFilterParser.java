@@ -133,7 +133,7 @@ public class ScriptFilterParser implements FilterParser {
         public ScriptFilter(String scriptLang, String script, ScriptService.ScriptType scriptType, Map<String, Object> params, ScriptService scriptService, SearchLookup searchLookup) {
             this.script = script;
             this.params = params;
-            this.searchScript = scriptService.search(searchLookup, scriptLang, script, scriptType, ScriptedOp.SEARCH, newHashMap(params));
+            this.searchScript = scriptService.search(searchLookup, scriptLang, script, scriptType, ScriptContext.SEARCH, newHashMap(params));
         }
 
         @Override

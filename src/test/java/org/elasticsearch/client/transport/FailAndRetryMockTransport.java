@@ -64,7 +64,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
 
         //we make sure that nodes get added to the connected ones when calling addTransportAddress, by returning proper nodes info
         if (connectMode) {
-            TransportResponseHandler transportResponseHandler = transportServiceAdapter.remove(requestId);
+            TransportResponseHandler transportResponseHandler = transportServiceAdapter.onResponseReceived(requestId);
             NodeInfo nodeInfo = new NodeInfo(Version.CURRENT, Build.CURRENT, node, null, null, null, null, null, null, null, null, null, null);
             NodesInfoResponse nodesInfoResponse = new NodesInfoResponse(ClusterName.DEFAULT, new NodeInfo[]{nodeInfo});
             transportResponseHandler.handleResponse(nodesInfoResponse);
@@ -83,7 +83,7 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                 //throw whatever exception that is not a subclass of ConnectTransportException
                 throw new IllegalStateException();
             } else {
-                TransportResponseHandler transportResponseHandler = transportServiceAdapter.remove(requestId);
+                TransportResponseHandler transportResponseHandler = transportServiceAdapter.onResponseReceived(requestId);
                 if (random.nextBoolean()) {
                     successes.incrementAndGet();
                     transportResponseHandler.handleResponse(newResponse());

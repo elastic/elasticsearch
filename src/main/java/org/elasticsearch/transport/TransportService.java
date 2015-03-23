@@ -81,6 +81,9 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
     });
 
+    // used to synchronize check for timeout handlers upon response and timeout handling via the scheduler
+    final Object timeoutHandlingMutex = new Object();
+
     private final TransportService.Adapter adapter;
 
     // tracer log
@@ -264,8 +267,12 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 throw new TransportException("TransportService is closed stopped can't send request");
             }
             if (options.timeout() != null) {
-                timeoutHandler = new TimeoutHandler(requestId);
-                timeoutHandler.future = threadPool.schedule(options.timeout(), ThreadPool.Names.GENERIC, timeoutHandler);
+                // we acquire the mutex here to make sure the timeout handler doesn't run until the future is set
+                // this is to avoid race conditions when the timeout value is ridiculously low
+                synchronized (timeoutHandlingMutex) {
+                    timeoutHandler = new TimeoutHandler(requestId);
+                    timeoutHandler.future = threadPool.schedule(options.timeout(), ThreadPool.Names.GENERIC, timeoutHandler);
+                }
             }
             transport.sendRequest(node, requestId, action, request, options);
         } catch (final Throwable e) {
@@ -377,32 +384,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
 
         @Override
-        public void onResponseReceived(long requestId) {
-            if (traceEnabled()) {
-                // try to resolve the request
-                DiscoveryNode sourceNode = null;
-                String action = null;
-                RequestHolder holder = clientHandlers.get(requestId);
-                if (holder != null) {
-                    action = holder.action();
-                    sourceNode = holder.node();
-                } else {
-                    // lets see if its in the timeout holder
-                    TimeoutInfoHolder timeoutInfoHolder = timeoutInfoHandlers.get(requestId);
-                    if (timeoutInfoHolder != null) {
-                        action = timeoutInfoHolder.action();
-                        sourceNode = timeoutInfoHolder.node();
-                    }
-                }
-                if (action == null) {
-                    traceUnresolvedResponse(requestId);
-                } else if (shouldTraceAction(action)) {
-                    traceReceivedResponse(requestId, sourceNode, action);
-                }
-            }
-        }
-
-        @Override
         public void onRequestReceived(long requestId, String action) {
             if (traceEnabled() && shouldTraceAction(action)) {
                 traceReceivedRequest(requestId, action);
@@ -415,21 +396,48 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         }
 
         @Override
-        public TransportResponseHandler remove(long requestId) {
+        public TransportResponseHandler onResponseReceived(final long requestId) {
             RequestHolder holder = clientHandlers.remove(requestId);
             if (holder == null) {
-                // lets see if its in the timeout holder
+                checkForTimeout(requestId);
+                return null;
+            }
+            holder.cancel();
+            if (traceEnabled() && shouldTraceAction(holder.action())) {
+                traceReceivedResponse(requestId, holder.node(), holder.action());
+            }
+            return holder.handler();
+        }
+
+        protected void checkForTimeout(long requestId) {
+            // lets see if its in the timeout holder, but sync on mutex to make sure any ongoing timeout handling has finished
+            final DiscoveryNode sourceNode;
+            final String action;
+            synchronized (timeoutHandlingMutex) {
                 TimeoutInfoHolder timeoutInfoHolder = timeoutInfoHandlers.remove(requestId);
                 if (timeoutInfoHolder != null) {
                     long time = System.currentTimeMillis();
                     logger.warn("Received response for a request that has timed out, sent [{}ms] ago, timed out [{}ms] ago, action [{}], node [{}], id [{}]", time - timeoutInfoHolder.sentTime(), time - timeoutInfoHolder.timeoutTime(), timeoutInfoHolder.action(), timeoutInfoHolder.node(), requestId);
+                    action = timeoutInfoHolder.action();
+                    sourceNode = timeoutInfoHolder.node();
                 } else {
                     logger.warn("Transport response handler not found of id [{}]", requestId);
+                    action = null;
+                    sourceNode = null;
                 }
-                return null;
             }
-            holder.cancel();
-            return holder.handler();
+            // call tracer out of lock
+            if (traceEnabled() == false) {
+                return;
+            }
+            if (action == null) {
+                assert sourceNode == null;
+                traceUnresolvedResponse(requestId);
+            } else if (shouldTraceAction(action)) {
+                traceReceivedResponse(requestId, sourceNode, action);
+            }
+
+
         }
 
         @Override
@@ -520,15 +528,17 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
         @Override
         public void run() {
-            if (future.isCancelled()) {
-                return;
-            }
-            final RequestHolder holder = clientHandlers.remove(requestId);
-            if (holder != null) {
-                // add it to the timeout information holder, in case we are going to get a response later
-                long timeoutTime = System.currentTimeMillis();
-                timeoutInfoHandlers.put(requestId, new TimeoutInfoHolder(holder.node(), holder.action(), sentTime, timeoutTime));
-                holder.handler().handleException(new ReceiveTimeoutTransportException(holder.node(), holder.action(), "request_id [" + requestId + "] timed out after [" + (timeoutTime - sentTime) + "ms]"));
+            synchronized (timeoutHandlingMutex) {
+                if (future.isCancelled()) {
+                    return;
+                }
+                final RequestHolder holder = clientHandlers.remove(requestId);
+                if (holder != null) {
+                    // add it to the timeout information holder, in case we are going to get a response later
+                    long timeoutTime = System.currentTimeMillis();
+                    timeoutInfoHandlers.put(requestId, new TimeoutInfoHolder(holder.node(), holder.action(), sentTime, timeoutTime));
+                    holder.handler().handleException(new ReceiveTimeoutTransportException(holder.node(), holder.action(), "request_id [" + requestId + "] timed out after [" + (timeoutTime - sentTime) + "ms]"));
+                }
             }
         }
     }

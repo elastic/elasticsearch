@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
     <name>Elasticsearch Smart Chinese Analysis plugin</name>
     <description>Smart Chinese Analysis plugin integrates Lucene Smart Chinese analysis module into elasticsearch.</description>
-    <url>https://github.com/elasticsearch/elasticsearch-analysis-smartcn/</url>
+    <url>https://github.com/elastic/elasticsearch-analysis-smartcn/</url>
     <inceptionYear>2009</inceptionYear>
     <licenses>
         <license>
@@ -20,10 +20,10 @@
         </license>
     </licenses>
     <scm>
-        <connection>scm:git:git@github.com:elasticsearch/elasticsearch-analysis-smartcn.git</connection>
-        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-analysis-smartcn.git
+        <connection>scm:git:git@github.com:elastic/elasticsearch-analysis-smartcn.git</connection>
+        <developerConnection>scm:git:git@github.com:elastic/elasticsearch-analysis-smartcn.git
         </developerConnection>
-        <url>http://github.com/elasticsearch/elasticsearch-analysis-smartcn</url>
+        <url>http://github.com/elastic/elasticsearch-analysis-smartcn</url>
     </scm>
 
     <parent>

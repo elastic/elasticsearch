@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>org.elasticsearch</groupId>
-    <artifactId>elasticsearch-alerts</artifactId>
+    <artifactId>elasticsearch-watcher</artifactId>
     <version>1.0.0-beta2-SNAPSHOT</version>
 
     <parent>

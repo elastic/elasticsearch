@@ -6,31 +6,30 @@
 package org.elasticsearch.alerts.test.bench;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.alerts.AlertsPlugin;
-import org.elasticsearch.alerts.client.AlertSourceBuilder;
-import org.elasticsearch.alerts.client.AlertsClient;
-import org.elasticsearch.alerts.scheduler.Scheduler;
-import org.elasticsearch.alerts.scheduler.SchedulerMock;
-import org.elasticsearch.alerts.scheduler.SchedulerModule;
-import org.elasticsearch.alerts.transport.actions.put.PutAlertRequest;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.node.NodeBuilder;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.watcher.WatcherPlugin;
+import org.elasticsearch.watcher.client.WatchSourceBuilder;
+import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.watcher.scheduler.Scheduler;
+import org.elasticsearch.watcher.scheduler.SchedulerMock;
+import org.elasticsearch.watcher.scheduler.SchedulerModule;
+import org.elasticsearch.watcher.transport.actions.put.PutWatchRequest;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.alerts.actions.ActionBuilders.indexAction;
-import static org.elasticsearch.alerts.condition.ConditionBuilders.scriptCondition;
-import static org.elasticsearch.alerts.input.InputBuilders.searchInput;
-import static org.elasticsearch.alerts.scheduler.schedule.Schedules.interval;
+import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
+import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
+import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
+import static org.elasticsearch.watcher.scheduler.schedule.Schedules.interval;
 
 /**
  */
@@ -46,23 +45,20 @@ public class AlertsBenchmark {
         InternalNode node = (InternalNode) NodeBuilder.nodeBuilder().settings(settings).data(false).node();
         node.client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
         Thread.sleep(5000);
-        AlertsClient alertsClient = node.injector().getInstance(AlertsClient.class);
+        WatcherClient alertsClient = node.injector().getInstance(WatcherClient.class);
 
         int numAlerts = 1000;
         for (int i = 0; i < numAlerts; i++) {
             final String name = "_name" + i;
-            PutAlertRequest putAlertRequest = new PutAlertRequest(
-                    new AlertSourceBuilder()
+            PutWatchRequest putAlertRequest = new PutWatchRequest(name, new WatchSourceBuilder()
                             .schedule(interval("5s"))
                             .input(searchInput(new SearchRequest().source(
                                     new SearchSourceBuilder()
                             )))
                             .condition(scriptCondition("1 == 1"))
-                            .addAction(indexAction("index", "type"))
-                            .buildAsBytes(XContentType.JSON)
-            );
-            putAlertRequest.setAlertName(name);
-            alertsClient.putAlert(putAlertRequest).actionGet();
+                            .addAction(indexAction("index", "type")));
+            putAlertRequest.setName(name);
+            alertsClient.putWatch(putAlertRequest).actionGet();
         }
 
         int numThreads = 50;
@@ -92,7 +88,7 @@ public class AlertsBenchmark {
         }
     }
 
-    public static final class BenchmarkAlertPlugin extends AlertsPlugin {
+    public static final class BenchmarkAlertPlugin extends WatcherPlugin {
 
         public BenchmarkAlertPlugin(Settings settings) {
             super(settings);
@@ -101,10 +97,10 @@ public class AlertsBenchmark {
 
         @Override
         public Collection<Class<? extends Module>> modules() {
-            return ImmutableList.<Class<? extends Module>>of(AlertsModule.class);
+            return ImmutableList.<Class<? extends Module>>of(WatcherModule.class);
         }
 
-        public static class AlertsModule extends org.elasticsearch.alerts.AlertsModule {
+        public static class WatcherModule extends org.elasticsearch.watcher.WatcherModule {
 
             @Override
             public Iterable<? extends Module> spawnModules() {

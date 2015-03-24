@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.io;
 
+import com.google.common.collect.Iterators;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.XIOUtils;
 import org.elasticsearch.common.logging.ESLogger;
@@ -140,7 +141,7 @@ public class FileSystemUtils {
                     deleteRecursively(aChildren, true);
                 }
             }
-            
+
             if (deleteRoot) {
                 return root.delete();
             } else {
@@ -312,6 +313,15 @@ public class FileSystemUtils {
                 // We ignore this
             }
             return CONTINUE;
+        }
+    }
+
+    /**
+     * Returns an array of all files in the given directory.
+     */
+    public static Path[] files(Path directory) throws IOException {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(directory)) {
+            return Iterators.toArray(stream.iterator(), Path.class);
         }
     }
 

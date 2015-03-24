@@ -158,7 +158,8 @@ def create_client(http_port, timeout=30):
   assert False, 'Timed out waiting for node for %s seconds' % timeout
 
 def generate_index(client, version):
-  client.indices.delete(index='test', ignore=404)
+  name = 'index-%s' % version.lower()
+  client.indices.delete(index=name, ignore=404)
   num_shards = random.randint(1, 10)
   num_replicas = random.randint(0, 1)
   logging.info('Create single shard test index')
@@ -228,7 +229,7 @@ def generate_index(client, version):
       }
     }
 
-  client.indices.create(index='test', body={
+  client.indices.create(index=name, body={
       'settings': {
           'number_of_shards': 1,
           'number_of_replicas': 0
@@ -244,9 +245,9 @@ def generate_index(client, version):
     # lighter index for it to keep bw tests reasonable
     # see https://github.com/elastic/elasticsearch/issues/5817
     num_docs = num_docs / 10
-  index_documents(client, 'test', 'doc', num_docs)
+  index_documents(client, name, 'doc', num_docs)
   logging.info('Running basic asserts on the data added')
-  run_basic_asserts(client, 'test', 'doc', num_docs)
+  run_basic_asserts(client, name, 'doc', num_docs)
 
 def snapshot_index(client, cfg):
   # Add bogus persistent settings to make sure they can be restored

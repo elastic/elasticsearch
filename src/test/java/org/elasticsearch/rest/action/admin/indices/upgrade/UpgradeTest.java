@@ -268,12 +268,6 @@ public class UpgradeTest extends ElasticsearchBackwardsCompatIntegrationTest {
         assertTrue(rsp.hasBody());
         return (Map<String,Object>)new JsonPath(rsp.getBody()).evaluate("");
     }
-    
-    HttpRequestBuilder httpClient() {
-        InetSocketAddress[] addresses = cluster().httpAddresses();
-        InetSocketAddress address = addresses[randomInt(addresses.length - 1)];
-        return new HttpRequestBuilder(HttpClients.createDefault()).host(address.getHostName()).port(address.getPort());
-    }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {

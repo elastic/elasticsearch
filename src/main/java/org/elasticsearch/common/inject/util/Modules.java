@@ -89,7 +89,8 @@ public final class Modules {
      * Returns a new module that installs all of {@code modules}.
      */
     public static Module combine(Iterable<? extends Module> modules) {
-        final Set<Module> modulesSet = ImmutableSet.copyOf(modules);
+        // TODO: infer type once JI-9019884 is fixed
+        final Set<Module> modulesSet = ImmutableSet.<Module>copyOf(modules);
         return new Module() {
             public void configure(Binder binder) {
                 binder = binder.skipSources(getClass());
@@ -120,7 +121,8 @@ public final class Modules {
         private final ImmutableSet<Module> baseModules;
 
         private RealOverriddenModuleBuilder(Iterable<? extends Module> baseModules) {
-            this.baseModules = ImmutableSet.copyOf(baseModules);
+            // TODO: infer type once JI-9019884 is fixed
+            this.baseModules = ImmutableSet.<Module>copyOf(baseModules);
         }
 
         public Module with(Module... overrides) {

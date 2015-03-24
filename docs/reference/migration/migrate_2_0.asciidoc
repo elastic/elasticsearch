@@ -170,6 +170,7 @@ A `RoutingMissingException` is now thrown instead.
 === Mappings
 
 * The setting `index.mapping.allow_type_wrapper` has been removed.  Documents should always be sent without the type as the root element.
+* The delete mappings API has been removed. Mapping types can no longer be deleted.
 
 ==== Removed type prefix on field names in queries
 Types can no longer be specified on fields within queries.  Instead, specify type restrictions in the search request.

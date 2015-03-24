@@ -87,7 +87,7 @@ def delete_by_query(es, version, index_name, doc_type):
     return
 
   deleted_count = es.count(index=index_name, doc_type=doc_type, body=query)['count']
-    
+
   result = es.delete_by_query(index=index_name,
                               doc_type=doc_type,
                               body=query)
@@ -132,8 +132,8 @@ def start_node(version, release_dir, data_dir, tcp_port, http_port):
     os.path.join(release_dir, 'bin/elasticsearch'),
     '-Des.path.data=%s' % data_dir,
     '-Des.path.logs=logs',
-    '-Des.cluster.name=bwc_index_' + version,  
-    '-Des.network.host=localhost', 
+    '-Des.cluster.name=bwc_index_' + version,
+    '-Des.network.host=localhost',
     '-Des.discovery.zen.ping.multicast.enabled=false',
     '-Des.transport.tcp.port=%s' % tcp_port,
     '-Des.http.port=%s' % http_port
@@ -157,7 +157,8 @@ def create_client(http_port, timeout=30):
   assert False, 'Timed out waiting for node for %s seconds' % timeout
 
 def generate_index(client, version):
-  client.indices.delete(index='test', ignore=404)
+  name = 'index-%s' % version.lower()
+  client.indices.delete(index=name, ignore=404)
   num_shards = random.randint(1, 10)
   num_replicas = random.randint(0, 1)
   logging.info('Create single shard test index')
@@ -189,7 +190,7 @@ def generate_index(client, version):
       'search_quote_analyzer': 'english',
     }
 
-  client.indices.create(index='test', body={
+  client.indices.create(index=name, body={
       'settings': {
           'number_of_shards': 1,
           'number_of_replicas': 0
@@ -200,9 +201,14 @@ def generate_index(client, version):
   assert health['timed_out'] == False, 'cluster health timed out %s' % health
 
   num_docs = random.randint(2000, 3000)
-  index_documents(client, 'test', 'doc', num_docs)
+  if version == "1.1.0":
+    # 1.1.0 is buggy and creates lots and lots of segments, so we create a
+    # lighter index for it to keep bw tests reasonable
+    # see https://github.com/elastic/elasticsearch/issues/5817
+    num_docs = int(num_docs / 10)
+  index_documents(client, name, 'doc', num_docs)
   logging.info('Running basic asserts on the data added')
-  run_basic_asserts(client, 'test', 'doc', num_docs)
+  run_basic_asserts(client, name, 'doc', num_docs)
 
 def snapshot_index(client, cfg):
   # Add bogus persistent settings to make sure they can be restored
@@ -275,7 +281,7 @@ def parse_config():
 
   cfg.release_dir = os.path.join(cfg.releases_dir, 'elasticsearch-%s' % cfg.version)
   if not os.path.exists(cfg.release_dir):
-    parser.error('ES version %s does not exist in %s' % (cfg.version, cfg.releases_dir)) 
+    parser.error('ES version %s does not exist in %s' % (cfg.version, cfg.releases_dir))
 
   if not os.path.exists(cfg.output_dir):
     parser.error('Output directory does not exist: %s' % cfg.output_dir)
@@ -306,7 +312,7 @@ def main():
     # this after the snapshot, because it calls flush.  Otherwise the index
     # will already have the deletions applied on upgrade.
     delete_by_query(client, cfg.version, 'test', 'doc')
-    
+
   finally:
     if 'node' in vars():
       logging.info('Shutting down node with pid %d', node.pid)

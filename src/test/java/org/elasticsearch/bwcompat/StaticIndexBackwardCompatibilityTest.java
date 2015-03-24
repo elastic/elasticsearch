@@ -53,7 +53,7 @@ public class StaticIndexBackwardCompatibilityTest extends ElasticsearchIntegrati
         ensureGreen("test");
         assertIndexSanity();
     }
-    
+
     public void unloadIndex() throws Exception {
         ElasticsearchAssertions.assertAcked(client().admin().indices().prepareDelete("test").get());
         while (internalCluster().stopRandomDataNode()) {} // stop all data nodes
@@ -69,19 +69,4 @@ public class StaticIndexBackwardCompatibilityTest extends ElasticsearchIntegrati
         assertThat(test.getHits().getTotalHits(), greaterThanOrEqualTo(1l));
     }
 
-    protected static HttpRequestBuilder httpClient() {
-        NodeInfo info = nodeInfo(client());
-        info.getHttp().address().boundAddress();
-        TransportAddress publishAddress = info.getHttp().address().publishAddress();
-        assertEquals(1, publishAddress.uniqueAddressTypeId());
-        InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
-        return new HttpRequestBuilder(HttpClients.createDefault()).host(address.getHostName()).port(address.getPort());
-    }
-
-    static NodeInfo nodeInfo(final Client client) {
-        final NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().get();
-        final NodeInfo[] nodes = nodeInfos.getNodes();
-        assertTrue(nodes.length > 0);
-        return nodes[0];
-    }
 }

@@ -106,12 +106,6 @@ public class CorsRegexTests extends ElasticsearchIntegrationTest {
         assertResponseWithOriginheader(response, "null");
     }
 
-    public static HttpRequestBuilder httpClient() {
-        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
-        InetSocketAddress address = ((InetSocketTransportAddress) httpServerTransport.boundAddress().publishAddress()).address();
-        return new HttpRequestBuilder(HttpClients.createDefault()).host(address.getHostName()).port(address.getPort());
-    }
-
     public static void assertResponseWithOriginheader(HttpResponse response, String expectedCorsHeader) {
         assertThat(response.getStatusCode(), is(200));
         assertThat(response.getHeaders(), hasKey("Access-Control-Allow-Origin"));

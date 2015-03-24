@@ -70,16 +70,16 @@ public class IndexAliasesFieldsTests extends ElasticsearchSingleNodeTest {
                 .setRefresh(true)
                 .get();
 
-        SearchResponse response = client().prepareSearch("test").setPostFilter(termFilter("field1", "value1").cache(true)).get();
+        SearchResponse response = client().prepareSearch("test").setPostFilter(termFilter("field1", "value1").cache(randomBoolean())).get();
         assertHitCount(response, 1);
-        response = client().prepareSearch("alias1").setPostFilter(termFilter("field1", "value1").cache(true)).get();
+        response = client().prepareSearch("alias1").setPostFilter(termFilter("field1", "value1").cache(randomBoolean())).get();
         assertHitCount(response, 0);
 
         client().admin().indices().prepareAliases().addAlias(new String[]{"test"}, "alias2", null, "field1").get();
 
-        response = client().prepareSearch("test").setPostFilter(termFilter("field2", "value2").cache(true)).get();
+        response = client().prepareSearch("test").setPostFilter(termFilter("field2", "value2").cache(randomBoolean())).get();
         assertHitCount(response, 1);
-        response = client().prepareSearch("alias2").setPostFilter(termFilter("field2", "value2").cache(true)).get();
+        response = client().prepareSearch("alias2").setPostFilter(termFilter("field2", "value2").cache(randomBoolean())).get();
         assertHitCount(response, 0);
     }
 

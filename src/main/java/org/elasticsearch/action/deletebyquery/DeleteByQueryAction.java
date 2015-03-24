@@ -23,7 +23,10 @@ import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 
 /**
+ * @deprecated Delete by query will be removed in 2.0.  Instead, use the scroll/scan API to find all matching IDs and then issue a bulk
+ * request to delete them.
  */
+@Deprecated
 public class DeleteByQueryAction extends ClientAction<DeleteByQueryRequest, DeleteByQueryResponse, DeleteByQueryRequestBuilder> {
 
     public static final DeleteByQueryAction INSTANCE = new DeleteByQueryAction();

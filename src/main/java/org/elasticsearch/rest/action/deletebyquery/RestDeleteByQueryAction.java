@@ -41,8 +41,10 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 /**
- *
+ * @deprecated Delete by query will be removed in 2.0.  Instead, use the scroll/scan API to find all matching IDs and then issue a bulk
+ * request to delete them.
  */
+@Deprecated
 public class RestDeleteByQueryAction extends BaseRestHandler {
 
     @Inject

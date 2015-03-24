@@ -32,8 +32,10 @@ import org.elasticsearch.index.query.QueryBuilder;
 import java.util.Map;
 
 /**
- *
+ * @deprecated Delete by query will be removed in 2.0.  Instead, use the scroll/scan API to find all matching IDs and then issue a bulk
+ * request to delete them.
  */
+@Deprecated
 public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequestBuilder<DeleteByQueryRequest, DeleteByQueryResponse, DeleteByQueryRequestBuilder> {
 
     private QuerySourceBuilder sourceBuilder;

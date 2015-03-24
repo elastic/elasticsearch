@@ -76,7 +76,8 @@ public class CustomSuggesterSearchTests extends ElasticsearchIntegrationTest {
 
         SearchResponse searchResponse = searchRequestBuilder.execute().actionGet();
 
-        List<Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestions = Lists.newArrayList(searchResponse.getSuggest().getSuggestion("someName").iterator());
+        // TODO: infer type once JI-9019884 is fixed
+        List<Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> suggestions = Lists.<Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>>newArrayList(searchResponse.getSuggest().getSuggestion("someName").iterator());
         assertThat(suggestions, hasSize(2));
         assertThat(suggestions.get(0).getText().string(), is(String.format(Locale.ROOT, "%s-%s-%s-12", randomText, randomField, randomSuffix)));
         assertThat(suggestions.get(1).getText().string(), is(String.format(Locale.ROOT, "%s-%s-%s-123", randomText, randomField, randomSuffix)));

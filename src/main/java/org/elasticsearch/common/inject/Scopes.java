@@ -112,8 +112,9 @@ public class Scopes {
 
         Scope scope = scoping.getScopeInstance();
 
+        // TODO: use diamond operator once JI-9019884 is fixed
         Provider<T> scoped
-                = scope.scope(key, new ProviderToInternalFactoryAdapter<>(injector, creator));
+                = scope.scope(key, new ProviderToInternalFactoryAdapter<T>(injector, creator));
         return new InternalFactoryToProviderAdapter<>(
                 Initializables.<Provider<? extends T>>of(scoped));
     }

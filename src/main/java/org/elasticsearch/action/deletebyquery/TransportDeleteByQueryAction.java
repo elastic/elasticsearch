@@ -39,7 +39,10 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
+ * @deprecated Delete by query will be removed in 2.0.  Instead, use the scroll/scan API to find all matching IDs and then issue a bulk
+ * request to delete them.
  */
+@Deprecated
 public class TransportDeleteByQueryAction extends TransportIndicesReplicationOperationAction<DeleteByQueryRequest, DeleteByQueryResponse, IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
 
     private final DestructiveOperations destructiveOperations;

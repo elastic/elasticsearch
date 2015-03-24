@@ -22,8 +22,10 @@ package org.elasticsearch.index.engine;
 import org.elasticsearch.index.shard.ShardId;
 
 /**
- *
+ * @deprecated Delete by query will be removed in 2.0.  Instead, use the scroll/scan API to find all matching IDs and then issue a bulk
+ * request to delete them.
  */
+@Deprecated
 public class DeleteByQueryFailedEngineException extends EngineException {
 
     public DeleteByQueryFailedEngineException(ShardId shardId, Engine.DeleteByQuery deleteByQuery, Throwable cause) {

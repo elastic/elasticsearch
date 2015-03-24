@@ -226,7 +226,11 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
      * @param request The delete by query request
      * @return The result future
      * @see Requests#deleteByQueryRequest(String...)
+     *
+     * @deprecated Delete by query will be removed in 2.0.  Instead, use the scroll/scan API to find all matching IDs and then issue a bulk
+     * request to delete them.
      */
+    @Deprecated
     ActionFuture<DeleteByQueryResponse> deleteByQuery(DeleteByQueryRequest request);
 
     /**
@@ -235,12 +239,20 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
      * @param request  The delete by query request
      * @param listener A listener to be notified with a result
      * @see Requests#deleteByQueryRequest(String...)
+     * 
+     * @deprecated Delete by query will be removed in 2.0.  Instead, use the scroll/scan API to find all matching IDs and then issue a bulk
+     * request to delete them.
      */
+    @Deprecated
     void deleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener);
 
     /**
      * Deletes all documents from one or more indices based on a query.
+     * 
+     * @deprecated Delete by query will be removed in 2.0.  Instead, use the scroll/scan API to find all matching IDs and then issue a bulk
+     * request to delete them.
      */
+    @Deprecated
     DeleteByQueryRequestBuilder prepareDeleteByQuery(String... indices);
 
     /**

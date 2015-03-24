@@ -40,7 +40,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * Delete by query request to execute on a specific shard.
+ *
+ * @deprecated Delete by query will be removed in 2.0.  Instead, use the scroll/scan API to find all matching IDs and then issue a bulk
+ * request to delete them.
  */
+@Deprecated
 public class ShardDeleteByQueryRequest extends ShardReplicationOperationRequest<ShardDeleteByQueryRequest> {
 
     private int shardId;

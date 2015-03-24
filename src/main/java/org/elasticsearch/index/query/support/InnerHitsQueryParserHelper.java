@@ -103,6 +103,17 @@ public class InnerHitsQueryParserHelper {
                 case "fielddata_fields":
                     fieldDataFieldsParseElement.parse(parser, subSearchContext);
                     break;
+                case "fields":
+                    boolean added = false;
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        String name = parser.text();
+                        added = true;
+                        subSearchContext.fieldNames().add(name);
+                    }
+                    if (!added) {
+                        subSearchContext.emptyFieldNames();
+                    }
+                    break;
                 default:
                     throw new ElasticsearchIllegalArgumentException("Unknown key for a " + token + " for nested query: [" + fieldName + "].");
             }
@@ -123,6 +134,9 @@ public class InnerHitsQueryParserHelper {
                     break;
                 case "explain":
                     subSearchContext.explain(parser.booleanValue());
+                    break;
+                case "fields":
+                    subSearchContext.fieldNames().add(parser.text());
                     break;
                 default:
                     throw new ElasticsearchIllegalArgumentException("Unknown key for a " + token + " for nested query: [" + fieldName + "].");

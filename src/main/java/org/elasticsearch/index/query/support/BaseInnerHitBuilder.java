@@ -83,6 +83,14 @@ public abstract class BaseInnerHitBuilder<T extends BaseInnerHitBuilder> impleme
     }
 
     /**
+     * Add a stored field to be loaded and returned with the inner hit.
+     */
+    public T field(String name) {
+        sourceBuilder().field(name);
+        return (T) this;
+    }
+
+    /**
      * Sets no fields to be loaded, resulting in only id and type to be returned per field.
      */
     public T setNoFields() {

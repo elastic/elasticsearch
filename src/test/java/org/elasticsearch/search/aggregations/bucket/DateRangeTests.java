@@ -119,7 +119,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertThat(range.getName(), equalTo("range"));
         assertThat(range.getBuckets().size(), equalTo(3));
 
-        List<DateRange.Bucket> buckets = new ArrayList<>(range.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<DateRange.Bucket> buckets = new ArrayList<DateRange.Bucket>(range.getBuckets());
 
         DateRange.Bucket bucket = buckets.get(0);
         assertThat(bucket.getKey(), equalTo("a long time ago"));
@@ -1130,7 +1131,8 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, Matchers.notNullValue());
 
         DateRange dateRange = bucket.getAggregations().get("date_range");
-        List<DateRange.Bucket> buckets = new ArrayList<>(dateRange.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<DateRange.Bucket> buckets = new ArrayList<DateRange.Bucket>(dateRange.getBuckets());
         assertThat(dateRange, Matchers.notNullValue());
         assertThat(dateRange.getName(), equalTo("date_range"));
         assertThat(buckets.size(), is(1));

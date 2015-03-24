@@ -630,7 +630,8 @@ public class DateHistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(4));
 
-        List<DateHistogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<DateHistogram.Bucket> buckets = new ArrayList<DateHistogram.Bucket>(histo.getBuckets());
 
         DateHistogram.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());

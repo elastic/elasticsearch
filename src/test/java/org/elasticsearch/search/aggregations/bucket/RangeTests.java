@@ -1075,7 +1075,8 @@ public class RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, Matchers.notNullValue());
 
         Range range = bucket.getAggregations().get("range");
-        List<Range.Bucket> buckets = new ArrayList<>(range.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<Range.Bucket> buckets = new ArrayList<Range.Bucket>(range.getBuckets());
         assertThat(range, Matchers.notNullValue());
         assertThat(range.getName(), equalTo("range"));
         assertThat(buckets.size(), is(1));

@@ -344,8 +344,14 @@ public class ThreadPool extends AbstractComponent {
                         int updatedSize = settings.getAsInt("size", previousInfo.getMax());
                         if (previousInfo.getMax() != updatedSize) {
                             logger.debug("updating thread_pool [{}], type [{}], size [{}], queue_size [{}]", name, type, updatedSize, updatedQueueSize);
-                            ((EsThreadPoolExecutor) previousExecutorHolder.executor()).setCorePoolSize(updatedSize);
-                            ((EsThreadPoolExecutor) previousExecutorHolder.executor()).setMaximumPoolSize(updatedSize);
+                            // if you think this code is crazy: that's because it is!
+                            if (updatedSize > previousInfo.getMax()) {
+                                ((EsThreadPoolExecutor) previousExecutorHolder.executor()).setMaximumPoolSize(updatedSize);
+                                ((EsThreadPoolExecutor) previousExecutorHolder.executor()).setCorePoolSize(updatedSize);
+                            } else {
+                                ((EsThreadPoolExecutor) previousExecutorHolder.executor()).setCorePoolSize(updatedSize);
+                                ((EsThreadPoolExecutor) previousExecutorHolder.executor()).setMaximumPoolSize(updatedSize);
+                            }
                             return new ExecutorHolder(previousExecutorHolder.executor(), new Info(name, type, updatedSize, updatedSize, null, updatedQueueSize));
                         }
                         return previousExecutorHolder;

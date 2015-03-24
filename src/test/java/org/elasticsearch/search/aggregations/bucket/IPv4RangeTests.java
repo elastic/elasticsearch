@@ -846,7 +846,8 @@ public class IPv4RangeTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, Matchers.notNullValue());
 
         IPv4Range range = bucket.getAggregations().get("ip_range");
-        List<IPv4Range.Bucket> buckets = new ArrayList<>(range.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<IPv4Range.Bucket> buckets = new ArrayList<IPv4Range.Bucket>(range.getBuckets());
         assertThat(range, Matchers.notNullValue());
         assertThat(range.getName(), equalTo("ip_range"));
         assertThat(buckets.size(), is(1));

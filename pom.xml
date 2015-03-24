@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
     <name>Elasticsearch Phonetic Analysis plugin</name>
     <description>The Phonetic Analysis plugin integrates phonetic token filter analysis with elasticsearch.</description>
-    <url>https://github.com/elasticsearch/elasticsearch-analysis-phonetic/</url>
+    <url>https://github.com/elastic/elasticsearch-analysis-phonetic/</url>
     <inceptionYear>2009</inceptionYear>
     <licenses>
         <license>
@@ -20,9 +20,9 @@
         </license>
     </licenses>
     <scm>
-        <connection>scm:git:git@github.com:elasticsearch/elasticsearch-analysis-phonetic.git</connection>
-        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-analysis-phonetic.git</developerConnection>
-        <url>http://github.com/elasticsearch/elasticsearch-analysis-phonetic</url>
+        <connection>scm:git:git@github.com:elastic/elasticsearch-analysis-phonetic.git</connection>
+        <developerConnection>scm:git:git@github.com:elastic/elasticsearch-analysis-phonetic.git</developerConnection>
+        <url>http://github.com/elastic/elasticsearch-analysis-phonetic</url>
     </scm>
 
     <parent>

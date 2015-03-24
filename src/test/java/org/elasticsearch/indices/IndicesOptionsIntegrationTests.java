@@ -630,46 +630,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         assertThat(client().admin().indices().prepareExists("bar").get().isExists(), equalTo(false));
         assertThat(client().admin().indices().prepareExists("barbaz").get().isExists(), equalTo(false));
     }
-
-    @Test
-    public void testDeleteMapping() throws Exception {
-        assertAcked(prepareCreate("foobar").addMapping("type1", "field", "type=string"));
-        ensureGreen();
-
-        verify(client().admin().indices().prepareDeleteMapping("foo").setType("type1"), true);
-        assertThat(client().admin().indices().prepareTypesExists("foobar").setTypes("type1").get().isExists(), equalTo(true));
-        verify(client().admin().indices().prepareDeleteMapping("foobar").setType("type1"), false);
-        assertThat(client().admin().indices().prepareTypesExists("foobar").setTypes("type1").get().isExists(), equalTo(false));
-    }
-
-    @Test
-    public void testDeleteMapping_wildcard() throws Exception {
-        verify(client().admin().indices().prepareDeleteMapping("_all").setType("type1"), true);
-
-        assertAcked(prepareCreate("foo").addMapping("type1", "field", "type=string"));
-        assertAcked(prepareCreate("foobar").addMapping("type1", "field", "type=string"));
-        assertAcked(prepareCreate("bar").addMapping("type1", "field", "type=string"));
-        assertAcked(prepareCreate("barbaz").addMapping("type1", "field", "type=string"));
-        // we wait for green to make sure indices with mappings have been created on all relevant
-        // nodes, and that recovery won't re-introduce a mapping
-        ensureGreen();
-
-        verify(client().admin().indices().prepareDeleteMapping("foo*").setType("type1"), false);
-        assertThat(client().admin().indices().prepareTypesExists("foo").setTypes("type1").get().isExists(), equalTo(false));
-        assertThat(client().admin().indices().prepareTypesExists("foobar").setTypes("type1").get().isExists(), equalTo(false));
-        assertThat(client().admin().indices().prepareTypesExists("bar").setTypes("type1").get().isExists(), equalTo(true));
-        assertThat(client().admin().indices().prepareTypesExists("barbaz").setTypes("type1").get().isExists(), equalTo(true));
-
-        assertAcked(client().admin().indices().prepareDelete("foo*"));
-
-        verify(client().admin().indices().prepareDeleteMapping("foo*").setType("type1"), true);
-
-        verify(client().admin().indices().prepareDeleteMapping("_all").setType("type1"), false);
-        assertThat(client().admin().indices().prepareTypesExists("bar").setTypes("type1").get().isExists(), equalTo(false));
-        assertThat(client().admin().indices().prepareTypesExists("barbaz").setTypes("type1").get().isExists(), equalTo(false));
-    }
-
-
+    
     @Test
     public void testPutWarmer() throws Exception {
         createIndex("foobar");
@@ -727,37 +688,7 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         assertThat(client().admin().indices().prepareAliasesExist("foobar_alias").setIndices("barbaz").get().exists(), equalTo(true));
         
     }
-    @Test
-    public void testDeleteMapping_typeWildcard() throws Exception {
-        verify(client().admin().indices().prepareDeleteMapping("_all").setType("type1"), true);
-
-        assertAcked(prepareCreate("foo").addMapping("type1", "field", "type=string"));
-        assertAcked(prepareCreate("foobar").addMapping("type2", "field", "type=string"));
-        assertAcked(prepareCreate("bar").addMapping("type3", "field", "type=string"));
-        assertAcked(prepareCreate("barbaz").addMapping("type4", "field", "type=string"));
-        
-        ensureGreen();
-
-        assertThat(client().admin().indices().prepareTypesExists("foo").setTypes("type1").get().isExists(), equalTo(true));
-        assertThat(client().admin().indices().prepareTypesExists("foobar").setTypes("type2").get().isExists(), equalTo(true));
-        assertThat(client().admin().indices().prepareTypesExists("bar").setTypes("type3").get().isExists(), equalTo(true));
-        assertThat(client().admin().indices().prepareTypesExists("barbaz").setTypes("type4").get().isExists(), equalTo(true));
-        
-        verify(client().admin().indices().prepareDeleteMapping("foo*").setType("type*"), false);
-        assertThat(client().admin().indices().prepareTypesExists("foo").setTypes("type1").get().isExists(), equalTo(false));
-        assertThat(client().admin().indices().prepareTypesExists("foobar").setTypes("type2").get().isExists(), equalTo(false));
-        assertThat(client().admin().indices().prepareTypesExists("bar").setTypes("type3").get().isExists(), equalTo(true));
-        assertThat(client().admin().indices().prepareTypesExists("barbaz").setTypes("type4").get().isExists(), equalTo(true));
-
-        assertAcked(client().admin().indices().prepareDelete("foo*"));
-
-        verify(client().admin().indices().prepareDeleteMapping("foo*").setType("type1"), true);
-
-        verify(client().admin().indices().prepareDeleteMapping("_all").setType("type3","type4"), false);
-        assertThat(client().admin().indices().prepareTypesExists("bar").setTypes("type3").get().isExists(), equalTo(false));
-        assertThat(client().admin().indices().prepareTypesExists("barbaz").setTypes("type4").get().isExists(), equalTo(false));
-    }
-
+    
     @Test
     public void testDeleteWarmer() throws Exception {
         IndexWarmersMetaData.Entry entry = new IndexWarmersMetaData.Entry(

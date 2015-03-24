@@ -56,9 +56,6 @@ import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequestBuilder;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.*;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequestBuilder;
@@ -437,29 +434,6 @@ public interface IndicesAdminClient extends ElasticsearchClient<IndicesAdminClie
      * Add mapping definition for a type into one or more indices.
      */
     PutMappingRequestBuilder preparePutMapping(String... indices);
-
-    /**
-     * Deletes mapping (and all its data) from one or more indices.
-     *
-     * @param request The delete mapping request
-     * @return A result future
-     * @see org.elasticsearch.client.Requests#deleteMappingRequest(String...)
-     */
-    ActionFuture<DeleteMappingResponse> deleteMapping(DeleteMappingRequest request);
-
-    /**
-     * Deletes mapping definition for a type into one or more indices.
-     *
-     * @param request  The delete mapping request
-     * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#deleteMappingRequest(String...)
-     */
-    void deleteMapping(DeleteMappingRequest request, ActionListener<DeleteMappingResponse> listener);
-
-    /**
-     * Deletes mapping definition for a type into one or more indices.
-     */
-    DeleteMappingRequestBuilder prepareDeleteMapping(String... indices);
 
     /**
      * Allows to add/remove aliases from indices.

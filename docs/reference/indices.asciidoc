@@ -24,7 +24,6 @@ and warmers.
 * <<indices-put-mapping>>
 * <<indices-get-mapping>>
 * <<indices-get-field-mapping>>
-* <<indices-delete-mapping>>
 * <<indices-types-exists>>
 
 [float]
@@ -81,8 +80,6 @@ include::indices/get-mapping.asciidoc[]
 include::indices/get-field-mapping.asciidoc[]
 
 include::indices/types-exists.asciidoc[]
-
-include::indices/delete-mapping.asciidoc[]
 
 include::indices/aliases.asciidoc[]
 

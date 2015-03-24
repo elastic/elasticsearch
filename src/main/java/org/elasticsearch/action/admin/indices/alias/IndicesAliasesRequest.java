@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.AliasAction;
 import org.elasticsearch.cluster.metadata.AliasAction.Type;
+import org.elasticsearch.cluster.metadata.AliasFieldsFiltering;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
@@ -118,8 +119,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             return this;
         }
 
-        public AliasActions fields(String... fields) {
-            aliasAction.fields(fields);
+        public AliasActions fieldsFiltering(AliasFieldsFiltering fieldsFiltering) {
+            aliasAction.fieldsFiltering(fieldsFiltering);
             return this;
         }
 
@@ -222,8 +223,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         return this;
     }
 
-    public IndicesAliasesRequest addAlias(String alias, String[] indices, String filter, String... fields) {
-        addAliasAction(new AliasActions(AliasAction.Type.ADD, indices, alias).filter(filter).fields(fields));
+    public IndicesAliasesRequest addAlias(String alias, String[] indices, String filter, AliasFieldsFiltering fieldsFiltering) {
+        addAliasAction(new AliasActions(AliasAction.Type.ADD, indices, alias).filter(filter).fieldsFiltering(fieldsFiltering));
         return this;
     }
 

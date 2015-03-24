@@ -565,7 +565,7 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Set<FieldMapper> aliasFields() {
+    public Set<FieldMapper<?>> aliasFields() {
         return in.aliasFields();
     }
 }

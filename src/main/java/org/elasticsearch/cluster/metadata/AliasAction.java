@@ -80,7 +80,7 @@ public class AliasAction implements Streamable {
     private String searchRouting;
 
     @Nullable
-    private String[] fields;
+    private AliasFieldsFiltering fieldsFiltering;
 
     private AliasAction() {
 
@@ -93,7 +93,7 @@ public class AliasAction implements Streamable {
         this.filter = other.filter;
         this.indexRouting = other.indexRouting;
         this.searchRouting = other.searchRouting;
-        this.fields = other.fields();
+        this.fieldsFiltering = other.fieldsFiltering;
     }
     
     public AliasAction(Type actionType) {
@@ -198,12 +198,12 @@ public class AliasAction implements Streamable {
         return aliasAction;
     }
 
-    public String[] fields() {
-        return fields;
+    public AliasFieldsFiltering fieldsFiltering() {
+        return fieldsFiltering;
     }
 
-    public void fields(String[] fields) {
-        this.fields = fields;
+    public void fieldsFiltering(AliasFieldsFiltering fields) {
+        this.fieldsFiltering = fields;
     }
 
     @Override
@@ -214,12 +214,7 @@ public class AliasAction implements Streamable {
         filter = in.readOptionalString();
         indexRouting = in.readOptionalString();
         searchRouting = in.readOptionalString();
-        String fields[] = in.readStringArray();
-        if (fields.length == 0) {
-            this.fields = null;
-        } else {
-            this.fields = fields;
-        }
+        fieldsFiltering = in.readOptionalStreamable(new AliasFieldsFiltering());
     }
 
     @Override
@@ -230,7 +225,7 @@ public class AliasAction implements Streamable {
         out.writeOptionalString(filter);
         out.writeOptionalString(indexRouting);
         out.writeOptionalString(searchRouting);
-        out.writeStringArrayNullable(fields);
+        out.writeOptionalStreamable(fieldsFiltering);
     }
 
     public static AliasAction newAddAliasAction(String index, String alias) {

@@ -174,7 +174,7 @@ public class DefaultSearchContext extends SearchContext {
 
     private InnerHitsContext innerHitsContext;
 
-    private Set<FieldMapper> aliasFields;
+    private Set<FieldMapper<?>> aliasFields;
 
     public DefaultSearchContext(long id, ShardSearchRequest request, SearchShardTarget shardTarget,
                          Engine.Searcher engineSearcher, IndexService indexService, IndexShard indexShard,
@@ -812,7 +812,7 @@ public class DefaultSearchContext extends SearchContext {
         return innerHitsContext;
     }
 
-    public Set<FieldMapper> aliasFields() {
+    public Set<FieldMapper<?>> aliasFields() {
         return aliasFields;
     }
 }

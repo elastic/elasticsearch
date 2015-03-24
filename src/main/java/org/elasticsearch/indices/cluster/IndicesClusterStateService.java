@@ -56,7 +56,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.gateway.IndexShardGatewayRecoveryException;
 import org.elasticsearch.index.gateway.IndexShardGatewayService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.IndexShard;
@@ -479,34 +478,24 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     private void processAliases(String index, ObjectContainer<AliasMetaData> aliases, IndexService indexService) {
         IndexAliasesService indexAliasesService = indexService.aliasesService();
-        MapperService mapperService = indexService.mapperService();
         HashMap<String, IndexAlias> newAliases = newHashMap();
         for (ObjectCursor<AliasMetaData> cursor : aliases) {
             AliasMetaData aliasMd = cursor.value;
             String alias = aliasMd.alias();
             CompressedString filter = aliasMd.filter();
-            final FieldMapper[] fields;
-            if (aliasMd.getFields() == null) {
-                fields = null;
-            } else {
-                fields = new FieldMapper[aliasMd.getFields().length];
-                for (int i = 0; i < fields.length; i++) {
-                    fields[i] = mapperService.smartNameFieldMapper(aliasMd.getFields()[i]);
-                }
-            }
             try {
                 if (!indexAliasesService.hasAlias(alias)) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}] adding alias [{}], filter [{}]", index, alias, filter);
                     }
-                    newAliases.put(alias, indexAliasesService.create(alias, filter, fields));
+                    newAliases.put(alias, indexAliasesService.create(alias, filter, aliasMd.getFieldsFiltering()));
                 } else {
                     if ((filter == null && indexAliasesService.alias(alias).filter() != null) ||
                             (filter != null && !filter.equals(indexAliasesService.alias(alias).filter()))) {
                         if (logger.isDebugEnabled()) {
                             logger.debug("[{}] updating alias [{}], filter [{}]", index, alias, filter);
                         }
-                        newAliases.put(alias, indexAliasesService.create(alias, filter, fields));
+                        newAliases.put(alias, indexAliasesService.create(alias, filter, aliasMd.getFieldsFiltering()));
                     }
                 }
             } catch (Throwable e) {

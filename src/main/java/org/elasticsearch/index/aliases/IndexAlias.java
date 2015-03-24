@@ -20,9 +20,9 @@
 package org.elasticsearch.index.aliases;
 
 import org.apache.lucene.search.Filter;
+import org.elasticsearch.cluster.metadata.AliasFieldsFiltering;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.compress.CompressedString;
-import org.elasticsearch.index.mapper.FieldMapper;
 
 /**
  *
@@ -35,13 +35,13 @@ public class IndexAlias {
 
     private Filter parsedFilter;
 
-    private FieldMapper[] fields;
+    private AliasFieldsFiltering fieldsFiltering;
 
-    public IndexAlias(String alias, @Nullable CompressedString filter, @Nullable Filter parsedFilter, @Nullable FieldMapper[] fields) {
+    public IndexAlias(String alias, @Nullable CompressedString filter, @Nullable Filter parsedFilter, @Nullable AliasFieldsFiltering fieldsFiltering) {
         this.alias = alias;
         this.filter = filter;
         this.parsedFilter = parsedFilter;
-        this.fields = fields;
+        this.fieldsFiltering = fieldsFiltering;
     }
 
     public String alias() {
@@ -58,7 +58,7 @@ public class IndexAlias {
         return parsedFilter;
     }
 
-    public FieldMapper[] getFields() {
-        return fields;
+    public AliasFieldsFiltering fieldFiltering() {
+        return fieldsFiltering;
     }
 }

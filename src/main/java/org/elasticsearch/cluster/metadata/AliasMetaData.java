@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedString;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -49,9 +48,9 @@ public class AliasMetaData {
 
     private final Set<String> searchRoutingValues;
 
-    private final String[] fields;
+    private final AliasFieldsFiltering fieldsFiltering;
 
-    private AliasMetaData(String alias, CompressedString filter, String indexRouting, String searchRouting, String[] fields) {
+    private AliasMetaData(String alias, CompressedString filter, String indexRouting, String searchRouting, AliasFieldsFiltering fieldsFiltering) {
         this.alias = alias;
         this.filter = filter;
         this.indexRouting = indexRouting;
@@ -61,11 +60,11 @@ public class AliasMetaData {
         } else {
             searchRoutingValues = ImmutableSet.of();
         }
-        this.fields = fields;
+        this.fieldsFiltering = fieldsFiltering;
     }
 
     private AliasMetaData(AliasMetaData aliasMetaData, String alias) {
-        this(alias, aliasMetaData.filter(), aliasMetaData.indexRouting(), aliasMetaData.searchRouting(), aliasMetaData.getFields());
+        this(alias, aliasMetaData.filter(), aliasMetaData.indexRouting(), aliasMetaData.searchRouting(), aliasMetaData.getFieldsFiltering());
     }
 
     public String alias() {
@@ -85,7 +84,7 @@ public class AliasMetaData {
     }
 
     public boolean filteringRequired() {
-        return filter != null || fields != null;
+        return filter != null || fieldsFiltering != null;
     }
 
     public String getSearchRouting() {
@@ -108,8 +107,8 @@ public class AliasMetaData {
         return searchRoutingValues;
     }
 
-    public String[] getFields() {
-        return fields;
+    public AliasFieldsFiltering getFieldsFiltering() {
+        return fieldsFiltering;
     }
 
     public static Builder builder(String alias) {
@@ -136,7 +135,7 @@ public class AliasMetaData {
 
         if (alias != null ? !alias.equals(that.alias) : that.alias != null) return false;
         if (filter != null ? !filter.equals(that.filter) : that.filter != null) return false;
-        if (fields != null ? !Arrays.equals(fields, that.fields) : that.fields != null) return false;
+        if (fieldsFiltering != null ? !fieldsFiltering.equals(that.fieldsFiltering) : that.fieldsFiltering != null) return false;
         if (indexRouting != null ? !indexRouting.equals(that.indexRouting) : that.indexRouting != null) return false;
         if (searchRouting != null ? !searchRouting.equals(that.searchRouting) : that.searchRouting != null)
             return false;
@@ -150,7 +149,7 @@ public class AliasMetaData {
         result = 31 * result + (filter != null ? filter.hashCode() : 0);
         result = 31 * result + (indexRouting != null ? indexRouting.hashCode() : 0);
         result = 31 * result + (searchRouting != null ? searchRouting.hashCode() : 0);
-        result = 31 * result + (fields != null ? Arrays.hashCode(fields) : 0);
+        result = 31 * result + (fieldsFiltering != null ? fieldsFiltering.hashCode() : 0);
         return result;
     }
 
@@ -164,7 +163,7 @@ public class AliasMetaData {
 
         private String searchRouting;
 
-        private String[] fields;
+        private AliasFieldsFiltering fieldsFiltering;
 
         public Builder(String alias) {
             this.alias = alias;
@@ -239,13 +238,13 @@ public class AliasMetaData {
             return this;
         }
 
-        public Builder fields(String[] fields) {
-            this.fields = fields;
+        public Builder fieldsFiltering(AliasFieldsFiltering fieldsFiltering) {
+            this.fieldsFiltering = fieldsFiltering;
             return this;
         }
 
         public AliasMetaData build() {
-            return new AliasMetaData(alias, filter, indexRouting, searchRouting, fields);
+            return new AliasMetaData(alias, filter, indexRouting, searchRouting, fieldsFiltering);
         }
 
         public static void toXContent(AliasMetaData aliasMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -270,12 +269,8 @@ public class AliasMetaData {
             if (aliasMetaData.searchRouting() != null) {
                 builder.field("search_routing", aliasMetaData.searchRouting());
             }
-            if (aliasMetaData.getFields() != null) {
-                builder.startArray("fields");
-                for (String field : aliasMetaData.fields) {
-                    builder.value(field);
-                }
-                builder.endArray();
+            if (aliasMetaData.getFieldsFiltering() != null) {
+                aliasMetaData.getFieldsFiltering().toXContent(builder, params);
             }
 
             builder.endObject();
@@ -297,6 +292,8 @@ public class AliasMetaData {
                     if ("filter".equals(currentFieldName)) {
                         Map<String, Object> filter = parser.mapOrdered();
                         builder.filter(filter);
+                    } else if ("fields".equals(currentFieldName)) {
+                        builder.fieldsFiltering(AliasFieldsFiltering.fromXContext(parser));
                     }
                 } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
                     if ("filter".equals(currentFieldName)) {
@@ -310,16 +307,6 @@ public class AliasMetaData {
                     } else if ("search_routing".equals(currentFieldName) || "searchRouting".equals(currentFieldName)) {
                         builder.searchRouting(parser.text());
                     }
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    List<String> fields = new ArrayList<>();
-                    while(parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        if(parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                            fields.add(parser.text());
-                        } else {
-                            throw new ElasticsearchParseException("Numeric value expected");
-                        }
-                    }
-                    builder.fields(fields.toArray(new String[0]));
                 }
             }
             return builder.build();
@@ -345,8 +332,7 @@ public class AliasMetaData {
             } else {
                 out.writeBoolean(false);
             }
-            out.writeStringArrayNullable(aliasMetaData.fields);
-
+            out.writeOptionalStreamable(aliasMetaData.fieldsFiltering);
         }
 
         public static AliasMetaData readFrom(StreamInput in) throws IOException {
@@ -363,11 +349,8 @@ public class AliasMetaData {
             if (in.readBoolean()) {
                 searchRouting = in.readString();
             }
-            String[] fields = in.readStringArray();
-            if (fields.length == 0) {
-                fields = null;
-            }
-            return new AliasMetaData(alias, filter, indexRouting, searchRouting, fields);
+            AliasFieldsFiltering fieldsFiltering = in.readOptionalStreamable(new AliasFieldsFiltering());
+            return new AliasMetaData(alias, filter, indexRouting, searchRouting, fieldsFiltering);
         }
     }
 

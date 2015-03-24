@@ -409,15 +409,15 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             aliasValidator.validateAliasFilter(alias.name(), alias.filter(), indexQueryParserService);
                         }
                         if (alias.fields() != null) {
-                            aliasValidator.validateAliasFields(alias.fields(), mapperService);
+                            aliasValidator.validateAliasFieldsFiltering(alias.fields(), mapperService);
                         }
                     }
                     for (AliasMetaData aliasMetaData : templatesAliases.values()) {
                         if (aliasMetaData.filter() != null) {
                             aliasValidator.validateAliasFilter(aliasMetaData.alias(), aliasMetaData.filter().uncompressed(), indexQueryParserService);
                         }
-                        if (aliasMetaData.getFields() != null) {
-                            aliasValidator.validateAliasFields(aliasMetaData.getFields(), mapperService);
+                        if (aliasMetaData.getFieldsFiltering() != null) {
+                            aliasValidator.validateAliasFieldsFiltering(aliasMetaData.getFieldsFiltering(), mapperService);
                         }
                     }
 
@@ -439,7 +439,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     for (Alias alias : request.aliases()) {
                         AliasMetaData aliasMetaData = AliasMetaData.builder(alias.name()).filter(alias.filter())
                                 .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting())
-                                .fields(alias.fields()).build();
+                                .fieldsFiltering(alias.fields()).build();
                         indexMetaDataBuilder.putAlias(aliasMetaData);
                     }
 

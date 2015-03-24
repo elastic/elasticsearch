@@ -609,7 +609,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Set<FieldMapper> aliasFields() {
+    public Set<FieldMapper<?>> aliasFields() {
         return null;
     }
 }

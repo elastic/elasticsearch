@@ -219,6 +219,7 @@ curl -XDELETE localhost:9200/_scripts/groovy/indexedCalculateScore
 -----------------------------------
 
 [float]
+[[enable-dynamic-scripting]]
 === Enabling dynamic scripting
 
 We recommend running Elasticsearch behind an application or proxy, which
@@ -236,7 +237,9 @@ application inbetween. If you *do* intend to expose Elasticsearch directly to
 your users, then you have to decide whether you trust them enough to run scripts
 on your box or not.
 
-deprecated[1.5.0, the `script.disable_dynamic` setting is deprecated in favour of fine-grained settings described as follows]
+deprecated[1.6.0, the `script.disable_dynamic` setting is deprecated in favour of fine-grained settings described as follows]
+
+coming[1.6.0]
 
 It is possible to enable scripts based on their source, for
 every script engine, through the following settings that need to be added to the
@@ -276,7 +279,7 @@ script.file: on
 
 -----------------------------------
 
-NOTE: Generic scripting settings affect the `mustache` scripting language from
+NOTE: Global scripting settings affect the `mustache` scripting language from
 `1.5.0` on, as opposed to previous versions where `mustache` scripts were
 always allowed regardless of whether dynamic scripts are disabled or not.
 <<search-template,Search templates>> internally use the `mustache` language,
@@ -315,18 +318,18 @@ precedence over any other generic settings.
 
 [source,yaml]
 -----------------------------------
-script.engine.groovy.inline.aggs: sandbox
-script.engine.groovy.inline.mapping: off
-script.engine.groovy.inline.search: sandbox
-script.engine.groovy.inline.update: off
 script.engine.groovy.file.aggs: on
 script.engine.groovy.file.mapping: on
 script.engine.groovy.file.search: on
 script.engine.groovy.file.update: on
-script.engine.groovy.indexed.aggs: sandbox
+script.engine.groovy.indexed.aggs: on
 script.engine.groovy.indexed.mapping: off
-script.engine.groovy.indexed.search: sandbox
+script.engine.groovy.indexed.search: on
 script.engine.groovy.indexed.update: off
+script.engine.groovy.inline.aggs: on
+script.engine.groovy.inline.mapping: off
+script.engine.groovy.inline.search: off
+script.engine.groovy.inline.update: off
 
 -----------------------------------
 

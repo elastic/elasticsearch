@@ -48,7 +48,7 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
         builder.put("script.engine.groovy.indexed.update", "off");
         builder.put("script.engine.groovy.indexed.search", "on");
         builder.put("script.engine.groovy.indexed.aggs", "on");
-        builder.put("script.engine.groovy.dynamic.aggs", "off");
+        builder.put("script.engine.groovy.inline.aggs", "off");
         builder.put("script.engine.expression.indexed.update", "off");
         builder.put("script.engine.expression.indexed.search", "off");
         builder.put("script.engine.expression.indexed.aggs", "off");

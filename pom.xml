@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
     <name>Elasticsearch Japanese (kuromoji) Analysis plugin</name>
     <description>The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.</description>
-    <url>https://github.com/elasticsearch/elasticsearch-analysis-kuromoji/</url>
+    <url>https://github.com/elastic/elasticsearch-analysis-kuromoji/</url>
     <inceptionYear>2009</inceptionYear>
     <licenses>
         <license>
@@ -20,9 +20,9 @@
         </license>
     </licenses>
     <scm>
-        <connection>scm:git:git@github.com:elasticsearch/elasticsearch-analysis-kuromoji.git</connection>
-        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-analysis-kuromoji.git</developerConnection>
-        <url>http://github.com/elasticsearch/elasticsearch-analysis-kuromoji</url>
+        <connection>scm:git:git@github.com:elastic/elasticsearch-analysis-kuromoji.git</connection>
+        <developerConnection>scm:git:git@github.com:elastic/elasticsearch-analysis-kuromoji.git</developerConnection>
+        <url>http://github.com/elastic/elasticsearch-analysis-kuromoji</url>
     </scm>
 
     <parent>

@@ -35,7 +35,11 @@ import java.util.List;
 
 /**
  * Internal transport action that broadcasts a delete by query request to all of the shards that belong to an index.
+ *
+ * @deprecated Delete by query will be removed in 2.0.  Instead, use the scroll/scan API to find all matching IDs and then issue a bulk
+ * request to delete them.
  */
+@Deprecated
 public class TransportIndexDeleteByQueryAction extends TransportIndexReplicationOperationAction<IndexDeleteByQueryRequest, IndexDeleteByQueryResponse, ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
 
     private static final String ACTION_NAME = DeleteByQueryAction.NAME + "[index]";

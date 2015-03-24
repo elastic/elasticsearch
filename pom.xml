@@ -490,7 +490,7 @@
                             <jvmArgs>
                                 <param>-Xmx${tests.heap.size}</param>
                                 <param>-Xms${tests.heap.size}</param>
-                                <param>-XX:MaxPermSize=128m</param>
+                                <param>${java.permGenSpace}</param>
                                 <param>-XX:MaxDirectMemorySize=512m</param>
                                 <param>-Des.logger.prefix=</param>
                                 <param>-XX:+HeapDumpOnOutOfMemoryError</param>
@@ -569,6 +569,22 @@
                         </configuration>
                     </execution>
                     <execution>
+                        <id>set-permGen</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <!-- if we are on java 1.7.* we set perm gen space since some tests need it otherwise we just inject a dummy value -->
+                                <condition property="java.permGenSpace" value="-XX:MaxPermSize=128m" else="-Dsome.dummy.value=" >
+                                    <matches pattern="1\.7\..+$" string="${java.runtime.version}" />
+                                </condition>
+                            </target>
+                            <exportAntProperties>true</exportAntProperties>
+                        </configuration>
+                    </execution>
+                    <execution>
                         <id>invalid-patterns</id>
                         <phase>validate</phase>
                         <goals>
@@ -604,10 +620,10 @@
                         <phase>generate-test-resources</phase>
                         <id>create-heapdump-directory</id>
                         <configuration>
-                            <tasks>
+                            <target>
                                 <echo message="Creating heapdump directory"/>
                                 <mkdir dir="${tests.heapdump.path}"/>
-                            </tasks>
+                            </target>
                         </configuration>
                         <goals>
                             <goal>run</goal>

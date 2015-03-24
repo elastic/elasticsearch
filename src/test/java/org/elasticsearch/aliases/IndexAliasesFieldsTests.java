@@ -28,6 +28,11 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -182,6 +187,59 @@ public class IndexAliasesFieldsTests extends ElasticsearchSingleNodeTest {
         assertThat(((Terms) response.getAggregations().get("_name")).getBucketByKey("value2").getDocCount(), equalTo(1l));
         response = client().prepareSearch("alias2").addAggregation(AggregationBuilders.terms("_name").field("field2")).get();
         assertThat(((Terms) response.getAggregations().get("_name")).getBucketByKey("value2"), nullValue());
+    }
+
+    @Test
+    public void testRandom() throws Exception {
+        int numFields = scaledRandomIntBetween(5, 50);
+        String[] fields = new String[numFields];
+        Set<String> includes = new HashSet<>();
+        Set<String> excludes = new HashSet<>();
+        Map<String, Object> doc = new HashMap<>();
+        int j = 0;
+        for (int i = 0; i < fields.length; i++) {
+            fields[i] = "field" + i;
+            if (i % 2 == 0) {
+                includes.add(fields[i]);
+            } else {
+                excludes.add(fields[i]);
+            }
+            doc.put(fields[i], String.valueOf(j++));
+        }
+
+        String[] fieldMappers = new String[fields.length * 2];
+        j = 0;
+        for (String field : fields) {
+            fieldMappers[j++] = field;
+            fieldMappers[j++] = "type=string";
+        }
+
+        createIndex("test", client().admin().indices().prepareCreate("test")
+                        .addMapping("type1", fieldMappers)
+                        .addAlias(new Alias("alias1").includeFields(includes.toArray(new String[0])))
+                        .addAlias(new Alias("alias2").excludeFields(includes.toArray(new String[0])))
+        );
+        client().prepareIndex("test", "type1", "1").setSource(doc).setRefresh(true).get();
+
+        // test alias1 --> include fields should yield a match
+        for (String include : includes) {
+            SearchResponse response = client().prepareSearch("alias1").setQuery(matchQuery(include, doc.get(include))).get();
+            assertHitCount(response, 1);
+        }
+        for (String exclude : excludes) {
+            SearchResponse response = client().prepareSearch("alias1").setQuery(matchQuery(exclude, doc.get(exclude))).get();
+            assertHitCount(response, 0);
+        }
+
+        // test alias2 --> exclude fields should yield a match
+        for (String include : includes) {
+            SearchResponse response = client().prepareSearch("alias2").setQuery(matchQuery(include, doc.get(include))).get();
+            assertHitCount(response, 0);
+        }
+        for (String exclude : excludes) {
+            SearchResponse response = client().prepareSearch("alias2").setQuery(matchQuery(exclude, doc.get(exclude))).get();
+            assertHitCount(response, 1);
+        }
     }
 
 }

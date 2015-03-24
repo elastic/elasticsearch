@@ -27,11 +27,12 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -72,7 +73,9 @@ public class SignificantTermsBackwardCompatibilityTests extends ElasticsearchBac
     }
 
     private void index01Docs(String type, String settings) throws ExecutionException, InterruptedException {
-        String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"" + type + "\"}}}}";
+        String mappings = "{\"doc\": {\"properties\":{\"" + TEXT_FIELD + "\": {\"type\":\"" + type
+ + "\"},\"" + CLASS_FIELD
+                + "\": {\"type\":\"string\"}}}}";
         assertAcked(prepareCreate(INDEX_NAME).setSettings(settings).addMapping("doc", mappings));
         String[] gb = {"0", "1"};
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();

@@ -9,7 +9,7 @@
     <packaging>jar</packaging>
     <name>Elasticsearch ICU Analysis plugin</name>
     <description>The ICU Analysis plugin integrates Lucene ICU module into elasticsearch, adding ICU relates analysis components.</description>
-    <url>https://github.com/elasticsearch/elasticsearch-analysis-icu/</url>
+    <url>https://github.com/elastic/elasticsearch-analysis-icu/</url>
     <inceptionYear>2009</inceptionYear>
     <licenses>
         <license>
@@ -19,10 +19,10 @@
         </license>
     </licenses>
     <scm>
-        <connection>scm:git:git@github.com:elasticsearch/elasticsearch-analysis-icu.git</connection>
-        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-analysis-icu.git
+        <connection>scm:git:git@github.com:elastic/elasticsearch-analysis-icu.git</connection>
+        <developerConnection>scm:git:git@github.com:elastic/elasticsearch-analysis-icu.git
         </developerConnection>
-        <url>http://github.com/elasticsearch/elasticsearch-analysis-icu</url>
+        <url>http://github.com/elastic/elasticsearch-analysis-icu</url>
     </scm>
 
     <parent>

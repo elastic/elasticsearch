@@ -294,7 +294,10 @@ public class FetchPhase implements SearchPhase {
             SearchHit.NestedIdentity nested = nestedIdentity;
             do {
                 Object extractedValue = XContentMapValues.extractValue(nested.getField().string(), sourceAsMap);
-                if (extractedValue instanceof List) {
+                if (extractedValue == null) {
+                    // The nested objects may not exist in the _source, because it was filtered because of _source filtering
+                    break;
+                } else if (extractedValue instanceof List) {
                     // nested field has an array value in the _source
                     nestedParsedSource = (List<Map<String, Object>>) extractedValue;
                 } else if (extractedValue instanceof Map) {

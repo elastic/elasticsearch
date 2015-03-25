@@ -7,16 +7,11 @@ package org.elasticsearch.watcher.condition.script;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
-import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.support.Script;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.watcher.test.AbstractWatcherSingleNodeTests;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
@@ -29,6 +24,11 @@ import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.watcher.support.Script;
+import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.watcher.watch.WatchExecutionContext;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -42,7 +42,7 @@ import static org.mockito.Mockito.when;
 
 /**
  */
-public class ScriptConditionSearchTests extends AbstractWatcherSingleNodeTests {
+public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTests {
 
     private ThreadPool tp = null;
     private ScriptServiceProxy scriptService;
@@ -67,8 +67,10 @@ public class ScriptConditionSearchTests extends AbstractWatcherSingleNodeTests {
 
     @Test
     public void testExecute_withAggs() throws Exception {
-        createIndex("my-index", client().admin().indices().prepareCreate("my-index")
-                .addMapping("my-type", "_timestamp", "enabled=true"));
+
+        client().admin().indices().prepareCreate("my-index")
+                .addMapping("my-type", "_timestamp", "enabled=true")
+                .get();
 
         client().prepareIndex("my-index", "my-type").setTimestamp("2005-01-01T00:00").setSource("{}").get();
         client().prepareIndex("my-index", "my-type").setTimestamp("2005-01-01T00:10").setSource("{}").get();

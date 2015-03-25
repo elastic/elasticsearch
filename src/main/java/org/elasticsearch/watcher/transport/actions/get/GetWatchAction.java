@@ -14,7 +14,7 @@ import org.elasticsearch.client.Client;
 public class GetWatchAction extends WatcherAction<GetWatchRequest, GetWatchResponse, GetWatchRequestBuilder> {
 
     public static final GetWatchAction INSTANCE = new GetWatchAction();
-    public static final String NAME = "indices:data/read/watch/get";
+    public static final String NAME = "cluster:monitor/watcher/watch/get";
 
     private GetWatchAction() {
         super(NAME);

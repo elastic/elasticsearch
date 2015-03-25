@@ -8,7 +8,6 @@ package org.elasticsearch.watcher.history;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -26,7 +25,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -43,6 +41,7 @@ import org.junit.Test;
 
 import java.util.Collection;
 
+import static org.elasticsearch.watcher.test.WatcherMatchers.indexRequest;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.IsEqual.equalTo;
@@ -76,21 +75,13 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         when(watch.metadata()).thenReturn(null);
         WatchRecord watchRecord = new WatchRecord(watch, new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
 
-        IndexRequestBuilder builder = mock(IndexRequestBuilder.class);
-        when(builder.setSource(any(XContentBuilder.class))).thenReturn(builder);
-        when(builder.setOpType(IndexRequest.OpType.CREATE)).thenReturn(builder);
         IndexResponse indexResponse = mock(IndexResponse.class);
         long version = randomLong();
         when(indexResponse.getVersion()).thenReturn(version);
-        when(builder.get()).thenReturn(indexResponse);
 
-        when(clientProxy.prepareIndex(".watch_history_1970-01-01", HistoryStore.DOC_TYPE, "_name#1970-01-01T00:00:00.000Z")).thenReturn(builder);
+        when(clientProxy.index(indexRequest(".watch_history_1970-01-01", HistoryStore.DOC_TYPE, "_name#1970-01-01T00:00:00.000Z", IndexRequest.OpType.CREATE))).thenReturn(indexResponse);
         historyStore.put(watchRecord);
         assertThat(watchRecord.version(), equalTo(version));
-
-        verify(builder, times(1)).setSource(any(XContentBuilder.class));
-        verify(builder, times(1)).setOpType(IndexRequest.OpType.CREATE);
-        verify(clientProxy, times(1)).prepareIndex(".watch_history_1970-01-01", HistoryStore.DOC_TYPE, "_name#1970-01-01T00:00:00.000Z");
     }
 
     @Test
@@ -103,21 +94,13 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         WatchRecord watchRecord = new WatchRecord(watch, new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
         watchRecord.version(4l);
 
-        IndexRequestBuilder builder = mock(IndexRequestBuilder.class);
-        when(builder.setSource(any(BytesReference.class))).thenReturn(builder);
-        when(builder.setVersion(4l)).thenReturn(builder);
         IndexResponse indexResponse = mock(IndexResponse.class);
         long version = randomLong();
         when(indexResponse.getVersion()).thenReturn(version);
-        when(builder.get()).thenReturn(indexResponse);
 
-        when(clientProxy.prepareIndex(".watch_history_1970-01-01", HistoryStore.DOC_TYPE, "_name#1970-01-01T00:00:00.000Z")).thenReturn(builder);
+        when(clientProxy.index(indexRequest(".watch_history_1970-01-01", HistoryStore.DOC_TYPE, "_name#1970-01-01T00:00:00.000Z", 4L, null))).thenReturn(indexResponse);
         historyStore.update(watchRecord);
         assertThat(watchRecord.version(), equalTo(version));
-
-        verify(builder, times(1)).setSource(any(BytesReference.class));
-        verify(builder, times(1)).setVersion(4l);
-        verify(clientProxy, times(1)).prepareIndex(".watch_history_1970-01-01", HistoryStore.DOC_TYPE, "_name#1970-01-01T00:00:00.000Z");
     }
 
     @Test

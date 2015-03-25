@@ -14,7 +14,7 @@ import org.elasticsearch.client.Client;
 public class AckWatchAction extends WatcherAction<AckWatchRequest, AckWatchResponse, AckWatchRequestBuilder> {
 
     public static final AckWatchAction INSTANCE = new AckWatchAction();
-    public static final String NAME = "indices:data/write/watch/ack";
+    public static final String NAME = "cluster:admin/watcher/watch/ack";
 
     private AckWatchAction() {
         super(NAME);

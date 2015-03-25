@@ -9,14 +9,15 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutIndexTemplateAction;
-import org.elasticsearch.common.base.Charsets;
-import org.elasticsearch.watcher.watch.WatchStore;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
+import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.watcher.shield.ShieldIntegration;
+import org.elasticsearch.watcher.watch.WatchStore;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -31,12 +32,14 @@ public class TemplateUtils extends AbstractComponent {
 
     private final static Pattern TEMPLATE_VERSION_PATTERN = Pattern.compile("watcher.template_version\"\\s*:\\s*\"?(\\d+)\"?");
 
-    private final TransportPutIndexTemplateAction transportPutIndexTemplateAction;
+    private final ShieldIntegration shieldIntegration;
+    private final TransportPutIndexTemplateAction action;
 
     @Inject
-    public TemplateUtils(Settings settings, TransportPutIndexTemplateAction transportPutIndexTemplateAction) {
+    public TemplateUtils(Settings settings, TransportPutIndexTemplateAction action, ShieldIntegration shieldIntegration) {
         super(settings);
-        this.transportPutIndexTemplateAction = transportPutIndexTemplateAction;
+        this.action = action;
+        this.shieldIntegration = shieldIntegration;
     }
 
     /**
@@ -83,8 +86,10 @@ public class TemplateUtils extends AbstractComponent {
             }
 
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(templateName).source(template);
+            shieldIntegration.bindWatcherUser(request);
+
             // We're already running on the master and TransportPutIndexTemplateAction#executor() is SAME, so it is ok to wait:
-            ActionFuture<PutIndexTemplateResponse> future = transportPutIndexTemplateAction.execute(request);
+            ActionFuture<PutIndexTemplateResponse> future = action.execute(request);
             PutIndexTemplateResponse response = future.actionGet();
         } catch (IOException e) {
             // if we're not sure of the template, we can't send data... re-raise exception.

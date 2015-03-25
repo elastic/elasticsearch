@@ -6,8 +6,11 @@
 package org.elasticsearch.watcher.test.integration;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.watch.WatchStore;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.scheduler.schedule.IntervalSchedule;
@@ -16,12 +19,15 @@ import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.watcher.watch.WatchStore;
 import org.junit.Test;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
+import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilder.watchSourceBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
@@ -30,12 +36,6 @@ import static org.elasticsearch.watcher.scheduler.schedule.Schedules.cron;
 import static org.elasticsearch.watcher.scheduler.schedule.Schedules.interval;
 import static org.elasticsearch.watcher.support.Variables.*;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.newInputSearchRequest;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.rangeFilter;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
 /**

@@ -5,11 +5,18 @@
  */
 package org.elasticsearch.watcher.test;
 
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
-import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Actions;
 import org.elasticsearch.watcher.actions.email.EmailAction;
@@ -22,23 +29,19 @@ import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.input.search.SearchInput;
 import org.elasticsearch.watcher.scheduler.schedule.CronSchedule;
-import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.Script;
+import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.template.ScriptTemplate;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.transform.SearchTransform;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.watcher.watch.Watch;
+import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.hamcrest.Description;
+import org.hamcrest.TypeSafeMatcher;
 
 import javax.mail.internet.AddressException;
 import java.util.ArrayList;
@@ -149,4 +152,5 @@ public final class WatcherTestUtils {
                 new TimeValue(0),
                 new Watch.Status());
     }
+
 }

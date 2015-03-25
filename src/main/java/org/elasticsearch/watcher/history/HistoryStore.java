@@ -60,10 +60,10 @@ public class HistoryStore extends AbstractComponent {
     public void put(WatchRecord watchRecord) throws HistoryException {
         String index = getHistoryIndexNameForTime(watchRecord.scheduledTime());
         try {
-            IndexResponse response = client.prepareIndex(index, DOC_TYPE, watchRecord.id())
-                    .setSource(XContentFactory.jsonBuilder().value(watchRecord))
-                    .setOpType(IndexRequest.OpType.CREATE)
-                    .get();
+            IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id())
+                    .source(XContentFactory.jsonBuilder().value(watchRecord))
+                    .opType(IndexRequest.OpType.CREATE);
+            IndexResponse response = client.index(request);
             watchRecord.version(response.getVersion());
         } catch (IOException e) {
             throw new HistoryException("failed to persist watch record [" + watchRecord + "]", e);
@@ -74,10 +74,10 @@ public class HistoryStore extends AbstractComponent {
         logger.debug("updating watch record [{}]...", watchRecord);
         try {
             BytesReference bytes = XContentFactory.jsonBuilder().value(watchRecord).bytes();
-            IndexResponse response = client.prepareIndex(getHistoryIndexNameForTime(watchRecord.scheduledTime()), DOC_TYPE, watchRecord.id())
-                    .setSource(bytes)
-                    .setVersion(watchRecord.version())
-                    .get();
+            IndexRequest request = new IndexRequest(getHistoryIndexNameForTime(watchRecord.scheduledTime()), DOC_TYPE, watchRecord.id())
+                    .source(bytes, true)
+                    .version(watchRecord.version());
+            IndexResponse response = client.index(request);
             watchRecord.version(response.getVersion());
             logger.debug("successfully updated watch record [{}]", watchRecord);
         } catch (IOException e) {

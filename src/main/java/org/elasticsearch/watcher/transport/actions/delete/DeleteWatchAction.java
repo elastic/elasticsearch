@@ -14,7 +14,7 @@ import org.elasticsearch.client.Client;
 public class DeleteWatchAction extends WatcherAction<DeleteWatchRequest, DeleteWatchResponse, DeleteWatchRequestBuilder> {
 
     public static final DeleteWatchAction INSTANCE = new DeleteWatchAction();
-    public static final String NAME = "indices:data/write/watch/delete";
+    public static final String NAME = "cluster:admin/watcher/watch/delete";
 
     private DeleteWatchAction() {
         super(NAME);

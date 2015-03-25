@@ -14,7 +14,7 @@ import org.elasticsearch.client.Client;
 public class WatcherStatsAction extends WatcherAction<WatcherStatsRequest, WatcherStatsResponse, WatcherStatsRequestBuilder> {
 
     public static final WatcherStatsAction INSTANCE = new WatcherStatsAction();
-    public static final String NAME = "cluster/watcher/stats";
+    public static final String NAME = "cluster:monitor/watcher/stats";
 
     private WatcherStatsAction() {
         super(NAME);

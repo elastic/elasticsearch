@@ -12,7 +12,7 @@ import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.watcher.support.clock.SystemClock;
-import org.elasticsearch.watcher.test.AbstractWatcherSingleNodeTests;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.watch.Watch;
 import org.junit.Test;
 
@@ -22,12 +22,12 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
-public class HistoryStoreLifeCycleTest extends AbstractWatcherSingleNodeTests {
+public class HistoryStoreLifeCycleTest extends AbstractWatcherIntegrationTests {
 
     @Test
     public void testPutLoadUpdate() throws Exception {
         Condition condition = new AlwaysTrueCondition(logger);
-        HistoryStore historyStore = getInstanceFromNode(HistoryStore.class);
+        HistoryStore historyStore = getInstanceFromMaster(HistoryStore.class);
         Watch watch = new Watch("_name", SystemClock.INSTANCE, null, null, condition, null, null, null, null, null);
 
         // Put watch records and verify that these are stored
@@ -43,7 +43,7 @@ public class HistoryStoreLifeCycleTest extends AbstractWatcherSingleNodeTests {
         }
 
         // Load the stored watch records
-        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        ClusterService clusterService = getInstanceFromMaster(ClusterService.class);
         Collection<WatchRecord> records = historyStore.loadRecords(clusterService.state(), WatchRecord.State.AWAITS_EXECUTION);
         assertThat(records, notNullValue());
         assertThat(records, hasSize(watchRecords.length));

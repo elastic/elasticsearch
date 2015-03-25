@@ -19,6 +19,8 @@
         <elasticsearch.version>1.5.0</elasticsearch.version>
         <lucene.maven.version>4.10.4</lucene.maven.version>
         <lucene.version>4.10.4</lucene.version>
+        <shield.version>1.2.1-SNAPSHOT</shield.version>
+        <license.version>1.0.0</license.version>
 
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>
@@ -42,13 +44,6 @@
             <groupId>org.subethamail</groupId>
             <artifactId>subethasmtp</artifactId>
             <version>3.1.7</version>
-            <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>com.google.apis</groupId>
-            <artifactId>google-api-services-gmail</artifactId>
-            <version>v1-rev23-1.19.1</version>
             <scope>test</scope>
         </dependency>
 
@@ -109,20 +104,27 @@
             <scope>test</scope>
         </dependency>
 
-        <!-- Remove this when LocalDiscovery gets fixed in core -->
-        <dependency>
-            <groupId>com.google.guava</groupId>
-            <artifactId>guava</artifactId>
-            <version>18.0</version>
-            <scope>test</scope>
-        </dependency>
-
         <!-- Regular dependencies -->
 
         <dependency>
             <groupId>org.elasticsearch</groupId>
             <artifactId>elasticsearch</artifactId>
             <version>${elasticsearch.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch-license-plugin</artifactId>
+            <version>${license.version}</version>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>elasticsearch-shield</artifactId>
+            <version>${shield.version}</version>
+            <optional>true</optional>
         </dependency>
 
         <dependency>
@@ -175,7 +177,61 @@
         </dependency>
 
     </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.elasticsearch</groupId>
+                <artifactId>elasticsearch-shield</artifactId>
+                <version>${shield.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.elasticsearch</groupId>
+                        <artifactId>elasticsearch</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>org.elasticsearch</groupId>
+                <artifactId>elasticsearch-license-plugin</artifactId>
+                <version>${license.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>org.elasticsearch</groupId>
+                        <artifactId>elasticsearch</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>com.spatial4j</groupId>
+                        <artifactId>spatial4j</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <repositories>
+        <repository>
+            <id>elasticsearch-releases</id>
+            <url>http://maven.elasticsearch.org/releases</url>
+            <releases>
+                <enabled>true</enabled>
+                <updatePolicy>daily</updatePolicy>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>elasticsearch-snapshots</id>
+            <url>http://maven.elasticsearch.org/snapshots</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+                <updatePolicy>always</updatePolicy>
+            </snapshots>
+        </repository>
         <repository>
             <id>maven2-repository.dev.java.net</id>
             <name>Java.net Repository for Maven</name>
@@ -183,6 +239,7 @@
             <layout>default</layout>
         </repository>
     </repositories>
+
     <build>
         <resources>
             <resource>

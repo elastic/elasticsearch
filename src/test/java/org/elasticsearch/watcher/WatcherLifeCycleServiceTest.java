@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher;
 
-import com.google.common.util.concurrent.MoreExecutors;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
@@ -13,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.util.concurrent.MoreExecutors;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -37,7 +37,7 @@ public class WatcherLifeCycleServiceTest extends ElasticsearchTestCase {
     @Before
     public void prepareServices() {
         threadPool = mock(ThreadPool.class);
-        when(threadPool.executor(anyString())).thenReturn(MoreExecutors.sameThreadExecutor());
+        when(threadPool.executor(anyString())).thenReturn(MoreExecutors.newDirectExecutorService());
         watchService = mock(WatchService.class);
         clusterService = mock(ClusterService.class);
         indicesService = mock(IndicesService.class);

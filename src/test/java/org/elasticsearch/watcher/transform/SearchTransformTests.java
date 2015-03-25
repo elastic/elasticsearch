@@ -8,11 +8,6 @@ package org.elasticsearch.watcher.transform;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
-import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.support.Variables;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
-import org.elasticsearch.watcher.test.AbstractWatcherSingleNodeTests;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -20,24 +15,29 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.watcher.support.Variables;
+import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.watcher.watch.WatchExecutionContext;
 import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.watcher.support.WatcherDateUtils.parseDate;
-import static org.elasticsearch.watcher.test.WatcherTestUtils.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.*;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.watcher.support.WatcherDateUtils.parseDate;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.*;
 import static org.hamcrest.Matchers.*;
 
 /**
  *
  */
-public class SearchTransformTests extends AbstractWatcherSingleNodeTests {
+public class SearchTransformTests extends AbstractWatcherIntegrationTests {
 
     @Test
     public void testApply() throws Exception {

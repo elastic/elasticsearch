@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.scheduler.schedule;
 
-import com.google.common.primitives.Ints;
+import org.elasticsearch.common.primitives.Ints;
 import org.elasticsearch.watcher.scheduler.schedule.IntervalSchedule.Interval.Unit;
 import org.elasticsearch.watcher.scheduler.schedule.support.*;
 import org.elasticsearch.common.xcontent.ToXContent;

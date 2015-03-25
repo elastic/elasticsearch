@@ -6,6 +6,11 @@
 package org.elasticsearch.watcher;
 
 
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.inject.Module;
+import org.elasticsearch.common.inject.SpawnModules;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.actions.ActionModule;
 import org.elasticsearch.watcher.client.WatcherClientModule;
 import org.elasticsearch.watcher.condition.ConditionModule;
@@ -13,20 +18,23 @@ import org.elasticsearch.watcher.history.HistoryModule;
 import org.elasticsearch.watcher.input.InputModule;
 import org.elasticsearch.watcher.rest.WatcherRestModule;
 import org.elasticsearch.watcher.scheduler.SchedulerModule;
+import org.elasticsearch.watcher.shield.WatcherShieldModule;
 import org.elasticsearch.watcher.support.TemplateUtils;
 import org.elasticsearch.watcher.support.clock.ClockModule;
 import org.elasticsearch.watcher.support.init.InitializingModule;
 import org.elasticsearch.watcher.support.template.TemplateModule;
 import org.elasticsearch.watcher.transform.TransformModule;
 import org.elasticsearch.watcher.transport.WatcherTransportModule;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.watcher.watch.WatchModule;
 
 
 public class WatcherModule extends AbstractModule implements SpawnModules {
+
+    private final Settings settings;
+
+    public WatcherModule(Settings settings) {
+        this.settings = settings;
+    }
 
     @Override
     public Iterable<? extends Module> spawnModules() {
@@ -43,7 +51,8 @@ public class WatcherModule extends AbstractModule implements SpawnModules {
                 new ConditionModule(),
                 new InputModule(),
                 new ActionModule(),
-                new HistoryModule());
+                new HistoryModule(),
+                new WatcherShieldModule(settings));
     }
 
     @Override

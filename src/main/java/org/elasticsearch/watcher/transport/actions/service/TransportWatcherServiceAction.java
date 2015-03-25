@@ -27,8 +27,8 @@ public class TransportWatcherServiceAction extends TransportMasterNodeOperationA
     private final WatcherLifeCycleService lifeCycleService;
 
     @Inject
-    public TransportWatcherServiceAction(Settings settings, String actionName, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters, WatcherLifeCycleService lifeCycleService) {
-        super(settings, actionName, transportService, clusterService, threadPool, actionFilters);
+    public TransportWatcherServiceAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters, WatcherLifeCycleService lifeCycleService) {
+        super(settings, WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters);
         this.lifeCycleService = lifeCycleService;
     }
 

@@ -137,7 +137,7 @@ public class WatchStore extends AbstractComponent {
         ensureStarted();
         Watch watch = watchParser.parse(name, false, source);
         IndexRequest indexRequest = createIndexRequest(name, source);
-        IndexResponse response = client.index(indexRequest).actionGet();
+        IndexResponse response = client.index(indexRequest);
         watch.status().version(response.getVersion());
         Watch previous = watches.put(name, watch);
         return new WatchPut(previous, watch, response);
@@ -160,7 +160,7 @@ public class WatchStore extends AbstractComponent {
         ensureStarted();
         assert watch == watches.get(watch.name()) : "update watch can only be applied to an already loaded watch";
         BytesReference source = JsonXContent.contentBuilder().value(watch).bytes();
-        IndexResponse response = client.index(createIndexRequest(watch.name(), source)).actionGet();
+        IndexResponse response = client.index(createIndexRequest(watch.name(), source));
         watch.status().version(response.getVersion());
         // Don't need to update the watches, since we are working on an instance from it.
     }

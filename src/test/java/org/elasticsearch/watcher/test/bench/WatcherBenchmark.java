@@ -102,6 +102,10 @@ public class WatcherBenchmark {
 
         public static class WatcherModule extends org.elasticsearch.watcher.WatcherModule {
 
+            public WatcherModule(Settings settings) {
+                super(settings);
+            }
+
             @Override
             public Iterable<? extends Module> spawnModules() {
                 List<Module> modules = new ArrayList<>();

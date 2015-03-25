@@ -71,7 +71,7 @@ public class IndexAction extends Action<IndexAction.Result> {
         }
 
         try {
-            IndexResponse response = client.index(indexRequest).actionGet();
+            IndexResponse response = client.index(indexRequest);
             Map<String,Object> data = new HashMap<>();
             data.put("created", response.isCreated());
             data.put("id", response.getId());

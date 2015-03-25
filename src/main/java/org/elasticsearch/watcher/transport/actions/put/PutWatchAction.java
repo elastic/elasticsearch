@@ -14,7 +14,7 @@ import org.elasticsearch.client.Client;
 public class PutWatchAction extends WatcherAction<PutWatchRequest, PutWatchResponse, PutWatchRequestBuilder> {
 
     public static final PutWatchAction INSTANCE = new PutWatchAction();
-    public static final String NAME = "indices:data/write/watch/put";
+    public static final String NAME = "cluster:admin/watcher/watch/put";
 
     private PutWatchAction() {
         super(NAME);

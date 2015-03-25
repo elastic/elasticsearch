@@ -19,6 +19,10 @@
 
 package org.elasticsearch.index.mapper.internal;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
@@ -106,6 +110,14 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
             .bytes());
         
         assertNull(doc.rootDoc().get("_field_names"));
+    }
+    
+    public void testPre13Disabled() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_2_4.id).build();
+        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
+        FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
+        assertFalse(fieldNamesMapper.enabled());
     }
     
     public void testDisablingBackcompat() throws Exception {

@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
+import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.rest.action.admin.indices.upgrade.UpgradeTest;
@@ -50,6 +51,7 @@ import java.nio.file.Paths;
 import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardCompatibilityTest {
@@ -144,6 +146,11 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         
         searchReq.addSort("long_sort", SortOrder.ASC);
         ElasticsearchAssertions.assertNoFailures(searchReq.get());
+
+        searchReq = client().prepareSearch("test").setQuery(QueryBuilders.filteredQuery(QueryBuilders.matchAllQuery(), FilterBuilders.existsFilter("string")));
+        searchRsp = searchReq.get();
+        ElasticsearchAssertions.assertNoFailures(searchRsp);
+        assertThat(numDocs, equalTo(searchRsp.getHits().getTotalHits()));
     }
 
     void assertRealtimeGetWorks() {

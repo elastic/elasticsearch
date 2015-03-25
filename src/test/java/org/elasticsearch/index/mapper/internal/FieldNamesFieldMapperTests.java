@@ -112,6 +112,14 @@ public class FieldNamesFieldMapperTests extends ElasticsearchSingleNodeTest {
         assertNull(doc.rootDoc().get("_field_names"));
     }
     
+    public void testPre13Disabled() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        Settings indexSettings = ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_2_4.id).build();
+        DocumentMapper docMapper = createIndex("test", indexSettings).mapperService().documentMapperParser().parse(mapping);
+        FieldNamesFieldMapper fieldNamesMapper = docMapper.rootMapper(FieldNamesFieldMapper.class);
+        assertFalse(fieldNamesMapper.enabled());
+    }
+    
     public void testDisablingBackcompat() throws Exception {
         // before 1.5, disabling happened by setting index:no
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")

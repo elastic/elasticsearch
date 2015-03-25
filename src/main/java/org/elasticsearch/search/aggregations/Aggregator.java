@@ -331,8 +331,8 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      * Called after collection of all document is done.
      */
     public final void postCollection() throws IOException {
-        collectableSubAggregators.postCollection();
         doPostCollection();
+        collectableSubAggregators.postCollection();
     }
 
     /** Called upon release of the aggregator. */

@@ -1557,7 +1557,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         cluster().wipeIndices("test-idx");
 
         Settings newIndexSettings = ImmutableSettings.builder()
-                .put(INDEX_REFRESH_INTERVAL, "5s")
+                .put("refresh_interval", "5s")
                 .put("index.analysis.analyzer.my_analyzer.type", "standard")
                 .build();
 

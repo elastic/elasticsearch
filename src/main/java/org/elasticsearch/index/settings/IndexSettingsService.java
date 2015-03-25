@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.settings;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -44,7 +45,7 @@ public class IndexSettingsService extends AbstractIndexComponent {
 
     public synchronized void refreshSettings(Settings settings) {
         // this.settings include also the node settings
-        if (this.settings.getByPrefix("index.").getAsMap().equals(settings.getByPrefix("index.").getAsMap())) {
+        if (this.settings.getByPrefix(IndexMetaData.INDEX_SETTING_PREFIX).getAsMap().equals(settings.getByPrefix(IndexMetaData.INDEX_SETTING_PREFIX).getAsMap())) {
             // nothing to update, same settings
             return;
         }

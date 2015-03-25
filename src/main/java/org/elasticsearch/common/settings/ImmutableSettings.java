@@ -1101,6 +1101,25 @@ public class ImmutableSettings implements Settings {
         }
 
         /**
+         * Checks that all settings in the builder start with the specified prefix.
+         *
+         * If a setting doesn't start with the prefix, the builder appends the prefix to such setting.
+         */
+        public Builder normalizePrefix(String prefix) {
+            Map<String, String> replacements = Maps.newHashMap();
+            Iterator<Map.Entry<String, String>> iterator = map.entrySet().iterator();
+            while(iterator.hasNext()) {
+                Map.Entry<String, String> entry = iterator.next();
+                if (entry.getKey().startsWith(prefix) == false) {
+                    replacements.put(prefix + entry.getKey(), entry.getValue());
+                    iterator.remove();
+                }
+            }
+            map.putAll(replacements);
+            return this;
+        }
+
+        /**
          * Builds a {@link Settings} (underlying uses {@link ImmutableSettings}) based on everything
          * set on this builder.
          */

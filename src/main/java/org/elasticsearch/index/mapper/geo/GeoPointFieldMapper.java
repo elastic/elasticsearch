@@ -262,6 +262,10 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
                     iterator.remove();
                 } else if (fieldName.equals("validate")) {
                     builder.validate = XContentMapValues.nodeBooleanValue(fieldNode);
+                    if (builder.backCompat) {
+                        builder.validateLat = builder.validate;
+                        builder.validateLon = builder.validate;
+                    }
                     iterator.remove();
                 } else if (builder.backCompat && fieldName.equals("validate_lon")) {
                     builder.validate = false;

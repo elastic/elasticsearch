@@ -21,7 +21,7 @@ governing permissions and limitations under the License. -->
 
     <name>Elasticsearch Google Compute Engine cloud plugin</name>
     <description>The Google Compute Engine (GCE) Cloud plugin allows to use GCE API for the unicast discovery mechanism.</description>
-    <url>https://github.com/elasticsearch/elasticsearch-cloud-gce/</url>
+    <url>https://github.com/elastic/elasticsearch-cloud-gce/</url>
     <inceptionYear>2013</inceptionYear>
 
     <licenses>
@@ -32,9 +32,9 @@ governing permissions and limitations under the License. -->
         </license>
     </licenses>
     <scm>
-        <connection>scm:git:git@github.com:elasticsearch/elasticsearch-cloud-gce.git</connection>
-        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-cloud-gce.git</developerConnection>
-        <url>http://github.com/elasticsearch/elasticsearch-cloud-gce</url>
+        <connection>scm:git:git@github.com:elastic/elasticsearch-cloud-gce.git</connection>
+        <developerConnection>scm:git:git@github.com:elastic/elasticsearch-cloud-gce.git</developerConnection>
+        <url>http://github.com/elastic/elasticsearch-cloud-gce</url>
     </scm>
 
     <parent>
@@ -45,7 +45,7 @@ governing permissions and limitations under the License. -->
 
     <issueManagement>
         <system>GitHub</system>
-        <url>https://github.com/elasticsearch/elasticsearch-cloud-gce/issues/</url>
+        <url>https://github.com/elastic/elasticsearch-cloud-gce/issues/</url>
     </issueManagement>
 
     <properties>

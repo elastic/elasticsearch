@@ -30,11 +30,7 @@ import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.index.search.child.ConstantScorer;
-import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -42,10 +38,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 // The RecordingPerReaderBucketCollector assumes per segment recording which isn't the case for this
 // aggregation, for this reason that collector can't be used
@@ -66,7 +59,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
     private final LongObjectPagedHashMap<long[]> parentOrdToOtherBuckets;
     private boolean multipleBucketsPerParentOrd = false;
 
-    private List<LeafReaderContext> replay = new ArrayList<>();
+    private Set<LeafReaderContext> replay = new LinkedHashSet<>();
 
     public ParentToChildrenAggregator(String name, AggregatorFactories factories, AggregationContext aggregationContext,
                                       Aggregator parent, String parentType, Filter childFilter, Filter parentFilter,
@@ -141,7 +134,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
 
     @Override
     protected void doPostCollection() throws IOException {
-        final List<LeafReaderContext> replay = this.replay;
+        final Set<LeafReaderContext> replay = this.replay;
         this.replay = null;
 
         for (LeafReaderContext ctx : replay) {

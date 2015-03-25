@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
     <name>Elasticsearch AWS cloud plugin</name>
     <description>The Amazon Web Service (AWS) Cloud plugin allows to use AWS API for the unicast discovery mechanism and add S3 repositories.</description>
-    <url>https://github.com/elasticsearch/elasticsearch-cloud-aws/</url>
+    <url>https://github.com/elastic/elasticsearch-cloud-aws/</url>
     <inceptionYear>2009</inceptionYear>
     <licenses>
         <license>
@@ -20,9 +20,9 @@
         </license>
     </licenses>
     <scm>
-        <connection>scm:git:git@github.com:elasticsearch/elasticsearch-cloud-aws.git</connection>
-        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-cloud-aws.git</developerConnection>
-        <url>http://github.com/elasticsearch/elasticsearch-cloud-aws</url>
+        <connection>scm:git:git@github.com:elastic/elasticsearch-cloud-aws.git</connection>
+        <developerConnection>scm:git:git@github.com:elastic/elasticsearch-cloud-aws.git</developerConnection>
+        <url>http://github.com/elastic/elasticsearch-cloud-aws</url>
     </scm>
 
     <parent>

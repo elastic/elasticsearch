@@ -21,6 +21,8 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.children.Children;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -327,6 +329,53 @@ public class ChildrenTests extends ElasticsearchIntegrationTest {
         assertThat(termsAgg.getBucketByKey("38").getDocCount(), equalTo(1l));
         assertThat(termsAgg.getBucketByKey("40").getDocCount(), equalTo(1l));
         assertThat(termsAgg.getBucketByKey("44").getDocCount(), equalTo(1l));
+    }
+
+    @Test
+    public void testHierarchicalChildrenAggs() {
+        String indexName = "geo";
+        String grandParentType = "continent";
+        String parentType = "country";
+        String childType = "city";
+        assertAcked(
+                prepareCreate(indexName)
+                        .setSettings(ImmutableSettings.builder()
+                                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                        )
+                        .addMapping(grandParentType)
+                        .addMapping(parentType, "_parent", "type=" + grandParentType)
+                        .addMapping(childType, "_parent", "type=" + parentType)
+        );
+
+        client().prepareIndex(indexName, grandParentType, "1").setSource("name", "europe").get();
+        client().prepareIndex(indexName, parentType, "2").setParent("1").setSource("name", "belgium").get();
+        client().prepareIndex(indexName, childType, "3").setParent("2").setRouting("1").setSource("name", "brussels").get();
+        refresh();
+
+        SearchResponse response = client().prepareSearch(indexName)
+                .setQuery(matchQuery("name", "europe"))
+                .addAggregation(
+                        children(parentType).childType(parentType).subAggregation(
+                                children(childType).childType(childType).subAggregation(
+                                        terms("name").field("name")
+                                )
+                        )
+                )
+                .get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+
+        Children children = response.getAggregations().get(parentType);
+        assertThat(children.getName(), equalTo(parentType));
+        assertThat(children.getDocCount(), equalTo(1l));
+        children = children.getAggregations().get(childType);
+        assertThat(children.getName(), equalTo(childType));
+        assertThat(children.getDocCount(), equalTo(1l));
+        Terms terms = children.getAggregations().get("name");
+        assertThat(terms.getBuckets().size(), equalTo(1));
+        assertThat(terms.getBuckets().get(0).getKey().toString(), equalTo("brussels"));
+        assertThat(terms.getBuckets().get(0).getDocCount(), equalTo(1l));
     }
 
     private static final class Control {

@@ -168,16 +168,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
-        for (Map.Entry<String, String> entry : request.settings().getAsMap().entrySet()) {
-            if (entry.getKey().equals("index")) {
-                continue;
-            }
-            if (!entry.getKey().startsWith("index.")) {
-                updatedSettingsBuilder.put("index." + entry.getKey(), entry.getValue());
-            } else {
-                updatedSettingsBuilder.put(entry.getKey(), entry.getValue());
-            }
-        }
+        updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         // never allow to change the number of shards
         for (String key : updatedSettingsBuilder.internalMap().keySet()) {
             if (key.equals(IndexMetaData.SETTING_NUMBER_OF_SHARDS)) {

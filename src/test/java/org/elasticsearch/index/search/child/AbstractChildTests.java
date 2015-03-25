@@ -19,19 +19,15 @@
 
 package org.elasticsearch.index.search.child;
 
-import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryCache;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -44,8 +40,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.hamcrest.Description;
 import org.hamcrest.StringDescription;
-import org.junit.After;
-import org.junit.Before;
 import org.junit.Ignore;
 
 import java.io.IOException;
@@ -63,7 +57,10 @@ public abstract class AbstractChildTests extends ElasticsearchSingleNodeTest {
     protected static String CHILD_SCORE_NAME = "childScore";
 
     static SearchContext createSearchContext(String indexName, String parentType, String childType) throws IOException {
-        IndexService indexService = createIndex(indexName);
+        Settings settings = Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_6_0)
+                .build();
+        IndexService indexService = createIndex(indexName, settings);
         MapperService mapperService = indexService.mapperService();
         // Parent/child parsers require that the parent and child type to be presented in mapping
         // Sometimes we want a nested object field in the parent type that triggers nonNestedDocsFilter to be used

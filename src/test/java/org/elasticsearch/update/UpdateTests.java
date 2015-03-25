@@ -473,20 +473,23 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testContextVariables() throws Exception {
-        createTestIndex();
-
-        // Add child type for testing the _parent context variable
-        client().admin().indices().preparePutMapping("test")
-                .setType("subtype1")
-                .setSource(XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startObject("subtype1")
-                        .startObject("_parent").field("type", "type1").endObject()
-                        .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
-                        .startObject("_ttl").field("enabled", true).endObject()
-                        .endObject()
-                        .endObject())
-                .execute().actionGet();
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+                        .addMapping("type1", XContentFactory.jsonBuilder()
+                                .startObject()
+                                .startObject("type1")
+                                .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
+                                .startObject("_ttl").field("enabled", true).endObject()
+                                .endObject()
+                                .endObject())
+                        .addMapping("subtype1", XContentFactory.jsonBuilder()
+                                .startObject()
+                                .startObject("subtype1")
+                                .startObject("_parent").field("type", "type1").endObject()
+                                .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
+                                .startObject("_ttl").field("enabled", true).endObject()
+                                .endObject()
+                                .endObject())
+        );
         ensureGreen();
 
         // Index some documents
@@ -1215,17 +1218,23 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
      */
     @Test
     public void testContextVariablesOldScriptAPI() throws Exception {
-        createTestIndex();
-
-        // Add child type for testing the _parent context variable
-        client().admin()
-                .indices()
-                .preparePutMapping("test")
-                .setType("subtype1")
-                .setSource(
-                        XContentFactory.jsonBuilder().startObject().startObject("subtype1").startObject("_parent").field("type", "type1")
-                                .endObject().startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
-                                .startObject("_ttl").field("enabled", true).endObject().endObject().endObject()).execute().actionGet();
+        assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
+                        .addMapping("type1", XContentFactory.jsonBuilder()
+                                .startObject()
+                                .startObject("type1")
+                                .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
+                                .startObject("_ttl").field("enabled", true).endObject()
+                                .endObject()
+                                .endObject())
+                        .addMapping("subtype1", XContentFactory.jsonBuilder()
+                                .startObject()
+                                .startObject("subtype1")
+                                .startObject("_parent").field("type", "type1").endObject()
+                                .startObject("_timestamp").field("enabled", true).field("store", "yes").endObject()
+                                .startObject("_ttl").field("enabled", true).endObject()
+                                .endObject()
+                                .endObject())
+        );
         ensureGreen();
 
         // Index some documents

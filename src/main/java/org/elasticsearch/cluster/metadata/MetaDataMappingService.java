@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -386,8 +387,22 @@ public class MetaDataMappingService extends AbstractComponent {
                                 if (mergeResult.hasConflicts()) {
                                     throw new MergeMappingException(mergeResult.buildConflicts());
                                 }
+                            } else {
+                                // TODO: can we find a better place for this validation?
+                                // The reason this validation is here is that the mapper service doesn't learn about
+                                // new types all at once , which can create a false error.
+
+                                // For example in MapperService we can't distinguish between a create index api call
+                                // and a put mapping api call, so we don't which type did exist before.
+                                // Also the order of the mappings may be backwards.
+                                if (Version.indexCreated(indexService.getIndexSettings()).onOrAfter(Version.V_2_0_0) && newMapper.parentFieldMapper().active()) {
+                                    if (indexService.mapperService().types().contains(newMapper.parentFieldMapper().type())) {
+                                        throw new IllegalArgumentException("can't add a _parent field that points to an already existing type");
+                                    }
+                                }
                             }
                         }
+
 
                         newMappers.put(index, newMapper);
                         if (existingMapper != null) {

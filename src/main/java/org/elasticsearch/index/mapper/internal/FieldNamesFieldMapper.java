@@ -134,6 +134,7 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
 
     private final FieldType defaultFieldType;
     private EnabledAttributeMapper enabledState;
+    private final boolean pre13Index; // if the index was created before 1.3, _field_names is always disabled
 
     public FieldNamesFieldMapper(Settings indexSettings) {
         this(Defaults.NAME, Defaults.NAME, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null, null, Defaults.ENABLED_STATE, null, indexSettings);
@@ -144,11 +145,12 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
         super(new Names(name, indexName, indexName, name), boost, fieldType, null, Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings);
         this.defaultFieldType = Defaults.FIELD_TYPE;
+        this.pre13Index = Version.indexCreated(indexSettings).before(Version.V_1_3_0);
         this.enabledState = enabledState;
     }
 
     public boolean enabled() {
-        return enabledState.enabled;
+        return pre13Index == false && enabledState.enabled;
     }
 
     @Override
@@ -255,6 +257,9 @@ public class FieldNamesFieldMapper extends AbstractFieldMapper<String> implement
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (pre13Index) {
+            return builder;
+        }
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         if (includeDefaults == false && fieldType().equals(Defaults.FIELD_TYPE) && enabledState == Defaults.ENABLED_STATE) {

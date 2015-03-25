@@ -402,6 +402,10 @@ public class DocumentMapper implements ToXContent {
         mapperService.addFieldMappers(fieldMappers);
     }
 
+    public boolean isParent(String type) {
+        return mapperService.getParentTypes().contains(type);
+    }
+
     private void addObjectMappers(Collection<ObjectMapper> objectMappers) {
         assert mappingLock.isWriteLockedByCurrentThread();
             MapBuilder<String, ObjectMapper> builder = MapBuilder.newMapBuilder(this.objectMappers);

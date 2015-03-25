@@ -22,6 +22,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -36,12 +37,15 @@ import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
 import org.elasticsearch.index.query.support.XContentStructure;
 import org.elasticsearch.index.search.child.ParentConstantScoreQuery;
 import org.elasticsearch.index.search.child.ParentQuery;
+import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
+
+import static org.elasticsearch.index.query.HasChildQueryParser.joinUtilHelper;
 
 public class HasParentQueryParser implements QueryParser {
 
@@ -142,7 +146,7 @@ public class HasParentQueryParser implements QueryParser {
         return query;
     }
 
-    static Query createParentQuery(Query innerQuery, String parentType, boolean score, QueryParseContext parseContext, Tuple<String, SubSearchContext> innerHits) {
+    static Query createParentQuery(Query innerQuery, String parentType, boolean score, QueryParseContext parseContext, Tuple<String, SubSearchContext> innerHits) throws IOException {
         DocumentMapper parentDocMapper = parseContext.mapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
             throw new QueryParsingException(parseContext, "[has_parent] query configured 'parent_type' [" + parentType
@@ -197,10 +201,15 @@ public class HasParentQueryParser implements QueryParser {
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, parentDocMapper.typeFilter());
         Filter childrenFilter = new QueryWrapperFilter(Queries.not(parentFilter));
-        if (score) {
-            return new ParentQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
+        if (parseContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
+            ScoreType scoreMode = score ? ScoreType.MAX : ScoreType.NONE;
+            return joinUtilHelper(parentType, parentChildIndexFieldData, childrenFilter, scoreMode, innerQuery, 0, Integer.MAX_VALUE);
         } else {
-            return new ParentConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
+            if (score) {
+                return new ParentQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
+            } else {
+                return new ParentConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentDocMapper.type(), childrenFilter);
+            }
         }
     }
 

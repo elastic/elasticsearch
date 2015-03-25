@@ -19,16 +19,23 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.MultiDocValues;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.elasticsearch.common.ParseField;
+import org.apache.lucene.search.join.JoinUtil;
+import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexParentChildFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -38,6 +45,7 @@ import org.elasticsearch.index.search.child.ChildrenConstantScoreQuery;
 import org.elasticsearch.index.search.child.ChildrenQuery;
 import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
@@ -137,19 +145,15 @@ public class HasChildQueryParser implements QueryParser {
         if (childDocMapper == null) {
             throw new QueryParsingException(parseContext, "[has_child] No mapping for for type [" + childType + "]");
         }
-        if (!childDocMapper.parentFieldMapper().active()) {
-            throw new QueryParsingException(parseContext, "[has_child]  Type [" + childType + "] does not have parent mapping");
+        ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
+        if (parentFieldMapper.active() == false) {
+            throw new QueryParsingException(parseContext, "[has_child] _parent field has no parent type configured");
         }
 
         if (innerHits != null) {
             InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.v2(), innerQuery, null, parseContext.mapperService(), childDocMapper);
             String name = innerHits.v1() != null ? innerHits.v1() : childType;
             parseContext.addInnerHits(name, parentChildInnerHits);
-        }
-
-        ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
-        if (!parentFieldMapper.active()) {
-            throw new QueryParsingException(parseContext, "[has_child] _parent field not configured");
         }
 
         String parentType = parentFieldMapper.type();
@@ -171,21 +175,65 @@ public class HasChildQueryParser implements QueryParser {
         // wrap the query with type query
         innerQuery = Queries.filtered(innerQuery, childDocMapper.typeFilter());
 
-        Query query;
-        // TODO: use the query API
-        Filter parentFilter = new QueryWrapperFilter(parentDocMapper.typeFilter());
-        ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
-        if (minChildren > 1 || maxChildren > 0 || scoreType != ScoreType.NONE) {
-            query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType, minChildren,
-                    maxChildren, shortCircuitParentDocSet, nonNestedDocsFilter);
+        final Query query;
+        final ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
+        if (parseContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
+            query = joinUtilHelper(parentType, parentChildIndexFieldData, parentDocMapper.typeFilter(), scoreType, innerQuery, minChildren, maxChildren);
         } else {
-            query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter,
-                    shortCircuitParentDocSet, nonNestedDocsFilter);
+            // TODO: use the query API
+            Filter parentFilter = new QueryWrapperFilter(parentDocMapper.typeFilter());
+            if (minChildren > 1 || maxChildren > 0 || scoreType != ScoreType.NONE) {
+                query = new ChildrenQuery(parentChildIndexFieldData, parentType, childType, parentFilter, innerQuery, scoreType, minChildren,
+                        maxChildren, shortCircuitParentDocSet, nonNestedDocsFilter);
+            } else {
+                query = new ChildrenConstantScoreQuery(parentChildIndexFieldData, innerQuery, parentType, childType, parentFilter,
+                        shortCircuitParentDocSet, nonNestedDocsFilter);
+            }
         }
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }
         query.setBoost(boost);
         return query;
+    }
+
+    public static Query joinUtilHelper(String parentType, ParentChildIndexFieldData parentChildIndexFieldData, Query toQuery, ScoreType scoreType, Query innerQuery, int minChildren, int maxChildren) throws IOException {
+        SearchContext searchContext = SearchContext.current();
+        if (searchContext == null) {
+            throw new IllegalStateException("Search context is required to be set");
+        }
+
+        String joinField = ParentFieldMapper.joinField(parentType);
+        ScoreMode scoreMode;
+        // TODO: move entirely over from ScoreType to org.apache.lucene.join.ScoreMode, when we drop the 1.x parent child code.
+        switch (scoreType) {
+            case NONE:
+                scoreMode = ScoreMode.None;
+                break;
+            case MIN:
+                scoreMode = ScoreMode.Min;
+                break;
+            case MAX:
+                scoreMode = ScoreMode.Max;
+                break;
+            case SUM:
+                scoreMode = ScoreMode.Total;
+                break;
+            case AVG:
+                scoreMode = ScoreMode.Avg;
+                break;
+            default:
+                throw new UnsupportedOperationException("score type [" + scoreType + "] not supported");
+        }
+        IndexReader indexReader = searchContext.searcher().getIndexReader();
+        IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+        IndexParentChildFieldData indexParentChildFieldData = parentChildIndexFieldData.loadGlobal(indexReader);
+        MultiDocValues.OrdinalMap ordinalMap = ParentChildIndexFieldData.getOrdinalMap(indexParentChildFieldData, parentType);
+
+        // 0 in pre 2.x p/c impl means unbounded
+        if (maxChildren == 0) {
+            maxChildren = Integer.MAX_VALUE;
+        }
+        return JoinUtil.createJoinQuery(joinField, innerQuery, toQuery, indexSearcher, scoreMode, ordinalMap, minChildren, maxChildren);
     }
 }

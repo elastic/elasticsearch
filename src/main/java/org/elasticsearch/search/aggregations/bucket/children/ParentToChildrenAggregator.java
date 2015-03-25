@@ -43,9 +43,9 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 // The RecordingPerReaderBucketCollector assumes per segment recording which isn't the case for this
 // aggregation, for this reason that collector can't be used
@@ -66,7 +66,8 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
     private final LongObjectPagedHashMap<long[]> parentOrdToOtherBuckets;
     private boolean multipleBucketsPerParentOrd = false;
 
-    private List<AtomicReaderContext> replay = new ArrayList<>();
+    // This needs to be a Set to avoid duplicate reader context entries (#setNextReader(...) can get invoked multiple times with the same reader context)
+    private Set<AtomicReaderContext> replay = new LinkedHashSet<>();
     private SortedDocValues globalOrdinals;
     private Bits parentDocs;
 
@@ -143,7 +144,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
 
     @Override
     protected void doPostCollection() throws IOException {
-        List<AtomicReaderContext> replay = this.replay;
+        Set<AtomicReaderContext> replay = this.replay;
         this.replay = null;
 
         for (AtomicReaderContext atomicReaderContext : replay) {
@@ -180,10 +181,6 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator implement
                 }
             }
         }
-        // Need to invoke post collection on all aggs that the children agg is wrapping,
-        // otherwise any post work that is required, because we started to collect buckets
-        // in the method will not be performed.
-        collectableSubAggregators.postCollection();
     }
 
     @Override

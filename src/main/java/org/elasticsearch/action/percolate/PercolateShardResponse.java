@@ -19,6 +19,7 @@
 package org.elasticsearch.action.percolate;
 
 import com.google.common.collect.ImmutableList;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.percolator.PercolateContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.reducers.SiblingReducer;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.query.QuerySearchResult;
 
@@ -51,6 +53,7 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
     private int requestedSize;
 
     private InternalAggregations aggregations;
+    private List<SiblingReducer> reducers;
 
     PercolateShardResponse() {
         hls = new ArrayList<>();
@@ -68,6 +71,9 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
         if (result != null) {
             if (result.aggregations() != null) {
                 this.aggregations = (InternalAggregations) result.aggregations();
+            }
+            if (result.reducers() != null) {
+                this.reducers = result.reducers();
             }
         }
     }
@@ -110,6 +116,10 @@ public class PercolateShardResponse extends BroadcastShardOperationResponse {
 
     public InternalAggregations aggregations() {
         return aggregations;
+    }
+
+    public List<SiblingReducer> reducers() {
+        return reducers;
     }
 
     public byte percolatorTypeId() {

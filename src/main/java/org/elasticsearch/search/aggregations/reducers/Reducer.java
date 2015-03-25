@@ -19,11 +19,14 @@
 
 package org.elasticsearch.search.aggregations.reducers;
 
+import com.google.common.base.Function;
+
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
@@ -65,6 +68,13 @@ public abstract class Reducer implements Streamable {
         ReducerFactory parse(String reducerName, XContentParser parser, SearchContext context) throws IOException;
 
     }
+
+    public static final Function<Aggregation, InternalAggregation> FUNCTION = new Function<Aggregation, InternalAggregation>() {
+        @Override
+        public InternalAggregation apply(Aggregation input) {
+            return (InternalAggregation) input;
+        }
+    };
 
     private String name;
     private String[] bucketsPaths;

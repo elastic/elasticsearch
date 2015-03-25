@@ -19,15 +19,12 @@
 
 package org.elasticsearch.search.aggregations.reducers.derivative;
 
-import com.google.common.base.Function;
 import com.google.common.collect.Lists;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -40,7 +37,6 @@ import org.elasticsearch.search.aggregations.reducers.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
 import org.elasticsearch.search.aggregations.reducers.ReducerStreams;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -67,13 +63,6 @@ public class DerivativeReducer extends Reducer {
     public static void registerStreams() {
         ReducerStreams.registerStream(STREAM, TYPE.stream());
     }
-
-    private static final Function<Aggregation, InternalAggregation> FUNCTION = new Function<Aggregation, InternalAggregation>() {
-        @Override
-        public InternalAggregation apply(Aggregation input) {
-            return (InternalAggregation) input;
-        }
-    };
 
     private ValueFormatter formatter;
     private GapPolicy gapPolicy;
@@ -143,8 +132,7 @@ public class DerivativeReducer extends Reducer {
         }
 
         @Override
-        protected Reducer createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-                Map<String, Object> metaData) throws IOException {
+        protected Reducer createInternal(Map<String, Object> metaData) throws IOException {
             return new DerivativeReducer(name, bucketsPaths, formatter, gapPolicy, metaData);
         }
 

@@ -19,9 +19,12 @@
 
 package org.elasticsearch.search.aggregations.reducers;
 
-import org.elasticsearch.search.aggregations.Aggregation;
+import com.google.common.collect.Lists;
+
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 
@@ -39,20 +42,24 @@ public abstract class SiblingReducer extends Reducer {
         super(name, bucketsPaths, metaData);
     }
 
+    @SuppressWarnings("unchecked")
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+        @SuppressWarnings("rawtypes")
         InternalMultiBucketAggregation multiBucketsAgg = (InternalMultiBucketAggregation) aggregation;
         List<? extends Bucket> buckets = multiBucketsAgg.getBuckets();
         List<Bucket> newBuckets = new ArrayList<>();
         for (int i = 0; i < buckets.size(); i++) {
-            Bucket bucket = buckets.get(i);
-            InternalAggregation aggToAdd = doReduce(bucket.getAggregations().asList(), reduceContext);
-            Bucket newBucket = bucket; // NOCOMMIT Add aggToAdd to bucket using factory methods from https://github.com/elastic/elasticsearch/pull/9996
+            InternalMultiBucketAggregation.InternalBucket bucket = (InternalMultiBucketAggregation.InternalBucket) buckets.get(i);
+            InternalAggregation aggToAdd = doReduce(bucket.getAggregations(), reduceContext);
+            List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), FUNCTION));
+            aggs.add(aggToAdd);
+            InternalMultiBucketAggregation.InternalBucket newBucket = multiBucketsAgg.createBucket(new InternalAggregations(aggs), bucket);
             newBuckets.add(newBucket);
         }
 
-        return multiBucketsAgg; // NOCOMMIT recreate agg with newBuckets using factory methods from https://github.com/elastic/elasticsearch/pull/9996
+        return multiBucketsAgg.create(newBuckets);
     }
 
-    public abstract InternalAggregation doReduce(List<Aggregation> aggregations, ReduceContext context);
+    public abstract InternalAggregation doReduce(Aggregations aggregations, ReduceContext context);
 }

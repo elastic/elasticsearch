@@ -56,7 +56,7 @@ public class AggregatorFactories {
     public List<Reducer> createReducers() throws IOException {
         List<Reducer> reducers = new ArrayList<>();
         for (ReducerFactory factory : this.reducerFactories) {
-            reducers.add(factory.create(null, null, false)); // NOCOMIT add context, parent etc.
+            reducers.add(factory.create());
         }
         return reducers;
     }

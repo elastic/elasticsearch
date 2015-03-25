@@ -25,7 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -39,7 +39,6 @@ import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
 import org.elasticsearch.search.aggregations.reducers.ReducerStreams;
 import org.elasticsearch.search.aggregations.reducers.SiblingReducer;
 import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeParser;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
@@ -82,10 +81,9 @@ public class MaxBucketReducer extends SiblingReducer {
         return TYPE;
     }
 
-    public InternalAggregation doReduce(List<Aggregation> aggregations, ReduceContext context) {
+    public InternalAggregation doReduce(Aggregations aggregations, ReduceContext context) {
         List<String> maxBucketKeys = new ArrayList<>();
         double maxValue = Double.MIN_VALUE;
-        String[] keys = maxBucketKeys.toArray(new String[maxBucketKeys.size()]);
         List<String> bucketsPath = AggregationPath.parse(bucketsPaths()[0]).getPathElementsAsStringList();
         for (Aggregation aggregation : aggregations) {
             if (aggregation.getName().equals(bucketsPath.get(0))) {
@@ -94,26 +92,27 @@ public class MaxBucketReducer extends SiblingReducer {
                 List<? extends Bucket> buckets = multiBucketsAgg.getBuckets();
                 for (int i = 0; i < buckets.size(); i++) {
                     Bucket bucket = buckets.get(i);
-                    Double bucketValue = resolveBucketValue(multiBucketsAgg, bucket);
-                    if (bucketValue == null) {
-                        throw new ElasticsearchIllegalStateException("FOUND GAP IN DATA"); // NOCOMMIT deal with gaps in data
-                    } else if (bucketValue > maxValue) {
-                        maxBucketKeys.clear();
-                        maxBucketKeys.add(bucket.getKeyAsString());
-                        maxValue = bucketValue;
-                    } else if (bucketValue == maxValue) {
-                        maxBucketKeys.add(bucket.getKeyAsString());
+                    Double bucketValue = resolveBucketValue(multiBucketsAgg, bucket, bucketsPath);
+                    if (bucketValue != null) {
+                        if (bucketValue > maxValue) {
+                            maxBucketKeys.clear();
+                            maxBucketKeys.add(bucket.getKeyAsString());
+                            maxValue = bucketValue;
+                        } else if (bucketValue == maxValue) {
+                            maxBucketKeys.add(bucket.getKeyAsString());
+                        }
                     }
                 }
             }
         }
+        String[] keys = maxBucketKeys.toArray(new String[maxBucketKeys.size()]);
         return new InternalBucketMetricValue(name(), keys, maxValue, formatter, Collections.EMPTY_LIST, metaData());
     }
 
-    private Double resolveBucketValue(InternalMultiBucketAggregation multiBucketAggregation, InternalMultiBucketAggregation.Bucket bucket) {
+    private Double resolveBucketValue(InternalMultiBucketAggregation multiBucketAggregation, InternalMultiBucketAggregation.Bucket bucket,
+            List<String> path) {
         try {
-            Object propertyValue = bucket.getProperty(multiBucketAggregation.getName(), AggregationPath.parse(bucketsPaths()[0])
-                    .getPathElementsAsStringList());
+            Object propertyValue = bucket.getProperty(multiBucketAggregation.getName(), path);
             if (propertyValue instanceof Number) {
                 return ((Number) propertyValue).doubleValue();
             } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
@@ -147,8 +146,7 @@ public class MaxBucketReducer extends SiblingReducer {
         }
 
         @Override
-        protected Reducer createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-                Map<String, Object> metaData) throws IOException {
+        protected Reducer createInternal(Map<String, Object> metaData) throws IOException {
             return new MaxBucketReducer(name, bucketsPaths, formatter, metaData);
         }
 

@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.reducers;
 
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -62,8 +61,7 @@ public abstract class ReducerFactory {
         doValidate(parent, factories, reducerFactories);
     }
 
-    protected abstract Reducer createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
-            Map<String, Object> metaData) throws IOException;
+    protected abstract Reducer createInternal(Map<String, Object> metaData) throws IOException;
 
     /**
      * Creates the reducer
@@ -81,8 +79,8 @@ public abstract class ReducerFactory {
      * 
      * @return The created aggregator
      */
-    public final Reducer create(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
-        Reducer aggregator = createInternal(context, parent, collectsFromSingleBucket, this.metaData);
+    public final Reducer create() throws IOException {
+        Reducer aggregator = createInternal(this.metaData);
         return aggregator;
     }
 

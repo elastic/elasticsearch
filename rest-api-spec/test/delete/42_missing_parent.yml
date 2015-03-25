@@ -21,6 +21,7 @@
           body:    { foo: bar }
 
  - do:
+      catch:        /RoutingMissingException/
       delete:
           index:   test_1
           type:    test

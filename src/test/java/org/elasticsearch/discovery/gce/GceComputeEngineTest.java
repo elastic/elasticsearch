@@ -24,10 +24,7 @@ import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.common.collect.Lists;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.gce.mock.GceComputeServiceTwoNodesDifferentTagsMock;
-import org.elasticsearch.discovery.gce.mock.GceComputeServiceTwoNodesOneZoneMock;
-import org.elasticsearch.discovery.gce.mock.GceComputeServiceTwoNodesSameTagsMock;
-import org.elasticsearch.discovery.gce.mock.GceComputeServiceTwoNodesTwoZonesMock;
+import org.elasticsearch.discovery.gce.mock.*;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Ignore;
@@ -186,11 +183,11 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
     public void multiple_zones_and_two_nodes_in_same_zone() {
         startNode(1,
                 GceComputeServiceTwoNodesOneZoneMock.class,
-                ImmutableSettings.settingsBuilder().put("cloud.gce.zones", Lists.newArrayList("us-central1-a", "us-central1-b",
+                ImmutableSettings.settingsBuilder().put("cloud.gce.zone", Lists.newArrayList("us-central1-a", "us-central1-b",
                         "us-central1-f", "europe-west1-a", "europe-west1-b")).build());
         startNode(2,
                 GceComputeServiceTwoNodesOneZoneMock.class,
-                ImmutableSettings.settingsBuilder().put("cloud.gce.zones", Lists.newArrayList("us-central1-a", "us-central1-b",
+                ImmutableSettings.settingsBuilder().put("cloud.gce.zone", Lists.newArrayList("us-central1-a", "us-central1-b",
                         "us-central1-f", "europe-west1-a", "europe-west1-b")).build());
 
         // We expect having 2 nodes as part of the cluster, let's test that
@@ -201,15 +198,26 @@ public class GceComputeEngineTest extends ElasticsearchIntegrationTest {
     public void multiple_zones_and_two_nodes_in_different_zones() {
         startNode(1,
                 GceComputeServiceTwoNodesTwoZonesMock.class,
-                ImmutableSettings.settingsBuilder().put("cloud.gce.zones", Lists.newArrayList("us-central1-a", "us-central1-b",
+                ImmutableSettings.settingsBuilder().put("cloud.gce.zone", Lists.newArrayList("us-central1-a", "us-central1-b",
                         "us-central1-f", "europe-west1-a", "europe-west1-b")).build());
         startNode(2,
                 GceComputeServiceTwoNodesTwoZonesMock.class,
-                ImmutableSettings.settingsBuilder().put("cloud.gce.zones", Lists.newArrayList("us-central1-a", "us-central1-b",
+                ImmutableSettings.settingsBuilder().put("cloud.gce.zone", Lists.newArrayList("us-central1-a", "us-central1-b",
                         "us-central1-f", "europe-west1-a", "europe-west1-b")).build());
 
         // We expect having 2 nodes as part of the cluster, let's test that
         checkNumberOfNodes(2);
+    }
+
+    /**
+     * For issue https://github.com/elastic/elasticsearch-cloud-gce/issues/43
+     */
+    @Test @Ignore
+    public void zero_node_43() {
+        startNode(1,
+                GceComputeServiceZeroNodeMock.class,
+                ImmutableSettings.settingsBuilder().put("cloud.gce.zone", Lists.newArrayList("us-central1-a", "us-central1-b",
+                        "us-central1-f", "europe-west1-a", "europe-west1-b")).build());
     }
 
 }

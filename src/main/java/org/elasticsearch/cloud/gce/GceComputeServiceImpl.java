@@ -67,6 +67,9 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
                     try {
                         Compute.Instances.List list = client().instances().list(project, zoneId);
                         InstanceList instanceList = list.execute();
+                        if (instanceList.isEmpty()) {
+                            return Lists.newArrayList();
+                        }
 
                         return instanceList.getItems();
                     } catch (IOException e) {

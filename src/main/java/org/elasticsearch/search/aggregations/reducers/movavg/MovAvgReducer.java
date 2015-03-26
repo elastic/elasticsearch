@@ -22,12 +22,14 @@ package org.elasticsearch.search.aggregations.reducers.movavg;
 import com.google.common.base.Function;
 import com.google.common.collect.EvictingQueue;
 import com.google.common.collect.Lists;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.reducers.*;
 import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModel;
@@ -92,7 +94,7 @@ public class MovAvgReducer extends Reducer {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
-        InternalHistogram<? extends InternalHistogram.Bucket> histo = (InternalHistogram<? extends InternalHistogram.Bucket>) aggregation;
+        InternalHistogram histo = (InternalHistogram) aggregation;
         List<? extends InternalHistogram.Bucket> buckets = histo.getBuckets();
         InternalHistogram.Factory<? extends InternalHistogram.Bucket> factory = histo.getFactory();
 
@@ -116,7 +118,8 @@ public class MovAvgReducer extends Reducer {
                 newBuckets.add(bucket);
             }
         }
-        return factory.create(histo.getName(), newBuckets, histo);
+        //return factory.create(histo.getName(), newBuckets, histo);
+        return factory.create(newBuckets, histo);
     }
 
     @Override
@@ -155,6 +158,24 @@ public class MovAvgReducer extends Reducer {
         protected Reducer createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
                 Map<String, Object> metaData) throws IOException {
             return new MovAvgReducer(name, bucketsPaths, formatter, gapPolicy, window, model, metaData);
+        }
+
+        @Override
+        public void doValidate(AggregatorFactory parent, AggregatorFactory[] aggFactories, List<ReducerFactory> reducerFactories) {
+            if (bucketsPaths.length != 1) {
+                throw new ElasticsearchIllegalStateException(Reducer.Parser.BUCKETS_PATH.getPreferredName()
+                        + " must contain a single entry for reducer [" + name + "]");
+            }
+            if (!(parent instanceof HistogramAggregator.Factory)) {
+                throw new ElasticsearchIllegalStateException("derivative reducer [" + name
+                        + "] must have a histogram or date_histogram as parent");
+            } else {
+                HistogramAggregator.Factory histoParent = (HistogramAggregator.Factory) parent;
+                if (histoParent.minDocCount() != 0) {
+                    throw new ElasticsearchIllegalStateException("parent histogram of derivative reducer [" + name
+                            + "] must have min_doc_count of 0");
+                }
+            }
         }
 
     }

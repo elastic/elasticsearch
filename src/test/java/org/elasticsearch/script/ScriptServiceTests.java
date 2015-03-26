@@ -94,6 +94,16 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testNotSupportedDisableDynamicSetting() throws IOException {
+        try {
+            buildScriptService(ImmutableSettings.builder().put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, randomUnicodeOfLength(randomIntBetween(1, 10))).build());
+            fail("script service should have thrown exception due to non supported script.disable_dynamic setting");
+        } catch(ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings"));
+        }
+    }
+
+    @Test
     public void testScriptsWithoutExtensions() throws IOException {
         buildScriptService(ImmutableSettings.EMPTY);
         logger.info("--> setup two test files one with extension and another without");
@@ -181,54 +191,6 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
             assertCompileAccepted("test", "script", ScriptType.INLINE, scriptContext);
             assertCompileAccepted("test", "script", ScriptType.INDEXED, scriptContext);
             assertCompileAccepted("test", "file_script", ScriptType.FILE, scriptContext);
-        }
-    }
-
-    @Test
-    public void testDisableDynamicDeprecatedSetting() throws IOException {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
-        ScriptService.DynamicScriptDisabling dynamicScriptDisabling = randomFrom(ScriptService.DynamicScriptDisabling.values());
-        switch(dynamicScriptDisabling) {
-            case EVERYTHING_ALLOWED:
-                builder.put("script.disable_dynamic", randomFrom("false", "none"));
-                break;
-            case ONLY_DISK_ALLOWED:
-                builder.put("script.disable_dynamic", randomFrom("true", "all"));
-                break;
-            case SANDBOXED_ONLY:
-                builder.put("script.disable_dynamic", randomFrom("sandbox", "sandboxed"));
-                break;
-        }
-
-        buildScriptService(builder.build());
-        createFileScripts("groovy", "expression", "mustache", "test");
-
-        for (ScriptContext scriptContext : ScriptContext.values()) {
-            for (ScriptEngineService scriptEngineService : scriptEngineServices) {
-                for (String lang : scriptEngineService.types()) {
-                    assertCompileAccepted(lang, "file_script", ScriptType.FILE, scriptContext);
-
-                    switch (dynamicScriptDisabling) {
-                        case EVERYTHING_ALLOWED:
-                            assertCompileAccepted(lang, "script", ScriptType.INDEXED, scriptContext);
-                            assertCompileAccepted(lang, "script", ScriptType.INLINE, scriptContext);
-                            break;
-                        case ONLY_DISK_ALLOWED:
-                            assertCompileRejected(lang, "script", ScriptType.INDEXED, scriptContext);
-                            assertCompileRejected(lang, "script", ScriptType.INLINE, scriptContext);
-                            break;
-                        case SANDBOXED_ONLY:
-                            if (scriptEngineService.sandboxed()) {
-                                assertCompileAccepted(lang, "script", ScriptType.INDEXED, scriptContext);
-                                assertCompileAccepted(lang, "script", ScriptType.INLINE, scriptContext);
-                            } else {
-                                assertCompileRejected(lang, "script", ScriptType.INDEXED, scriptContext);
-                                assertCompileRejected(lang, "script", ScriptType.INLINE, scriptContext);
-                            }
-                            break;
-                    }
-                }
-            }
         }
     }
 
@@ -324,7 +286,6 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                 for (ScriptContext scriptContext : ScriptContext.values()) {
                     //fallback mechanism: 1) engine specific settings 2) op based settings 3) source based settings
                     ScriptMode scriptMode = engineSettings.get(scriptEngineService.types()[0] + "." + scriptType + "." + scriptContext);
-                    ;
                     if (scriptMode == null) {
                         scriptMode = scriptContextSettings.get(scriptContext);
                     }

@@ -38,6 +38,15 @@ Alternatively, you can set the `ES_TEST_LOCAL` environment variable:
 export ES_TEST_LOCAL=true && mvn test
 -------------------------------------
 
+=== Running Elasticsearch from a checkout
+
+In order to run Elasticsearch from source without building a package, you can
+run it using Maven:
+
+-------------------------------------
+mvn compile exec:exec
+-------------------------------------
+
 === Test case filtering.
 
 - `tests.class` is a class-filtering shell-like glob pattern,

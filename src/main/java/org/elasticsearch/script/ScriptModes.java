@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;
 
@@ -40,15 +41,15 @@ public class ScriptModes {
 
     final ImmutableMap<String, ScriptMode> scriptModes;
 
-    ScriptModes(Map<String, ScriptEngineService> scriptEngines, Settings settings) {
+    ScriptModes(Map<String, ScriptEngineService> scriptEngines, Settings settings, ESLogger logger) {
         //filter out the native engine as we don't want to apply fine grained settings to it.
         //native scripts are always on as they are static by definition.
         Map<String, ScriptEngineService> filteredEngines = Maps.newHashMap(scriptEngines);
         filteredEngines.remove(NativeScriptEngineService.NAME);
-        this.scriptModes = buildScriptModeSettingsMap(settings, filteredEngines);
+        this.scriptModes = buildScriptModeSettingsMap(settings, filteredEngines, logger);
     }
 
-    private static ImmutableMap<String, ScriptMode> buildScriptModeSettingsMap(Settings settings, Map<String, ScriptEngineService> scriptEngines) {
+    private ImmutableMap<String, ScriptMode> buildScriptModeSettingsMap(Settings settings, Map<String, ScriptEngineService> scriptEngines, ESLogger logger) {
         HashMap<String, ScriptMode> scriptModesMap = Maps.newHashMap();
 
         //file scripts are enabled by default, for any language
@@ -62,7 +63,7 @@ public class ScriptModes {
         processSourceBasedGlobalSettings(settings, scriptEngines, processedSettings, scriptModesMap);
         processOperationBasedGlobalSettings(settings, scriptEngines, processedSettings, scriptModesMap);
         processEngineSpecificSettings(settings, scriptEngines, processedSettings, scriptModesMap);
-        processDisableDynamicDeprecatedSetting(settings, scriptEngines, processedSettings, scriptModesMap);
+        processDisableDynamicDeprecatedSetting(settings, scriptEngines, processedSettings, scriptModesMap, logger);
         return ImmutableMap.copyOf(scriptModesMap);
     }
 
@@ -111,8 +112,8 @@ public class ScriptModes {
         }
     }
 
-    private static void processDisableDynamicDeprecatedSetting(Settings settings, Map<String, ScriptEngineService> scriptEngines,
-                                                               List<String> processedSettings, Map<String, ScriptMode> scriptModes) {
+    private void processDisableDynamicDeprecatedSetting(Settings settings, Map<String, ScriptEngineService> scriptEngines,
+                                                               List<String> processedSettings, Map<String, ScriptMode> scriptModes, ESLogger logger) {
         //read deprecated disable_dynamic setting, apply only if none of the new settings is used
         String disableDynamicSetting = settings.get(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING);
         if (disableDynamicSetting != null) {
@@ -128,10 +129,11 @@ public class ScriptModes {
                         addGlobalScriptTypeModes(scriptEngines.keySet(), ScriptType.INLINE, ScriptMode.OFF, scriptModes);
                         break;
                 }
+                logger.warn("deprecated setting [{}] is set, replace with fine-grained scripting settings (e.g. script.inline, script.indexed, script.file)", ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING);
             } else {
                 processedSettings.add(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING + ": " + disableDynamicSetting);
-                throw new ElasticsearchIllegalArgumentException("Conflicting scripting settings have been specified, use either "
-                        + ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING + " (deprecated) or the newer fine-grained settings, not both at the same time:\n" + processedSettings);
+                throw new ElasticsearchIllegalArgumentException("conflicting scripting settings have been specified, use either "
+                        + ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING + " (deprecated) or the newer fine-grained settings (e.g. script.inline, script.indexed, script.file), not both at the same time:\n" + processedSettings);
             }
         }
     }

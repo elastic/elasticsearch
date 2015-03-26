@@ -17,15 +17,15 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers.movavg.models;
+package org.elasticsearch.search.aggregations.reducers.smooth.models;
 
 
 import org.elasticsearch.common.Nullable;
 
 import java.util.Map;
 
-public interface MovAvgModelParser {
-    public MovAvgModel parse(@Nullable Map<String, Object> settings);
+public interface SmoothingModelParser {
+    public SmoothingModel parse(@Nullable Map<String, Object> settings);
 
     public String getName();
 }

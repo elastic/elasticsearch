@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers.movavg.models;
+package org.elasticsearch.search.aggregations.reducers.smooth.models;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -33,7 +33,7 @@ import java.util.Map;
 /**
  * Calculate a doubly exponential weighted moving average
  */
-public class DoubleExpModel extends MovAvgModel {
+public class DoubleExpModel extends SmoothingModel {
 
     protected static final ParseField NAME_FIELD = new ParseField("double_exp");
 
@@ -106,9 +106,9 @@ public class DoubleExpModel extends MovAvgModel {
         return forecastValues;
     }
 
-    public static final MovAvgModelStreams.Stream STREAM = new MovAvgModelStreams.Stream() {
+    public static final SmoothingModelStreams.Stream STREAM = new SmoothingModelStreams.Stream() {
         @Override
-        public MovAvgModel readResult(StreamInput in) throws IOException {
+        public SmoothingModel readResult(StreamInput in) throws IOException {
             return new DoubleExpModel(in.readDouble(), in.readDouble());
         }
 
@@ -125,7 +125,7 @@ public class DoubleExpModel extends MovAvgModel {
         out.writeDouble(beta);
     }
 
-    public static class DoubleExpModelParser implements MovAvgModelParser {
+    public static class DoubleExpModelParser implements SmoothingModelParser {
 
         @Override
         public String getName() {
@@ -133,7 +133,7 @@ public class DoubleExpModel extends MovAvgModel {
         }
 
         @Override
-        public MovAvgModel parse(@Nullable Map<String, Object> settings) {
+        public SmoothingModel parse(@Nullable Map<String, Object> settings) {
 
             Double alpha;
             Double beta;

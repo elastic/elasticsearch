@@ -17,8 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers.movavg.models;
-
+package org.elasticsearch.search.aggregations.reducers.smooth.models;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -30,31 +29,44 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- * Calculate a linearly weighted moving average, such that older values are
- * linearly less important.  "Time" is determined by position in collection
+ * Calculate a exponentially weighted moving average
  */
-public class LinearModel extends MovAvgModel {
+public class SingleExpModel extends SmoothingModel {
 
-    protected static final ParseField NAME_FIELD = new ParseField("linear");
+    protected static final ParseField NAME_FIELD = new ParseField("single_exp");
+
+    /**
+     * Controls smoothing of data. Alpha = 1 retains no memory of past values
+     * (e.g. random walk), while alpha = 0 retains infinite memory of past values (e.g.
+     * mean of the series).  Useful values are somewhere in between
+     */
+    private double alpha;
+
+    SingleExpModel(double alpha) {
+        this.alpha = alpha;
+    }
+
 
     @Override
     public <T extends Number> double next(Collection<T> values) {
         double avg = 0;
-        long totalWeight = 1;
-        long current = 1;
+        boolean first = true;
 
         for (T v : values) {
-            avg += v.doubleValue() * current;
-            totalWeight += current;
-            current += 1;
+            if (first) {
+                avg = v.doubleValue();
+                first = false;
+            } else {
+                avg = (v.doubleValue() * alpha) + (avg * (1 - alpha));
+            }
         }
-        return avg / totalWeight;
+        return avg;
     }
 
-    public static final MovAvgModelStreams.Stream STREAM = new MovAvgModelStreams.Stream() {
+    public static final SmoothingModelStreams.Stream STREAM = new SmoothingModelStreams.Stream() {
         @Override
-        public MovAvgModel readResult(StreamInput in) throws IOException {
-            return new LinearModel();
+        public SmoothingModel readResult(StreamInput in) throws IOException {
+            return new SingleExpModel(in.readDouble());
         }
 
         @Override
@@ -66,9 +78,10 @@ public class LinearModel extends MovAvgModel {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(STREAM.getName());
+        out.writeDouble(alpha);
     }
 
-    public static class LinearModelParser implements MovAvgModelParser {
+    public static class SingleExpModelParser implements SmoothingModelParser {
 
         @Override
         public String getName() {
@@ -76,8 +89,15 @@ public class LinearModel extends MovAvgModel {
         }
 
         @Override
-        public MovAvgModel parse(@Nullable Map<String, Object> settings) {
-            return new LinearModel();
+        public SmoothingModel parse(@Nullable Map<String, Object> settings) {
+
+            Double alpha;
+            if (settings == null || (alpha = (Double)settings.get("alpha")) == null) {
+                alpha = 0.5;
+            }
+
+            return new SingleExpModel(alpha);
         }
     }
 }
+

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers.movavg.models;
+package org.elasticsearch.search.aggregations.reducers.smooth.models;
 
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
@@ -30,21 +30,21 @@ import java.util.Set;
 /**
  * Contains a map of all concrete model parsers which can be used to build Models
  */
-public class MovAvgModelParserMapper {
+public class SmoothingModelParserMapper {
 
-    protected ImmutableMap<String, MovAvgModelParser> movAvgParsers;
+    protected ImmutableMap<String, SmoothingModelParser> movAvgParsers;
 
     @Inject
-    public MovAvgModelParserMapper(Set<MovAvgModelParser> parsers) {
-        MapBuilder<String, MovAvgModelParser> builder = MapBuilder.newMapBuilder();
-        for (MovAvgModelParser parser : parsers) {
+    public SmoothingModelParserMapper(Set<SmoothingModelParser> parsers) {
+        MapBuilder<String, SmoothingModelParser> builder = MapBuilder.newMapBuilder();
+        for (SmoothingModelParser parser : parsers) {
             builder.put(parser.getName(), parser);
         }
         movAvgParsers = builder.immutableMap();
     }
 
     public @Nullable
-    MovAvgModelParser get(String parserName) {
+    SmoothingModelParser get(String parserName) {
         return movAvgParsers.get(parserName);
     }
 

@@ -26,7 +26,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
-import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModel;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 

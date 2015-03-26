@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers.movavg;
+package org.elasticsearch.search.aggregations.reducers.smooth;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
@@ -27,7 +27,7 @@ import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
 
-public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
+public class SmoothBuilder extends ReducerBuilder<SmoothBuilder> {
 
     private String format;
     private GapPolicy gapPolicy;
@@ -35,31 +35,31 @@ public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
     private Integer window;
     private Map<String, Object> settings;
 
-    public MovAvgBuilder(String name) {
-        super(name, MovAvgReducer.TYPE.name());
+    public SmoothBuilder(String name) {
+        super(name, SmoothReducer.TYPE.name());
     }
 
-    public MovAvgBuilder format(String format) {
+    public SmoothBuilder format(String format) {
         this.format = format;
         return this;
     }
 
-    public MovAvgBuilder gapPolicy(GapPolicy gapPolicy) {
+    public SmoothBuilder gapPolicy(GapPolicy gapPolicy) {
         this.gapPolicy = gapPolicy;
         return this;
     }
 
-    public MovAvgBuilder weighting(String weighting) {
+    public SmoothBuilder weighting(String weighting) {
         this.weighting = weighting;
         return this;
     }
 
-    public MovAvgBuilder window(int window) {
+    public SmoothBuilder window(int window) {
         this.window = window;
         return this;
     }
 
-    public MovAvgBuilder settings(Map<String, Object> settings) {
+    public SmoothBuilder settings(Map<String, Object> settings) {
         this.settings = settings;
         return this;
     }
@@ -67,19 +67,19 @@ public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         if (format != null) {
-            builder.field(MovAvgParser.FORMAT.getPreferredName(), format);
+            builder.field(SmoothParser.FORMAT.getPreferredName(), format);
         }
         if (gapPolicy != null) {
-            builder.field(MovAvgParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
+            builder.field(SmoothParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
         }
         if (weighting != null) {
-            builder.field(MovAvgParser.WEIGHTING.getPreferredName(), weighting);
+            builder.field(SmoothParser.WEIGHTING.getPreferredName(), weighting);
         }
         if (window != null) {
-            builder.field(MovAvgParser.WINDOW.getPreferredName(), window);
+            builder.field(SmoothParser.WINDOW.getPreferredName(), window);
         }
         if (settings != null) {
-            builder.field(MovAvgParser.SETTINGS.getPreferredName(), settings);
+            builder.field(SmoothParser.SETTINGS.getPreferredName(), settings);
         }
         return builder;
     }

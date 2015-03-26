@@ -17,39 +17,35 @@
  * under the License.
  */
 
-
-package org.elasticsearch.search.aggregations.reducers.movavg.models;
+package org.elasticsearch.search.aggregations.reducers.smooth.models;
 
 import com.google.common.collect.Lists;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.multibindings.Multibinder;
 
 import java.util.List;
 
 /**
- * Register the various model parsers
+ * Register the transport streams so that models can be serialized/deserialized from the stream
  */
-public class MovAvgModelModule extends AbstractModule {
+public class TransportSmoothingModelModule extends AbstractModule {
 
-    private List<Class<? extends MovAvgModelParser>> parsers = Lists.newArrayList();
+    private List<SmoothingModelStreams.Stream> streams = Lists.newArrayList();
 
-    public MovAvgModelModule() {
-        registerParser(SimpleModel.SimpleModelParser.class);
-        registerParser(LinearModel.LinearModelParser.class);
-        registerParser(SingleExpModel.SingleExpModelParser.class);
-        registerParser(DoubleExpModel.DoubleExpModelParser.class);
+    public TransportSmoothingModelModule() {
+        registerStream(SimpleModel.STREAM);
+        registerStream(LinearModel.STREAM);
+        registerStream(SingleExpModel.STREAM);
+        registerStream(DoubleExpModel.STREAM);
     }
 
-    public void registerParser(Class<? extends MovAvgModelParser> parser) {
-        parsers.add(parser);
+    public void registerStream(SmoothingModelStreams.Stream stream) {
+        streams.add(stream);
     }
 
     @Override
     protected void configure() {
-        Multibinder<MovAvgModelParser> parserMapBinder = Multibinder.newSetBinder(binder(), MovAvgModelParser.class);
-        for (Class<? extends MovAvgModelParser> clazz : parsers) {
-            parserMapBinder.addBinding().to(clazz);
+        for (SmoothingModelStreams.Stream stream : streams) {
+            SmoothingModelStreams.registerStream(stream, stream.getName());
         }
-        bind(MovAvgModelParserMapper.class);
     }
 }

@@ -17,7 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers.movavg.models;
+package org.elasticsearch.search.aggregations.reducers.smooth.models;
+
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -29,25 +30,31 @@ import java.util.Collection;
 import java.util.Map;
 
 /**
- * Calculate a simple unweighted (arithmetic) moving average
+ * Calculate a linearly weighted moving average, such that older values are
+ * linearly less important.  "Time" is determined by position in collection
  */
-public class SimpleModel extends MovAvgModel {
+public class LinearModel extends SmoothingModel {
 
-    protected static final ParseField NAME_FIELD = new ParseField("simple");
+    protected static final ParseField NAME_FIELD = new ParseField("linear");
 
     @Override
     public <T extends Number> double next(Collection<T> values) {
         double avg = 0;
+        long totalWeight = 1;
+        long current = 1;
+
         for (T v : values) {
-            avg += v.doubleValue();
+            avg += v.doubleValue() * current;
+            totalWeight += current;
+            current += 1;
         }
-        return avg / values.size();
+        return avg / totalWeight;
     }
 
-    public static final MovAvgModelStreams.Stream STREAM = new MovAvgModelStreams.Stream() {
+    public static final SmoothingModelStreams.Stream STREAM = new SmoothingModelStreams.Stream() {
         @Override
-        public MovAvgModel readResult(StreamInput in) throws IOException {
-            return new SimpleModel();
+        public SmoothingModel readResult(StreamInput in) throws IOException {
+            return new LinearModel();
         }
 
         @Override
@@ -61,7 +68,7 @@ public class SimpleModel extends MovAvgModel {
         out.writeString(STREAM.getName());
     }
 
-    public static class SimpleModelParser implements MovAvgModelParser {
+    public static class LinearModelParser implements SmoothingModelParser {
 
         @Override
         public String getName() {
@@ -69,8 +76,8 @@ public class SimpleModel extends MovAvgModel {
         }
 
         @Override
-        public MovAvgModel parse(@Nullable Map<String, Object> settings) {
-            return new SimpleModel();
+        public SmoothingModel parse(@Nullable Map<String, Object> settings) {
+            return new LinearModel();
         }
     }
 }

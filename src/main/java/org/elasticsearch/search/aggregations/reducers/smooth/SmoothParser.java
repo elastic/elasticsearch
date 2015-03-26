@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers.movavg;
+package org.elasticsearch.search.aggregations.reducers.smooth;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.inject.Inject;
@@ -25,9 +25,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.reducers.ReducerFactory;
-import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModel;
-import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModelParser;
-import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModelParserMapper;
+import org.elasticsearch.search.aggregations.reducers.smooth.models.SmoothingModel;
+import org.elasticsearch.search.aggregations.reducers.smooth.models.SmoothingModelParser;
+import org.elasticsearch.search.aggregations.reducers.smooth.models.SmoothingModelParserMapper;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -39,7 +39,7 @@ import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
 
-public class MovAvgParser implements Reducer.Parser {
+public class SmoothParser implements Reducer.Parser {
 
     public static final ParseField FORMAT = new ParseField("format");
     public static final ParseField GAP_POLICY = new ParseField("gap_policy");
@@ -47,16 +47,16 @@ public class MovAvgParser implements Reducer.Parser {
     public static final ParseField WINDOW = new ParseField("window");
     public static final ParseField SETTINGS = new ParseField("settings");
 
-    private final MovAvgModelParserMapper movAvgModelParserMapper;
+    private final SmoothingModelParserMapper smoothingModelParserMapper;
 
     @Inject
-    public MovAvgParser(MovAvgModelParserMapper movAvgModelParserMapper) {
-        this.movAvgModelParserMapper = movAvgModelParserMapper;
+    public SmoothParser(SmoothingModelParserMapper smoothingModelParserMapper) {
+        this.smoothingModelParserMapper = smoothingModelParserMapper;
     }
 
     @Override
     public String type() {
-        return MovAvgReducer.TYPE.name();
+        return SmoothReducer.TYPE.name();
     }
 
     @Override
@@ -119,7 +119,7 @@ public class MovAvgParser implements Reducer.Parser {
 
         if (bucketsPaths == null) {
             throw new SearchParseException(context, "Missing required field [" + BUCKETS_PATH.getPreferredName()
-                    + "] for movavg aggregation [" + reducerName + "]");
+                    + "] for smooth aggregation [" + reducerName + "]");
         }
 
         ValueFormatter formatter = null;
@@ -127,15 +127,15 @@ public class MovAvgParser implements Reducer.Parser {
             formatter = ValueFormat.Patternable.Number.format(format).formatter();
         }
 
-        MovAvgModelParser modelParser = movAvgModelParserMapper.get(weighting);
+        SmoothingModelParser modelParser = smoothingModelParserMapper.get(weighting);
         if (modelParser == null) {
             throw new SearchParseException(context, "Unknown weighting [" + weighting
-                    + "] specified.  Valid options are:" + movAvgModelParserMapper.getAllNames().toString());
+                    + "] specified.  Valid options are:" + smoothingModelParserMapper.getAllNames().toString());
         }
-        MovAvgModel model = modelParser.parse(settings);
+        SmoothingModel model = modelParser.parse(settings);
 
 
-        return new MovAvgReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy, window, model);
+        return new SmoothReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy, window, model);
     }
 
 

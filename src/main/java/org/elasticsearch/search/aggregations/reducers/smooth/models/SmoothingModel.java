@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers.movavg.models;
+package org.elasticsearch.search.aggregations.reducers.smooth.models;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.*;
 
-public abstract class MovAvgModel {
+public abstract class SmoothingModel {
 
     /**
      * Returns the next value in the series, according to the underlying smoothing model

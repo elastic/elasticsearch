@@ -82,6 +82,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.cache.recycler.MockBigArraysModule;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecyclerModule;
@@ -268,8 +269,7 @@ public final class InternalTestCluster extends TestCluster {
         builder.put("http.port", basePort+101 + "-" + (basePort+200));
         builder.put("config.ignore_system_properties", true);
         builder.put("node.mode", NODE_MODE);
-        builder.put("script.indexed", "on");
-        builder.put("script.inline", "on");
+        builder.put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, false);
         builder.put("http.pipelining", enableHttpPipelining);
         builder.put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false);
         builder.put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true);

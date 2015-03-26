@@ -24,8 +24,8 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
@@ -280,11 +280,28 @@ public class DynamicMappingTests extends ElasticsearchSingleNodeTest {
         assertNotNull(mapper.mappers().name("a"));
         assertNotNull(mapper.mappers().name("z"));
 
-        // both fields should be in the cluster state
-        getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
-        assertNotNull(getMappingsResponse.getMappings().get("test").get("doc"));
-        Map<String, Object> mappings = getMappingsResponse.getMappings().get("test").get("doc").getSourceAsMap();
-        assertNotNull(((LinkedHashMap) mappings.get("properties")).get("a"));
-        assertNotNull(((LinkedHashMap) mappings.get("properties")).get("z"));
+        // we have to wait here because the cluster state might not be immediately updated
+        assertTrue(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(java.lang.Object input) {
+                GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
+                return getMappingsResponse.getMappings().get("test").get("doc") != null;
+            }
+        }));
+        assertTrue(awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(java.lang.Object input) {
+                // both fields should be in the cluster state
+                GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").get();
+                assertNotNull(getMappingsResponse.getMappings().get("test").get("doc"));
+                Map<String, Object> mappings = null;
+                try {
+                    mappings = getMappingsResponse.getMappings().get("test").get("doc").getSourceAsMap();
+                } catch (IOException e) {
+                    fail("IOException when calling getSourceAsMap()" + e.getMessage());
+                }
+                return ((LinkedHashMap) mappings.get("properties")).get("a") != null && ((LinkedHashMap) mappings.get("properties")).get("z") != null;
+            }
+        }));
     }
 }

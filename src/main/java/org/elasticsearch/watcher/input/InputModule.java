@@ -5,10 +5,11 @@
  */
 package org.elasticsearch.watcher.input;
 
-import org.elasticsearch.watcher.input.search.SearchInput;
-import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.watcher.input.http.HttpInput;
+import org.elasticsearch.watcher.input.search.SearchInput;
+import org.elasticsearch.watcher.input.simple.SimpleInput;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -26,12 +27,13 @@ public class InputModule extends AbstractModule {
 
     @Override
     protected void configure() {
-
         MapBinder<String, Input.Parser> parsersBinder = MapBinder.newMapBinder(binder(), String.class, Input.Parser.class);
         bind(SearchInput.Parser.class).asEagerSingleton();
         parsersBinder.addBinding(SearchInput.TYPE).to(SearchInput.Parser.class);
         bind(SimpleInput.Parser.class).asEagerSingleton();
         parsersBinder.addBinding(SimpleInput.TYPE).to(SimpleInput.Parser.class);
+        bind(HttpInput.Parser.class).asEagerSingleton();
+        parsersBinder.addBinding(HttpInput.TYPE).to(HttpInput.Parser.class);
 
         for (Map.Entry<String, Class<? extends Input.Parser>> entry : parsers.entrySet()) {
             bind(entry.getValue()).asEagerSingleton();

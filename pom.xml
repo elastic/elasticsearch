@@ -104,6 +104,13 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>com.squareup.okhttp</groupId>
+            <artifactId>mockwebserver</artifactId>
+            <version>2.3.0</version>
+            <scope>test</scope>
+        </dependency>
+
         <!-- Regular dependencies -->
 
         <dependency>

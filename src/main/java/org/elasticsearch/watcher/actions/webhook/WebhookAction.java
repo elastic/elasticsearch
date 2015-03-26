@@ -5,27 +5,29 @@
  */
 package org.elasticsearch.watcher.actions.webhook;
 
-import org.elasticsearch.watcher.WatcherSettingsException;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
-import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.actions.ActionException;
-import org.elasticsearch.watcher.actions.ActionSettingsException;
-import org.elasticsearch.watcher.support.Script;
-import org.elasticsearch.watcher.support.Variables;
-import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.support.template.XContentTemplate;
-import org.elasticsearch.watcher.transform.Transform;
-import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.WatcherSettingsException;
+import org.elasticsearch.watcher.actions.Action;
+import org.elasticsearch.watcher.actions.ActionException;
+import org.elasticsearch.watcher.actions.ActionSettingsException;
+import org.elasticsearch.watcher.support.Script;
+import org.elasticsearch.watcher.support.Variables;
+import org.elasticsearch.watcher.support.http.HttpClient;
+import org.elasticsearch.watcher.support.http.HttpMethod;
+import org.elasticsearch.watcher.support.http.HttpResponse;
+import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.template.XContentTemplate;
+import org.elasticsearch.watcher.transform.Transform;
+import org.elasticsearch.watcher.transform.TransformRegistry;
+import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.watcher.watch.WatchExecutionContext;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -62,17 +64,17 @@ public class WebhookAction extends Action<WebhookAction.Result> {
         String urlText = url.render(model);
         String bodyText = body != null ? body.render(model) : XContentTemplate.YAML.render(model);
         try {
-
-            int status = httpClient.execute(method, urlText, bodyText);
-            if (status >= 400) {
-                logger.warn("got status [" + status + "] when connecting to [" + urlText + "]");
-            } else {
-                if (status >= 300) {
-                    logger.warn("a 200 range return code was expected, but got [" + status + "]");
+            try (HttpResponse response = httpClient.execute(method, urlText, bodyText)) {
+                int status = response.status();
+                if (status >= 400) {
+                    logger.warn("got status [" + status + "] when connecting to [" + urlText + "]");
+                } else {
+                    if (status >= 300) {
+                        logger.warn("a 200 range return code was expected, but got [" + status + "]");
+                    }
                 }
+                return new Result.Executed(status, urlText, bodyText);
             }
-            return new Result.Executed(status, urlText, bodyText);
-
         } catch (IOException ioe) {
             logger.error("failed to connect to [{}] for watch [{}]", ioe, urlText, ctx.watch().name());
             return new Result.Failure("failed to send http request. " + ioe.getMessage());
@@ -87,7 +89,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
                     .field(transform.type(), transform)
                     .endObject();
         }
-        builder.field(Parser.METHOD_FIELD.getPreferredName(), method.getName().toLowerCase(Locale.ROOT));
+        builder.field(Parser.METHOD_FIELD.getPreferredName(), method.method());
         builder.field(Parser.URL_FIELD.getPreferredName(), url);
         if (body != null) {
             builder.field(Parser.BODY_FIELD.getPreferredName(), body);
@@ -222,7 +224,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
                     if (METHOD_FIELD.match(currentFieldName)) {
                         method = HttpMethod.valueOf(parser.text().toUpperCase(Locale.ROOT));
                         if (method != HttpMethod.POST && method != HttpMethod.GET && method != HttpMethod.PUT) {
-                            throw new ActionSettingsException("could not parse webhook action. unsupported http method [" + method.getName() + "]");
+                            throw new ActionSettingsException("could not parse webhook action. unsupported http method [" + method.method() + "]");
                         }
                     } else if (URL_FIELD.match(currentFieldName)) {
                         try {
@@ -339,7 +341,7 @@ public class WebhookAction extends Action<WebhookAction.Result> {
             builder.startObject();
             builder.field(Parser.URL_FIELD.getPreferredName(), url);
             if (method != null) {
-                builder.field(Parser.METHOD_FIELD.getPreferredName(), method.getName().toLowerCase(Locale.ROOT));
+                builder.field(Parser.METHOD_FIELD.getPreferredName(), method.method());
             }
             if (body != null) {
                 builder.field(Parser.BODY_FIELD.getPreferredName(), body);

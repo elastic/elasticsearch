@@ -8,7 +8,6 @@ package org.elasticsearch.shield.authz;
 import dk.brics.automaton.Automaton;
 import dk.brics.automaton.BasicAutomata;
 import dk.brics.automaton.BasicOperations;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
@@ -25,11 +24,13 @@ import org.elasticsearch.common.cache.LoadingCache;
 import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.collect.Sets;
 import org.elasticsearch.common.util.concurrent.UncheckedExecutionException;
+import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.shield.support.Automatons;
 
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 import static org.elasticsearch.shield.support.Automatons.patterns;
 
@@ -158,14 +159,29 @@ public abstract class Privilege<P extends Privilege<P>> {
         public static final Index DELETE =          new Index("delete",         "indices:data/write/delete*");
         public static final Index WRITE =           new Index("write",          "indices:data/write/*");
 
-        private static final Index[] values = new Index[] {
-            NONE, ALL, MANAGE, CREATE_INDEX, MANAGE_ALIASES, MONITOR, DATA_ACCESS, CRUD, READ, SEARCH, GET, SUGGEST, INDEX, DELETE, WRITE
-        };
+        private static final Set<Index> values = new CopyOnWriteArraySet<>();
+        static {
+            values.add(NONE);
+            values.add(ALL);
+            values.add(MANAGE);
+            values.add(CREATE_INDEX);
+            values.add(MANAGE_ALIASES);
+            values.add(MONITOR);
+            values.add(DATA_ACCESS);
+            values.add(CRUD);
+            values.add(READ);
+            values.add(SEARCH);
+            values.add(GET);
+            values.add(SUGGEST);
+            values.add(INDEX);
+            values.add(DELETE);
+            values.add(WRITE);
+        }
 
         public static final Predicate<String> ACTION_MATCHER = ALL.predicate();
         public static final Predicate<String> CREATE_INDEX_MATCHER = CREATE_INDEX.predicate();
 
-        static Index[] values() {
+        static Set<Index> values() {
             return values;
         }
 
@@ -191,6 +207,19 @@ public abstract class Privilege<P extends Privilege<P>> {
 
         private Index(Name name, Automaton automaton) {
             super(name, automaton);
+        }
+
+        public static void addCustom(String name, String... actionPatterns) {
+            for (String pattern : actionPatterns) {
+                if (!Index.ACTION_MATCHER.apply(pattern)) {
+                    throw new ShieldException("cannot register custom index privilege [" + name + "]. index aciton must follow the 'indices:*' format");
+                }
+            }
+            Index custom = new Index(name, actionPatterns);
+            if (values.contains(custom)) {
+                throw new ShieldException("cannot register custom index privilege [" + name + "] as it already exists.");
+            }
+            values.add(custom);
         }
 
         @Override
@@ -237,7 +266,7 @@ public abstract class Privilege<P extends Privilege<P>> {
                 }
             }
             throw new ElasticsearchIllegalArgumentException("unknown index privilege [" + name + "]. a privilege must be either " +
-                    "one of the predefined fixed indices privileges [" + Strings.arrayToCommaDelimitedString(values) +
+                    "one of the predefined fixed indices privileges [" + Strings.collectionToCommaDelimitedString(values) +
                     "] or a pattern over one of the available index actions");
         }
 
@@ -252,9 +281,15 @@ public abstract class Privilege<P extends Privilege<P>> {
 
         final static Predicate<String> ACTION_MATCHER = Privilege.Cluster.ALL.predicate();
 
-        private static final Cluster[] values = new Cluster[] { NONE, ALL, MONITOR, MANAGE_SHIELD };
+        private static final Set<Cluster> values = new CopyOnWriteArraySet<>();
+        static {
+            values.add(NONE);
+            values.add(ALL);
+            values.add(MONITOR);
+            values.add(MANAGE_SHIELD);
+        }
 
-        static Cluster[] values() {
+        static Set<Cluster> values() {
             return values;
         }
 
@@ -282,9 +317,21 @@ public abstract class Privilege<P extends Privilege<P>> {
             super(name, automaton);
         }
 
+        public static void addCustom(String name, String... actionPatterns) {
+            for (String pattern : actionPatterns) {
+                if (!Cluster.ACTION_MATCHER.apply(pattern)) {
+                    throw new ShieldException("cannot register custom cluster privilege [" + name + "]. cluster aciton must follow the 'cluster:*' format");
+                }
+            }
+            Cluster custom = new Cluster(name, actionPatterns);
+            if (values.contains(custom)) {
+                throw new ShieldException("cannot register custom cluster privilege [" + name + "] as it already exists.");
+            }
+            values.add(custom);
+        }
+
         @Override
         protected Cluster create(Name name, Automaton automaton) {
-
             return new Cluster(name, automaton);
         }
 
@@ -317,7 +364,7 @@ public abstract class Privilege<P extends Privilege<P>> {
                 }
             }
             throw new ElasticsearchIllegalArgumentException("unknown cluster privilege [" + name + "]. a privilege must be either " +
-                    "one of the predefined fixed cluster privileges [" + Strings.arrayToCommaDelimitedString(values) +
+                    "one of the predefined fixed cluster privileges [" + Strings.collectionToCommaDelimitedString(values) +
                     "] or a pattern over one of the available cluster actions");
         }
     }
@@ -383,6 +430,8 @@ public abstract class Privilege<P extends Privilege<P>> {
         protected abstract P create(Name name, Automaton automaton);
 
         protected abstract P none();
+
+
     }
 
     public static class Name {

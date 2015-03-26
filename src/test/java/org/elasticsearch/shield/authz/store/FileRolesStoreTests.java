@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.authz.store;
 
 import org.elasticsearch.common.base.Charsets;
+import org.elasticsearch.common.collect.ImmutableSet;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -24,8 +25,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -137,7 +140,7 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
             threadPool = new ThreadPool("test");
             watcherService = new ResourceWatcherService(settings, threadPool);
             final CountDownLatch latch = new CountDownLatch(1);
-            FileRolesStore store = new FileRolesStore(settings, env, watcherService, new RefreshListener() {
+            FileRolesStore store = new FileRolesStore(settings, env, watcherService, Collections.<Permission.Global.Role>emptySet(), new RefreshListener() {
                 @Override
                 public void onRefresh() {
                     latch.countDown();
@@ -204,5 +207,38 @@ public class FileRolesStoreTests extends ElasticsearchTestCase {
         assertThat(entries.get(2).text, startsWith("invalid role definition [role2] in roles file [" + path.toAbsolutePath() + "]. could not resolve cluster privileges [blkjdlkd]"));
         assertThat(entries.get(3).text, startsWith("invalid role definition [role3] in roles file [" + path.toAbsolutePath() + "]. [indices] field value must be an array"));
         assertThat(entries.get(4).text, startsWith("invalid role definition [role4] in roles file [" + path.toAbsolutePath() + "]. could not resolve indices privileges [al;kjdlkj;lkj]"));
+    }
+
+    @Test
+    public void testReservedRoles() throws Exception {
+        Set<Permission.Global.Role> reservedRoles = ImmutableSet.<Permission.Global.Role>builder()
+                .add(Permission.Global.Role.builder("reserved")
+                        .set(Privilege.Cluster.ALL)
+                        .build())
+                .build();
+
+        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
+
+        Path path = Paths.get(getClass().getResource("reserved_roles.yml").toURI());
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, reservedRoles, logger);
+        assertThat(roles, notNullValue());
+        assertThat(roles.size(), is(2));
+
+        assertThat(roles, hasKey("admin"));
+        assertThat(roles, hasKey("reserved"));
+        Permission.Global.Role reserved = roles.get("reserved");
+
+        List<CapturingLogger.Msg> messages = logger.output(CapturingLogger.Level.WARN);
+        assertThat(messages, notNullValue());
+        assertThat(messages, hasSize(2));
+        // the system role will always be checked first
+        assertThat(messages.get(0).text, containsString("role [__es_system_role] is reserved"));
+        assertThat(messages.get(1).text, containsString("role [reserved] is reserved"));
+
+        // we overriden the configured reserved role with ALL cluster priv. (was configured to be "monitor" only)
+        assertThat(reserved.cluster().check("cluster:admin/test"), is(true));
+
+        // we overriden the configured reserved role without index privs. (was configured with index priv on "index_a_*" indices)
+        assertThat(reserved.indices().isEmpty(), is(true));
     }
 }

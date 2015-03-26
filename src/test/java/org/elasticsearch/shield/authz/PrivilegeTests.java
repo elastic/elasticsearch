@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.common.base.Predicate;
+import org.elasticsearch.shield.ShieldException;
 import org.elasticsearch.shield.support.AutomatonPredicate;
 import org.elasticsearch.shield.support.Automatons;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -112,6 +113,33 @@ public class PrivilegeTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testCluster_AddCustom() throws Exception {
+        Privilege.Cluster.addCustom("foo", "cluster:bar");
+        boolean found = false;
+        for (Privilege.Cluster cluster : Privilege.Cluster.values()) {
+            if ("foo".equals(cluster.name.toString())) {
+                found = true;
+                assertThat(cluster.predicate().apply("cluster:bar"), is(true));
+            }
+        }
+        assertThat(found, is(true));
+        Privilege.Cluster cluster = Privilege.Cluster.get(new Privilege.Name("foo"));
+        assertThat(cluster, notNullValue());
+        assertThat(cluster.name().toString(), is("foo"));
+        assertThat(cluster.predicate().apply("cluster:bar"), is(true));
+    }
+
+    @Test(expected = ShieldException.class)
+    public void testCluster_AddCustom_InvalidPattern() throws Exception {
+        Privilege.Cluster.addCustom("foo", "bar");
+    }
+
+    @Test(expected = ShieldException.class)
+    public void testCluster_AddCustom_AlreadyExists() throws Exception {
+        Privilege.Cluster.addCustom("all", "bar");
+    }
+
+    @Test
     public void testIndexAction() throws Exception {
         Privilege.Name actionName = new Privilege.Name("indices:admin/mapping/delete");
         Privilege.Index index = Privilege.Index.get(actionName);
@@ -122,7 +150,7 @@ public class PrivilegeTests extends ElasticsearchTestCase {
 
     @Test
     public void testIndex_Collapse() throws Exception {
-        Privilege.Index[] values = Privilege.Index.values();
+        Privilege.Index[] values = Privilege.Index.values().toArray(new Privilege.Index[Privilege.Index.values().size()]);
         Privilege.Index first = values[randomIntBetween(0, values.length-1)];
         Privilege.Index second = values[randomIntBetween(0, values.length-1)];
 
@@ -140,7 +168,7 @@ public class PrivilegeTests extends ElasticsearchTestCase {
 
     @Test
     public void testIndex_Implies() throws Exception {
-        Privilege.Index[] values = Privilege.Index.values();
+        Privilege.Index[] values = Privilege.Index.values().toArray(new Privilege.Index[Privilege.Index.values().size()]);
         Privilege.Index first = values[randomIntBetween(0, values.length-1)];
         Privilege.Index second = values[randomIntBetween(0, values.length-1)];
 
@@ -169,6 +197,33 @@ public class PrivilegeTests extends ElasticsearchTestCase {
                 assertThat("index privilege [" + index + "] should not imply [" + other + "]", index.implies(other), is(false));
             }
         }
+    }
+
+    @Test
+    public void testIndex_AddCustom() throws Exception {
+        Privilege.Index.addCustom("foo", "indices:bar");
+        boolean found = false;
+        for (Privilege.Index index : Privilege.Index.values()) {
+            if ("foo".equals(index.name.toString())) {
+                found = true;
+                assertThat(index.predicate().apply("indices:bar"), is(true));
+            }
+        }
+        assertThat(found, is(true));
+        Privilege.Index index = Privilege.Index.get(new Privilege.Name("foo"));
+        assertThat(index, notNullValue());
+        assertThat(index.name().toString(), is("foo"));
+        assertThat(index.predicate().apply("indices:bar"), is(true));
+    }
+
+    @Test(expected = ShieldException.class)
+    public void testIndex_AddCustom_InvalidPattern() throws Exception {
+        Privilege.Index.addCustom("foo", "bar");
+    }
+
+    @Test(expected = ShieldException.class)
+    public void testIndex_AddCustom_AlreadyExists() throws Exception {
+        Privilege.Index.addCustom("all", "bar");
     }
 
     @Test

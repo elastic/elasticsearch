@@ -311,8 +311,12 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
                 try {
                     indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), event.state().nodes().localNode().id());
-                } catch (Exception e) {
-                    logger.warn("[{}] failed to create index", e, indexMetaData.index());
+                } catch (Throwable e) {
+                    logger.warn("[{}] failed to create index for shard {}", e, indexMetaData.index(), shard.shardId());
+                    failedShards.put(shard.shardId(), new FailedShard(shard.version()));
+                    shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
+                            "failed to create index to allocated shard " + shard.shardId() + ", failure " + ExceptionsHelper.detailedMessage(e),
+                            event.state().nodes().masterNode());
                 }
             }
         }
@@ -357,46 +361,66 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // got deleted on us, ignore (closing the node)
                 return;
             }
-            MapperService mapperService = indexService.mapperService();
-            // first, go over and update the _default_ mapping (if exists)
-            if (indexMetaData.mappings().containsKey(MapperService.DEFAULT_MAPPING)) {
-                boolean requireRefresh = processMapping(index, mapperService, MapperService.DEFAULT_MAPPING, indexMetaData.mapping(MapperService.DEFAULT_MAPPING).source());
-                if (requireRefresh) {
-                    typesToRefresh.add(MapperService.DEFAULT_MAPPING);
+            try {
+                MapperService mapperService = indexService.mapperService();
+                // first, go over and update the _default_ mapping (if exists)
+                if (indexMetaData.mappings().containsKey(MapperService.DEFAULT_MAPPING)) {
+                    boolean requireRefresh = processMapping(index, mapperService, MapperService.DEFAULT_MAPPING, indexMetaData.mapping(MapperService.DEFAULT_MAPPING).source());
+                    if (requireRefresh) {
+                        typesToRefresh.add(MapperService.DEFAULT_MAPPING);
+                    }
                 }
-            }
 
-            // go over and add the relevant mappings (or update them)
-            for (ObjectCursor<MappingMetaData> cursor : indexMetaData.mappings().values()) {
-                MappingMetaData mappingMd = cursor.value;
-                String mappingType = mappingMd.type();
-                CompressedString mappingSource = mappingMd.source();
-                if (mappingType.equals(MapperService.DEFAULT_MAPPING)) { // we processed _default_ first
-                    continue;
+                // go over and add the relevant mappings (or update them)
+                for (ObjectCursor<MappingMetaData> cursor : indexMetaData.mappings().values()) {
+                    MappingMetaData mappingMd = cursor.value;
+                    String mappingType = mappingMd.type();
+                    CompressedString mappingSource = mappingMd.source();
+                    if (mappingType.equals(MapperService.DEFAULT_MAPPING)) { // we processed _default_ first
+                        continue;
+                    }
+                    boolean requireRefresh = processMapping(index, mapperService, mappingType, mappingSource);
+                    if (requireRefresh) {
+                        typesToRefresh.add(mappingType);
+                    }
                 }
-                boolean requireRefresh = processMapping(index, mapperService, mappingType, mappingSource);
-                if (requireRefresh) {
-                    typesToRefresh.add(mappingType);
+                if (!typesToRefresh.isEmpty() && sendRefreshMapping) {
+                    nodeMappingRefreshAction.nodeMappingRefresh(event.state(),
+                            new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, indexMetaData.uuid(),
+                                    typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId())
+                    );
                 }
-            }
-            if (!typesToRefresh.isEmpty() && sendRefreshMapping) {
-                nodeMappingRefreshAction.nodeMappingRefresh(event.state(),
-                        new NodeMappingRefreshAction.NodeMappingRefreshRequest(index, indexMetaData.uuid(),
-                                typesToRefresh.toArray(new String[typesToRefresh.size()]), event.state().nodes().localNodeId())
-                );
-            }
-            // go over and remove mappings
-            for (DocumentMapper documentMapper : mapperService.docMappers(true)) {
-                if (seenMappings.containsKey(new Tuple<>(index, documentMapper.type())) && !indexMetaData.mappings().containsKey(documentMapper.type())) {
-                    // we have it in our mappings, but not in the metadata, and we have seen it in the cluster state, remove it
-                    mapperService.remove(documentMapper.type());
-                    seenMappings.remove(new Tuple<>(index, documentMapper.type()));
+                // go over and remove mappings
+                for (DocumentMapper documentMapper : mapperService.docMappers(true)) {
+                    if (seenMappings.containsKey(new Tuple<>(index, documentMapper.type())) && !indexMetaData.mappings().containsKey(documentMapper.type())) {
+                        // we have it in our mappings, but not in the metadata, and we have seen it in the cluster state, remove it
+                        mapperService.remove(documentMapper.type());
+                        seenMappings.remove(new Tuple<>(index, documentMapper.type()));
+                    }
+                }
+            } catch (Throwable t) {
+                // if we failed the mappings anywhere, we need to fail the shards for this index, note, we safeguard
+                // by creating the processing the mappings on the master, or on the node the mapping was introduced on,
+                // so this failure typically means wrong node level configuration or something similar
+                for (IndexShard indexShard : indexService) {
+                    ShardRouting shardRouting = indexShard.routingEntry();
+                    logger.warn("[{}][{}] failed to create shard", t, shardRouting.index(), shardRouting.id());
+                    try {
+                        indexService.removeShard(indexShard.shardId().id(), "failed to update mappings [" + ExceptionsHelper.detailedMessage(t) + "]");
+                    } catch (IndexShardMissingException e1) {
+                        // ignore
+                    } catch (Throwable e1) {
+                        logger.warn("[{}][{}] failed to remove shard after failed creation", e1, shardRouting.index(), shardRouting.id());
+                    }
+                    failedShards.put(shardRouting.shardId(), new FailedShard(shardRouting.version()));
+                    shardStateAction.shardFailed(shardRouting, indexMetaData.getUUID(), "failed to process mappings, message [" + detailedMessage(t) + "]",
+                            event.state().nodes().masterNode());
                 }
             }
         }
     }
 
-    private boolean processMapping(String index, MapperService mapperService, String mappingType, CompressedString mappingSource) {
+    private boolean processMapping(String index, MapperService mapperService, String mappingType, CompressedString mappingSource) throws Throwable {
         if (!seenMappings.containsKey(new Tuple<>(index, mappingType))) {
             seenMappings.put(new Tuple<>(index, mappingType), true);
         }
@@ -445,6 +469,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
         } catch (Throwable e) {
             logger.warn("[{}] failed to add mapping [{}], source [{}]", e, index, mappingType, mappingSource);
+            throw e;
         }
         return requiresRefresh;
     }

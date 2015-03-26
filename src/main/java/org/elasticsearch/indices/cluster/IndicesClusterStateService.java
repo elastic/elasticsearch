@@ -315,7 +315,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.warn("[{}] failed to create index for shard {}", e, indexMetaData.index(), shard.shardId());
                     failedShards.put(shard.shardId(), new FailedShard(shard.version()));
                     shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
-                            "failed to create index to allocated shard " + shard.shardId() + ", failure " + ExceptionsHelper.detailedMessage(e),
+                            "failed to create index for newly allocated shard " + shard.shardId() + ", failure " + ExceptionsHelper.detailedMessage(e),
                             event.state().nodes().masterNode());
                 }
             }

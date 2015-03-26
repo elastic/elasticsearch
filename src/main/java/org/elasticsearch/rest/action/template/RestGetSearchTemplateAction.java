@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.script.RestGetIndexedScriptAction;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
@@ -40,7 +41,7 @@ public class RestGetSearchTemplateAction extends RestGetIndexedScriptAction {
 
     @Override
     protected String getScriptLang(RestRequest request) {
-        return "mustache";
+        return MustacheScriptEngineService.NAME;
     }
 
     @Override

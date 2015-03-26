@@ -22,22 +22,25 @@ package org.elasticsearch.index.mapper.internal;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 
 import java.io.IOException;
@@ -58,17 +61,15 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     public static class Defaults extends AbstractFieldMapper.Defaults {
         public static final String NAME = UidFieldMapper.NAME;
-        public static final String INDEX_NAME = UidFieldMapper.NAME;
 
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
         public static final FieldType NESTED_FIELD_TYPE;
 
         static {
-            FIELD_TYPE.setIndexed(true);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setStored(true);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(FieldInfo.IndexOptions.DOCS_ONLY);
             FIELD_TYPE.freeze();
 
             NESTED_FIELD_TYPE = new FieldType(FIELD_TYPE);
@@ -81,12 +82,12 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
         public Builder() {
             super(Defaults.NAME, Defaults.FIELD_TYPE);
-            indexName = Defaults.INDEX_NAME;
+            indexName = Defaults.NAME;
         }
 
         @Override
         public UidFieldMapper build(BuilderContext context) {
-            return new UidFieldMapper(name, indexName, docValues, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+            return new UidFieldMapper(name, indexName, docValues, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -94,22 +95,21 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = uid();
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
+                throw new MapperParsingException(NAME + " is not configurable");
+            }
             parseField(builder, builder.name, node, parserContext);
             return builder;
         }
     }
 
-    public UidFieldMapper() {
-        this(Defaults.NAME);
+    public UidFieldMapper(Settings indexSettings) {
+        this(Defaults.NAME, Defaults.NAME, null, null, indexSettings);
     }
 
-    protected UidFieldMapper(String name) {
-        this(name, name, null, null, null, null, ImmutableSettings.EMPTY);
-    }
-
-    protected UidFieldMapper(String name, String indexName, Boolean docValues, PostingsFormatProvider postingsFormat, DocValuesFormatProvider docValuesFormat, @Nullable Settings fieldDataSettings, Settings indexSettings) {
+    protected UidFieldMapper(String name, String indexName, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), docValues,
-                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, postingsFormat, docValuesFormat, null, null, fieldDataSettings, indexSettings);
+                Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
     }
 
     @Override
@@ -202,40 +202,17 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (writePre2xSettings == false) {
+            return builder;
+        }
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // if defaults, don't output
-        if (!includeDefaults && customFieldDataSettings == null
-                && (postingsFormat == null || postingsFormat.name().equals(defaultPostingFormat()))
-                && (docValuesFormat == null || docValuesFormat.name().equals(defaultDocValuesFormat()))) {
+        if (!includeDefaults && customFieldDataSettings == null) {
             return builder;
         }
 
         builder.startObject(CONTENT_TYPE);
-
-        if (postingsFormat != null) {
-            if (includeDefaults || !postingsFormat.name().equals(defaultPostingFormat())) {
-                builder.field("postings_format", postingsFormat.name());
-            }
-        } else if (includeDefaults) {
-            String format = defaultPostingFormat();
-            if (format == null) {
-                format = PostingsFormatService.DEFAULT_FORMAT;
-            }
-            builder.field("postings_format", format);
-        }
-
-        if (docValuesFormat != null) {
-            if (includeDefaults || !docValuesFormat.name().equals(defaultDocValuesFormat())) {
-                builder.field(DOC_VALUES_FORMAT, docValuesFormat.name());
-            }
-        } else if (includeDefaults) {
-            String format = defaultDocValuesFormat();
-            if (format == null) {
-                format = DocValuesFormatService.DEFAULT_FORMAT;
-            }
-            builder.field(DOC_VALUES_FORMAT, format);
-        }
 
         if (customFieldDataSettings != null) {
             builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
@@ -249,13 +226,6 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     @Override
     public void merge(Mapper mergeWith, MergeContext mergeContext) throws MergeMappingException {
-        AbstractFieldMapper<?> fieldMergeWith = (AbstractFieldMapper<?>) mergeWith;
         // do nothing here, no merging, but also no exception
-        if (!mergeContext.mergeFlags().simulate()) {
-            // apply changeable values
-            if (fieldMergeWith.postingsFormatProvider() != null) {
-                this.postingsFormat = fieldMergeWith.postingsFormatProvider();
-            }
-        }
     }
 }

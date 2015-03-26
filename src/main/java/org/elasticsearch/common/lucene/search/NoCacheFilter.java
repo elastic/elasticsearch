@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
@@ -39,7 +39,7 @@ public abstract class NoCacheFilter extends Filter {
         }
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
             return delegate.getDocIdSet(context, acceptDocs);
         }
 
@@ -60,7 +60,7 @@ public abstract class NoCacheFilter extends Filter {
         }
 
         @Override
-        public String toString() {
+        public String toString(String field) {
 
             return "no_cache(" + delegate + ")";
         }

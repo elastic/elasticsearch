@@ -21,8 +21,7 @@ package org.elasticsearch.search.highlight;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -40,7 +39,6 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static com.google.common.collect.Maps.newHashMap;
 
@@ -106,7 +104,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
                     boolean useFastVectorHighlighter = fieldMapper.fieldType().storeTermVectors() && fieldMapper.fieldType().storeTermVectorOffsets() && fieldMapper.fieldType().storeTermVectorPositions();
                     if (useFastVectorHighlighter) {
                         highlighterType = "fvh";
-                    } else if (fieldMapper.fieldType().indexOptions() == FieldInfo.IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
+                    } else if (fieldMapper.fieldType().indexOptions() == IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS) {
                         highlighterType = "postings";
                     } else {
                         highlighterType = "plain";
@@ -137,15 +135,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
     private FieldMapper<?> getMapperForField(String fieldName, SearchContext searchContext, HitContext hitContext) {
         DocumentMapper documentMapper = searchContext.mapperService().documentMapper(hitContext.hit().type());
-        FieldMapper<?> mapper = documentMapper.mappers().smartNameFieldMapper(fieldName);
-        if (mapper == null) {
-            MapperService.SmartNameFieldMappers fullMapper = searchContext.mapperService().smartName(fieldName);
-            if (fullMapper == null || !fullMapper.hasDocMapper() || fullMapper.docMapper().type().equals(hitContext.hit().type())) {
-                return null;
-            }
-            mapper = fullMapper.mapper();
-        }
-
-        return mapper;
+        // TODO: no need to lookup the doc mapper with unambiguous field names? just look at the mapper service
+        return documentMapper.mappers().smartNameFieldMapper(fieldName);
     }
 }

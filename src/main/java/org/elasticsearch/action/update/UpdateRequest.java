@@ -20,12 +20,10 @@
 package org.elasticsearch.action.update;
 
 import com.google.common.collect.Maps;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.support.single.instance.InstanceShardOperationRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -39,6 +37,8 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 
 import java.io.IOException;
@@ -72,7 +72,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     private boolean refresh = false;
 
-    private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
 
     private IndexRequest upsertRequest;
@@ -132,6 +131,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     /**
      * The type of the indexed document.
      */
+    @Override
     public String type() {
         return type;
     }
@@ -147,6 +147,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     /**
      * The id of the indexed document.
      */
+    @Override
     public String id() {
         return id;
     }
@@ -163,6 +164,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */
+    @Override
     public UpdateRequest routing(String routing) {
         if (routing != null && routing.length() == 0) {
             this.routing = null;
@@ -173,20 +175,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     }
 
     /**
-     * Sets the parent id of this document. Will simply set the routing to this value, as it is only
-     * used for routing with delete requests.
-     */
-    public UpdateRequest parent(String parent) {
-        if (routing == null) {
-            routing = parent;
-        }
-        return this;
-    }
-
-    /**
      * Controls the shard routing of the request. Using this value to hash the shard
      * and not the id.
      */
+    @Override
     public String routing() {
         return this.routing;
     }
@@ -362,21 +354,6 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
 
     public boolean refresh() {
         return this.refresh;
-    }
-
-    /**
-     * The replication type.
-     */
-    public ReplicationType replicationType() {
-        return this.replicationType;
-    }
-
-    /**
-     * Sets the replication type.
-     */
-    public UpdateRequest replicationType(ReplicationType replicationType) {
-        this.replicationType = replicationType;
-        return this;
     }
 
     public WriteConsistencyLevel consistencyLevel() {
@@ -578,6 +555,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     }
 
     public UpdateRequest source(BytesReference source) throws Exception {
+        ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         XContentType xContentType = XContentFactory.xContentType(source);
         try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(source)) {
             XContentParser.Token token = parser.nextToken();
@@ -588,16 +566,8 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if ("script".equals(currentFieldName)) {
-                    script = parser.textOrNull();
-                    scriptType = ScriptService.ScriptType.INLINE;
-                } else if ("script_id".equals(currentFieldName)) {
-                    script = parser.textOrNull();
-                    scriptType = ScriptService.ScriptType.INDEXED;
                 } else if ("params".equals(currentFieldName)) {
                     scriptParams = parser.map();
-                } else if ("lang".equals(currentFieldName)) {
-                    scriptLang = parser.text();
                 } else if ("scripted_upsert".equals(currentFieldName)) {
                     scriptedUpsert = parser.booleanValue();
                 } else if ("upsert".equals(currentFieldName)) {
@@ -612,8 +582,16 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
                     docAsUpsert(parser.booleanValue());
                 } else if ("detect_noop".equals(currentFieldName)) {
                     detectNoop(parser.booleanValue());
+                } else {
+                    scriptParameterParser.token(currentFieldName, token, parser);
                 }
             }
+            ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+            if (scriptValue != null) {
+                script = scriptValue.script();
+                scriptType = scriptValue.scriptType();
+            }
+            scriptLang = scriptParameterParser.lang();
         }
         return this;
     }
@@ -638,18 +616,13 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
-        type = in.readSharedString();
+        type = in.readString();
         id = in.readString();
         routing = in.readOptionalString();
         script = in.readOptionalString();
         if(Strings.hasLength(script)) {
-            if (in.getVersion().onOrAfter(Version.V_1_3_0)) {
-                scriptType = ScriptService.ScriptType.readFrom(in);
-            } else {
-                scriptType = null;
-            }
+            scriptType = ScriptService.ScriptType.readFrom(in);
         }
         scriptLang = in.readOptionalString();
         scriptParams = in.readMap();
@@ -671,24 +644,21 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             upsertRequest.readFrom(in);
         }
         docAsUpsert = in.readBoolean();
-        version = Versions.readVersion(in);
+        version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            detectNoop = in.readBoolean();
-            scriptedUpsert = in.readBoolean();
-        }
+        detectNoop = in.readBoolean();
+        scriptedUpsert = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
-        out.writeSharedString(type);
+        out.writeString(type);
         out.writeString(id);
         out.writeOptionalString(routing);
         out.writeOptionalString(script);
-        if (Strings.hasLength(script) && out.getVersion().onOrAfter(Version.V_1_3_0)) {
+        if (Strings.hasLength(script)) {
             ScriptService.ScriptType.writeTo(scriptType, out);
         }
         out.writeOptionalString(scriptLang);
@@ -724,12 +694,10 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
             upsertRequest.writeTo(out);
         }
         out.writeBoolean(docAsUpsert);
-        Versions.writeVersion(version, out);
+        out.writeLong(version);
         out.writeByte(versionType.getValue());
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeBoolean(detectNoop);
-            out.writeBoolean(scriptedUpsert);
-        }
+        out.writeBoolean(detectNoop);
+        out.writeBoolean(scriptedUpsert);
     }
 
 }

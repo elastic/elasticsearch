@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -27,15 +30,13 @@ import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import java.util.ArrayList;
-import java.util.List;
-
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.global;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 /**
@@ -86,9 +87,11 @@ public class GlobalTests extends ElasticsearchIntegrationTest {
         assertThat(global, notNullValue());
         assertThat(global.getName(), equalTo("global"));
         assertThat(global.getDocCount(), equalTo((long) numDocs));
+        assertThat((long) global.getProperty("_count"), equalTo((long) numDocs));
         assertThat(global.getAggregations().asList().isEmpty(), is(false));
 
         Stats stats = global.getAggregations().get("value_stats");
+        assertThat((Stats) global.getProperty("value_stats"), sameInstance(stats));
         assertThat(stats, notNullValue());
         assertThat(stats.getName(), equalTo("value_stats"));
         long sum = 0;

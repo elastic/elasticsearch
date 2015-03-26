@@ -1,14 +1,10 @@
 [[search-aggregations-metrics-geobounds-aggregation]]
 === Geo Bounds Aggregation
 
+experimental[]
+
 A metric aggregation that computes the bounding box containing all geo_point values for a field.
 
-.Experimental!
-[IMPORTANT]
-=====
-This feature is marked as experimental, and may be subject to change in the
-future.  If you use this feature, please let us know your experience with it!
-=====
 
 Example:
 
@@ -21,8 +17,8 @@ Example:
     "aggs" : {
         "viewport" : {
             "geo_bounds" : {
-                "field" : "location" <1>
-                "wrap_longitude" : "true" <2>
+                "field" : "location", <1>
+                "wrap_longitude" : true <2>
             }
         }
     }

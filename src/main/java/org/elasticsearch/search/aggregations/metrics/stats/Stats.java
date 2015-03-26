@@ -18,15 +18,15 @@
  */
 package org.elasticsearch.search.aggregations.metrics.stats;
 
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 
 /**
  * Statistics over a set of values (either aggregated over field data or scripts)
  */
-public interface Stats extends Aggregation {
+public interface Stats extends NumericMetricsAggregation.MultiValue {
 
     /**
-     * @return The number of values that were aggregated
+     * @return The number of values that were aggregated.
      */
     long getCount();
 
@@ -49,5 +49,30 @@ public interface Stats extends Aggregation {
      * @return The sum of aggregated values.
      */
     double getSum();
+
+    /**
+     * @return The number of values that were aggregated as a String.
+     */
+    String getCountAsString();
+
+    /**
+     * @return The minimum value of all aggregated values as a String.
+     */
+    String getMinAsString();
+
+    /**
+     * @return The maximum value of all aggregated values as a String.
+     */
+    String getMaxAsString();
+
+    /**
+     * @return The avg value over all aggregated values as a String.
+     */
+    String getAvgAsString();
+
+    /**
+     * @return The sum of aggregated values as a String.
+     */
+    String getSumAsString();
 
 }

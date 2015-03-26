@@ -64,7 +64,7 @@ public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> impl
         return this;
     }
 
-    String name() {
+    public String name() {
         return this.name;
     }
 
@@ -84,7 +84,7 @@ public class PutWarmerRequest extends AcknowledgedRequest<PutWarmerRequest> impl
         return this;
     }
 
-    SearchRequest searchRequest() {
+    public SearchRequest searchRequest() {
         return this.searchRequest;
     }
 

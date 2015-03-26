@@ -28,11 +28,9 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
-import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Test;
 
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -51,7 +49,7 @@ public class NativeScriptTests extends ElasticsearchTestCase {
 
         ScriptService scriptService = injector.getInstance(ScriptService.class);
 
-        ExecutableScript executable = scriptService.executable("native", "my", ScriptService.ScriptType.INLINE, null);
+        ExecutableScript executable = scriptService.executable(NativeScriptEngineService.NAME, "my", ScriptService.ScriptType.INLINE, null);
         assertThat(executable.run().toString(), equalTo("test"));
         terminate(injector.getInstance(ThreadPool.class));
     }

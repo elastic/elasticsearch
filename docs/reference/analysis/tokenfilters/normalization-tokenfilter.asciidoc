@@ -34,3 +34,7 @@ Scandinavian::
 http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/miscellaneous/ScandinavianNormalizationFilter.html[`scandinavian_normalization`],
 http://lucene.apache.org/core/4_9_0/analyzers-common/org/apache/lucene/analysis/miscellaneous/ScandinavianFoldingFilter.html[`scandinavian_folding`]
 
+Serbian::
+
+not-released-yet[`serbian_normalization`],
+

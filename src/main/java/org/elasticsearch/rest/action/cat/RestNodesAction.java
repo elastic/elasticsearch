@@ -35,10 +35,32 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.index.cache.filter.FilterCacheStats;
+import org.elasticsearch.index.cache.id.IdCacheStats;
+import org.elasticsearch.index.cache.query.QueryCacheStats;
+import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.fielddata.FieldDataStats;
+import org.elasticsearch.index.flush.FlushStats;
+import org.elasticsearch.index.get.GetStats;
+import org.elasticsearch.index.indexing.IndexingStats;
+import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.percolator.stats.PercolateStats;
+import org.elasticsearch.index.refresh.RefreshStats;
+import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.suggest.stats.SuggestStats;
+import org.elasticsearch.indices.NodeIndicesStats;
+import org.elasticsearch.monitor.fs.FsStats;
+import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.jvm.JvmStats;
+import org.elasticsearch.monitor.os.OsInfo;
+import org.elasticsearch.monitor.os.OsStats;
+import org.elasticsearch.monitor.process.ProcessInfo;
+import org.elasticsearch.monitor.process.ProcessStats;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActionListener;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
 
 import java.util.Locale;
 
@@ -73,7 +95,7 @@ public class RestNodesAction extends AbstractCatAction {
                     @Override
                     public void processResponse(final NodesInfoResponse nodesInfoResponse) {
                         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest();
-                        nodesStatsRequest.clear().jvm(true).os(true).fs(true).indices(true);
+                        nodesStatsRequest.clear().jvm(true).os(true).fs(true).indices(true).process(true);
                         client.admin().cluster().nodesStats(nodesStatsRequest, new RestResponseListener<NodesStatsResponse>(channel) {
                             @Override
                             public RestResponse buildResponse(NodesStatsResponse nodesStatsResponse) throws Exception {
@@ -100,10 +122,15 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("build", "default:false;alias:b;desc:es build hash");
         table.addCell("jdk", "default:false;alias:j;desc:jdk version");
         table.addCell("disk.avail", "default:false;alias:d,disk,diskAvail;text-align:right;desc:available disk space");
+        table.addCell("heap.current", "default:false;alias:hc,heapCurrent;text-align:right;desc:used heap");
         table.addCell("heap.percent", "alias:hp,heapPercent;text-align:right;desc:used heap ratio");
         table.addCell("heap.max", "default:false;alias:hm,heapMax;text-align:right;desc:max configured heap");
+        table.addCell("ram.current", "default:false;alias:rc,ramCurrent;text-align:right;desc:used machine memory");
         table.addCell("ram.percent", "alias:rp,ramPercent;text-align:right;desc:used machine memory ratio");
         table.addCell("ram.max", "default:false;alias:rm,ramMax;text-align:right;desc:total machine memory");
+        table.addCell("file_desc.current", "default:false;alias:fdc,fileDescriptorCurrent;text-align:right;desc:used file descriptors");
+        table.addCell("file_desc.percent", "default:false;alias:fdp,fileDescriptorPercent;text-align:right;desc:used file descriptor ratio");
+        table.addCell("file_desc.max", "default:false;alias:fdm,fileDescriptorMax;text-align:right;desc:max file descriptors");
 
         table.addCell("load", "alias:l;text-align:right;desc:most recent load avg");
         table.addCell("uptime", "default:false;alias:u;text-align:right;desc:node uptime");
@@ -195,6 +222,16 @@ public class RestNodesAction extends AbstractCatAction {
             NodeInfo info = nodesInfo.getNodesMap().get(node.id());
             NodeStats stats = nodesStats.getNodesMap().get(node.id());
 
+            JvmInfo jvmInfo = info == null ? null : info.getJvm();
+            OsInfo osInfo = info == null ? null : info.getOs();
+            ProcessInfo processInfo = info == null ? null : info.getProcess();
+
+            JvmStats jvmStats = stats == null ? null : stats.getJvm();
+            FsStats fsStats = stats == null ? null : stats.getFs();
+            OsStats osStats = stats == null ? null : stats.getOs();
+            ProcessStats processStats = stats == null ? null : stats.getProcess();
+            NodeIndicesStats indicesStats = stats == null ? null : stats.getIndices();
+
             table.startRow();
 
             table.addCell(fullId ? node.id() : Strings.substring(node.getId(), 0, 4));
@@ -209,91 +246,121 @@ public class RestNodesAction extends AbstractCatAction {
 
             table.addCell(node.getVersion().number());
             table.addCell(info == null ? null : info.getBuild().hashShort());
-            table.addCell(info == null ? null : info.getJvm().version());
-            table.addCell(stats == null ? null : stats.getFs() == null ? null : stats.getFs().total().getAvailable());
-            table.addCell(stats == null ? null : stats.getJvm().getMem().getHeapUsedPrecent());
-            table.addCell(info == null ? null : info.getJvm().getMem().getHeapMax());
-            table.addCell(stats == null ? null : stats.getOs().mem() == null ? null : stats.getOs().mem().usedPercent());
-            table.addCell(info == null ? null : info.getOs().mem() == null ? null : info.getOs().mem().total()); // sigar fails to load in IntelliJ
+            table.addCell(jvmInfo == null ? null : jvmInfo.version());
+            table.addCell(fsStats == null ? null : fsStats.getTotal().getAvailable());
+            table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsed());
+            table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsedPrecent());
+            table.addCell(jvmInfo == null ? null : jvmInfo.getMem().getHeapMax());
+            table.addCell(osStats == null ? null : osStats.getMem() == null ? null : osStats.getMem().used());
+            table.addCell(osStats == null ? null : osStats.getMem() == null ? null : osStats.getMem().usedPercent());
+            table.addCell(osInfo == null ? null : osInfo.getMem() == null ? null : osInfo.getMem().total()); // sigar fails to load in IntelliJ
+            table.addCell(processStats == null ? null : processStats.getOpenFileDescriptors());
+            table.addCell(processStats == null || processInfo == null ? null :
+                          calculatePercentage(processStats.getOpenFileDescriptors(), processInfo.getMaxFileDescriptors()));
+            table.addCell(processInfo == null ? null : processInfo.getMaxFileDescriptors());
 
-            table.addCell(stats == null ? null : stats.getOs() == null ? null : stats.getOs().getLoadAverage().length < 1 ? null : String.format(Locale.ROOT, "%.2f", stats.getOs().getLoadAverage()[0]));
-            table.addCell(stats == null ? null : stats.getJvm().uptime());
+            table.addCell(osStats == null ? null : osStats.getLoadAverage().length < 1 ? null : String.format(Locale.ROOT, "%.2f", osStats.getLoadAverage()[0]));
+            table.addCell(jvmStats == null ? null : jvmStats.uptime());
             table.addCell(node.clientNode() ? "c" : node.dataNode() ? "d" : "-");
             table.addCell(masterId == null ? "x" : masterId.equals(node.id()) ? "*" : node.masterNode() ? "m" : "-");
             table.addCell(node.name());
 
-            table.addCell(stats == null ? null : stats.getIndices().getCompletion().getSize());
+            CompletionStats completionStats = indicesStats == null ? null : stats.getIndices().getCompletion();
+            table.addCell(completionStats == null ? null : completionStats.getSize());
 
-            table.addCell(stats == null ? null : stats.getIndices().getFieldData().getMemorySize());
-            table.addCell(stats == null ? null : stats.getIndices().getFieldData().getEvictions());
+            FieldDataStats fdStats = indicesStats == null ? null : stats.getIndices().getFieldData();
+            table.addCell(fdStats == null ? null : fdStats.getMemorySize());
+            table.addCell(fdStats == null ? null : fdStats.getEvictions());
 
-            table.addCell(stats == null ? null : stats.getIndices().getFilterCache().getMemorySize());
-            table.addCell(stats == null ? null : stats.getIndices().getFilterCache().getEvictions());
+            FilterCacheStats fcStats = indicesStats == null ? null : indicesStats.getFilterCache();
+            table.addCell(fcStats == null ? null : fcStats.getMemorySize());
+            table.addCell(fcStats == null ? null : fcStats.getEvictions());
 
-            table.addCell(stats == null ? null : stats.getIndices().getQueryCache().getMemorySize());
-            table.addCell(stats == null ? null : stats.getIndices().getQueryCache().getEvictions());
-            table.addCell(stats == null ? null : stats.getIndices().getQueryCache().getHitCount());
-            table.addCell(stats == null ? null : stats.getIndices().getQueryCache().getMissCount());
+            QueryCacheStats qcStats = indicesStats == null ? null : indicesStats.getQueryCache();
+            table.addCell(qcStats == null ? null : qcStats.getMemorySize());
+            table.addCell(qcStats == null ? null : qcStats.getEvictions());
+            table.addCell(qcStats == null ? null : qcStats.getHitCount());
+            table.addCell(qcStats == null ? null : qcStats.getMissCount());
 
-            table.addCell(stats == null ? null : stats.getIndices().getFlush().getTotal());
-            table.addCell(stats == null ? null : stats.getIndices().getFlush().getTotalTime());
+            FlushStats flushStats = indicesStats == null ? null : indicesStats.getFlush();
+            table.addCell(flushStats == null ? null : flushStats.getTotal());
+            table.addCell(flushStats == null ? null : flushStats.getTotalTime());
 
-            table.addCell(stats == null ? null : stats.getIndices().getGet().current());
-            table.addCell(stats == null ? null : stats.getIndices().getGet().getTime());
-            table.addCell(stats == null ? null : stats.getIndices().getGet().getCount());
-            table.addCell(stats == null ? null : stats.getIndices().getGet().getExistsTime());
-            table.addCell(stats == null ? null : stats.getIndices().getGet().getExistsCount());
-            table.addCell(stats == null ? null : stats.getIndices().getGet().getMissingTime());
-            table.addCell(stats == null ? null : stats.getIndices().getGet().getMissingCount());
+            GetStats getStats = indicesStats == null ? null : indicesStats.getGet();
+            table.addCell(getStats == null ? null : getStats.current());
+            table.addCell(getStats == null ? null : getStats.getTime());
+            table.addCell(getStats == null ? null : getStats.getCount());
+            table.addCell(getStats == null ? null : getStats.getExistsTime());
+            table.addCell(getStats == null ? null : getStats.getExistsCount());
+            table.addCell(getStats == null ? null : getStats.getMissingTime());
+            table.addCell(getStats == null ? null : getStats.getMissingCount());
 
-            table.addCell(stats == null ? null : stats.getIndices().getIdCache().getMemorySize());
+            IdCacheStats idCacheStats = indicesStats == null ? null : indicesStats.getIdCache();
+            table.addCell(idCacheStats == null ? null : idCacheStats.getMemorySize());
 
-            table.addCell(stats == null ? null : stats.getIndices().getIndexing().getTotal().getDeleteCurrent());
-            table.addCell(stats == null ? null : stats.getIndices().getIndexing().getTotal().getDeleteTime());
-            table.addCell(stats == null ? null : stats.getIndices().getIndexing().getTotal().getDeleteCount());
-            table.addCell(stats == null ? null : stats.getIndices().getIndexing().getTotal().getIndexCurrent());
-            table.addCell(stats == null ? null : stats.getIndices().getIndexing().getTotal().getIndexTime());
-            table.addCell(stats == null ? null : stats.getIndices().getIndexing().getTotal().getIndexCount());
+            IndexingStats indexingStats = indicesStats == null ? null : indicesStats.getIndexing();
+            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getDeleteCurrent());
+            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getDeleteTime());
+            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getDeleteCount());
+            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexCurrent());
+            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexTime());
+            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexCount());
 
-            table.addCell(stats == null ? null : stats.getIndices().getMerge().getCurrent());
-            table.addCell(stats == null ? null : stats.getIndices().getMerge().getCurrentNumDocs());
-            table.addCell(stats == null ? null : stats.getIndices().getMerge().getCurrentSize());
-            table.addCell(stats == null ? null : stats.getIndices().getMerge().getTotal());
-            table.addCell(stats == null ? null : stats.getIndices().getMerge().getTotalNumDocs());
-            table.addCell(stats == null ? null : stats.getIndices().getMerge().getTotalSize());
-            table.addCell(stats == null ? null : stats.getIndices().getMerge().getTotalTime());
+            MergeStats mergeStats = indicesStats == null ? null : indicesStats.getMerge();
+            table.addCell(mergeStats == null ? null : mergeStats.getCurrent());
+            table.addCell(mergeStats == null ? null : mergeStats.getCurrentNumDocs());
+            table.addCell(mergeStats == null ? null : mergeStats.getCurrentSize());
+            table.addCell(mergeStats == null ? null : mergeStats.getTotal());
+            table.addCell(mergeStats == null ? null : mergeStats.getTotalNumDocs());
+            table.addCell(mergeStats == null ? null : mergeStats.getTotalSize());
+            table.addCell(mergeStats == null ? null : mergeStats.getTotalTime());
 
-            table.addCell(stats == null ? null : stats.getIndices().getPercolate().getCurrent());
-            table.addCell(stats == null ? null : stats.getIndices().getPercolate().getMemorySize());
-            table.addCell(stats == null ? null : stats.getIndices().getPercolate().getNumQueries());
-            table.addCell(stats == null ? null : stats.getIndices().getPercolate().getTime());
-            table.addCell(stats == null ? null : stats.getIndices().getPercolate().getCount());
+            PercolateStats percolateStats = indicesStats == null ? null : indicesStats.getPercolate();
+            table.addCell(percolateStats == null ? null : percolateStats.getCurrent());
+            table.addCell(percolateStats == null ? null : percolateStats.getMemorySize());
+            table.addCell(percolateStats == null ? null : percolateStats.getNumQueries());
+            table.addCell(percolateStats == null ? null : percolateStats.getTime());
+            table.addCell(percolateStats == null ? null : percolateStats.getCount());
 
-            table.addCell(stats == null ? null : stats.getIndices().getRefresh().getTotal());
-            table.addCell(stats == null ? null : stats.getIndices().getRefresh().getTotalTime());
+            RefreshStats refreshStats = indicesStats == null ? null : indicesStats.getRefresh();
+            table.addCell(refreshStats == null ? null : refreshStats.getTotal());
+            table.addCell(refreshStats == null ? null : refreshStats.getTotalTime());
 
-            table.addCell(stats == null ? null : stats.getIndices().getSearch().getTotal().getFetchCurrent());
-            table.addCell(stats == null ? null : stats.getIndices().getSearch().getTotal().getFetchTime());
-            table.addCell(stats == null ? null : stats.getIndices().getSearch().getTotal().getFetchCount());
-            table.addCell(stats == null ? null : stats.getIndices().getSearch().getOpenContexts());
-            table.addCell(stats == null ? null : stats.getIndices().getSearch().getTotal().getQueryCurrent());
-            table.addCell(stats == null ? null : stats.getIndices().getSearch().getTotal().getQueryTime());
-            table.addCell(stats == null ? null : stats.getIndices().getSearch().getTotal().getQueryCount());
+            SearchStats searchStats = indicesStats == null ? null : indicesStats.getSearch();
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getFetchCurrent());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getFetchTime());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getFetchCount());
+            table.addCell(searchStats == null ? null : searchStats.getOpenContexts());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryCurrent());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryTime());
+            table.addCell(searchStats == null ? null : searchStats.getTotal().getQueryCount());
 
-            table.addCell(stats == null ? null : stats.getIndices().getSegments().getCount());
-            table.addCell(stats == null ? null : stats.getIndices().getSegments().getMemory());
-            table.addCell(stats == null ? null : stats.getIndices().getSegments().getIndexWriterMemory());
-            table.addCell(stats == null ? null : stats.getIndices().getSegments().getIndexWriterMaxMemory());
-            table.addCell(stats == null ? null : stats.getIndices().getSegments().getVersionMapMemory());
-            table.addCell(stats == null ? null : stats.getIndices().getSegments().getFixedBitSetMemory());
+            SegmentsStats segmentsStats = indicesStats == null ? null : indicesStats.getSegments();
+            table.addCell(segmentsStats == null ? null : segmentsStats.getCount());
+            table.addCell(segmentsStats == null ? null : segmentsStats.getMemory());
+            table.addCell(segmentsStats == null ? null : segmentsStats.getIndexWriterMemory());
+            table.addCell(segmentsStats == null ? null : segmentsStats.getIndexWriterMaxMemory());
+            table.addCell(segmentsStats == null ? null : segmentsStats.getVersionMapMemory());
+            table.addCell(segmentsStats == null ? null : segmentsStats.getBitsetMemory());
 
-            table.addCell(stats == null ? null : stats.getIndices().getSuggest().getCurrent());
-            table.addCell(stats == null ? null : stats.getIndices().getSuggest().getTime());
-            table.addCell(stats == null ? null : stats.getIndices().getSuggest().getCount());
+            SuggestStats suggestStats = indicesStats == null ? null : indicesStats.getSuggest();
+            table.addCell(suggestStats == null ? null : suggestStats.getCurrent());
+            table.addCell(suggestStats == null ? null : suggestStats.getTime());
+            table.addCell(suggestStats == null ? null : suggestStats.getCount());
 
             table.endRow();
         }
 
         return table;
+    }
+
+    /**
+     * Calculate the percentage of {@code used} from the {@code max} number.
+     * @param used The currently used number.
+     * @param max The maximum number.
+     * @return 0 if {@code max} is 0. Otherwise 100 * {@code used} / {@code max}.
+     */
+    private short calculatePercentage(long used, long max) {
+        return max == 0 ? 0 : (short)((100d * used) / max);
     }
 }

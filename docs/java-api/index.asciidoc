@@ -34,6 +34,49 @@ For example, you can define the latest version in your `pom.xml` file:
 </dependency>
 --------------------------------------------------
 
+== Deploying in JBoss EAP6 module
+
+Elasticsearch and Lucene classes need to be in the same JBoss module.
+
+You should define a `module.xml` file like this:
+
+[source,xml]
+--------------------------------------------------
+<?xml version="1.0" encoding="UTF-8"?>
+<module xmlns="urn:jboss:module:1.1" name="org.elasticsearch">
+  <resources>
+    <!-- Elasticsearch -->
+    <resource-root path="elasticsearch-1.4.1.jar"/>
+    <!-- Lucene -->
+    <resource-root path="lucene-core-4.10.2.jar"/>
+    <resource-root path="lucene-analyzers-common-4.10.2.jar"/>
+    <resource-root path="lucene-queries-4.10.2.jar"/>
+    <resource-root path="lucene-memory-4.10.2.jar"/>
+    <resource-root path="lucene-highlighter-4.10.2.jar"/>
+    <resource-root path="lucene-queryparser-4.10.2.jar"/>
+    <resource-root path="lucene-sandbox-4.10.2.jar"/>
+    <resource-root path="lucene-suggest-4.10.2.jar"/>
+    <resource-root path="lucene-misc-4.10.2.jar"/>
+    <resource-root path="lucene-join-4.10.2.jar"/>
+    <resource-root path="lucene-grouping-4.10.2.jar"/>
+    <resource-root path="lucene-spatial-4.10.2.jar"/>
+    <resource-root path="lucene-expressions-4.10.2.jar"/>
+    <!-- Insert other resources here -->
+  </resources>
+
+  <dependencies>
+    <module name="sun.jdk" export="true" >
+        <imports>
+            <include path="sun/misc/Unsafe" />
+        </imports>
+    </module>
+    <module name="org.apache.log4j"/>
+    <module name="org.apache.commons.logging"/>
+    <module name="javax.api"/>
+  </dependencies>
+</module>
+--------------------------------------------------
+
 
 include::client.asciidoc[]
 
@@ -42,6 +85,8 @@ include::index_.asciidoc[]
 include::get.asciidoc[]
 
 include::delete.asciidoc[]
+
+include::update.asciidoc[]
 
 include::bulk.asciidoc[]
 
@@ -52,6 +97,8 @@ include::count.asciidoc[]
 include::delete-by-query.asciidoc[]
 
 include::facets.asciidoc[]
+
+include::aggs.asciidoc[]
 
 include::percolate.asciidoc[]
 

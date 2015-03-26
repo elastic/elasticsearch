@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
@@ -82,7 +83,7 @@ public class RepositoriesMetaData implements MetaData.Custom {
     /**
      * Repository metadata factory
      */
-    public static class Factory implements MetaData.Custom.Factory<RepositoriesMetaData> {
+    public static class Factory extends MetaData.Custom.Factory<RepositoriesMetaData> {
 
         /**
          * {@inheritDoc}
@@ -171,6 +172,11 @@ public class RepositoriesMetaData implements MetaData.Custom {
             }
         }
 
+        @Override
+        public EnumSet<MetaData.XContentContext> context() {
+            return MetaData.API_AND_GATEWAY;
+        }
+
         /**
          * Serializes information about a single repository
          *
@@ -190,15 +196,6 @@ public class RepositoriesMetaData implements MetaData.Custom {
 
             builder.endObject();
         }
-
-        /**
-         * {@inheritDoc}
-         */
-        @Override
-        public boolean isPersistent() {
-            return true;
-        }
-
     }
 
 }

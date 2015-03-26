@@ -19,40 +19,37 @@
 
 package org.elasticsearch.common.blobstore.fs;
 
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.zip.ZipFile;
 
 /**
  *
  */
 public class FsBlobStore extends AbstractComponent implements BlobStore {
 
-    private final File path;
+    private final Path path;
 
     private final int bufferSizeInBytes;
 
-    public FsBlobStore(Settings settings, File path) {
+    public FsBlobStore(Settings settings, Path path) throws IOException {
         super(settings);
         this.path = path;
-        if (!path.exists()) {
-            boolean b = FileSystemUtils.mkdirs(path);
-            if (!b) {
-                throw new BlobStoreException("Failed to create directory at [" + path + "]");
-            }
-        }
-        if (!path.isDirectory()) {
-            throw new BlobStoreException("Path is not a directory at [" + path + "]");
-        }
-        this.bufferSizeInBytes = (int) settings.getAsBytesSize("buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
+        Files.createDirectories(path);
+        this.bufferSizeInBytes = (int) settings.getAsBytesSize("repositories.fs.buffer_size", new ByteSizeValue(100, ByteSizeUnit.KB)).bytes();
     }
 
     @Override
@@ -60,7 +57,7 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
         return path.toString();
     }
 
-    public File path() {
+    public Path path() {
         return path;
     }
 
@@ -70,12 +67,16 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
-        return new FsBlobContainer(this, path, buildAndCreate(path));
+        try {
+            return new FsBlobContainer(this, path, buildAndCreate(path));
+        } catch (IOException ex) {
+            throw new ElasticsearchException("failed to create blob container", ex);
+        }
     }
 
     @Override
-    public void delete(BlobPath path) {
-        FileSystemUtils.deleteRecursively(buildPath(path));
+    public void delete(BlobPath path) throws IOException {
+        IOUtils.rm(buildPath(path));
     }
 
     @Override
@@ -83,21 +84,21 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
         // nothing to do here...
     }
 
-    private synchronized File buildAndCreate(BlobPath path) {
-        File f = buildPath(path);
-        FileSystemUtils.mkdirs(f);
+    private synchronized Path buildAndCreate(BlobPath path) throws IOException {
+        Path f = buildPath(path);
+        Files.createDirectories(f);
         return f;
     }
 
-    private File buildPath(BlobPath path) {
+    private Path buildPath(BlobPath path) {
         String[] paths = path.toArray();
         if (paths.length == 0) {
             return path();
         }
-        File blobPath = new File(this.path, paths[0]);
+        Path blobPath = this.path.resolve(paths[0]);
         if (paths.length > 1) {
             for (int i = 1; i < paths.length; i++) {
-                blobPath = new File(blobPath, paths[i]);
+                blobPath = blobPath.resolve(paths[i]);
             }
         }
         return blobPath;

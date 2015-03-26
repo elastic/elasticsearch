@@ -134,7 +134,7 @@ public class TokenCountFieldMapperIntegrationTests extends ElasticsearchIntegrat
                                     .field("type", "token_count")
                                     .field("analyzer", "standard")
                                     .startObject("fielddata")
-                                        .field("format", LuceneTestCase.defaultCodecSupportsSortedSet() ? "doc_values" : null)
+                                        .field("format", "doc_values")
                                     .endObject()
                                 .endObject()
                             .endObject()

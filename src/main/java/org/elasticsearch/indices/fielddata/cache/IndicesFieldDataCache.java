@@ -20,14 +20,14 @@
 package org.elasticsearch.indices.fielddata.cache;
 
 import com.google.common.cache.*;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.util.Accountable;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.lucene.SegmentReaderUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -37,10 +37,10 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -53,6 +53,10 @@ import java.util.concurrent.TimeUnit;
 public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, Accountable> {
 
     public static final String FIELDDATA_CLEAN_INTERVAL_SETTING = "indices.fielddata.cache.cleanup_interval";
+    public static final String FIELDDATA_CACHE_CONCURRENCY_LEVEL = "indices.fielddata.cache.concurrency_level";
+    public static final String INDICES_FIELDDATA_CACHE_SIZE_KEY = "indices.fielddata.cache.size";
+    public static final String INDICES_FIELDDATA_CACHE_EXPIRE_KEY = "indices.fielddata.cache.expire";
+
 
     private final IndicesFieldDataCacheListener indicesFieldDataCacheListener;
     private final Cache<Key, Accountable> cache;
@@ -65,16 +69,20 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         super(settings);
         this.threadPool = threadPool;
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
-        final String size = componentSettings.get("size", "-1");
-        final long sizeInBytes = componentSettings.getAsMemory("size", "-1").bytes();
-        final TimeValue expire = componentSettings.getAsTime("expire", null);
+        final String size = settings.get(INDICES_FIELDDATA_CACHE_SIZE_KEY, "-1");
+        final long sizeInBytes = settings.getAsMemory(INDICES_FIELDDATA_CACHE_SIZE_KEY, "-1").bytes();
+        final TimeValue expire = settings.getAsTime(INDICES_FIELDDATA_CACHE_EXPIRE_KEY, null);
         CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.newBuilder()
                 .removalListener(this);
         if (sizeInBytes > 0) {
             cacheBuilder.maximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
         }
-        // defaults to 4, but this is a busy map for all indices, increase it a bit
-        cacheBuilder.concurrencyLevel(16);
+        // defaults to 4, but this is a busy map for all indices, increase it a bit by default
+        final int concurrencyLevel =  settings.getAsInt(FIELDDATA_CACHE_CONCURRENCY_LEVEL, 16);
+        if (concurrencyLevel <= 0) {
+            throw new ElasticsearchIllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
+        }
+        cacheBuilder.concurrencyLevel(concurrencyLevel);
         if (expire != null && expire.millis() > 0) {
             cacheBuilder.expireAfterAccess(expire.millis(), TimeUnit.MILLISECONDS);
         }
@@ -148,21 +156,14 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             assert indexService != null;
         }
 
-        /**
-         * Clean up the internal Guava cache
-         */
-        public void cleanUp() {
-            cache.cleanUp();
-        }
-
         @Override
-        public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(final AtomicReaderContext context, final IFD indexFieldData) throws Exception {
+        public <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(final LeafReaderContext context, final IFD indexFieldData) throws Exception {
             final Key key = new Key(this, context.reader().getCoreCacheKey());
             //noinspection unchecked
             final Accountable accountable = cache.get(key, new Callable<AtomicFieldData>() {
                 @Override
                 public AtomicFieldData call() throws Exception {
-                    SegmentReaderUtils.registerCoreListener(context.reader(), IndexFieldCache.this);
+                    context.reader().addCoreClosedListener(IndexFieldCache.this);
 
                     key.listeners.add(indicesFieldDataCacheListener);
                     final ShardId shardId = ShardUtils.extractShardId(context.reader());
@@ -187,6 +188,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             return (FD) accountable;
         }
 
+        @Override
         public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final IndexReader indexReader, final IFD indexFieldData) throws Exception {
             final Key key = new Key(this, indexReader.getCoreCacheKey());
             //noinspection unchecked
@@ -229,24 +231,18 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
 
         @Override
         public void clear() {
-            // TODO: determine whether there is ever anything in this cache that doesn't share the index and consider .invalidateAll() instead
+            // Note that cache invalidation in Guava does not immediately remove
+            // values from the cache. In the case of a cache with a rare write or
+            // read rate, it's possible for values to persist longer than desired.
+            //
+            // Note this is intended by the Guava developers, see:
+            // https://code.google.com/p/guava-libraries/wiki/CachesExplained#Eviction
+            // (the "When Does Cleanup Happen" section)
             for (Key key : cache.asMap().keySet()) {
                 if (key.indexCache.index.equals(index)) {
                     cache.invalidate(key);
                 }
             }
-            // There is an explicit call to cache.cleanUp() here because cache
-            // invalidation in Guava does not immediately remove values from the
-            // cache. In the case of a cache with a rare write or read rate,
-            // it's possible for values to persist longer than desired. In the
-            // case of the circuit breaker, when clearing the entire cache all
-            // entries should immediately be evicted so that their sizes are
-            // removed from the breaker estimates.
-            //
-            // Note this is intended by the Guava developers, see:
-            // https://code.google.com/p/guava-libraries/wiki/CachesExplained#Eviction
-            // (the "When Does Cleanup Happen" section)
-            cache.cleanUp();
         }
 
         @Override

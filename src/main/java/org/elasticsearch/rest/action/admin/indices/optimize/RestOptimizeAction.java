@@ -55,11 +55,9 @@ public class RestOptimizeAction extends BaseRestHandler {
         OptimizeRequest optimizeRequest = new OptimizeRequest(Strings.splitStringByCommaToArray(request.param("index")));
         optimizeRequest.listenerThreaded(false);
         optimizeRequest.indicesOptions(IndicesOptions.fromRequest(request, optimizeRequest.indicesOptions()));
-        optimizeRequest.waitForMerge(request.paramAsBoolean("wait_for_merge", optimizeRequest.waitForMerge()));
         optimizeRequest.maxNumSegments(request.paramAsInt("max_num_segments", optimizeRequest.maxNumSegments()));
         optimizeRequest.onlyExpungeDeletes(request.paramAsBoolean("only_expunge_deletes", optimizeRequest.onlyExpungeDeletes()));
         optimizeRequest.flush(request.paramAsBoolean("flush", optimizeRequest.flush()));
-        optimizeRequest.force(request.paramAsBoolean("force", optimizeRequest.force()));
         client.admin().indices().optimize(optimizeRequest, new RestBuilderListener<OptimizeResponse>(channel) {
             @Override
             public RestResponse buildResponse(OptimizeResponse response, XContentBuilder builder) throws Exception {

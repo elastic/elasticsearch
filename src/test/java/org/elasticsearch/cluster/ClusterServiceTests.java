@@ -176,6 +176,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             }
         });
 
+        ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(true));
@@ -247,6 +248,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             }
         });
 
+        ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(true));
@@ -373,6 +375,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             }
         });
 
+        ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(true));
@@ -447,6 +450,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
             }
         });
 
+        ensureGreen();
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(false));
@@ -608,7 +612,7 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
                 .put("plugin.types", TestPlugin.class.getName())
                 .build();
 
-        internalCluster().startNode(settings);
+        String node_0 = internalCluster().startNode(settings);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
         MasterAwareService testService = internalCluster().getInstance(MasterAwareService.class);
 
@@ -635,24 +639,32 @@ public class ClusterServiceTests extends ElasticsearchIntegrationTest {
         clusterHealth = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("1").get();
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
 
-        // now that node1 is closed, node2 should be elected as master
+        // now that node0 is closed, node1 should be elected as master
         assertThat(clusterService1.state().nodes().localNodeMaster(), is(true));
         assertThat(testService1.master(), is(true));
+
+        // start another node and set min_master_node
+        internalCluster().startNode(ImmutableSettings.builder().put(settings));
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 
         Settings transientSettings = settingsBuilder()
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .build();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(transientSettings).get();
 
+        // and shutdown the second node
+        internalCluster().stopRandomNonMasterNode();
+
         // there should not be any master as the minimum number of required eligible masters is not met
         awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object obj) {
-                return clusterService1.state().nodes().masterNode() == null;
+                return clusterService1.state().nodes().masterNode() == null && clusterService1.state().status() == ClusterState.ClusterStateStatus.APPLIED;
             }
         });
         assertThat(testService1.master(), is(false));
 
-
+        // bring the node back up
         String node_2 = internalCluster().startNode(ImmutableSettings.builder().put(settings).put(transientSettings));
         ClusterService clusterService2 = internalCluster().getInstance(ClusterService.class, node_2);
         MasterAwareService testService2 = internalCluster().getInstance(MasterAwareService.class, node_2);

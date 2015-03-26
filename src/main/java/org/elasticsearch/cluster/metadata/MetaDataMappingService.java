@@ -23,7 +23,6 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterService;
@@ -40,7 +39,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
@@ -375,6 +374,7 @@ public class MetaDataMappingService extends AbstractComponent {
         clusterService.submitStateUpdateTask("update-mapping [" + index + "][" + type + "] / node [" + nodeId + "], order [" + order + "]", Priority.HIGH, new ProcessedClusterStateUpdateTask() {
             private volatile List<MappingTask> allTasks;
 
+            @Override
             public void onFailure(String source, Throwable t) {
                 listener.onFailure(t);
             }
@@ -402,54 +402,6 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                     }
                 }
-            }
-        });
-    }
-
-    public void removeMapping(final DeleteMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-        clusterService.submitStateUpdateTask("remove-mapping [" + Arrays.toString(request.types()) + "]", Priority.HIGH, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
-            @Override
-            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                return new ClusterStateUpdateResponse(acknowledged);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                if (request.indices().length == 0) {
-                    throw new IndexMissingException(new Index("_all"));
-                }
-
-                MetaData.Builder builder = MetaData.builder(currentState.metaData());
-                boolean changed = false;
-                String latestIndexWithout = null;
-                for (String indexName : request.indices()) {
-                    IndexMetaData indexMetaData = currentState.metaData().index(indexName);
-                    IndexMetaData.Builder indexBuilder = IndexMetaData.builder(indexMetaData);
-
-                    if (indexMetaData != null) {
-                        boolean isLatestIndexWithout = true;
-                        for (String type : request.types()) {
-                            if (indexMetaData.mappings().containsKey(type)) {
-                                indexBuilder.removeMapping(type);
-                                changed = true;
-                                isLatestIndexWithout = false;
-                            }
-                        }
-                        if (isLatestIndexWithout) {
-                            latestIndexWithout = indexMetaData.index();
-                        }
-
-                    }
-                    builder.put(indexBuilder);
-                }
-
-                if (!changed) {
-                    throw new TypeMissingException(new Index(latestIndexWithout), request.types());
-                }
-
-                logger.info("[{}] remove_mapping [{}]", request.indices(), request.types());
-
-                return ClusterState.builder(currentState).metaData(builder).build();
             }
         });
     }

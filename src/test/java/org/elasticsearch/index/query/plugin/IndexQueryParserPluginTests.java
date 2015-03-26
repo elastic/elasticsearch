@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.query.plugin;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -31,8 +33,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
-import org.elasticsearch.index.codec.CodecModule;
-import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
@@ -56,7 +56,7 @@ public class IndexQueryParserPluginTests extends ElasticsearchTestCase {
 
     @Test
     public void testCustomInjection() throws InterruptedException {
-        Settings settings = ImmutableSettings.builder().put("name", "testCustomInjection").build();
+        Settings settings = ImmutableSettings.builder().put("name", "testCustomInjection").put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
         IndexQueryParserModule queryParserModule = new IndexQueryParserModule(settings);
         queryParserModule.addProcessor(new IndexQueryParserModule.QueryParsersProcessor() {
@@ -80,11 +80,9 @@ public class IndexQueryParserPluginTests extends ElasticsearchTestCase {
                 new IndexSettingsModule(index, settings),
                 new IndexCacheModule(settings),
                 new AnalysisModule(settings),
-                new IndexEngineModule(settings),
                 new SimilarityModule(settings),
                 queryParserModule,
                 new IndexNameModule(index),
-                new CodecModule(settings),
                 new FunctionScoreModule(),
                 new AbstractModule() {
                     @Override

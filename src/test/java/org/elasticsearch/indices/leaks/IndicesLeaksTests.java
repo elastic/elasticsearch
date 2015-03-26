@@ -23,11 +23,12 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.junit.Test;
 
 import java.lang.ref.WeakReference;
@@ -54,11 +55,11 @@ public class IndicesLeaksTests extends ElasticsearchIntegrationTest {
 
         client().admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
 
-        IndicesService indicesService = internalCluster().getInstance(IndicesService.class);
+        IndicesService indicesService = internalCluster().getDataNodeInstance(IndicesService.class);
         IndexService indexService = indicesService.indexServiceSafe("test");
         Injector indexInjector = indexService.injector();
         IndexShard shard = indexService.shardSafe(0);
-        Injector shardInjector = indexService.shardInjector(0);
+        Injector shardInjector = indexService.shardInjectorSafe(0);
 
         performCommonOperations();
 
@@ -90,7 +91,8 @@ public class IndicesLeaksTests extends ElasticsearchIntegrationTest {
         shard = null;
         shardInjector = null;
 
-        client().admin().indices().prepareDelete().execute().actionGet();
+        cluster().wipeIndices("test");
+        MockDirectoryHelper.wrappers.clear(); // we need to clear this to allow the objects to recycle
 
         for (int i = 0; i < 100; i++) {
             System.gc();
@@ -112,7 +114,7 @@ public class IndicesLeaksTests extends ElasticsearchIntegrationTest {
             }
         }
 
-        //Thread.sleep(1000000);
+        //System.out.println("sleeping");Thread.sleep(1000000);
 
         for (WeakReference indexReference : indexReferences) {
             assertThat("dangling index reference: " + indexReference.get(), indexReference.get(), nullValue());
@@ -126,7 +128,7 @@ public class IndicesLeaksTests extends ElasticsearchIntegrationTest {
     private void performCommonOperations() {
         client().prepareIndex("test", "type", "1").setSource("field1", "value", "field2", 2, "field3", 3.0f).execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
-        client().prepareSearch("test").setQuery(QueryBuilders.queryString("field1:value")).execute().actionGet();
+        client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("field1:value")).execute().actionGet();
         client().prepareSearch("test").setQuery(QueryBuilders.termQuery("field1", "value")).execute().actionGet();
     }
 }

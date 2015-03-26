@@ -89,18 +89,18 @@ public final class InjectionPoint {
     }
 
     private ImmutableList<Dependency<?>> forMember(Member member, TypeLiteral<?> type,
-                                                   Annotation[][] paramterAnnotations) {
+                                                   Annotation[][] parameterAnnotations) {
         Errors errors = new Errors(member);
-        Iterator<Annotation[]> annotationsIterator = Arrays.asList(paramterAnnotations).iterator();
+        Iterator<Annotation[]> annotationsIterator = Arrays.asList(parameterAnnotations).iterator();
 
         List<Dependency<?>> dependencies = Lists.newArrayList();
         int index = 0;
 
         for (TypeLiteral<?> parameterType : type.getParameterTypes(member)) {
             try {
-                Annotation[] parameterAnnotations = annotationsIterator.next();
-                Key<?> key = Annotations.getKey(parameterType, member, parameterAnnotations, errors);
-                dependencies.add(newDependency(key, Nullability.allowsNull(parameterAnnotations), index));
+                Annotation[] paramAnnotations = annotationsIterator.next();
+                Key<?> key = Annotations.getKey(parameterType, member, paramAnnotations, errors);
+                dependencies.add(newDependency(key, Nullability.allowsNull(paramAnnotations), index));
                 index++;
             } catch (ErrorsException e) {
                 errors.merge(e.getErrors());
@@ -374,20 +374,24 @@ public final class InjectionPoint {
 
     private interface Factory<M extends Member & AnnotatedElement> {
         Factory<Field> FIELDS = new Factory<Field>() {
+            @Override
             public Field[] getMembers(Class<?> type) {
                 return type.getDeclaredFields();
             }
 
+            @Override
             public InjectionPoint create(TypeLiteral<?> typeLiteral, Field member, Errors errors) {
                 return new InjectionPoint(typeLiteral, member);
             }
         };
 
         Factory<Method> METHODS = new Factory<Method>() {
+            @Override
             public Method[] getMembers(Class<?> type) {
                 return type.getDeclaredMethods();
             }
 
+            @Override
             public InjectionPoint create(TypeLiteral<?> typeLiteral, Method member, Errors errors) {
                 checkForMisplacedBindingAnnotations(member, errors);
                 return new InjectionPoint(typeLiteral, member);

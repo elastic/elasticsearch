@@ -18,13 +18,12 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range.geodistance;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoDistance.FixedSourceDistance;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.lucene.ReaderContextAware;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -36,12 +35,18 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
-import org.elasticsearch.search.aggregations.support.*;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.GeoPointParser;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -174,45 +179,29 @@ public class GeoDistanceParser implements Aggregator.Parser {
         }
 
         @Override
-        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent) {
-            return new Unmapped(name, ranges, keyed, null, aggregationContext, parent, rangeFactory);
+        protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, Map<String, Object> metaData) throws IOException {
+            return new Unmapped(name, ranges, keyed, null, aggregationContext, parent, rangeFactory, metaData);
         }
 
         @Override
-        protected Aggregator create(final ValuesSource.GeoPoint valuesSource, long expectedBucketsCount, AggregationContext aggregationContext, Aggregator parent) {
+        protected Aggregator doCreateInternal(final ValuesSource.GeoPoint valuesSource, AggregationContext aggregationContext, Aggregator parent, boolean collectsFromSingleBucket, Map<String, Object> metaData) throws IOException {
             DistanceSource distanceSource = new DistanceSource(valuesSource, distanceType, origin, unit);
-            aggregationContext.registerReaderContextAware(distanceSource);
-            return new RangeAggregator(name, factories, distanceSource, null, rangeFactory, ranges, keyed, aggregationContext, parent);
+            return new RangeAggregator(name, factories, distanceSource, null, rangeFactory, ranges, keyed, aggregationContext, parent, metaData);
         }
 
-        private static class DistanceSource extends ValuesSource.Numeric implements ReaderContextAware {
+        private static class DistanceSource extends ValuesSource.Numeric {
 
             private final ValuesSource.GeoPoint source;
             private final GeoDistance distanceType;
             private final DistanceUnit unit;
             private final org.elasticsearch.common.geo.GeoPoint origin;
-            private final MetaData metaData;
-            private SortedNumericDoubleValues distanceValues;
 
             public DistanceSource(ValuesSource.GeoPoint source, GeoDistance distanceType, org.elasticsearch.common.geo.GeoPoint origin, DistanceUnit unit) {
                 this.source = source;
                 // even if the geo points are unique, there's no guarantee the distances are
-                this.metaData = MetaData.builder(source.metaData()).uniqueness(MetaData.Uniqueness.UNKNOWN).build();
                 this.distanceType = distanceType;
                 this.unit = unit;
                 this.origin = origin;
-            }
-
-            @Override
-            public void setNextReader(AtomicReaderContext reader) {
-                final MultiGeoPointValues geoValues = source.geoPointValues();
-                final FixedSourceDistance distance = distanceType.fixedSourceDistance(origin.getLat(), origin.getLon(), unit);
-                distanceValues = GeoDistance.distanceValues(geoValues, distance);
-            }
-
-            @Override
-            public MetaData metaData() {
-                return metaData;
             }
 
             @Override
@@ -221,17 +210,19 @@ public class GeoDistanceParser implements Aggregator.Parser {
             }
 
             @Override
-            public SortedNumericDocValues longValues() {
+            public SortedNumericDocValues longValues(LeafReaderContext ctx) {
                 throw new UnsupportedOperationException();
             }
 
             @Override
-            public SortedNumericDoubleValues doubleValues() {
-                return distanceValues;
+            public SortedNumericDoubleValues doubleValues(LeafReaderContext ctx) {
+                final MultiGeoPointValues geoValues = source.geoPointValues(ctx);
+                final FixedSourceDistance distance = distanceType.fixedSourceDistance(origin.getLat(), origin.getLon(), unit);
+                return GeoDistance.distanceValues(geoValues, distance);
             }
 
             @Override
-            public SortedBinaryDocValues bytesValues() {
+            public SortedBinaryDocValues bytesValues(LeafReaderContext ctx) {
                 throw new UnsupportedOperationException();
             }
 

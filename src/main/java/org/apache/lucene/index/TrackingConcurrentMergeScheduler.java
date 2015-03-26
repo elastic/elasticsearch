@@ -29,6 +29,7 @@ import org.elasticsearch.index.merge.OnGoingMerge;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -45,6 +46,8 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
     private final CounterMetric currentMerges = new CounterMetric();
     private final CounterMetric currentMergesNumDocs = new CounterMetric();
     private final CounterMetric currentMergesSizeInBytes = new CounterMetric();
+    private final CounterMetric totalMergeStoppedTime = new CounterMetric();
+    private final CounterMetric totalMergeThrottledTime = new CounterMetric();
 
     private final Set<OnGoingMerge> onGoingMerges = ConcurrentCollections.newConcurrentSet();
     private final Set<OnGoingMerge> readOnlyOnGoingMerges = Collections.unmodifiableSet(onGoingMerges);
@@ -82,12 +85,20 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         return currentMergesSizeInBytes.count();
     }
 
+    public long totalMergeStoppedTimeMillis() {
+        return totalMergeStoppedTime.count();
+    }
+
+    public long totalMergeThrottledTimeMillis() {
+        return totalMergeThrottledTime.count();
+    }
+
     public Set<OnGoingMerge> onGoingMerges() {
         return readOnlyOnGoingMerges;
     }
 
     @Override
-    protected void doMerge(MergePolicy.OneMerge merge) throws IOException {
+    protected void doMerge(IndexWriter writer, MergePolicy.OneMerge merge) throws IOException {
         int totalNumDocs = merge.totalNumDocs();
         long totalSizeInBytes = merge.totalBytesSize();
         long time = System.currentTimeMillis();
@@ -103,7 +114,7 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
         }
         try {
             beforeMerge(onGoingMerge);
-            super.doMerge(merge);
+            super.doMerge(writer, merge);
         } finally {
             long took = System.currentTimeMillis() - time;
 
@@ -117,10 +128,28 @@ public class TrackingConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             totalMergesNumDocs.inc(totalNumDocs);
             totalMergesSizeInBytes.inc(totalSizeInBytes);
             totalMerges.inc(took);
+
+            long stoppedMS = merge.rateLimiter.getTotalStoppedNS()/1000000;
+            long throttledMS = merge.rateLimiter.getTotalPausedNS()/1000000;
+
+            totalMergeStoppedTime.inc(stoppedMS);
+            totalMergeThrottledTime.inc(throttledMS);
+
+            String message = String.format(Locale.ROOT,
+                                           "merge segment [%s] done: took [%s], [%,.1f MB], [%,d docs], [%s stopped], [%s throttled], [%,.1f MB written], [%,.1f MB/sec throttle]",
+                                           merge.info == null ? "_na_" : merge.info.info.name,
+                                           TimeValue.timeValueMillis(took),
+                                           totalSizeInBytes/1024f/1024f,
+                                           totalNumDocs,
+                                           TimeValue.timeValueMillis(stoppedMS),
+                                           TimeValue.timeValueMillis(throttledMS),
+                                           merge.rateLimiter.getTotalBytesWritten()/1024f/1024f,
+                                           merge.rateLimiter.getMBPerSec());
+
             if (took > 20000) { // if more than 20 seconds, DEBUG log it
-                logger.debug("merge [{}] done, took [{}]", merge.info == null ? "_na_" : merge.info.info.name, TimeValue.timeValueMillis(took));
+                logger.debug(message);
             } else if (logger.isTraceEnabled()) {
-                logger.trace("merge [{}] done, took [{}]", merge.info == null ? "_na_" : merge.info.info.name, TimeValue.timeValueMillis(took));
+                logger.trace(message);
             }
         }
     }

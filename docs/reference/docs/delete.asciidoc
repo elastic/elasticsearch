@@ -16,6 +16,11 @@ The result of the above delete operation is:
 [source,js]
 --------------------------------------------------
 {
+    "_shards" : {
+        "total" : 10,
+        "failed" : 0,
+        "successful" : 10
+    },
     "found" : true,
     "_index" : "twitter",
     "_type" : "tweet",
@@ -87,15 +92,6 @@ API for manually creating type mapping).
 The delete operation gets hashed into a specific shard id. It then gets
 redirected into the primary shard within that id group, and replicated
 (if needed) to shard replicas within that id group.
-
-[float]
-[[delete-replication]]
-=== Replication Type
-
-The replication of the operation can be done in an asynchronous manner
-to the replicas (the operation will return once it has be executed on
-the primary shard). The `replication` parameter can be set to `async`
-(defaults to `sync`) in order to enable it.
 
 [float]
 [[delete-consistency]]

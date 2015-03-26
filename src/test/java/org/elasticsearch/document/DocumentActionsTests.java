@@ -30,25 +30,18 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.client.Requests.*;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -101,7 +94,7 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
             getResult = client().prepareGet("test", "type1", "1").setOperationThreaded(false).execute().actionGet();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").string()));
-            assertThat("cycle(map) #" + i, (String) ((Map) getResult.getSourceAsMap().get("type1")).get("name"), equalTo("test"));
+            assertThat("cycle(map) #" + i, (String) getResult.getSourceAsMap().get("name"), equalTo("test"));
             getResult = client().get(getRequest("test").type("type1").id("1").operationThreaded(true)).actionGet();
             assertThat("cycle #" + i, getResult.getSourceAsString(), equalTo(source("1", "test").string()));
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
@@ -109,11 +102,11 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
 
         logger.info("Get [type1/1] with script");
         for (int i = 0; i < 5; i++) {
-            getResult = client().prepareGet("test", "type1", "1").setFields("type1.name").execute().actionGet();
+            getResult = client().prepareGet("test", "type1", "1").setFields("name").execute().actionGet();
             assertThat(getResult.getIndex(), equalTo(getConcreteIndexName()));
             assertThat(getResult.isExists(), equalTo(true));
             assertThat(getResult.getSourceAsBytes(), nullValue());
-            assertThat(getResult.getField("type1.name").getValues().get(0).toString(), equalTo("test"));
+            assertThat(getResult.getField("name").getValues().get(0).toString(), equalTo("test"));
         }
 
         logger.info("Get [type1/2] (should be empty)");
@@ -123,7 +116,7 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
         }
 
         logger.info("Delete [type1/1]");
-        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "1").setReplicationType(ReplicationType.SYNC).execute().actionGet();
+        DeleteResponse deleteResponse = client().prepareDelete("test", "type1", "1").execute().actionGet();
         assertThat(deleteResponse.getIndex(), equalTo(getConcreteIndexName()));
         assertThat(deleteResponse.getId(), equalTo("1"));
         assertThat(deleteResponse.getType(), equalTo("type1"));
@@ -187,8 +180,9 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
 
         logger.info("Delete by query");
         DeleteByQueryResponse queryResponse = client().prepareDeleteByQuery().setIndices("test").setQuery(termQuery("name", "test2")).execute().actionGet();
-        assertThat(queryResponse.getIndex(getConcreteIndexName()).getSuccessfulShards(), equalTo(numShards.numPrimaries));
-        assertThat(queryResponse.getIndex(getConcreteIndexName()).getFailedShards(), equalTo(0));
+        assertThat(queryResponse.getIndex(getConcreteIndexName()).getShardInfo().getTotal(), greaterThanOrEqualTo(numShards.totalNumShards));
+        assertThat(queryResponse.getIndex(getConcreteIndexName()).getShardInfo().getSuccessful(), greaterThanOrEqualTo(numShards.totalNumShards));
+        assertThat(queryResponse.getIndex(getConcreteIndexName()).getShardInfo().getFailures().length, equalTo(0));
         client().admin().indices().refresh(refreshRequest("test")).actionGet();
 
         logger.info("Get [type1/1] and [type1/2], should be empty");
@@ -270,55 +264,7 @@ public class DocumentActionsTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    @Test
-    public void testDeleteRoutingRequired() throws ExecutionException, InterruptedException, IOException {
-        assertAcked(prepareCreate("test").addMapping("test",
-                XContentFactory.jsonBuilder().startObject().startObject("test").startObject("_routing").field("required", true).endObject().endObject().endObject()));
-        ensureGreen();
-
-        int numDocs = iterations(10, 50);
-        IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];
-        for (int i = 0; i < numDocs - 2; i++) {
-            indexRequestBuilders[i] = client().prepareIndex("test", "test", Integer.toString(i))
-                    .setRouting(randomAsciiOfLength(randomIntBetween(1, 10))).setSource("field", "value");
-        }
-        String firstDocId = Integer.toString(numDocs - 2);
-        indexRequestBuilders[numDocs - 2] = client().prepareIndex("test", "test", firstDocId)
-                .setRouting("routing").setSource("field", "value");
-        String secondDocId = Integer.toString(numDocs - 1);
-        String secondRouting = randomAsciiOfLength(randomIntBetween(1, 10));
-        indexRequestBuilders[numDocs - 1] = client().prepareIndex("test", "test", secondDocId)
-                .setRouting(secondRouting).setSource("field", "value");
-
-        indexRandom(true, indexRequestBuilders);
-
-        SearchResponse searchResponse = client().prepareSearch("test").get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs));
-
-        //use routing
-        DeleteResponse deleteResponse = client().prepareDelete("test", "test", firstDocId).setRouting("routing").get();
-        assertThat(deleteResponse.isFound(), equalTo(true));
-        GetResponse getResponse = client().prepareGet("test", "test", firstDocId).setRouting("routing").get();
-        assertThat(getResponse.isExists(), equalTo(false));
-        refresh();
-        searchResponse = client().prepareSearch("test").get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs - 1));
-
-        //don't use routing and trigger a broadcast delete
-        deleteResponse = client().prepareDelete("test", "test", secondDocId).get();
-        assertThat(deleteResponse.isFound(), equalTo(true));
-
-        getResponse = client().prepareGet("test", "test", secondDocId).setRouting(secondRouting).get();
-        assertThat(getResponse.isExists(), equalTo(false));
-        refresh();
-        searchResponse = client().prepareSearch("test").setSize(numDocs).get();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo((long) numDocs - 2));
-    }
-
     private XContentBuilder source(String id, String nameValue) throws IOException {
-        return XContentFactory.jsonBuilder().startObject().startObject("type1").field("id", id).field("name", nameValue).endObject().endObject();
+        return XContentFactory.jsonBuilder().startObject().field("id", id).field("name", nameValue).endObject();
     }
 }

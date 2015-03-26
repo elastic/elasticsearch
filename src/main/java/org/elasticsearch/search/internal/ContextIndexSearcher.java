@@ -19,22 +19,28 @@
 
 package org.elasticsearch.search.internal;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.Explanation;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MultiCollector;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TimeLimitingCollector;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.MinimumScoreCollector;
-import org.elasticsearch.common.lucene.MultiCollector;
 import org.elasticsearch.common.lucene.search.FilteredCollector;
-import org.elasticsearch.common.lucene.search.XCollector;
-import org.elasticsearch.common.lucene.search.XFilteredQuery;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Context-aware extension of {@link IndexSearcher}.
@@ -55,7 +61,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private CachedDfSource dfSource;
 
-    private List<Collector> queryCollectors;
+    private Map<Class<?>, Collector> queryCollectors;
 
     private Stage currentState = Stage.NA;
 
@@ -79,11 +85,11 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * {@link org.elasticsearch.common.lucene.search.XCollector} allowing for a callback
      * when collection is done.
      */
-    public void addMainQueryCollector(Collector collector) {
+    public Map<Class<?>, Collector> queryCollectors() {
         if (queryCollectors == null) {
-            queryCollectors = new ArrayList<>();
+            queryCollectors = new HashMap<>();
         }
-        queryCollectors.add(collector);
+        return queryCollectors;
     }
 
     public void inStage(Stage stage) {
@@ -111,13 +117,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @Override
-    public Weight createNormalizedWeight(Query query) throws IOException {
+    public Weight createNormalizedWeight(Query query, boolean needsScores) throws IOException {
+        // TODO: needsScores
+        // can we avoid dfs stuff here if we dont need scores?
         try {
             // if its the main query, use we have dfs data, only then do it
             if (dfSource != null && (query == searchContext.query() || query == searchContext.parsedQuery().query())) {
-                return dfSource.createNormalizedWeight(query);
+                return dfSource.createNormalizedWeight(query, needsScores);
             }
-            return in.createNormalizedWeight(query);
+            return in.createNormalizedWeight(query, needsScores);
         } catch (Throwable t) {
             searchContext.clearReleasables(Lifetime.COLLECTION);
             throw new RuntimeException(t);
@@ -125,7 +133,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @Override
-    public void search(List<AtomicReaderContext> leaves, Weight weight, Collector collector) throws IOException {
+    public void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
         final boolean timeoutSet = searchContext.timeoutInMillis() != -1;
         final boolean terminateAfterSet = searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER;
 
@@ -146,7 +154,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
                 collector = new FilteredCollector(collector, searchContext.parsedPostFilter().filter());
             }
             if (queryCollectors != null && !queryCollectors.isEmpty()) {
-                collector = new MultiCollector(collector, queryCollectors.toArray(new Collector[queryCollectors.size()]));
+                ArrayList<Collector> allCollectors = new ArrayList<>(queryCollectors.values());
+                allCollectors.add(collector);
+                collector = MultiCollector.wrap(allCollectors);
             }
 
             // apply the minimum score after multi collector so we filter aggs as well
@@ -173,16 +183,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             } else {
                 super.search(leaves, weight, collector);
             }
-
-            if (currentState == Stage.MAIN_QUERY) {
-                if (queryCollectors != null && !queryCollectors.isEmpty()) {
-                    for (Collector queryCollector : queryCollectors) {
-                        if (queryCollector instanceof XCollector) {
-                            ((XCollector) queryCollector).postCollection();
-                        }
-                    }
-                }
-            }
         } finally {
             searchContext.clearReleasables(Lifetime.COLLECTION);
         }
@@ -194,7 +194,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             if (searchContext.aliasFilter() == null) {
                 return super.explain(query, doc);
             }
-            XFilteredQuery filteredQuery = new XFilteredQuery(query, searchContext.aliasFilter());
+            FilteredQuery filteredQuery = new FilteredQuery(query, searchContext.aliasFilter());
             return super.explain(filteredQuery, doc);
         } finally {
             searchContext.clearReleasables(Lifetime.COLLECTION);

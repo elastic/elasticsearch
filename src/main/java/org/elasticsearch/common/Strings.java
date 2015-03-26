@@ -270,7 +270,7 @@ public class Strings {
     }
 
     /**
-     * Trim all occurences of the supplied leading character from the given String.
+     * Trim all occurrences of the supplied leading character from the given String.
      *
      * @param str              the String to check
      * @param leadingCharacter the leading character to be trimmed
@@ -326,7 +326,7 @@ public class Strings {
     }
 
     /**
-     * Replace all occurences of a substring within a string with
+     * Replace all occurrences of a substring within a string with
      * another string.
      *
      * @param inString   String to examine

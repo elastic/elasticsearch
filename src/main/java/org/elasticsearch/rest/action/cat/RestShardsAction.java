@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -58,7 +59,7 @@ public class RestShardsAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
-        clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
+        clusterStateRequest.clear().nodes(true).metaData(true).routingTable(true).indices(indices);
         client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
@@ -85,6 +86,7 @@ public class RestShardsAction extends AbstractCatAction {
                 .addCell("docs", "alias:d,dc;text-align:right;desc:number of docs in shard")
                 .addCell("store", "alias:sto;text-align:right;desc:store size of shard (how much disk it uses)")
                 .addCell("ip", "default:true;desc:ip of node where it lives")
+                .addCell("id", "default:false;desc:unique id of node where it lives")
                 .addCell("node", "default:true;alias:n;desc:name of node where it lives");
 
         table.addCell("completion.size", "alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
@@ -165,25 +167,45 @@ public class RestShardsAction extends AbstractCatAction {
 
             table.addCell(shard.index());
             table.addCell(shard.id());
-            table.addCell(shard.primary() ? "p" : "r");
+
+            IndexMetaData indexMeta = state.getState().getMetaData().index(shard.index());
+            boolean usesShadowReplicas = false;
+            if (indexMeta != null) {
+                usesShadowReplicas = IndexMetaData.isIndexUsingShadowReplicas(indexMeta.settings());
+            }
+            if (shard.primary()) {
+                table.addCell("p");
+            } else {
+                if (usesShadowReplicas) {
+                    table.addCell("s");
+                } else {
+                    table.addCell("r");
+                }
+            }
             table.addCell(shard.state());
             table.addCell(shardStats == null ? null : shardStats.getDocs().getCount());
             table.addCell(shardStats == null ? null : shardStats.getStore().getSize());
             if (shard.assignedToNode()) {
                 String ip = state.getState().nodes().get(shard.currentNodeId()).getHostAddress();
+                String nodeId = shard.currentNodeId();
                 StringBuilder name = new StringBuilder();
                 name.append(state.getState().nodes().get(shard.currentNodeId()).name());
                 if (shard.relocating()) {
                     String reloIp = state.getState().nodes().get(shard.relocatingNodeId()).getHostAddress();
                     String reloNme = state.getState().nodes().get(shard.relocatingNodeId()).name();
+                    String reloNodeId = shard.relocatingNodeId();
                     name.append(" -> ");
                     name.append(reloIp);
+                    name.append(" ");
+                    name.append(reloNodeId);
                     name.append(" ");
                     name.append(reloNme);
                 }
                 table.addCell(ip);
+                table.addCell(nodeId);
                 table.addCell(name);
             } else {
+                table.addCell(null);
                 table.addCell(null);
                 table.addCell(null);
             }
@@ -246,7 +268,7 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(shardStats == null ? null : shardStats.getSegments().getIndexWriterMemory());
             table.addCell(shardStats == null ? null : shardStats.getSegments().getIndexWriterMaxMemory());
             table.addCell(shardStats == null ? null : shardStats.getSegments().getVersionMapMemory());
-            table.addCell(shardStats == null ? null : shardStats.getSegments().getFixedBitSetMemory());
+            table.addCell(shardStats == null ? null : shardStats.getSegments().getBitsetMemory());
 
             table.addCell(shardStats == null ? null : shardStats.getWarmer().current());
             table.addCell(shardStats == null ? null : shardStats.getWarmer().total());

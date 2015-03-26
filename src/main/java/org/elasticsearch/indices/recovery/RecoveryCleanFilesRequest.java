@@ -19,14 +19,13 @@
 
 package org.elasticsearch.indices.recovery;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.Store;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.Set;
 
 /**
  *
@@ -36,15 +35,17 @@ class RecoveryCleanFilesRequest extends TransportRequest {
     private long recoveryId;
     private ShardId shardId;
 
-    private Set<String> snapshotFiles;
+    private Store.MetadataSnapshot snapshotFiles;
+    private int totalTranslogOps = RecoveryState.Translog.UNKNOWN;
 
     RecoveryCleanFilesRequest() {
     }
 
-    RecoveryCleanFilesRequest(long recoveryId, ShardId shardId, Set<String> snapshotFiles) {
+    RecoveryCleanFilesRequest(long recoveryId, ShardId shardId, Store.MetadataSnapshot snapshotFiles, int totalTranslogOps) {
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.snapshotFiles = snapshotFiles;
+        this.totalTranslogOps = totalTranslogOps;
     }
 
     public long recoveryId() {
@@ -55,20 +56,13 @@ class RecoveryCleanFilesRequest extends TransportRequest {
         return shardId;
     }
 
-    public Set<String> snapshotFiles() {
-        return snapshotFiles;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         recoveryId = in.readLong();
         shardId = ShardId.readShardId(in);
-        int size = in.readVInt();
-        snapshotFiles = Sets.newHashSetWithExpectedSize(size);
-        for (int i = 0; i < size; i++) {
-            snapshotFiles.add(in.readString());
-        }
+        snapshotFiles = Store.MetadataSnapshot.read(in);
+        totalTranslogOps = in.readVInt();
     }
 
     @Override
@@ -76,9 +70,15 @@ class RecoveryCleanFilesRequest extends TransportRequest {
         super.writeTo(out);
         out.writeLong(recoveryId);
         shardId.writeTo(out);
-        out.writeVInt(snapshotFiles.size());
-        for (String snapshotFile : snapshotFiles) {
-            out.writeString(snapshotFile);
-        }
+        snapshotFiles.writeTo(out);
+        out.writeVInt(totalTranslogOps);
+    }
+
+    public Store.MetadataSnapshot sourceMetaSnapshot() {
+        return snapshotFiles;
+    }
+
+    public int totalTranslogOps() {
+        return totalTranslogOps;
     }
 }

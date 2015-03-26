@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.DocValues;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
@@ -48,7 +48,7 @@ public class GeoPointBinaryDVIndexFieldData extends DocValuesIndexFieldData impl
     }
 
     @Override
-    public AtomicGeoPointFieldData load(AtomicReaderContext context) {
+    public AtomicGeoPointFieldData load(LeafReaderContext context) {
         try {
             return new GeoPointBinaryDVAtomicFieldData(DocValues.getBinary(context.reader(), fieldNames.indexName()));
         } catch (IOException e) {
@@ -57,7 +57,7 @@ public class GeoPointBinaryDVIndexFieldData extends DocValuesIndexFieldData impl
     }
 
     @Override
-    public AtomicGeoPointFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicGeoPointFieldData loadDirect(LeafReaderContext context) throws Exception {
         return load(context);
     }
 

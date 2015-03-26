@@ -21,16 +21,19 @@ package org.elasticsearch.search.aggregations.metrics.percentiles;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
@@ -40,11 +43,13 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
 
     AbstractInternalPercentiles() {} // for serialization
 
-    public AbstractInternalPercentiles(String name, double[] keys, TDigestState state, boolean keyed) {
-        super(name);
+    public AbstractInternalPercentiles(String name, double[] keys, TDigestState state, boolean keyed, @Nullable ValueFormatter formatter,
+            Map<String, Object> metaData) {
+        super(name, metaData);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
+        this.valueFormatter = formatter;
     }
 
     @Override
@@ -65,14 +70,13 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
             }
             merged.add(percentiles.state);
         }
-        return createReduced(getName(), keys, merged, keyed);
+        return createReduced(getName(), keys, merged, keyed, getMetaData());
     }
 
-    protected abstract AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed);
+    protected abstract AbstractInternalPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed, Map<String, Object> metaData);
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
         valueFormatter = ValueFormatterStreams.readOptional(in);
         if (in.getVersion().before(Version.V_1_2_0)) {
             final byte id = in.readByte();
@@ -89,8 +93,7 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         ValueFormatterStreams.writeOptional(valueFormatter, out);
         if (out.getVersion().before(Version.V_1_2_0)) {
             out.writeByte((byte) 0);

@@ -111,9 +111,7 @@ curl -XPOST 'http://localhost:9200/_cluster/nodes/_local/_shutdown'
 
 * Start the now upgraded node.  Confirm that it joins the cluster.
 
-* Repeat this process for all remaining nodes.
-
-* When the process is complete on all nodes, you can re-enable shard reallocation:
+* Re-enable shard reallocation:
 
 [source,sh]
 --------------------------------------------------
@@ -125,6 +123,9 @@ curl -XPOST 'http://localhost:9200/_cluster/nodes/_local/_shutdown'
 --------------------------------------------------
 
 * Observe that all shards are properly allocated on all nodes.  Balancing may take some time.
+
+* Repeat this process for all remaining nodes.
+
 
 It may be possible to perform the upgrade by installing the new software while the service is running.  This would reduce downtime by ensuring the service was ready to run on the new version as soon as it is stopped on the node being upgraded.  This can be done by installing the new version in its own directory and using the symbolic link method outlined above.  It is important to test this procedure first to be sure that site-specific configuration data and production indices will not be overwritten during the upgrade process.
 

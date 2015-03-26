@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.base.Strings;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.Term;
@@ -29,8 +30,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
@@ -260,9 +259,9 @@ public interface FieldMapper<T> extends Mapper {
 
     Filter prefixFilter(Object value, @Nullable QueryParseContext context);
 
-    Query regexpQuery(Object value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context);
+    Query regexpQuery(Object value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context);
 
-    Filter regexpFilter(Object value, int flags, @Nullable QueryParseContext parseContext);
+    Filter regexpFilter(Object value, int flags, int maxDeterminizedStates, @Nullable QueryParseContext parseContext);
 
     /**
      * A term query to use when parsing a query string. Can return <tt>null</tt>.
@@ -277,10 +276,6 @@ public interface FieldMapper<T> extends Mapper {
     Filter nullValueFilter();
 
     FieldDataType fieldDataType();
-
-    PostingsFormatProvider postingsFormatProvider();
-
-    DocValuesFormatProvider docValuesFormatProvider();
 
     boolean isNumeric();
 

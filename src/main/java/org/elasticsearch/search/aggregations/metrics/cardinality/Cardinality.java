@@ -19,12 +19,12 @@
 
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
-import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 
 /**
  * An aggregation that computes approximate numbers of unique terms.
  */
-public interface Cardinality extends Aggregation {
+public interface Cardinality extends NumericMetricsAggregation.SingleValue {
 
     /**
      * The number of unique terms.

@@ -30,7 +30,10 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 
@@ -89,10 +92,15 @@ public class RestRecoveryAction extends AbstractCatAction {
                 .addCell("target_host", "alias:thost;desc:target host")
                 .addCell("repository", "alias:rep;desc:repository")
                 .addCell("snapshot", "alias:snap;desc:snapshot")
-                .addCell("files", "alias:f;desc:number of files")
+                .addCell("files", "alias:f;desc:number of files to recover")
                 .addCell("files_percent", "alias:fp;desc:percent of files recovered")
-                .addCell("bytes", "alias:b;desc:size in bytes")
+                .addCell("bytes", "alias:b;desc:size to recover in bytes")
                 .addCell("bytes_percent", "alias:bp;desc:percent of bytes recovered")
+                .addCell("total_files", "alias:tf;desc:total number of files")
+                .addCell("total_bytes", "alias:tb;desc:total number of bytes")
+                .addCell("translog", "alias:tr;desc:translog operations recovered")
+                .addCell("translog_percent", "alias:trp;desc:percent of translog recovery")
+                .addCell("total_translog", "alias:trt;desc:current total translog operations")
                 .endHeaders();
         return t;
     }
@@ -145,10 +153,15 @@ public class RestRecoveryAction extends AbstractCatAction {
                 t.addCell(state.getTargetNode().getHostName());
                 t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotId().getRepository());
                 t.addCell(state.getRestoreSource() == null ? "n/a" : state.getRestoreSource().snapshotId().getSnapshot());
+                t.addCell(state.getIndex().totalRecoverFiles());
+                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredFilesPercent()));
+                t.addCell(state.getIndex().totalRecoverBytes());
+                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().recoveredBytesPercent()));
                 t.addCell(state.getIndex().totalFileCount());
-                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().percentFilesRecovered()));
-                t.addCell(state.getIndex().totalByteCount());
-                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getIndex().percentBytesRecovered()));
+                t.addCell(state.getIndex().totalBytes());
+                t.addCell(state.getTranslog().recoveredOperations());
+                t.addCell(String.format(Locale.ROOT, "%1.1f%%", state.getTranslog().recoveredPercent()));
+                t.addCell(state.getTranslog().totalOperations());
                 t.endRow();
             }
         }

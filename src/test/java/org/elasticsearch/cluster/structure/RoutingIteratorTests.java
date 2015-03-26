@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.structure;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,8 +31,7 @@ import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
-import org.elasticsearch.cluster.routing.operation.hash.djb.DjbHashFunction;
-import org.elasticsearch.cluster.routing.operation.plain.PlainOperationRouting;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchAllocationTestCase;
@@ -78,7 +78,7 @@ public class RoutingIteratorTests extends ElasticsearchAllocationTestCase {
     @Test
     public void testIterator1() {
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(2))
+                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test1"))
@@ -106,8 +106,8 @@ public class RoutingIteratorTests extends ElasticsearchAllocationTestCase {
     @Test
     public void testIterator2() {
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))
-                .put(IndexMetaData.builder("test2").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -187,8 +187,8 @@ public class RoutingIteratorTests extends ElasticsearchAllocationTestCase {
     @Test
     public void testRandomRouting() {
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test1").numberOfShards(1).numberOfReplicas(1))
-                .put(IndexMetaData.builder("test2").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -221,7 +221,7 @@ public class RoutingIteratorTests extends ElasticsearchAllocationTestCase {
                 .build());
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -270,7 +270,7 @@ public class RoutingIteratorTests extends ElasticsearchAllocationTestCase {
                 .build());
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(5).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
@@ -293,7 +293,7 @@ public class RoutingIteratorTests extends ElasticsearchAllocationTestCase {
         routingTable = strategy.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        PlainOperationRouting operationRouting = new PlainOperationRouting(ImmutableSettings.Builder.EMPTY_SETTINGS, new DjbHashFunction(), new AwarenessAllocationDecider());
+        OperationRouting operationRouting = new OperationRouting(ImmutableSettings.Builder.EMPTY_SETTINGS, new AwarenessAllocationDecider());
 
         GroupShardsIterator shardIterators = operationRouting.searchShards(clusterState, new String[]{"test"}, new String[]{"test"}, null, "_shards:0");
         assertThat(shardIterators.size(), equalTo(1));

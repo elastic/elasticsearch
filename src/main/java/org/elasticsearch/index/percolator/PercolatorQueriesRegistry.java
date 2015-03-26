@@ -21,13 +21,13 @@ package org.elasticsearch.index.percolator;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.XConstantScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -50,10 +50,11 @@ import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.percolator.PercolatorService;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
@@ -66,9 +67,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Once a document type has been created, the real-time percolator will start to listen to write events and update the
  * this registry with queries in real time.
  */
-public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
+public class PercolatorQueriesRegistry extends AbstractIndexShardComponent implements Closeable{
 
-    public final static String ALLOW_UNMAPPED_FIELDS = "index.percolator.allow_unmapped_fields";
+    public final String MAP_UNMAPPED_FIELDS_AS_STRING = "index.percolator.map_unmapped_fields_as_string";
 
     // This is a shard level service, but these below are index level service:
     private final IndexQueryParserService queryParserService;
@@ -85,7 +86,8 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
     private final AtomicBoolean realTimePercolatorEnabled = new AtomicBoolean(false);
-    private final boolean allowUnmappedFields;
+
+    private boolean mapUnmappedFieldsAsString;
 
     private CloseableThreadLocal<QueryParseContext> cache = new CloseableThreadLocal<QueryParseContext>() {
         @Override
@@ -106,7 +108,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         this.indexCache = indexCache;
         this.indexFieldDataService = indexFieldDataService;
         this.shardPercolateService = shardPercolateService;
-        this.allowUnmappedFields = indexSettings.getAsBoolean(ALLOW_UNMAPPED_FIELDS, false);
+        this.mapUnmappedFieldsAsString = indexSettings.getAsBoolean(MAP_UNMAPPED_FIELDS_AS_STRING, false);
 
         indicesLifecycle.addListener(shardLifecycleListener);
         mapperService.addTypeListener(percolateTypeListener);
@@ -116,6 +118,7 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         return percolateQueries;
     }
 
+    @Override
     public void close() {
         mapperService.removeTypeListener(percolateTypeListener);
         indicesLifecycle.removeListener(shardLifecycleListener);
@@ -203,7 +206,20 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         QueryParseContext context = cache.get();
         try {
             context.reset(parser);
-            context.setAllowUnmappedFields(allowUnmappedFields);
+            // This means that fields in the query need to exist in the mapping prior to registering this query
+            // The reason that this is required, is that if a field doesn't exist then the query assumes defaults, which may be undesired.
+            //
+            // Even worse when fields mentioned in percolator queries do go added to map after the queries have been registered
+            // then the percolator queries don't work as expected any more.
+            //
+            // Query parsing can't introduce new fields in mappings (which happens when registering a percolator query),
+            // because field type can't be inferred from queries (like document do) so the best option here is to disallow
+            // the usage of unmapped fields in percolator queries to avoid unexpected behaviour
+            //
+            // if index.percolator.map_unmapped_fields_as_string is set to true, query can contain unmapped fields which will be mapped
+            // as an analyzed string.
+            context.setAllowUnmappedFields(false);
+            context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString ? true : false);
             return queryParserService.parseInnerQuery(context);
         } catch (IOException e) {
             throw new QueryParsingException(queryParserService.index(), "Failed to parse", e);
@@ -260,12 +276,14 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent {
         }
 
         private int loadQueries(IndexShard shard) {
-            shard.refresh(new Engine.Refresh("percolator_load_queries").force(true));
+            shard.refresh("percolator_load_queries");
             // Maybe add a mode load? This isn't really a write. We need write b/c state=post_recovery
-            try (Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries", IndexShard.Mode.WRITE)) {
-                Query query = new XConstantScoreQuery(
+            try (Engine.Searcher searcher = shard.acquireSearcher("percolator_load_queries", true)) {
+                Query query = new ConstantScoreQuery(
                         indexCache.filter().cache(
-                                new TermFilter(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME))
+                                new TermFilter(new Term(TypeFieldMapper.NAME, PercolatorService.TYPE_NAME)),
+                                null,
+                                queryParserService.autoFilterCachePolicy()
                         )
                 );
                 QueriesLoaderCollector queryCollector = new QueriesLoaderCollector(PercolatorQueriesRegistry.this, logger, mapperService, indexFieldDataService);

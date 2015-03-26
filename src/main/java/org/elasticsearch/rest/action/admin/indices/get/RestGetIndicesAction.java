@@ -20,8 +20,10 @@ package org.elasticsearch.rest.action.admin.indices.get;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
+
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest.Feature;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
@@ -34,7 +36,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 
@@ -58,15 +65,16 @@ public class RestGetIndicesAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        String[] features = request.paramAsStringArray("type", null);
+        String[] featureParams = request.paramAsStringArray("type", null);
         // Work out if the indices is a list of features
-        if (features == null && indices.length > 0 && indices[0] != null && indices[0].startsWith("_") && !"_all".equals(indices[0])) {
-            features = indices;
+        if (featureParams == null && indices.length > 0 && indices[0] != null && indices[0].startsWith("_") && !"_all".equals(indices[0])) {
+            featureParams = indices;
             indices = new String[] {"_all"};
         }
         final GetIndexRequest getIndexRequest = new GetIndexRequest();
         getIndexRequest.indices(indices);
-        if (features != null) {
+        if (featureParams != null) {
+            Feature[] features = Feature.convertToFeatures(featureParams);
             getIndexRequest.features(features);
         }
         getIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, getIndexRequest.indicesOptions()));
@@ -76,27 +84,24 @@ public class RestGetIndicesAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(GetIndexResponse response, XContentBuilder builder) throws Exception {
 
-                String[] features = getIndexRequest.features();
+                Feature[] features = getIndexRequest.featuresAsEnums();
                 String[] indices = response.indices();
 
                 builder.startObject();
                 for (String index : indices) {
                     builder.startObject(index);
-                    for (String feature : features) {
+                    for (Feature feature : features) {
                         switch (feature) {
-                        case "_alias":
-                        case "_aliases":
+                        case ALIASES:
                             writeAliases(response.aliases().get(index), builder, request);
                             break;
-                        case "_mapping":
-                        case "_mappings":
+                        case MAPPINGS:
                             writeMappings(response.mappings().get(index), builder, request);
                             break;
-                        case "_settings":
+                        case SETTINGS:
                             writeSettings(response.settings().get(index), builder, request);
                             break;
-                        case "_warmer":
-                        case "_warmers":
+                        case WARMERS:
                             writeWarmers(response.warmers().get(index), builder, request);
                             break;
                         default:
@@ -112,24 +117,24 @@ public class RestGetIndicesAction extends BaseRestHandler {
             }
 
             private void writeAliases(ImmutableList<AliasMetaData> aliases, XContentBuilder builder, Params params) throws IOException {
+                builder.startObject(Fields.ALIASES);
                 if (aliases != null) {
-                    builder.startObject(Fields.ALIASES);
                     for (AliasMetaData alias : aliases) {
                         AliasMetaData.Builder.toXContent(alias, builder, params);
                     }
-                    builder.endObject();
                 }
+                builder.endObject();
             }
 
             private void writeMappings(ImmutableOpenMap<String, MappingMetaData> mappings, XContentBuilder builder, Params params) throws IOException {
+                builder.startObject(Fields.MAPPINGS);
                 if (mappings != null) {
-                    builder.startObject(Fields.MAPPINGS);
                     for (ObjectObjectCursor<String, MappingMetaData> typeEntry : mappings) {
                         builder.field(typeEntry.key);
                         builder.map(typeEntry.value.sourceAsMap());
                     }
-                    builder.endObject();
                 }
+                builder.endObject();
             }
 
             private void writeSettings(Settings settings, XContentBuilder builder, Params params) throws IOException {
@@ -139,13 +144,13 @@ public class RestGetIndicesAction extends BaseRestHandler {
             }
 
             private void writeWarmers(ImmutableList<IndexWarmersMetaData.Entry> warmers, XContentBuilder builder, Params params) throws IOException {
+                builder.startObject(Fields.WARMERS);
                 if (warmers != null) {
-                    builder.startObject(Fields.WARMERS);
                     for (IndexWarmersMetaData.Entry warmer : warmers) {
                         IndexWarmersMetaData.FACTORY.toXContent(warmer, builder, params);
                     }
-                    builder.endObject();
                 }
+                builder.endObject();
             }
         });
     }

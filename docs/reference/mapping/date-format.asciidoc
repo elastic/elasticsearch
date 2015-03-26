@@ -29,19 +29,21 @@ query/filter (mainly makes sense in `range` query/filter).
 The expression starts with an "anchor" date, which can be either `now`
 or a date string (in the applicable format) ending with `||`. It can
 then follow by a math expression, supporting `+`, `-` and `/`
-(rounding). The units supported are `y` (year), `M` (month), `w` (week), `h` (hour),
-`m` (minute), and `s` (second).
+(rounding). The units supported are `y` (year), `M` (month), `w` (week),
+`d` (day), `h` (hour), `m` (minute), and `s` (second).
 
 Here are some samples: `now+1h`, `now+1h+1m`, `now+1h/d`,
 `2012-01-01||+1M/d`.
 
-Note, when doing `range` type searches, and the upper value is
-inclusive, the rounding will properly be rounded to the ceiling instead
-of flooring it.
-
-To change this behavior, set 
-`"mapping.date.round_ceil": false`.
-
+When doing `range` type searches with rounding, the value parsed
+depends on whether the end of the range is inclusive or exclusive, and
+whether the beginning or end of the range.  Rounding up moves to the
+last millisecond of the rounding scope, and rounding down to the
+first millisecond of the rounding scope. The semantics work as follows:
+* `gt` - round up, and use > that value (`2014-11-18||/M` becomes `2014-11-30T23:59:59.999`, ie excluding the entire month)
+* `gte` - round D down, and use >= that value (`2014-11-18||/M` becomes `2014-11-01`, ie including the entire month)
+* `lt` - round D down, and use < that value (`2014-11-18||/M` becomes `2014-11-01`, ie excluding the entire month)
+* `lte` - round D up, and use <= that value(`2014-11-18||/M` becomes `2014-11-30T23:59:59.999`, ie including the entire month)
 
 [float]
 [[built-in]]

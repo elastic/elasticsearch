@@ -80,13 +80,13 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         if (tokenizerFactoryFactory == null) {
             throw new ElasticsearchIllegalArgumentException("failed to find tokenizer [" + tokenizerName + "] for synonym token filter");
         }
-        final TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, settings);
+        final TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, indexSettings);
 
         Analyzer analyzer = new Analyzer() {
             @Override
-            protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
-                Tokenizer tokenizer = tokenizerFactory == null ? new WhitespaceTokenizer(Lucene.ANALYZER_VERSION, reader) : tokenizerFactory.create(reader);
-                TokenStream stream = ignoreCase ? new LowerCaseFilter(Lucene.ANALYZER_VERSION, tokenizer) : tokenizer;
+            protected TokenStreamComponents createComponents(String fieldName) {
+                Tokenizer tokenizer = tokenizerFactory == null ? new WhitespaceTokenizer() : tokenizerFactory.create();
+                TokenStream stream = ignoreCase ? new LowerCaseFilter(tokenizer) : tokenizer;
                 return new TokenStreamComponents(tokenizer, stream);
             }
         };

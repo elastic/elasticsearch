@@ -19,7 +19,7 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -48,7 +48,7 @@ public class FieldValueFactorFunction extends ScoreFunction {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext context) {
+    public void setNextReader(LeafReaderContext context) {
         this.values = this.indexFieldData.load(context).getDoubleValues();
     }
 
@@ -70,10 +70,10 @@ public class FieldValueFactorFunction extends ScoreFunction {
     }
 
     @Override
-    public Explanation explainScore(int docId, float subQueryScore) {
+    public Explanation explainScore(int docId, Explanation subQueryScore) {
         Explanation exp = new Explanation();
         String modifierStr = modifier != null ? modifier.toString() : "";
-        double score = score(docId, subQueryScore);
+        double score = score(docId, subQueryScore.getValue());
         exp.setValue(CombineFunction.toFloat(score));
         exp.setDescription("field value function: " +
                 modifierStr + "(" + "doc['" + field + "'].value * factor=" + boostFactor + ")");

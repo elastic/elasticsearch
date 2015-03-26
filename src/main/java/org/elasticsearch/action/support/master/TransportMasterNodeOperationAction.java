@@ -22,6 +22,7 @@ package org.elasticsearch.action.support.master;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -32,6 +33,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,7 +66,7 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
 
     protected abstract Response newResponse();
 
-    protected abstract void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws ElasticsearchException;
+    protected abstract void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception;
 
     protected boolean localExecute(Request request) {
         return false;
@@ -126,20 +128,12 @@ public abstract class TransportMasterNodeOperationAction<Request extends MasterN
                 );
 
             } else {
-                try {
-                    threadPool.executor(executor).execute(new Runnable() {
-                        @Override
-                        public void run() {
-                            try {
-                                masterOperation(request, clusterService.state(), listener);
-                            } catch (Throwable e) {
-                                listener.onFailure(e);
-                            }
-                        }
-                    });
-                } catch (Throwable t) {
-                    listener.onFailure(t);
-                }
+                threadPool.executor(executor).execute(new ActionRunnable(listener) {
+                    @Override
+                    protected void doRun() throws Exception {
+                        masterOperation(request, clusterService.state(), listener);
+                    }
+                });
             }
         } else {
             if (nodes.masterNode() == null) {

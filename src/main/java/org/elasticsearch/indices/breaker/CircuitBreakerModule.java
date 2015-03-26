@@ -24,7 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 
 public class CircuitBreakerModule extends AbstractModule {
 
-    public static final String IMPL = "indices.breaker.breaker_impl";
+    public static final String IMPL = "indices.breaker.type";
 
     private final Settings settings;
 

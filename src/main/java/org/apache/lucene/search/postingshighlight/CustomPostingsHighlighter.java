@@ -18,7 +18,7 @@
 
 package org.apache.lucene.search.postingshighlight;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.search.IndexSearcher;
@@ -94,7 +94,7 @@ public final class CustomPostingsHighlighter extends XPostingsHighlighter {
     public Snippet[] highlightDoc(String field, BytesRef[] terms, IndexSearcher searcher, int docId, int maxPassages) throws IOException {
         IndexReader reader = searcher.getIndexReader();
         IndexReaderContext readerContext = reader.getContext();
-        List<AtomicReaderContext> leaves = readerContext.leaves();
+        List<LeafReaderContext> leaves = readerContext.leaves();
 
         String[] contents = new String[]{loadCurrentFieldValue()};
         Map<Integer, Object> snippetsMap = highlightField(field, contents, getBreakIterator(field), terms, new int[]{docId}, leaves, maxPassages);

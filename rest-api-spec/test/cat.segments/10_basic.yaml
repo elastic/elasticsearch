@@ -1,0 +1,121 @@
+---
+"Help":
+  - do:
+      cat.segments:
+        help: true
+
+  - match:
+      $body: |
+               /^   index        .+   \n
+                    shard        .+   \n
+                    prirep       .+   \n
+                    ip           .+   \n
+                    id           .+   \n
+                    segment      .+   \n
+                    generation   .+   \n
+                    docs.count   .+   \n
+                    docs.deleted .+   \n
+                    size         .+   \n
+                    size.memory  .+   \n
+                    committed    .+   \n
+                    searchable   .+   \n
+                    version      .+   \n
+                    compound     .+   \n
+               $/
+---
+"Test cat segments output":
+
+  - do:
+      cat.segments:
+        v: false
+
+  - match:
+      $body: |
+               /^$/
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "3"
+            number_of_replicas: "0"
+  - do:
+      index:
+        index: index1
+        type: type
+        body: { foo: bar }
+        refresh: true
+  - do:
+       cluster.health:
+         wait_for_status: green
+  - do:
+      cat.segments:
+        v: false
+  - match:
+      $body: |
+                 /^(index1 \s+ \d \s+ (p|r) \s+ \d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3} \s+ _\d (\s\d){3} \s+
+                 (\d+|\d+[.]\d+)(kb|b) \s+ \d+ (\s+ (false|true)){2} \s+  \d+\.\d+(\.\d+)? \s+ (false|true) \s? \n?)$/
+
+  - do:
+      indices.create:
+        index: index2
+        body:
+          settings:
+            number_of_shards: "3"
+            number_of_replicas: "0"
+  - do:
+       cluster.health:
+         wait_for_status: green
+         wait_for_relocating_shards: 0
+
+  - do:
+      index:
+        index: index2
+        type: type
+        body: { foo: bar }
+        refresh: true
+  - do:
+       cluster.health:
+         wait_for_status: green
+
+
+  - do:
+      cat.segments:
+        v: false
+  - match:
+      $body: |
+                  /^(index(1|2) .+ \n?){2}$/
+
+  - do:
+      cat.segments:
+        index: index2
+        v: false
+  - match:
+      $body: |
+                  /^(index2 .+ \n?)$/
+
+---
+"Test cat segments on closed index behaviour":
+
+  - do:
+      indices.create:
+        index: index1
+        body:
+          settings:
+            number_of_shards: "1"
+            number_of_replicas: "0"
+
+  - do:
+       cluster.health:
+         wait_for_status: green
+
+  - do:
+      indices.close:
+        index: index1
+
+  - do:
+      catch: forbidden
+      cat.segments:
+        index: index1
+        v: false

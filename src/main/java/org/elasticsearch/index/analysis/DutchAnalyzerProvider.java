@@ -38,9 +38,9 @@ public class DutchAnalyzerProvider extends AbstractIndexAnalyzerProvider<DutchAn
     @Inject
     public DutchAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
         super(index, indexSettings, name, settings);
-        analyzer = new DutchAnalyzer(version,
-                Analysis.parseStopWords(env, settings, DutchAnalyzer.getDefaultStopSet(), version),
-                Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET, version));
+        analyzer = new DutchAnalyzer(Analysis.parseStopWords(env, settings, DutchAnalyzer.getDefaultStopSet()),
+                                     Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
+        analyzer.setVersion(version);
     }
 
     @Override

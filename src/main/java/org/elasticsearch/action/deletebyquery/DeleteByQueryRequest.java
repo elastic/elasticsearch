@@ -93,7 +93,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
     /**
      * The source to execute.
      */
-    BytesReference source() {
+    public BytesReference source() {
         if (sourceUnsafe) {
             source = source.copyBytesArray();
         }
@@ -164,7 +164,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
     /**
      * The types of documents the query will run against. Defaults to all types.
      */
-    String[] types() {
+    public String[] types() {
         return this.types;
     }
 
@@ -199,6 +199,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
         return this;
     }
 
+    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         sourceUnsafe = false;
@@ -207,6 +208,7 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
         types = in.readStringArray();
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeBytesReference(source);

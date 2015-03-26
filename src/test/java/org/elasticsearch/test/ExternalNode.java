@@ -19,7 +19,9 @@
 package org.elasticsearch.test;
 
 import com.google.common.base.Predicate;
+
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
@@ -34,15 +36,16 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.transport.TransportModule;
 
 import java.io.Closeable;
-import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
-import static junit.framework.Assert.assertFalse;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
@@ -53,10 +56,9 @@ final class ExternalNode implements Closeable {
     public static final Settings REQUIRED_SETTINGS = ImmutableSettings.builder()
             .put("config.ignore_system_properties", true)
             .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")
-            .put("node.mode", "network") // we need network mode for this
-            .put("gateway.type", "local").build(); // we require local gateway to mimic upgrades of nodes
+            .put("node.mode", "network").build(); // we need network mode for this
 
-    private final File path;
+    private final Path path;
     private final Random random;
     private final SettingsSource settingsSource;
     private Process process;
@@ -68,12 +70,12 @@ final class ExternalNode implements Closeable {
     private Settings externalNodeSettings;
 
 
-    ExternalNode(File path, long seed, SettingsSource settingsSource) {
+    ExternalNode(Path path, long seed, SettingsSource settingsSource) {
         this(path, null, seed, settingsSource);
     }
 
-    ExternalNode(File path, String clusterName, long seed, SettingsSource settingsSource) {
-        if (!path.isDirectory()) {
+    ExternalNode(Path path, String clusterName, long seed, SettingsSource settingsSource) {
+        if (!Files.isDirectory(path)) {
             throw new IllegalArgumentException("path must be a directory");
         }
         this.path = path;
@@ -112,7 +114,6 @@ final class ExternalNode implements Closeable {
                 case "node.local":
                 case TransportModule.TRANSPORT_TYPE_KEY:
                 case DiscoveryModule.DISCOVERY_TYPE_KEY:
-                case "gateway.type":
                 case TransportModule.TRANSPORT_SERVICE_TYPE_KEY:
                 case "config.ignore_system_properties":
                     continue;
@@ -126,19 +127,21 @@ final class ExternalNode implements Closeable {
             params.add("-Des." + entry.getKey() + "=" + entry.getValue());
         }
 
-        params.add("-Des.path.home=" + new File("").getAbsolutePath());
+        params.add("-Des.path.home=" + Paths.get(".").toAbsolutePath());
+        params.add("-Des.path.conf=" + path + "/config");
 
         ProcessBuilder builder = new ProcessBuilder(params);
-        builder.directory(path);
+        builder.directory(path.toFile());
         builder.inheritIO();
         boolean success = false;
         try {
-            logger.debug("starting external node [{}] with: {}", nodeName, builder.command());
+            logger.info("starting external node [{}] with: {}", nodeName, builder.command());
             process = builder.start();
             this.nodeInfo = null;
             if (waitForNode(client, nodeName)) {
                 nodeInfo = nodeInfo(client, nodeName);
                 assert nodeInfo != null;
+                logger.info("external node {} found, version [{}], build {}", nodeInfo.getNode(), nodeInfo.getVersion(), nodeInfo.getBuild());
             } else {
                 throw new IllegalStateException("Node [" + nodeName + "] didn't join the cluster");
             }

@@ -42,7 +42,7 @@ public class Queries {
         // We don't use MatchAllDocsQuery, its slower than the one below ... (much slower)
         // NEVER cache this XConstantScore Query it's not immutable and based on #3521
         // some code might set a boost on this query.
-        return new XConstantScoreQuery(MATCH_ALL_FILTER);
+        return new ConstantScoreQuery(MATCH_ALL_FILTER);
     }
 
     /** Return a query that matches no document. */
@@ -74,9 +74,9 @@ public class Queries {
     }
 
     public static boolean isConstantMatchAllQuery(Query query) {
-        if (query instanceof XConstantScoreQuery) {
-            XConstantScoreQuery scoreQuery = (XConstantScoreQuery) query;
-            if (scoreQuery.getFilter() instanceof MatchAllDocsFilter) {
+        if (query instanceof ConstantScoreQuery) {
+            ConstantScoreQuery scoreQuery = (ConstantScoreQuery) query;
+            if (scoreQuery.getQuery() instanceof MatchAllDocsFilter || scoreQuery.getQuery() instanceof MatchAllDocsQuery) {
                 return true;
             }
         }
@@ -124,7 +124,7 @@ public class Queries {
             return result;
         }
 
-        /* otherwise, simple expresion */
+        /* otherwise, simple expression */
 
         if (-1 < spec.indexOf('%')) {
             /* percentage - assume the % was the last char.  If not, let Integer.parseInt fail. */

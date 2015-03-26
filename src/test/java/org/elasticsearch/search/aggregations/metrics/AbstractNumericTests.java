@@ -77,6 +77,8 @@ public abstract class AbstractNumericTests extends ElasticsearchIntegrationTest 
 
     public abstract void testSingleValuedField() throws Exception;
 
+    public abstract void testSingleValuedField_getProperty() throws Exception;
+
     public abstract void testSingleValuedField_PartiallyUnmapped() throws Exception;
 
     public abstract void testSingleValuedField_WithValueScript() throws Exception;

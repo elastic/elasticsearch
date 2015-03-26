@@ -31,3 +31,11 @@ The `include` and `exclude` clauses can be any span type query. The
 returned.
 
 In the above example all documents with the term hoya are filtered except the ones that have 'la' preceeding them.
+
+Other top level options:
+
+[horizontal]
+`pre`::     If set the amount of tokens before the include span can't have overlap with the exclude span.
+`post`::    If set the amount of tokens after the include span can't have overlap with the exclude span.
+`dist`::    If set the amount of tokens from within the include span can't have overlap with the exclude span. Equivalent
+            of setting both `pre` and `post`.

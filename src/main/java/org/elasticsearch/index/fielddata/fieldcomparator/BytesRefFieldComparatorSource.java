@@ -19,16 +19,17 @@
 
 package org.elasticsearch.index.fielddata.fieldcomparator;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.FieldComparator;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -58,7 +59,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         return SortField.Type.STRING;
     }
 
-    protected SortedBinaryDocValues getValues(AtomicReaderContext context) {
+    protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
         return indexFieldData.load(context).getBytesValues();
     }
 
@@ -74,14 +75,14 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
             return new FieldComparator.TermOrdValComparator(numHits, null, sortMissingLast) {
                 
                 @Override
-                protected SortedDocValues getSortedDocValues(AtomicReaderContext context, String field) throws IOException {
+                protected SortedDocValues getSortedDocValues(LeafReaderContext context, String field) throws IOException {
                     final RandomAccessOrds values = ((IndexOrdinalsFieldData) indexFieldData).load(context).getOrdinalsValues();
                     final SortedDocValues selectedValues;
                     if (nested == null) {
                         selectedValues = sortMode.select(values);
                     } else {
-                        final FixedBitSet rootDocs = nested.rootDocs(context);
-                        final FixedBitSet innerDocs = nested.innerDocs(context);
+                        final BitSet rootDocs = nested.rootDocs(context).bits();
+                        final DocIdSet innerDocs = nested.innerDocs(context);
                         selectedValues = sortMode.select(values, rootDocs, innerDocs);
                     }
                     if (sortMissingFirst(missingValue) || sortMissingLast(missingValue)) {
@@ -91,17 +92,34 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
                     }
                 }
                 
+                @Override
+                public void setScorer(Scorer scorer) {
+                    BytesRefFieldComparatorSource.this.setScorer(scorer);
+                }
+
+                @Override
                 public BytesRef value(int slot) {
                     // TODO: When serializing the response to the coordinating node, we lose the information about
                     // whether the comparator sorts missing docs first or last. We should fix it and let
                     // TopDocs.merge deal with it (it knows how to)
                     BytesRef value = super.value(slot);
                     if (value == null) {
+                        assert sortMissingFirst(missingValue) || sortMissingLast(missingValue);
                         value = missingBytes;
                     }
                     return value;
                 }
                 
+                @Override
+                public void setTopValue(BytesRef topValue) {
+                    // symetric of value(int): if we need to feed the comparator with <tt>null</tt>
+                    // if we overrode the value with MAX_TERM in value(int)
+                    if (topValue == missingBytes && (sortMissingFirst(missingValue) || sortMissingLast(missingValue))) {
+                        topValue = null;
+                    }
+                    super.setTopValue(topValue);
+                }
+
             };
         }
 
@@ -110,21 +128,21 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
         return new FieldComparator.TermValComparator(numHits, null, sortMissingLast) {
 
             @Override
-            protected BinaryDocValues getBinaryDocValues(AtomicReaderContext context, String field) throws IOException {
+            protected BinaryDocValues getBinaryDocValues(LeafReaderContext context, String field) throws IOException {
                 final SortedBinaryDocValues values = getValues(context);
                 final BinaryDocValues selectedValues;
                 if (nested == null) {
                     selectedValues = sortMode.select(values, nonNullMissingBytes);
                 } else {
-                    final FixedBitSet rootDocs = nested.rootDocs(context);
-                    final FixedBitSet innerDocs = nested.innerDocs(context);
+                    final BitSet rootDocs = nested.rootDocs(context).bits();
+                    final DocIdSet innerDocs = nested.innerDocs(context);
                     selectedValues = sortMode.select(values, nonNullMissingBytes, rootDocs, innerDocs, context.reader().maxDoc());
                 }
                 return selectedValues;
             }
 
             @Override
-            protected Bits getDocsWithField(AtomicReaderContext context, String field) throws IOException {
+            protected Bits getDocsWithField(LeafReaderContext context, String field) throws IOException {
                 return new Bits.MatchAllBits(context.reader().maxDoc());
             }
 

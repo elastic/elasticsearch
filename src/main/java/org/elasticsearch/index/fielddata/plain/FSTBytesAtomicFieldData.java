@@ -20,6 +20,8 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.IntsRef;
@@ -31,6 +33,10 @@ import org.apache.lucene.util.fst.Util;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 /**
  */
@@ -61,6 +67,16 @@ public class FSTBytesAtomicFieldData extends AbstractAtomicOrdinalsFieldData {
             this.size = size;
         }
         return size;
+    }
+
+    @Override
+    public Collection<Accountable> getChildResources() {
+        List<Accountable> resources = new ArrayList<>();
+        resources.add(Accountables.namedAccountable("ordinals", ordinals));
+        if (fst != null) {
+            resources.add(Accountables.namedAccountable("terms", fst));
+        }
+        return Collections.unmodifiableList(resources);
     }
 
     @Override

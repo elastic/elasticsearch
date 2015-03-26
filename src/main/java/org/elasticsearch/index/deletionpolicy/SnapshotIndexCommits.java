@@ -48,6 +48,7 @@ public class SnapshotIndexCommits implements Iterable<SnapshotIndexCommit>, Rele
         return commits.iterator();
     }
 
+    @Override
     public void close() {
         Releasables.close(commits);
     }

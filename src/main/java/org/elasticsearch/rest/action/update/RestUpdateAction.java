@@ -19,9 +19,9 @@
 
 package org.elasticsearch.rest.action.update;
 
+import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.Client;
@@ -34,13 +34,13 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 
 import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.CREATED;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  */
@@ -57,26 +57,23 @@ public class RestUpdateAction extends BaseRestHandler {
         UpdateRequest updateRequest = new UpdateRequest(request.param("index"), request.param("type"), request.param("id"));
         updateRequest.listenerThreaded(false);
         updateRequest.routing(request.param("routing"));
-        updateRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
         updateRequest.timeout(request.paramAsTime("timeout", updateRequest.timeout()));
         updateRequest.refresh(request.paramAsBoolean("refresh", updateRequest.refresh()));
-        String replicationType = request.param("replication");
-        if (replicationType != null) {
-            updateRequest.replicationType(ReplicationType.fromString(replicationType));
-        }
         String consistencyLevel = request.param("consistency");
         if (consistencyLevel != null) {
             updateRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
         }
         updateRequest.docAsUpsert(request.paramAsBoolean("doc_as_upsert", updateRequest.docAsUpsert()));
-        if( request.hasParam("script") ) {
-            updateRequest.script(request.param("script"), ScriptService.ScriptType.INLINE);
-        } else if( request.hasParam("script_id") ) {
-            updateRequest.script(request.param("script_id"), ScriptService.ScriptType.INDEXED);
-        } else if( request.hasParam("script_file") ) {
-            updateRequest.script(request.param("script_file"), ScriptService.ScriptType.FILE);
+        ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
+        scriptParameterParser.parseParams(request);
+        ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
+        if (scriptValue != null) {
+            updateRequest.script(scriptValue.script(), scriptValue.scriptType());
         }
-        updateRequest.scriptLang(request.param("lang"));
+        String scriptLang = scriptParameterParser.lang();
+        if (scriptLang != null) {
+            updateRequest.scriptLang(scriptLang);
+        }
         for (Map.Entry<String, String> entry : request.params().entrySet()) {
             if (entry.getKey().startsWith("sp_")) {
                 updateRequest.addScriptParam(entry.getKey().substring(3), entry.getValue());
@@ -124,12 +121,14 @@ public class RestUpdateAction extends BaseRestHandler {
         client.update(updateRequest, new RestBuilderListener<UpdateResponse>(channel) {
             @Override
             public RestResponse buildResponse(UpdateResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject()
-                        .field(Fields._INDEX, response.getIndex())
+                builder.startObject();
+                ActionWriteResponse.ShardInfo shardInfo = response.getShardInfo();
+                builder.field(Fields._INDEX, response.getIndex())
                         .field(Fields._TYPE, response.getType())
                         .field(Fields._ID, response.getId())
                         .field(Fields._VERSION, response.getVersion());
 
+                shardInfo.toXContent(builder, request);
                 if (response.getGetResult() != null) {
                     builder.startObject(Fields.GET);
                     response.getGetResult().toXContentEmbedded(builder, request);
@@ -137,7 +136,7 @@ public class RestUpdateAction extends BaseRestHandler {
                 }
 
                 builder.endObject();
-                RestStatus status = OK;
+                RestStatus status = shardInfo.status();
                 if (response.isCreated()) {
                     status = CREATED;
                 }
@@ -151,7 +150,6 @@ public class RestUpdateAction extends BaseRestHandler {
         static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
         static final XContentBuilderString _ID = new XContentBuilderString("_id");
         static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString MATCHES = new XContentBuilderString("matches");
         static final XContentBuilderString GET = new XContentBuilderString("get");
     }
 }

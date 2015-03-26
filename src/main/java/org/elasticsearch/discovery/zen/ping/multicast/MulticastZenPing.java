@@ -35,6 +35,7 @@ import org.elasticsearch.common.network.MulticastChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -96,13 +97,13 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         this.networkService = networkService;
         this.version = version;
 
-        this.address = componentSettings.get("address");
-        this.port = componentSettings.getAsInt("port", 54328);
-        this.group = componentSettings.get("group", "224.2.2.4");
-        this.bufferSize = componentSettings.getAsInt("buffer_size", 2048);
-        this.ttl = componentSettings.getAsInt("ttl", 3);
+        this.address = this.settings.get("discovery.zen.ping.multicast.address");
+        this.port = this.settings.getAsInt("discovery.zen.ping.multicast.port", 54328);
+        this.group = this.settings.get("discovery.zen.ping.multicast.group", "224.2.2.4");
+        this.bufferSize = this.settings.getAsInt("discovery.zen.ping.multicast.buffer_size", 2048);
+        this.ttl = this.settings.getAsInt("discovery.zen.ping.multicast.ttl", 3);
 
-        this.pingEnabled = componentSettings.getAsBoolean("ping.enabled", true);
+        this.pingEnabled = this.settings.getAsBoolean("discovery.zen.ping.multicast.ping.enabled", true);
 
         logger.debug("using group [{}], with port [{}], ttl [{}], and address [{}]", group, port, ttl, address);
 
@@ -122,15 +123,16 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         try {
             // we know OSX has bugs in the JVM when creating multiple instances of multicast sockets
             // causing for "socket close" exceptions when receive and/or crashes
-            boolean shared = componentSettings.getAsBoolean("shared", Constants.MAC_OS_X);
+            boolean shared = settings.getAsBoolean("discovery.zen.ping.multicast.shared", Constants.MAC_OS_X);
             multicastChannel = MulticastChannel.getChannel(nodeName(), shared,
                     new MulticastChannel.Config(port, group, bufferSize, ttl, networkService.resolvePublishHostAddress(address)),
                     new Receiver());
         } catch (Throwable t) {
+            String msg = "multicast failed to start [{}], disabling. Consider using IPv4 only (by defining env. variable `ES_USE_IPV4`)";
             if (logger.isDebugEnabled()) {
-                logger.debug("multicast failed to start [{}], disabling", t, ExceptionsHelper.detailedMessage(t));
+                logger.debug(msg, t, ExceptionsHelper.detailedMessage(t));
             } else {
-                logger.info("multicast failed to start [{}], disabling", ExceptionsHelper.detailedMessage(t));
+                logger.info(msg, ExceptionsHelper.detailedMessage(t));
             }
         }
     }
@@ -173,7 +175,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
     @Override
     public void ping(final PingListener listener, final TimeValue timeout) {
-        if (!pingEnabled) {
+        if (!pingEnabled || multicastChannel == null) {
             threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
@@ -183,33 +185,71 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             return;
         }
         final int id = pingIdGenerator.incrementAndGet();
-        receivedResponses.put(id, new PingCollection());
-        sendPingRequest(id);
-        // try and send another ping request halfway through (just in case someone woke up during it...)
-        // this can be a good trade-off to nailing the initial lookup or un-delivered messages
-        threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    sendPingRequest(id);
-                } catch (Exception e) {
-                    logger.warn("[{}] failed to send second ping request", e, id);
+        try {
+            receivedResponses.put(id, new PingCollection());
+            sendPingRequest(id);
+            // try and send another ping request halfway through (just in case someone woke up during it...)
+            // this can be a good trade-off to nailing the initial lookup or un-delivered messages
+            threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
+                @Override
+                public void onFailure(Throwable t) {
+                    logger.warn("[{}] failed to send second ping request", t, id);
+                    finalizePingCycle(id, listener);
                 }
-            }
-        });
-        threadPool.schedule(timeout, ThreadPool.Names.GENERIC, new Runnable() {
-            @Override
-            public void run() {
-                PingCollection responses = receivedResponses.remove(id);
-                listener.onPing(responses.toArray());
-            }
-        });
+
+                @Override
+                public void doRun() {
+                    sendPingRequest(id);
+                    threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 2), ThreadPool.Names.GENERIC, new AbstractRunnable() {
+                        @Override
+                        public void onFailure(Throwable t) {
+                            logger.warn("[{}] failed to send third ping request", t, id);
+                            finalizePingCycle(id, listener);
+                        }
+
+                        @Override
+                        public void doRun() {
+                            // make one last ping, but finalize as soon as all nodes have responded or a timeout has past
+                            PingCollection collection = receivedResponses.get(id);
+                            FinalizingPingCollection finalizingPingCollection = new FinalizingPingCollection(id, collection, collection.size(), listener);
+                            receivedResponses.put(id, finalizingPingCollection);
+                            logger.trace("[{}] sending last pings", id);
+                            sendPingRequest(id);
+                            threadPool.schedule(TimeValue.timeValueMillis(timeout.millis() / 4), ThreadPool.Names.GENERIC, new AbstractRunnable() {
+                                @Override
+                                public void onFailure(Throwable t) {
+                                    logger.warn("[{}] failed to finalize ping", t, id);
+                                }
+
+                                @Override
+                                protected void doRun() throws Exception {
+                                    finalizePingCycle(id, listener);
+                                }
+                            });
+                        }
+                    });
+                }
+            });
+        } catch (Exception e) {
+            logger.warn("failed to ping", e);
+            finalizePingCycle(id, listener);
+        }
+    }
+
+    /**
+     * takes all pings collected for a given id and pass them to the given listener.
+     * this method is safe to call multiple times as is guaranteed to only finalize once.
+     */
+    private void finalizePingCycle(int id, final PingListener listener) {
+        PingCollection responses = receivedResponses.remove(id);
+        if (responses != null) {
+            listener.onPing(responses.toArray());
+        }
     }
 
     private void sendPingRequest(int id) {
         try {
-            BytesStreamOutput bStream = new BytesStreamOutput();
-            StreamOutput out = new HandlesStreamOutput(bStream);
+            BytesStreamOutput out = new BytesStreamOutput();
             out.writeBytes(INTERNAL_HEADER);
             // TODO: change to min_required version!
             Version.writeVersion(version, out);
@@ -217,7 +257,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             clusterName.writeTo(out);
             contextProvider.nodes().localNode().writeTo(out);
             out.close();
-            multicastChannel.send(bStream.bytes());
+            multicastChannel.send(out.bytes());
             if (logger.isTraceEnabled()) {
                 logger.trace("[{}] sending ping request", id);
             }
@@ -230,6 +270,59 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             } else {
                 logger.warn("failed to send multicast ping request: {}", ExceptionsHelper.detailedMessage(e));
             }
+        }
+    }
+
+    class FinalizingPingCollection extends PingCollection {
+        final private PingCollection internalCollection;
+        final private int expectedResponses;
+        final private AtomicInteger responseCount;
+        final private PingListener listener;
+        final private int id;
+
+        public FinalizingPingCollection(int id, PingCollection internalCollection, int expectedResponses, PingListener listener) {
+            this.id = id;
+            this.internalCollection = internalCollection;
+            this.expectedResponses = expectedResponses;
+            this.responseCount = new AtomicInteger();
+            this.listener = listener;
+        }
+
+        @Override
+        public synchronized boolean addPing(PingResponse ping) {
+            if (internalCollection.addPing(ping)) {
+                if (responseCount.incrementAndGet() >= expectedResponses) {
+                    logger.trace("[{}] all nodes responded", id);
+                    finish();
+                }
+                return true;
+            }
+            return false;
+        }
+
+        @Override
+        public synchronized void addPings(PingResponse[] pings) {
+            internalCollection.addPings(pings);
+        }
+
+        @Override
+        public synchronized PingResponse[] toArray() {
+            return internalCollection.toArray();
+        }
+
+        void finish() {
+            // spawn another thread as we may be running on a network thread
+            threadPool.generic().execute(new AbstractRunnable() {
+                @Override
+                public void onFailure(Throwable t) {
+                    logger.error("failed to call ping listener", t);
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    finalizePingCycle(id, listener);
+                }
+            });
         }
     }
 
@@ -310,7 +403,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                     }
                 }
                 if (internal) {
-                    StreamInput input = CachedStreamInput.cachedHandles(new BytesStreamInput(new BytesArray(data.toBytes(), INTERNAL_HEADER.length, data.length() - INTERNAL_HEADER.length)));
+                    StreamInput input = new BytesStreamInput(new BytesArray(data.toBytes(), INTERNAL_HEADER.length, data.length() - INTERNAL_HEADER.length));
                     Version version = Version.readVersion(input);
                     input.setVersion(version);
                     id = input.readInt();
@@ -407,7 +500,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         }
 
         private void handleNodePingRequest(int id, DiscoveryNode requestingNodeX, ClusterName requestClusterName) {
-            if (!pingEnabled) {
+            if (!pingEnabled || multicastChannel == null) {
                 return;
             }
             final DiscoveryNodes discoveryNodes = contextProvider.nodes();

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.indices.ttl;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.SimpleCollector;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -46,9 +46,9 @@ import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
@@ -82,9 +82,9 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
-        TimeValue interval = componentSettings.getAsTime("interval", TimeValue.timeValueSeconds(60));
+        TimeValue interval = this.settings.getAsTime("indices.ttl.interval", TimeValue.timeValueSeconds(60));
         this.bulkAction = bulkAction;
-        this.bulkSize = componentSettings.getAsInt("bulk_size", 10000);
+        this.bulkSize = this.settings.getAsInt("indices.ttl.bulk_size", 10000);
         this.purgerThread = new PurgerThread(EsExecutors.threadName(settings, "[ttl_expire]"), interval);
 
         nodeSettingsService.addListener(new ApplySettings());
@@ -132,6 +132,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             notifier.setTimeout(interval);
         }
 
+        @Override
         public void run() {
             try {
                 while (running.get()) {
@@ -170,7 +171,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 }
 
                 // should be optimized with the hasTTL flag
-                FieldMappers ttlFieldMappers = indexService.mapperService().name(TTLFieldMapper.NAME);
+                FieldMappers ttlFieldMappers = indexService.mapperService().fullName(TTLFieldMapper.NAME);
                 if (ttlFieldMappers == null) {
                     continue;
                 }
@@ -237,20 +238,23 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         }
     }
 
-    private class ExpiredDocsCollector extends Collector {
-        private AtomicReaderContext context;
+    private class ExpiredDocsCollector extends SimpleCollector {
+        private LeafReaderContext context;
         private List<DocToPurge> docsToPurge = new ArrayList<>();
 
         public ExpiredDocsCollector() {
         }
 
+        @Override
         public void setScorer(Scorer scorer) {
         }
 
-        public boolean acceptsDocsOutOfOrder() {
-            return true;
+        @Override
+        public boolean needsScores() {
+            return false;
         }
 
+        @Override
         public void collect(int doc) {
             try {
                 UidAndRoutingFieldsVisitor fieldsVisitor = new UidAndRoutingFieldsVisitor();
@@ -263,7 +267,8 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             }
         }
 
-        public void setNextReader(AtomicReaderContext context) throws IOException {
+        @Override
+        public void doSetNextReader(LeafReaderContext context) throws IOException {
             this.context = context;
         }
 

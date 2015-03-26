@@ -48,16 +48,18 @@ public class SnapshotDeletionPolicyTests extends ElasticsearchTestCase {
     private SnapshotDeletionPolicy deletionPolicy;
     private IndexWriter indexWriter;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
         dir = new RAMDirectory();
         deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastDeletionPolicy(shardId, EMPTY_SETTINGS));
-        indexWriter = new IndexWriter(dir, new IndexWriterConfig(TEST_VERSION_CURRENT, Lucene.STANDARD_ANALYZER)
+        indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER)
                 .setIndexDeletionPolicy(deletionPolicy)
                 .setOpenMode(IndexWriterConfig.OpenMode.CREATE));
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

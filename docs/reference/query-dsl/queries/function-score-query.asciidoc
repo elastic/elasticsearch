@@ -49,7 +49,8 @@ given filter:
     ],
     "max_boost": number,
     "score_mode": "(multiply|max|...)",
-    "boost_mode": "(multiply|replace|...)"
+    "boost_mode": "(multiply|replace|...)",
+    "min_score" : number
 }
 --------------------------------------------------
 
@@ -74,7 +75,7 @@ If weight is given without any other function declaration, `weight` acts as a fu
 The new score can be restricted to not exceed a certain limit by setting
 the `max_boost` parameter. The default for `max_boost` is FLT_MAX.
 
-Finally, the newly computed score is combined with the score of the
+The newly computed score is combined with the score of the
 query. The parameter `boost_mode` defines how:
 
 [horizontal]
@@ -85,6 +86,10 @@ query. The parameter `boost_mode` defines how:
 `max`::         max of query score and function score
 `min`::         min of query score and function score
 
+coming[1.5.0]
+
+By default, modifying the score does not change which documents match. To exclude
+documents that do not meet a certain score threshold the `min_score` parameter can be set to the desired score threshold.  
 
 ==== Score functions
 
@@ -243,6 +248,18 @@ The format of the origin depends on the <<mapping-date-format>> defined in your 
 The `offset` and `decay` parameters are optional.
 
 [horizontal]
+`origin`::
+    The point of origin used for calculating distance. Must be given as a 
+    number for numeric field, date for date fields and geo point for geo fields. 
+    Required for geo and numeric field. For date fields the default is `now`. Date
+    math (for example `now-1h`) is supported for origin.
+
+`scale`::
+    Required for all types. Defines the distance from origin at which the computed 
+    score will equal `decay` parameter. For geo fields: Can be defined as number+unit (1km, 12m,...).
+    Default unit is meters. For date fields: Can to be defined as a number+unit ("1h", "10d",...).
+    Default unit is milliseconds. For numeric field: Any number.
+
 `offset`::
     If an `offset` is defined, the decay function will only compute the
     decay function for documents with a distance greater that the defined
@@ -307,6 +324,10 @@ image:images/s_calc.png[]
 In contrast to the normal and exponential decay, this function actually
 sets the score to 0 if the field value exceeds twice the user given
 scale value.
+
+For single functions the three decay functions together with their parameters can be visualized like this (the field in this example called "age"):
+
+image:images/decay_2d.png[width=600]
 
 ===== Multiple values:
 

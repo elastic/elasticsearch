@@ -28,12 +28,31 @@ public class DiskUsageTests extends ElasticsearchTestCase {
 
     @Test
     public void diskUsageCalcTest() {
-        DiskUsage du = new DiskUsage("node1", 100, 40);
+        DiskUsage du = new DiskUsage("node1", "n1", 100, 40);
         assertThat(du.getFreeDiskAsPercentage(), equalTo(40.0));
         assertThat(du.getFreeBytes(), equalTo(40L));
         assertThat(du.getUsedBytes(), equalTo(60L));
         assertThat(du.getTotalBytes(), equalTo(100L));
 
+        // Test that DiskUsage handles invalid numbers, as reported by some
+        // filesystems (ZFS & NTFS)
+        DiskUsage du2 = new DiskUsage("node1", "n1", 100, 101);
+        assertThat(du2.getFreeDiskAsPercentage(), equalTo(101.0));
+        assertThat(du2.getFreeBytes(), equalTo(101L));
+        assertThat(du2.getUsedBytes(), equalTo(-1L));
+        assertThat(du2.getTotalBytes(), equalTo(100L));
+
+        DiskUsage du3 = new DiskUsage("node1", "n1", -1, -1);
+        assertThat(du3.getFreeDiskAsPercentage(), equalTo(100.0));
+        assertThat(du3.getFreeBytes(), equalTo(-1L));
+        assertThat(du3.getUsedBytes(), equalTo(0L));
+        assertThat(du3.getTotalBytes(), equalTo(-1L));
+
+        DiskUsage du4 = new DiskUsage("node1", "n1", 0, 0);
+        assertThat(du4.getFreeDiskAsPercentage(), equalTo(100.0));
+        assertThat(du4.getFreeBytes(), equalTo(0L));
+        assertThat(du4.getUsedBytes(), equalTo(0L));
+        assertThat(du4.getTotalBytes(), equalTo(0L));
     }
 
     @Test
@@ -42,18 +61,17 @@ public class DiskUsageTests extends ElasticsearchTestCase {
         for (int i = 1; i < iters; i++) {
             long total = between(Integer.MIN_VALUE, Integer.MAX_VALUE);
             long free = between(Integer.MIN_VALUE, Integer.MAX_VALUE);
-            if (free > total || total <= 0) {
-                try {
-                    new DiskUsage("random", total, free);
-                    fail("should never reach this");
-                } catch (IllegalStateException e) {
-                }
+            DiskUsage du = new DiskUsage("random", "random", total, free);
+            if (total == 0) {
+                assertThat(du.getFreeBytes(), equalTo(free));
+                assertThat(du.getTotalBytes(), equalTo(0L));
+                assertThat(du.getUsedBytes(), equalTo(-free));
+                assertThat(du.getFreeDiskAsPercentage(), equalTo(100.0));
             } else {
-                DiskUsage du = new DiskUsage("random", total, free);
                 assertThat(du.getFreeBytes(), equalTo(free));
                 assertThat(du.getTotalBytes(), equalTo(total));
                 assertThat(du.getUsedBytes(), equalTo(total - free));
-                assertThat(du.getFreeDiskAsPercentage(), equalTo(100.0 * ((double)free / total)));
+                assertThat(du.getFreeDiskAsPercentage(), equalTo(100.0 * ((double) free / total)));
             }
         }
     }

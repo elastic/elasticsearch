@@ -199,6 +199,7 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/synhershko/elasticsearch-analysis-hebrew[Hebrew Analysis Plugin] (by Itamar Syn-Hershko)
 * https://github.com/medcl/elasticsearch-analysis-pinyin[Pinyin Analysis Plugin] (by Medcl)
 * https://github.com/medcl/elasticsearch-analysis-string2int[String2Integer Analysis Plugin] (by Medcl)
+* https://github.com/duydo/elasticsearch-analysis-vietnamese[Vietnamese Analysis Plugin] (by Duy Do)
 
 [float]
 [[discovery-plugins]]
@@ -234,11 +235,13 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/jprante/elasticsearch-river-jdbc[JDBC River Plugin] (by Jörg Prante)
 * https://github.com/qotho/elasticsearch-river-jms[JMS River Plugin] (by Steve Sarandos)
 * https://github.com/endgameinc/elasticsearch-river-kafka[Kafka River Plugin] (by Endgame Inc.)
+* https://github.com/mariamhakobyan/elasticsearch-river-kafka[Kafka River Plugin 2] (by Mariam Hakobyan)
 * https://github.com/tlrx/elasticsearch-river-ldap[LDAP River Plugin] (by Tanguy Leroux)
 * https://github.com/richardwilly98/elasticsearch-river-mongodb/[MongoDB River Plugin] (by Richard Louapre)
 * https://github.com/sksamuel/elasticsearch-river-neo4j[Neo4j River Plugin] (by Steve Samuel)
 * https://github.com/jprante/elasticsearch-river-oai/[Open Archives Initiative (OAI) River Plugin] (by Jörg Prante)
 * https://github.com/sksamuel/elasticsearch-river-redis[Redis River Plugin] (by Steve Samuel)
+* https://github.com/rethinkdb/elasticsearch-river-rethinkdb[RethinkDB River Plugin] (by RethinkDB)
 * http://dadoonet.github.com/rssriver/[RSS River Plugin] (by David Pilato)
 * https://github.com/adamlofts/elasticsearch-river-sofa[Sofa River Plugin] (by adamlofts)
 * https://github.com/javanna/elasticsearch-river-solr/[Solr River Plugin] (by Luca Cavanna)
@@ -248,14 +251,14 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/salyh/elasticsearch-river-imap[IMAP/POP3 Email River Plugin] (by Hendrik Saly)
 * https://github.com/codelibs/elasticsearch-river-web[Web River Plugin] (by CodeLibs Project)
 * https://github.com/eea/eea.elasticsearch.river.rdf[EEA ElasticSearch RDF River Plugin] (by the European Environment Agency)
+* https://github.com/lbroudoux/es-amazon-s3-river[Amazon S3 River Plugin] (by Laurent Broudoux)
+* https://github.com/lbroudoux/es-google-drive-river[Google Drive River Plugin] (by Laurent Broudoux)
 
 [float]
 [[transport]]
 ==== Transport Plugins
 
 .Supported by Elasticsearch
-* https://github.com/elasticsearch/elasticsearch-transport-memcached[Memcached transport plugin]
-* https://github.com/elasticsearch/elasticsearch-transport-thrift[Thrift Transport]
 * https://github.com/elasticsearch/elasticsearch-transport-wares[Servlet transport]
 
 .Supported by the community
@@ -300,6 +303,7 @@ You can disable that check using `plugins.check_lucene: false`.
 .Supported by the community
 
 * https://github.com/kzwang/elasticsearch-repository-gridfs[GridFS] Repository (by Kevin Wang)
+* https://github.com/wikimedia/search-repository-swift[Openstack Swift]
 
 [float]
 [[misc]]
@@ -312,6 +316,7 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/carrot2/elasticsearch-carrot2[carrot2 Plugin]: Results clustering with carrot2 (by Dawid Weiss)
 * https://github.com/derryx/elasticsearch-changes-plugin[Elasticsearch Changes Plugin] (by Thomas Peuss)
 * https://github.com/johtani/elasticsearch-extended-analyze[Extended Analyze Plugin] (by Jun Ohtani)
+* https://github.com/YannBrrd/elasticsearch-entity-resolution[Entity Resolution Plugin] using http://github.com/larsga/Duke[Duke] for duplication detection (by Yann Barraud)
 * https://github.com/spinscale/elasticsearch-graphite-plugin[Elasticsearch Graphite Plugin] (by Alexander Reelsen)
 * https://github.com/mattweber/elasticsearch-mocksolrplugin[Elasticsearch Mock Solr Plugin] (by Matt Weber)
 * https://github.com/viniciusccarvalho/elasticsearch-newrelic[Elasticsearch New Relic Plugin] (by Vinicius Carvalho)
@@ -321,6 +326,7 @@ You can disable that check using `plugins.check_lucene: false`.
 * https://github.com/sonian/elasticsearch-zookeeper[ZooKeeper Discovery Plugin] (by Sonian Inc.)
 * https://github.com/kzwang/elasticsearch-image[Elasticsearch Image Plugin] (by Kevin Wang)
 * https://github.com/wikimedia/search-highlighter[Elasticsearch Experimental Highlighter] (by Wikimedia Foundation/Nik Everett)
+* https://github.com/wikimedia/search-extra[Elasticsearch Trigram Accelerated Regular Expression Filter] (by Wikimedia Foundation/Nik Everett)
 * https://github.com/salyh/elasticsearch-security-plugin[Elasticsearch Security Plugin] (by Hendrik Saly)
 * https://github.com/codelibs/elasticsearch-taste[Elasticsearch Taste Plugin] (by CodeLibs Project)
 * http://siren.solutions/siren/downloads/[Elasticsearch SIREn Plugin]: Nested data search (by SIREn Solutions)

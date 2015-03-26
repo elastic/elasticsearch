@@ -17,14 +17,14 @@ It is separated into several sub modules, which are explained below:
 
 This is the process where a node uses the discovery mechanisms to find
 other nodes. There is support for both multicast and unicast based
-discovery (can be used in conjunction as well).
+discovery (these mechanisms can be used in conjunction as well).
 
 [float]
 [[multicast]]
 ===== Multicast
 
 Multicast ping discovery of other nodes is done by sending one or more
-multicast requests where existing nodes that exists will receive and
+multicast requests which existing nodes will receive and
 respond to. It provides the following settings with the
 `discovery.zen.ping.multicast` prefix:
 
@@ -47,7 +47,7 @@ will bind to all available network interfaces.
 [[unicast]]
 ===== Unicast
 
-The unicast discovery allows to perform the discovery when multicast is
+The unicast discovery allows for discovery when multicast is
 not enabled. It basically requires a list of hosts to use that will act
 as gossip routers. It provides the following settings with the
 `discovery.zen.ping.unicast` prefix:
@@ -68,22 +68,30 @@ perform the discovery.
 [[master-election]]
 ==== Master Election
 
-As part of the initial ping process a master of the cluster is either
+As part of the ping process a master of the cluster is either
 elected or joined to. This is done automatically. The
-`discovery.zen.ping_timeout` (which defaults to `3s`) allows to
-configure the election to handle cases of slow or congested networks
+`discovery.zen.ping_timeout` (which defaults to `3s`) allows for the
+tweaking of election time to handle cases of slow or congested networks
 (higher values assure less chance of failure). Once a node joins, it
 will send a join request to the master (`discovery.zen.join_timeout`)
 with a timeout defaulting at 20 times the ping timeout.
+
+When the master node stops or has encountered a problem, the cluster nodes
+start pinging again and will elect a new master. This pinging round also
+serves as a protection against (partial) network failures where node may unjustly
+think that the master has failed. In this case the node will simply hear from
+other nodes about the currently active master.
+
 Nodes can be excluded from becoming a master by setting `node.master` to
 `false`. Note, once a node is a client node (`node.client` set to
 `true`), it will not be allowed to become a master (`node.master` is
 automatically set to `false`).
 
-The `discovery.zen.minimum_master_nodes` allows to control the minimum
-number of master eligible nodes a node should "see" in order to operate
-within the cluster. Its recommended to set it to a higher value than 1
-when running more than 2 nodes in the cluster.
+The `discovery.zen.minimum_master_nodes` sets the minimum
+number of master eligible nodes a node should "see" in order to win a master election.
+It must be set to a quorum of your master eligible nodes. It is recommended to avoid
+having only two master eligible nodes, since a quorum of two is two. Therefore, a loss
+of either master node will result in an inoperable cluster
 
 [float]
 [[fault-detection]]
@@ -160,3 +168,24 @@ all nodes to respond, up to a timeout, before going ahead processing the next
 updates in the queue. The `discovery.zen.publish_timeout` is set by default
 to 30 seconds and can be changed dynamically through the
 <<cluster-update-settings,cluster update settings api>>
+
+[float]
+[[no-master-block]]
+==== No master block
+
+For the cluster to be fully operational, it must have an active master and the
+number of running master eligible nodes must satisfy the
+`discovery.zen.minimum_master_nodes` setting if set. The
+`discovery.zen.no_master_block` settings controls what operations should be
+rejected when there is no active master.
+
+The `discovery.zen.no_master_block` setting has two valid options:
+
+[horizontal]
+`all`:: All operations on the node--i.e. both read & writes--will be rejected. This also applies for api cluster state
+read or write operations, like the get index settings, put mapping and cluster state api.
+`write`:: (default) Write operations will be rejected. Read operations will succeed, based on the last known cluster configuration.
+This may result in partial reads of stale data as this node may be isolated from the rest of the cluster. 
+
+The `discovery.zen.no_master_block` setting doesn't apply to nodes based apis (for example cluster stats, node info and
+node stats apis) which will not be blocked and try to execute on any node possible.

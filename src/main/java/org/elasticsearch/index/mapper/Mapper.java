@@ -20,15 +20,13 @@
 package org.elasticsearch.index.mapper;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 
 import java.io.IOException;
@@ -64,7 +62,7 @@ public interface Mapper extends ToXContent {
             if (indexSettings == null) {
                 return null;
             }
-            return indexSettings.getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null);
+            return Version.indexCreated(indexSettings);
         }
     }
 
@@ -89,10 +87,6 @@ public interface Mapper extends ToXContent {
 
         public static class ParserContext {
 
-            private final PostingsFormatService postingsFormatService;
-
-            private final DocValuesFormatService docValuesFormatService;
-
             private final AnalysisService analysisService;
 
             private final SimilarityLookupService similarityLookupService;
@@ -101,11 +95,8 @@ public interface Mapper extends ToXContent {
 
             private final Version indexVersionCreated;
 
-            public ParserContext(PostingsFormatService postingsFormatService, DocValuesFormatService docValuesFormatService,
-                                 AnalysisService analysisService, SimilarityLookupService similarityLookupService,
+            public ParserContext(AnalysisService analysisService, SimilarityLookupService similarityLookupService,
                                  ImmutableMap<String, TypeParser> typeParsers, Version indexVersionCreated) {
-                this.postingsFormatService = postingsFormatService;
-                this.docValuesFormatService = docValuesFormatService;
                 this.analysisService = analysisService;
                 this.similarityLookupService = similarityLookupService;
                 this.typeParsers = typeParsers;
@@ -114,14 +105,6 @@ public interface Mapper extends ToXContent {
 
             public AnalysisService analysisService() {
                 return analysisService;
-            }
-
-            public PostingsFormatService postingFormatService() {
-                return postingsFormatService;
-            }
-
-            public DocValuesFormatService docValuesFormatService() {
-                return docValuesFormatService;
             }
 
             public SimilarityLookupService similarityLookupService() {

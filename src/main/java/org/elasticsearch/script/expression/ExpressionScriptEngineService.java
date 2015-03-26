@@ -33,6 +33,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptEngineService;
 import org.elasticsearch.script.SearchScript;
@@ -47,6 +48,8 @@ import java.util.Map;
  */
 public class ExpressionScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
+    public static final String NAME = "expression";
+
     @Inject
     public ExpressionScriptEngineService(Settings settings) {
         super(settings);
@@ -54,12 +57,12 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
 
     @Override
     public String[] types() {
-        return new String[]{"expression"};
+        return new String[]{NAME};
     }
 
     @Override
     public String[] extensions() {
-        return new String[]{"expression"};
+        return new String[]{NAME};
     }
 
     @Override
@@ -154,4 +157,9 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
 
     @Override
     public void close() {}
+
+    @Override
+    public void scriptRemoved(CompiledScript script) {
+        // Nothing to do
+    }
 }

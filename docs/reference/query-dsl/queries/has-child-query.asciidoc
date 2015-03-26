@@ -31,7 +31,7 @@ query the `total_hits` is always correct.
 ==== Scoring capabilities
 
 The `has_child` also has scoring support. The
-supported score types are `max`, `sum`, `avg` or `none`. The default is
+supported score types are `min`, `max`, `sum`, `avg` or `none`. The default is
 `none` and yields the same behaviour as in previous versions. If the
 score type is set to another value than `none`, the scores of all the
 matching child documents are aggregated into the associated parent
@@ -84,9 +84,9 @@ the `score_mode` parameter.
 [float]
 ==== Memory Considerations
 
-In order to support parent-child joins, all of the (string) parent IDs 
-must be resident in memory (in the <<index-modules-fielddata,field data cache>>. 
-Additionaly, every child document is mapped to its parent using a long 
+In order to support parent-child joins, all of the (string) parent IDs
+must be resident in memory (in the <<index-modules-fielddata,field data cache>>.
+Additionaly, every child document is mapped to its parent using a long
 value (approximately). It is advisable to keep the string parent ID short
 in order to reduce memory usage.
 
@@ -98,5 +98,3 @@ APIS, eg:
 --------------------------------------------------
 curl -XGET "http://localhost:9200/_stats/id_cache?pretty&human"
 --------------------------------------------------
-
-

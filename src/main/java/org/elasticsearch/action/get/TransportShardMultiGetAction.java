@@ -29,11 +29,10 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -99,7 +98,7 @@ public class TransportShardMultiGetAction extends TransportShardSingleOperationA
         IndexShard indexShard = indexService.shardSafe(shardId.id());
 
         if (request.refresh() && !request.realtime()) {
-            indexShard.refresh(new Engine.Refresh("refresh_flag_mget").force(TransportGetAction.REFRESH_FORCE));
+            indexShard.refresh("refresh_flag_mget");
         }
 
         MultiGetShardResponse response = new MultiGetShardResponse();

@@ -34,8 +34,8 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.action.SearchServiceListener;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
-import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -67,7 +67,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
         new AsyncAction(request, scrollId, listener).start();
     }
 
-    private class AsyncAction {
+    private class AsyncAction extends AbstractAsyncAction {
 
         private final SearchScrollRequest request;
 
@@ -84,10 +84,6 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
         private volatile ScoreDoc[] sortedShardList;
 
         private final AtomicInteger successfulOps;
-
-        private final long startTime = System.currentTimeMillis();
-
-        private volatile boolean useSlowScroll;
 
         private AsyncAction(SearchScrollRequest request, ParsedScrollId scrollId, ActionListener<SearchResponse> listener) {
             this.request = request;
@@ -133,9 +129,6 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                 Tuple<String, Long> target = context[i];
                 DiscoveryNode node = nodes.get(target.v1());
                 if (node != null) {
-                    if (node.getVersion().before(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION)) {
-                        useSlowScroll = true;
-                    }
                     executeQueryPhase(i, counter, node, target.v2());
                 } else {
                     if (logger.isDebugEnabled()) {
@@ -196,7 +189,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
         }
 
         private void executeFetchPhase() throws Exception {
-            sortedShardList = searchPhaseController.sortDocs(!useSlowScroll, queryResults);
+            sortedShardList = searchPhaseController.sortDocs(true, queryResults);
             AtomicArray<IntArrayList> docIdsToLoad = new AtomicArray<>(queryResults.length());
             searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
 
@@ -206,12 +199,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
             }
 
 
-            final ScoreDoc[] lastEmittedDocPerShard;
-            if (useSlowScroll) {
-                lastEmittedDocPerShard = new ScoreDoc[queryResults.length()];
-            } else {
-                lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(sortedShardList, queryResults.length());
-            }
+            final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(sortedShardList, queryResults.length());
             final AtomicInteger counter = new AtomicInteger(docIdsToLoad.asList().size());
             for (final AtomicArray.Entry<IntArrayList> entry : docIdsToLoad.asList()) {
                 IntArrayList docIds = entry.value;
@@ -258,7 +246,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                 scrollId = request.scrollId();
             }
             listener.onResponse(new SearchResponse(internalResponse, scrollId, this.scrollId.getContext().length, successfulOps.get(),
-                    System.currentTimeMillis() - startTime, buildShardFailures()));
+                    buildTookInMillis(), buildShardFailures()));
         }
     }
 }

@@ -49,10 +49,12 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
      * if a factory method parameter isn't annotated, it gets this annotation.
      */
     static final Assisted DEFAULT_ANNOTATION = new Assisted() {
+        @Override
         public String value() {
             return "";
         }
 
+        @Override
         public Class<? extends Annotation> annotationType() {
             return Assisted.class;
         }
@@ -133,6 +135,7 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
                 new Class[]{factoryRawType}, this));
     }
 
+    @Override
     public F get() {
         return factory;
     }
@@ -185,6 +188,7 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
         final Key<?> returnType = returnTypesByMethod.get(method);
 
         Module assistedModule = new AbstractModule() {
+            @Override
             @SuppressWarnings("unchecked") // raw keys are necessary for the args array and return value
             protected void configure() {
                 Binder binder = binder().withSource(method);
@@ -211,6 +215,7 @@ final class FactoryProvider2<F> implements InvocationHandler, Provider<F> {
      * When a factory method is invoked, we create a child injector that binds all parameters, then
      * use that to get an instance of the return type.
      */
+    @Override
     public Object invoke(Object proxy, final Method method, final Object[] args) throws Throwable {
         if (method.getDeclaringClass() == Object.class) {
             return method.invoke(this, args);

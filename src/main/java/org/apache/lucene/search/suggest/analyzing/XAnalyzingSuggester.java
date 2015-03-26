@@ -19,6 +19,7 @@
 package org.apache.lucene.search.suggest.analyzing;
 
 import com.carrotsearch.hppc.ObjectIntOpenHashMap;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
@@ -36,10 +37,11 @@ import org.apache.lucene.util.fst.Util.Result;
 import org.apache.lucene.util.fst.Util.TopResults;
 import org.elasticsearch.common.collect.HppcMaps;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
 
 /**
@@ -252,7 +254,8 @@ public class XAnalyzingSuggester extends Lookup {
   }
 
   /** Returns byte size of the underlying FST. */
-  public long ramBytesUsed() {
+  @Override
+public long ramBytesUsed() {
     return fst == null ? 0 : fst.ramBytesUsed();
   }
 
@@ -311,7 +314,8 @@ public class XAnalyzingSuggester extends Lookup {
   protected Automaton convertAutomaton(Automaton a) {
     if (queryPrefix != null) {
       a = Operations.concatenate(Arrays.asList(queryPrefix, a));
-      a = Operations.determinize(a);
+      // This automaton should not blow up during determinize:
+      a = Operations.determinize(a, Integer.MAX_VALUE);
     }
     return a;
   }
@@ -444,9 +448,9 @@ public class XAnalyzingSuggester extends Lookup {
   @Override
   public void build(InputIterator iterator) throws IOException {
     String prefix = getClass().getSimpleName();
-    File directory = OfflineSorter.defaultTempDir();
-    File tempInput = File.createTempFile(prefix, ".input", directory);
-    File tempSorted = File.createTempFile(prefix, ".sorted", directory);
+    Path directory = OfflineSorter.defaultTempDir();
+    Path tempInput = Files.createTempFile(directory, prefix, ".input");
+    Path tempSorted = Files.createTempFile(directory, prefix, ".sorted");
 
     hasPayloads = iterator.hasPayloads();
 
@@ -530,7 +534,7 @@ public class XAnalyzingSuggester extends Lookup {
       new OfflineSorter(new AnalyzingComparator(hasPayloads)).sort(tempInput, tempSorted);
 
       // Free disk space:
-      tempInput.delete();
+      Files.delete(tempInput);
 
       reader = new OfflineSorter.ByteSequencesReader(tempSorted);
      
@@ -625,14 +629,13 @@ public class XAnalyzingSuggester extends Lookup {
 
       success = true;
     } finally {
+      IOUtils.closeWhileHandlingException(reader, writer);
+        
       if (success) {
-        IOUtils.close(reader, writer);
+        IOUtils.deleteFilesIfExist(tempInput, tempSorted);
       } else {
-        IOUtils.closeWhileHandlingException(reader, writer);
+        IOUtils.deleteFilesIgnoringExceptions(tempInput, tempSorted);
       }
-      
-      tempInput.delete();
-      tempSorted.delete();
     }
   }
 
@@ -952,14 +955,16 @@ public class XAnalyzingSuggester extends Lookup {
       try {
           automaton = getTokenStreamToAutomaton().toAutomaton(ts);
       } finally {
-        IOUtils.closeWhileHandlingException(ts);
+          IOUtils.closeWhileHandlingException(ts);
       }
 
       automaton = replaceSep(automaton);
 
       // TODO: we can optimize this somewhat by determinizing
       // while we convert
-      automaton = Operations.determinize(automaton);
+
+      // This automaton should not blow up during determinize:
+      automaton = Operations.determinize(automaton, Integer.MAX_VALUE);
       return automaton;
   }
   

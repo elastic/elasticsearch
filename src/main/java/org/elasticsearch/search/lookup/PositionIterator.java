@@ -19,16 +19,13 @@
 
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.DocsAndPositionsEnum;
-import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.index.PostingsEnum;
 import org.elasticsearch.ElasticsearchException;
 
 import java.io.IOException;
 import java.util.Iterator;
 
 public class PositionIterator implements Iterator<TermPosition> {
-    
-    private static final DocsAndPositionsEnum EMPTY = new EmptyDocsAndPosEnum();
     
     private boolean resetted = false;
 
@@ -41,7 +38,7 @@ public class PositionIterator implements Iterator<TermPosition> {
 
     protected final TermPosition termPosition = new TermPosition();
 
-    private DocsAndPositionsEnum docsAndPos;
+    private PostingsEnum postings;
 
     public PositionIterator(IndexFieldTerm indexFieldTerm) {
         this.indexFieldTerm = indexFieldTerm;
@@ -61,10 +58,10 @@ public class PositionIterator implements Iterator<TermPosition> {
     @Override
     public TermPosition next() {
         try {
-            termPosition.position = docsAndPos.nextPosition();
-            termPosition.startOffset = docsAndPos.startOffset();
-            termPosition.endOffset = docsAndPos.endOffset();
-            termPosition.payload = docsAndPos.getPayload();
+            termPosition.position = postings.nextPosition();
+            termPosition.startOffset = postings.startOffset();
+            termPosition.endOffset = postings.endOffset();
+            termPosition.payload = postings.getPayload();
         } catch (IOException ex) {
             throw new ElasticsearchException("can not advance iterator", ex);
         }
@@ -76,68 +73,15 @@ public class PositionIterator implements Iterator<TermPosition> {
         resetted = false;
         currentPos = 0;
         freq = indexFieldTerm.tf();
-        if (indexFieldTerm.docsEnum instanceof DocsAndPositionsEnum) {
-            docsAndPos = (DocsAndPositionsEnum) indexFieldTerm.docsEnum;
-        } else {
-            docsAndPos = EMPTY;
-        }
+        postings = indexFieldTerm.postings;
     }
 
     public Iterator<TermPosition> reset() {
         if (resetted) {
             throw new ElasticsearchException(
-                    "Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitely.");
+                    "Cannot iterate twice! If you want to iterate more that once, add _CACHE explicitly.");
         }
         resetted = true;
         return this;
-    }
-
-    // we use this to make sure we can also iterate if there are no positions
-    private static final class EmptyDocsAndPosEnum extends DocsAndPositionsEnum {
-
-        @Override
-        public int nextPosition() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public int startOffset() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public int endOffset() throws IOException {
-            return -1;
-        }
-
-        @Override
-        public BytesRef getPayload() throws IOException {
-            return null;
-        }
-
-        @Override
-        public int freq() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int docID() {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public int advance(int target) throws IOException {
-            throw new UnsupportedOperationException();
-        }
-
-        @Override
-        public long cost() {
-            throw new UnsupportedOperationException();
-        }
     }
 }

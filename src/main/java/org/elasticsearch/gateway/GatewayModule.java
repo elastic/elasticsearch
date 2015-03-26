@@ -19,32 +19,22 @@
 
 package org.elasticsearch.gateway;
 
-import com.google.common.collect.ImmutableList;
-import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.inject.Modules;
-import org.elasticsearch.common.inject.SpawnModules;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.gateway.local.LocalGatewayModule;
+import org.elasticsearch.common.inject.*;
 
 /**
  *
  */
-public class GatewayModule extends AbstractModule implements SpawnModules {
-
-    private final Settings settings;
-
-    public GatewayModule(Settings settings) {
-        this.settings = settings;
-    }
-
-    @Override
-    public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(Modules.createModule(settings.getAsClass("gateway.type", LocalGatewayModule.class, "org.elasticsearch.gateway.", "GatewayModule"), settings));
-    }
+public class GatewayModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        bind(MetaStateService.class).asEagerSingleton();
+        bind(DanglingIndicesState.class).asEagerSingleton();
         bind(GatewayService.class).asEagerSingleton();
+        bind(Gateway.class).asEagerSingleton();
+        bind(TransportNodesListGatewayMetaState.class).asEagerSingleton();
+        bind(GatewayMetaState.class).asEagerSingleton();
+        bind(TransportNodesListGatewayStartedShards.class).asEagerSingleton();
+        bind(LocalAllocateDangledIndices.class).asEagerSingleton();
     }
 }

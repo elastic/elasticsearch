@@ -21,6 +21,8 @@ package org.elasticsearch.index.translog;
 
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.InputStreamDataInput;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,6 +31,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Encapsulating class used for operating on translog streams. Static methods
@@ -91,10 +95,10 @@ public class TranslogStreams {
      *
      * @throws IOException
      */
-    public static TranslogStream translogStreamFor(File translogFile) throws IOException {
+    public static TranslogStream translogStreamFor(Path translogFile) throws IOException {
 
-        try (InputStreamStreamInput headerStream = new InputStreamStreamInput(new FileInputStream(translogFile));) {
-            if (translogFile.exists() == false || translogFile.length() == 0) {
+        try (InputStreamStreamInput headerStream = new InputStreamStreamInput(Files.newInputStream(translogFile))) {
+            if (Files.exists(translogFile) == false || Files.size(translogFile) == 0) {
                 // if it doesn't exist or has no data, use the latest version,
                 // there aren't any backwards compatibility issues
                 return CHECKSUMMED_TRANSLOG_STREAM;
@@ -141,7 +145,7 @@ public class TranslogStreams {
             } else {
                 throw new TranslogCorruptedException("Invalid first byte in translog file, got: " + Long.toHexString(b1) + ", expected 0x00 or 0x3f");
             }
-        } catch (CorruptIndexException e) {
+        } catch (CorruptIndexException | IndexFormatTooOldException | IndexFormatTooNewException e) {
             throw new TranslogCorruptedException("Translog header corrupted", e);
         }
     }

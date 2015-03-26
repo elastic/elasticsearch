@@ -11,15 +11,15 @@ added or deleted), those changes will be persisted using the gateway.
 When the cluster first starts up, the state will be read from the
 gateway and applied.
 
-The gateway set on the node level will automatically control the index
-gateway that will be used. For example, if the `local` gateway is used,
-then automatically, each index created on the node will also use its own
-respective index level `local` gateway. In this case, if an index should
-not persist its state, it should be explicitly set to `none` (which is
-the only other value it can be set to).
+The gateway set on the node level will automatically control the index gateway
+that will be used. For example, if the `local` gateway is used (the default),
+then each index created on the node will automatically use its own respective
+index level `local` gateway.
 
 The default gateway used is the
 <<modules-gateway-local,local>> gateway.
+
+The `none` gateway option was removed in Elasticsearch 2.0.
 
 [float]
 [[recover-after]]

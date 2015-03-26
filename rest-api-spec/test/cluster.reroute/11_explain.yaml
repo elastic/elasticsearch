@@ -24,7 +24,7 @@ setup:
   - match: {explanations: []}
 
 ---
-"Explain API for non-existant node & shard":
+"Explain API for non-existent node & shard":
 
   - do:
       cluster.state:

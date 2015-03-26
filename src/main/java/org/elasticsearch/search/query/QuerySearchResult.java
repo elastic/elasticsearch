@@ -67,10 +67,12 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         return this;
     }
 
+    @Override
     public long id() {
         return this.id;
     }
 
+    @Override
     public SearchShardTarget shardTarget() {
         return shardTarget;
     }
@@ -164,9 +166,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             suggest = Suggest.readSuggest(Suggest.Fields.SUGGEST, in);
         }
         searchTimedOut = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            terminatedEarly = in.readOptionalBoolean();
-        }
+        terminatedEarly = in.readOptionalBoolean();
     }
 
     @Override
@@ -194,8 +194,6 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             suggest.writeTo(out);
         }
         out.writeBoolean(searchTimedOut);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeOptionalBoolean(terminatedEarly);
-        }
+        out.writeOptionalBoolean(terminatedEarly);
     }
 }

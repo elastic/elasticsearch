@@ -22,9 +22,10 @@ package org.elasticsearch.test.rest.section;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
 /**
  * Represents a lte assert section:
@@ -41,10 +42,14 @@ public class LessThanOrEqualToAssertion  extends Assertion {
 
     @Override
     protected void doAssert(Object actualValue, Object expectedValue) {
-        logger.trace("assert that [{}] is less than or equal to [{}]", actualValue, expectedValue);
-        assertThat(actualValue, instanceOf(Comparable.class));
-        assertThat(expectedValue, instanceOf(Comparable.class));
-        assertThat(errorMessage(), (Comparable)actualValue, lessThanOrEqualTo((Comparable) expectedValue));
+        logger.trace("assert that [{}] is less than or equal to [{}] (field: [{}])", actualValue, expectedValue, getField());
+        assertThat("value of [" + getField() + "] is not comparable (got [" + safeClass(actualValue) + "])", actualValue, instanceOf(Comparable.class));
+        assertThat("expected value of [" + getField() + "] is not comparable (got [" + expectedValue.getClass() + "])", expectedValue, instanceOf(Comparable.class));
+        try {
+            assertThat(errorMessage(), (Comparable) actualValue, lessThanOrEqualTo((Comparable) expectedValue));
+        } catch (ClassCastException e) {
+            fail("cast error while checking (" + errorMessage() + "): " + e);
+        }
     }
 
     private String errorMessage() {

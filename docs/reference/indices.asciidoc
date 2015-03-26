@@ -24,7 +24,6 @@ and warmers.
 * <<indices-put-mapping>>
 * <<indices-get-mapping>>
 * <<indices-get-field-mapping>>
-* <<indices-delete-mapping>>
 * <<indices-types-exists>>
 
 [float]
@@ -42,6 +41,11 @@ and warmers.
 * <<indices-warmers>>
 
 [float]
+[[shadow-replicas]]
+== Replica configurations
+* <<indices-shadow-replicas>>
+
+[float]
 [[monitoring]]
 == Monitoring:
 * <<indices-stats>>
@@ -55,6 +59,7 @@ and warmers.
 * <<indices-refresh>>
 * <<indices-flush>>
 * <<indices-optimize>>
+* <<indices-upgrade>>
 
 --
 
@@ -75,8 +80,6 @@ include::indices/get-mapping.asciidoc[]
 include::indices/get-field-mapping.asciidoc[]
 
 include::indices/types-exists.asciidoc[]
-
-include::indices/delete-mapping.asciidoc[]
 
 include::indices/aliases.asciidoc[]
 
@@ -104,3 +107,6 @@ include::indices/refresh.asciidoc[]
 
 include::indices/optimize.asciidoc[]
 
+include::indices/upgrade.asciidoc[]
+
+include::indices/shadow-replicas.asciidoc[]

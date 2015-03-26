@@ -19,10 +19,11 @@
 
 package org.elasticsearch.script.groovy;
 
+import com.google.common.collect.ImmutableSet;
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.Script;
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
 import org.codehaus.groovy.ast.ClassNode;
@@ -37,18 +38,17 @@ import org.codehaus.groovy.control.customizers.CompilationCustomizer;
 import org.codehaus.groovy.control.customizers.ImportCustomizer;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.*;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.suggest.term.TermSuggestion;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -56,23 +56,47 @@ import java.util.concurrent.atomic.AtomicLong;
  */
 public class GroovyScriptEngineService extends AbstractComponent implements ScriptEngineService {
 
+    public static final String NAME = "groovy";
     public static String GROOVY_SCRIPT_SANDBOX_ENABLED = "script.groovy.sandbox.enabled";
+    public static String GROOVY_SCRIPT_BLACKLIST_PATCH = "script.groovy.sandbox.method_blacklist_patch";
 
     private final AtomicLong counter = new AtomicLong();
-    private final GroovyClassLoader loader;
     private final boolean sandboxed;
+    private volatile GroovyClassLoader loader;
+    private volatile Set<String> blacklistAdditions;
 
     @Inject
     public GroovyScriptEngineService(Settings settings) {
         super(settings);
+        this.sandboxed = settings.getAsBoolean(GROOVY_SCRIPT_SANDBOX_ENABLED, false);
+        this.blacklistAdditions = ImmutableSet.copyOf(settings.getAsArray(GROOVY_SCRIPT_BLACKLIST_PATCH, Strings.EMPTY_ARRAY));
+        reloadConfig();
+    }
+
+    public Set<String> blacklistAdditions() {
+        return this.blacklistAdditions;
+    }
+
+    /**
+     * Appends the additional blacklisted methods to the current blacklist,
+     * returns true if the black list has changed
+     */
+    public boolean addToBlacklist(String... additions) {
+        Set<String> newBlackList = new HashSet<>(blacklistAdditions);
+        Collections.addAll(newBlackList, additions);
+        boolean changed = this.blacklistAdditions.equals(newBlackList) == false;
+        this.blacklistAdditions = ImmutableSet.copyOf(newBlackList);
+        return changed;
+    }
+
+    public void reloadConfig() {
         ImportCustomizer imports = new ImportCustomizer();
         imports.addStarImports("org.joda.time");
         imports.addStaticStars("java.lang.Math");
         CompilerConfiguration config = new CompilerConfiguration();
         config.addCompilationCustomizers(imports);
-        this.sandboxed = settings.getAsBoolean(GROOVY_SCRIPT_SANDBOX_ENABLED, true);
         if (this.sandboxed) {
-            config.addCompilationCustomizers(GroovySandboxExpressionChecker.getSecureASTCustomizer(settings));
+            config.addCompilationCustomizers(GroovySandboxExpressionChecker.getSecureASTCustomizer(settings, this.blacklistAdditions));
         }
         // Add BigDecimal -> Double transformer
         config.addCompilationCustomizers(new GroovyBigDecimalTransformer(CompilePhase.CONVERSION));
@@ -90,13 +114,23 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
+    public void scriptRemoved(@Nullable CompiledScript script) {
+        // script could be null, meaning the script has already been garbage collected
+        if (script == null || NAME.equals(script.lang())) {
+            // Clear the cache, this removes old script versions from the
+            // cache to prevent running out of PermGen space
+            loader.clearCache();
+        }
+    }
+
+    @Override
     public String[] types() {
-        return new String[]{"groovy"};
+        return new String[]{NAME};
     }
 
     @Override
     public String[] extensions() {
-        return new String[]{"groovy"};
+        return new String[]{NAME};
     }
 
     @Override
@@ -119,6 +153,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
     /**
      * Return a script object with the given vars from the compiled script object
      */
+    @SuppressWarnings("unchecked")
     private Script createScript(Object compiledScript, Map<String, Object> vars) throws InstantiationException, IllegalAccessException {
         Class scriptClass = (Class) compiledScript;
         Script scriptObject = (Script) scriptClass.newInstance();
@@ -187,12 +222,12 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         private final SearchLookup lookup;
         private final Map<String, Object> variables;
         private final ESLogger logger;
-        private Scorer scorer;
 
         public GroovyScript(Script script, ESLogger logger) {
             this(script, null, logger);
         }
 
+        @SuppressWarnings("unchecked")
         public GroovyScript(Script script, @Nullable SearchLookup lookup, ESLogger logger) {
             this.script = script;
             this.lookup = lookup;
@@ -202,12 +237,11 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
         @Override
         public void setScorer(Scorer scorer) {
-            this.scorer = scorer;
             this.variables.put("_score", new ScoreAccessor(scorer));
         }
 
         @Override
-        public void setNextReader(AtomicReaderContext context) {
+        public void setNextReader(LeafReaderContext context) {
             if (lookup != null) {
                 lookup.setNextReader(context);
             }

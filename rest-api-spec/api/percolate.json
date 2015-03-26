@@ -1,6 +1,6 @@
 {
   "percolate": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-percolate.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-percolate.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/{index}/{type}/_percolate",
@@ -23,6 +23,10 @@
         }
       },
       "params": {
+        "source": {
+          "type" : "string",
+          "description" : "The URL-encoded request definition"
+        },
         "routing": {
           "type" : "list",
           "description" : "A comma-separated list of specific routing values"
@@ -41,7 +45,7 @@
         },
         "expand_wildcards": {
           "type" : "enum",
-          "options" : ["open","closed"],
+          "options" : ["open","closed","none","all"],
           "default" : "open",
           "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         },
@@ -52,6 +56,14 @@
         "percolate_type": {
           "type" : "string",
           "description" : "The type to percolate document into. Defaults to type."
+        },
+        "percolate_routing": {
+          "type" : "string",
+          "description" : "The routing value to use when percolating the existing document."
+        },
+        "percolate_preference": {
+          "type" : "string",
+          "description" : "Which shard to prefer when executing the percolate request."
         },
         "percolate_format": {
           "type" : "enum",

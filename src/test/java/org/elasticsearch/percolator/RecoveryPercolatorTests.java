@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
+import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
 import org.elasticsearch.action.percolate.MultiPercolateResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
@@ -36,7 +37,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
@@ -45,7 +45,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
-import static org.elasticsearch.common.settings.ImmutableSettings.builder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
@@ -63,16 +62,11 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         return 1;
     }
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return builder().put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local").build();
-    }
-
     @Test
     @Slow
     public void testRestartNodePercolator1() throws Exception {
         internalCluster().startNode();
-        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string").addMapping(PercolatorService.TYPE_NAME, "color", "type=string"));
 
         logger.info("--> register a query");
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
@@ -94,9 +88,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         internalCluster().rollingRestart();
 
         logger.info("Running Cluster Health (wait for the shards to startup)");
-        ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
-        assertThat(clusterHealth.isTimedOut(), equalTo(false));
+        ensureYellow();
 
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -112,7 +104,7 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
     @Slow
     public void testRestartNodePercolator2() throws Exception {
         internalCluster().startNode();
-        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string").addMapping(PercolatorService.TYPE_NAME, "color", "type=string"));
 
         logger.info("--> register a query");
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
@@ -140,8 +132,8 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
-
-        assertThat(client().prepareCount().setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getCount(), equalTo(1l));
+        CountResponse countResponse = client().prepareCount().setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get();
+        assertHitCount(countResponse, 1l);
 
         DeleteIndexResponse actionGet = client().admin().indices().prepareDelete("test").get();
         assertThat(actionGet.isAcknowledged(), equalTo(true));
@@ -183,7 +175,6 @@ public class RecoveryPercolatorTests extends ElasticsearchIntegrationTest {
 
     @Test
     @Slow
-    @TestLogging("index.percolator:TRACE,percolator:TRACE")
     public void testLoadingPercolateQueriesDuringCloseAndOpen() throws Exception {
         internalCluster().startNode();
         internalCluster().startNode();

@@ -125,7 +125,7 @@ public class RestSearchAction extends BaseRestHandler {
         SearchSourceBuilder searchSourceBuilder = null;
         String queryString = request.param("q");
         if (queryString != null) {
-            QueryStringQueryBuilder queryBuilder = QueryBuilders.queryString(queryString);
+            QueryStringQueryBuilder queryBuilder = QueryBuilders.queryStringQuery(queryString);
             queryBuilder.defaultField(request.param("df"));
             queryBuilder.analyzer(request.param("analyzer"));
             queryBuilder.analyzeWildcard(request.paramAsBoolean("analyze_wildcard", false));
@@ -242,27 +242,6 @@ public class RestSearchAction extends BaseRestHandler {
                     }
                 } else {
                     searchSourceBuilder.sort(sort);
-                }
-            }
-        }
-
-        String sIndicesBoost = request.param("indices_boost");
-        if (sIndicesBoost != null) {
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
-            String[] indicesBoost = Strings.splitStringByCommaToArray(sIndicesBoost);
-            for (String indexBoost : indicesBoost) {
-                int divisor = indexBoost.indexOf(',');
-                if (divisor == -1) {
-                    throw new ElasticsearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], no ','");
-                }
-                String indexName = indexBoost.substring(0, divisor);
-                String sBoost = indexBoost.substring(divisor + 1);
-                try {
-                    searchSourceBuilder.indexBoost(indexName, Float.parseFloat(sBoost));
-                } catch (NumberFormatException e) {
-                    throw new ElasticsearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], boost not a float number");
                 }
             }
         }

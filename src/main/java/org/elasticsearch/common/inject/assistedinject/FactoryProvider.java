@@ -114,7 +114,7 @@ import java.util.Set;
  * <p/>
  * <h3>Backwards compatibility using {@literal @}AssistedInject</h3>
  * Instead of the {@literal @}Inject annotation, you may annotate the constructed classes with
- * {@literal @}{@link AssistedInject}. This triggers a limited backwards-compatability mode.
+ * {@literal @}{@link AssistedInject}. This triggers a limited backwards-compatibility mode.
  * <p/>
  * <p>Instead of matching factory method arguments to constructor parameters using their names, the
  * <strong>parameters are matched by their order</strong>. The first factory method argument is
@@ -279,6 +279,7 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
         return result;
     }
 
+    @Override
     public Set<Dependency<?>> getDependencies() {
         List<Dependency<?>> dependencies = Lists.newArrayList();
         for (AssistedConstructor<?> constructor : factoryMethodToConstructor.values()) {
@@ -291,8 +292,10 @@ public class FactoryProvider<F> implements Provider<F>, HasDependencies {
         return ImmutableSet.copyOf(dependencies);
     }
 
+    @Override
     public F get() {
         InvocationHandler invocationHandler = new InvocationHandler() {
+            @Override
             public Object invoke(Object proxy, Method method, Object[] creationArgs) throws Throwable {
                 // pass methods from Object.class to the proxy
                 if (method.getDeclaringClass().equals(Object.class)) {

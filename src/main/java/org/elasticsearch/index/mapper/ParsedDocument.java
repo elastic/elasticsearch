@@ -46,15 +46,13 @@ public class ParsedDocument {
 
     private final List<Document> documents;
 
-    private final Analyzer analyzer;
-
     private BytesReference source;
 
     private boolean mappingsModified;
 
     private String parent;
 
-    public ParsedDocument(Field uid, Field version, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, Analyzer analyzer, BytesReference source, boolean mappingsModified) {
+    public ParsedDocument(Field uid, Field version, String id, String type, String routing, long timestamp, long ttl, List<Document> documents, BytesReference source, boolean mappingsModified) {
         this.uid = uid;
         this.version = version;
         this.id = id;
@@ -64,7 +62,6 @@ public class ParsedDocument {
         this.ttl = ttl;
         this.documents = documents;
         this.source = source;
-        this.analyzer = analyzer;
         this.mappingsModified = mappingsModified;
     }
 
@@ -102,10 +99,6 @@ public class ParsedDocument {
 
     public List<Document> docs() {
         return this.documents;
-    }
-
-    public Analyzer analyzer() {
-        return this.analyzer;
     }
 
     public BytesReference source() {

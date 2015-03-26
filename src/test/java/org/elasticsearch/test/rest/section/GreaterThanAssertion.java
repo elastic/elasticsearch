@@ -24,12 +24,12 @@ import org.elasticsearch.common.logging.Loggers;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertThat;
+import static org.junit.Assert.fail;
 
 /**
  * Represents a gt assert section:
- *
- *  - gt:    { fields._ttl: 0}
- *
+ * <p/>
+ * - gt:    { fields._ttl: 0}
  */
 public class GreaterThanAssertion extends Assertion {
 
@@ -42,10 +42,14 @@ public class GreaterThanAssertion extends Assertion {
     @Override
     @SuppressWarnings("unchecked")
     protected void doAssert(Object actualValue, Object expectedValue) {
-        logger.trace("assert that [{}] is greater than [{}]", actualValue, expectedValue);
-        assertThat(actualValue, instanceOf(Comparable.class));
-        assertThat(expectedValue, instanceOf(Comparable.class));
-        assertThat(errorMessage(), (Comparable)actualValue, greaterThan((Comparable) expectedValue));
+        logger.trace("assert that [{}] is greater than [{}] (field: [{}])", actualValue, expectedValue, getField());
+        assertThat("value of [" + getField() + "] is not comparable (got [" + safeClass(actualValue) + "])", actualValue, instanceOf(Comparable.class));
+        assertThat("expected value of [" + getField() + "] is not comparable (got [" + expectedValue.getClass() + "])", expectedValue, instanceOf(Comparable.class));
+        try {
+            assertThat(errorMessage(), (Comparable) actualValue, greaterThan((Comparable) expectedValue));
+        } catch (ClassCastException e) {
+            fail("cast error while checking (" + errorMessage() + "): " + e);
+        }
     }
 
     private String errorMessage() {

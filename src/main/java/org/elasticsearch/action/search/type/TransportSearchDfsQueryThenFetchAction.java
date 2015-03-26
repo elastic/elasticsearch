@@ -42,7 +42,7 @@ import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -85,7 +85,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
         }
 
         @Override
-        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchRequest request, SearchServiceListener<DfsSearchResult> listener) {
+        protected void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request, SearchServiceListener<DfsSearchResult> listener) {
             searchService.sendExecuteDfs(node, request, listener);
         }
 
@@ -143,7 +143,7 @@ public class TransportSearchDfsQueryThenFetchAction extends TransportSearchTypeA
         }
 
         void innerExecuteFetchPhase() throws Exception {
-            boolean useScroll = !useSlowScroll && request.scroll() != null;
+            boolean useScroll = request.scroll() != null;
             sortedShardList = searchPhaseController.sortDocs(useScroll, queryResults);
             searchPhaseController.fillDocIdsToLoad(docIdsToLoad, sortedShardList);
 

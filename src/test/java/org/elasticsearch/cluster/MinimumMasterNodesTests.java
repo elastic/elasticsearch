@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
@@ -35,14 +36,17 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = Scope.TEST, numDataNodes =0)
+@ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
     @Test
@@ -53,7 +57,6 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
                 .put("discovery.zen.minimum_master_nodes", 2)
                 .put("discovery.zen.ping_timeout", "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
-                .put("gateway.type", "local")
                 .build();
 
         logger.info("--> start first node");
@@ -97,8 +100,9 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
         internalCluster().stopCurrentMasterNode();
         awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object obj) {
-                ClusterState  state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
+                ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
                 return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
             }
         });
@@ -134,6 +138,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
         internalCluster().stopRandomNonMasterNode();
         assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object obj) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
                 return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
@@ -165,14 +170,12 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @TestLogging("cluster.service:TRACE,discovery:TRACE,indices.cluster:TRACE")
     public void multipleNodesShutdownNonMasterNodes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 3)
                 .put("discovery.zen.ping_timeout", "1s")
                 .put("discovery.initial_state_timeout", "500ms")
-                .put("gateway.type", "local")
                 .build();
 
         logger.info("--> start first 2 nodes");
@@ -182,13 +185,15 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         ClusterState state;
 
         awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object obj) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
                 return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
             }
         });
-        
+
         awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object obj) {
                 ClusterState state = client().admin().cluster().prepareState().setLocal(true).execute().actionGet().getState();
                 return state.blocks().hasGlobalBlock(DiscoverySettings.NO_MASTER_BLOCK_ID);
@@ -236,12 +241,12 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
         logger.info("--> start back the 2 nodes ");
         String[] newNodes = internalCluster().startNodesAsync(2, settings).get().toArray(Strings.EMPTY_ARRAY);
 
-        clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("4").execute().actionGet();
+        clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForNodes("4").execute().actionGet();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
 
-        logger.info("Running Cluster Health");
+        logger.info("--> running Cluster Health");
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForGreenStatus()).actionGet();
-        logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
+        logger.info("--> done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
         assertThat(clusterHealth.getStatus(), equalTo(ClusterHealthStatus.GREEN));
 
@@ -262,7 +267,6 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
                 .put("discovery.type", "zen")
                 .put("discovery.zen.ping_timeout", "400ms")
                 .put("discovery.initial_state_timeout", "500ms")
-                .put("gateway.type", "local")
                 .build();
 
         logger.info("--> start 2 nodes");
@@ -295,6 +299,7 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
 
     private void assertNoMasterBlockOnAllNodes() throws InterruptedException {
         assertThat(awaitBusy(new Predicate<Object>() {
+            @Override
             public boolean apply(Object obj) {
                 boolean success = true;
                 for (Client client : internalCluster()) {
@@ -307,5 +312,44 @@ public class MinimumMasterNodesTests extends ElasticsearchIntegrationTest {
                 return success;
             }
         }, 20, TimeUnit.SECONDS), equalTo(true));
+    }
+
+    @Test
+    public void testCanNotBringClusterDown() throws ExecutionException, InterruptedException {
+        int nodeCount = scaledRandomIntBetween(1, 5);
+        ImmutableSettings.Builder settings = settingsBuilder()
+                .put("discovery.type", "zen")
+                .put("discovery.zen.ping_timeout", "200ms")
+                .put("discovery.initial_state_timeout", "500ms");
+
+        // set an initial value which is at least quorum to avoid split brains during initial startup
+        int initialMinMasterNodes = randomIntBetween(nodeCount / 2 + 1, nodeCount);
+        settings.put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, initialMinMasterNodes);
+
+
+        logger.info("--> starting [{}] nodes. min_master_nodes set to [{}]", nodeCount, initialMinMasterNodes);
+        internalCluster().startNodesAsync(nodeCount, settings.build()).get();
+
+        logger.info("--> waiting for nodes to join");
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodeCount)).get().isTimedOut());
+
+        int updateCount = randomIntBetween(1, nodeCount);
+
+        logger.info("--> updating [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount);
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+                .setPersistentSettings(settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount)));
+
+        logger.info("--> verifying no node left and master is up");
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodeCount)).get().isTimedOut());
+
+        updateCount = nodeCount + randomIntBetween(1, 2000);
+        logger.info("--> trying to updating [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount);
+        assertThat(client().admin().cluster().prepareUpdateSettings()
+                        .setPersistentSettings(settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount))
+                        .get().getPersistentSettings().getAsMap().keySet(),
+                empty());
+
+        logger.info("--> verifying no node left and master is up");
+        assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodeCount)).get().isTimedOut());
     }
 }

@@ -26,16 +26,12 @@ import com.google.common.base.Predicate;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexFileNames;
-import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.store.*;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -45,42 +41,49 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
-import org.elasticsearch.index.engine.internal.InternalEngine;
-import org.elasticsearch.index.merge.policy.AbstractMergePolicyProvider;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
+import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardException;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryFileChunkRequest;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.monitor.fs.FsStats;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.*;
 import org.junit.Test;
 
-import java.io.*;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
@@ -91,9 +94,14 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder()
                 // we really need local GW here since this also checks for corruption etc.
-                // and we need to make sure primaries are not just trashed if we don'tmvn have replicas
-                .put(super.nodeSettings(nodeOrdinal)).put("gateway.type", "local")
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName()).build();
+                // and we need to make sure primaries are not just trashed if we don't have replicas
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName())
+                        // speed up recoveries
+                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_STREAMS, 10)
+                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, 10)
+                .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, 5)
+                .build();
     }
 
     /**
@@ -113,19 +121,13 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         }
         assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(3));
 
-        final boolean failOnCorruption = randomBoolean();
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
-                .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
-                .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
-                .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, failOnCorruption)
-                .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .del / segments.N files
-                .put("indices.recovery.concurrent_streams", 10)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+                        .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
+                        .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
+                        .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
+                        .put("indices.recovery.concurrent_streams", 10)
         ));
-        if (failOnCorruption == false) { // test the dynamic setting
-            client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder()
-                    .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, true)).get();
-        }
         ensureGreen();
         disableAllocation("test");
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
@@ -172,23 +174,24 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         final CopyOnWriteArrayList<Throwable> exception = new CopyOnWriteArrayList<>();
         final IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
             @Override
-            public void beforeIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard) {
+            public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard, @IndexSettings Settings indexSettings) {
                 if (indexShard != null) {
-                    Store store = ((InternalIndexShard) indexShard).store();
+                    Store store = ((IndexShard) indexShard).store();
                     store.incRef();
                     try {
                         if (!Lucene.indexExists(store.directory()) && indexShard.state() == IndexShardState.STARTED) {
                             return;
                         }
-                        CheckIndex checkIndex = new CheckIndex(store.directory());
-                        BytesStreamOutput os = new BytesStreamOutput();
-                        PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
-                        checkIndex.setInfoStream(out);
-                        out.flush();
-                        CheckIndex.Status status = checkIndex.checkIndex();
-                        if (!status.clean) {
-                            logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
-                            throw new IndexShardException(sid, "index check failure");
+                        try (CheckIndex checkIndex = new CheckIndex(store.directory())) {
+                            BytesStreamOutput os = new BytesStreamOutput();
+                            PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
+                            checkIndex.setInfoStream(out);
+                            out.flush();
+                            CheckIndex.Status status = checkIndex.checkIndex();
+                            if (!status.clean) {
+                                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                                throw new IndexShardException(sid, "index check failure");
+                            }
                         }
                     } catch (Throwable t) {
                         exception.add(t);
@@ -224,12 +227,11 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(2));
 
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
-                .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
-                .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, true)
-                .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .del / segments.N files
-                .put("indices.recovery.concurrent_streams", 10)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
+                        .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
+                        .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
+                        .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
+                        .put("indices.recovery.concurrent_streams", 10)
         ));
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
@@ -267,7 +269,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         }
         assertThat(response.getStatus(), is(ClusterHealthStatus.RED));
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        GroupShardsIterator shardIterators = state.getRoutingNodes().getRoutingTable().activePrimaryShardsGrouped(new String[] {"test"}, false);
+        GroupShardsIterator shardIterators = state.getRoutingNodes().getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
         for (ShardIterator iterator : shardIterators) {
             ShardRouting routing;
             while ((routing = iterator.nextOrNull()) != null) {
@@ -278,15 +280,73 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 }
             }
         }
-        final List<File> files = listShardFiles(shardRouting);
-        File corruptedFile = null;
-        for (File file : files) {
-            if (file.getName().startsWith("corrupted_")) {
+        final List<Path> files = listShardFiles(shardRouting);
+        Path corruptedFile = null;
+        for (Path file : files) {
+            if (file.getFileName().toString().startsWith("corrupted_")) {
                 corruptedFile = file;
                 break;
             }
         }
         assertThat(corruptedFile, notNullValue());
+    }
+
+    /**
+     * This test triggers a corrupt index exception during finalization size if an empty commit point is transferred
+     * during recovery we don't know the version of the segments_N file because it has no segments we can take it from.
+     * This simulates recoveries from old indices or even without checksums and makes sure if we fail during finalization
+     * we also check if the primary is ok. Without the relevant checks this test fails with a RED cluster
+     */
+    public void testCorruptionOnNetworkLayerFinalizingRecovery() throws ExecutionException, InterruptedException, IOException {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
+        List<NodeStats> dataNodeStats = new ArrayList<>();
+        for (NodeStats stat : nodeStats.getNodes()) {
+            if (stat.getNode().isDataNode()) {
+                dataNodeStats.add(stat);
+            }
+        }
+
+        assertThat(dataNodeStats.size(), greaterThanOrEqualTo(2));
+        Collections.shuffle(dataNodeStats, getRandom());
+        NodeStats primariesNode = dataNodeStats.get(0);
+        NodeStats unluckyNode = dataNodeStats.get(1);
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put("index.routing.allocation.include._name", primariesNode.getNode().name())
+                        .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)
+
+        ));
+        ensureGreen(); // allocated with empty commit
+        final AtomicBoolean corrupt = new AtomicBoolean(true);
+        final CountDownLatch hasCorrupted = new CountDownLatch(1);
+        for (NodeStats dataNode : dataNodeStats) {
+            MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, dataNode.getNode().name()));
+            mockTransportService.addDelegate(internalCluster().getInstance(Discovery.class, unluckyNode.getNode().name()).localNode(), new MockTransportService.DelegateTransport(mockTransportService.original()) {
+
+                @Override
+                public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
+                    if (corrupt.get() && action.equals(RecoveryTarget.Actions.FILE_CHUNK)) {
+                        RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
+                        byte[] array = req.content().array();
+                        int i = randomIntBetween(0, req.content().length() - 1);
+                        array[i] = (byte) ~array[i]; // flip one byte in the content
+                        hasCorrupted.countDown();
+                    }
+                    super.sendRequest(node, requestId, action, request, options);
+                }
+            });
+        }
+
+        Settings build = ImmutableSettings.builder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1")
+                .put("index.routing.allocation.include._name", primariesNode.getNode().name() + "," + unluckyNode.getNode().name()).build();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(build).get();
+        client().admin().cluster().prepareReroute().get();
+        hasCorrupted.await();
+        corrupt.set(false);
+        ensureGreen();
     }
 
     /**
@@ -315,12 +375,12 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
 
 
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
-                .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, true)
-                // This does corrupt files on the replica, so we can't check:
-                .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
-                .put("index.routing.allocation.include._name", primariesNode.getNode().name())
-                .put("indices.recovery.concurrent_streams", 10)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0")
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(1, 4)) // don't go crazy here it must recovery fast
+                                // This does corrupt files on the replica, so we can't check:
+                        .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false)
+                        .put("index.routing.allocation.include._name", primariesNode.getNode().name())
+                        .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)
         ));
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
@@ -343,8 +403,8 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                     if (action.equals(RecoveryTarget.Actions.FILE_CHUNK)) {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
                         if (truncate && req.length() > 1) {
-                            BytesArray array = new BytesArray(req.content().array(), req.content().arrayOffset(), (int)req.length()-1);
-                            request = new RecoveryFileChunkRequest(req.recoveryId(), req.shardId(), req.metadata(), req.position(), array, req.lastChunk());
+                            BytesArray array = new BytesArray(req.content().array(), req.content().arrayOffset(), (int) req.length() - 1);
+                            request = new RecoveryFileChunkRequest(req.recoveryId(), req.shardId(), req.metadata(), req.position(), array, req.lastChunk(), req.totalTranslogOps(), req.sourceThrottleTimeInNanos());
                         } else {
                             byte[] array = req.content().array();
                             int i = randomIntBetween(0, req.content().length() - 1);
@@ -398,12 +458,11 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         assertThat(cluster().numDataNodes(), greaterThanOrEqualTo(2));
 
         assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0") // no replicas for this test
-                .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
-                .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
-                .put(InternalEngine.INDEX_FAIL_ON_CORRUPTION, true)
-                .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .del / segments.N files
-                .put("indices.recovery.concurrent_streams", 10)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0") // no replicas for this test
+                        .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class)
+                        .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false) // no checkindex - we corrupt shards on purpose
+                        .put(TranslogService.INDEX_TRANSLOG_DISABLE_FLUSH, true) // no translog based flush - it might change the .liv / segments.N files
+                        .put("indices.recovery.concurrent_streams", 10)
         ));
         ensureGreen();
         IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
@@ -423,18 +482,18 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         // it snapshots and that will write a new segments.X+1 file
         logger.info("-->  creating repository");
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", newTempDir(LifecycleScope.SUITE).getAbsolutePath())
+                .setType("fs").setSettings(settingsBuilder()
+                        .put("location", newTempDirPath(LifecycleScope.SUITE).toAbsolutePath())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test").get();
         assertThat(createSnapshotResponse.getSnapshotInfo().state(), equalTo(SnapshotState.PARTIAL));
         logger.info("failed during snapshot -- maybe SI file got corrupted");
-        final List<File> files = listShardFiles(shardRouting);
-        File corruptedFile = null;
-        for (File file : files) {
-            if (file.getName().startsWith("corrupted_")) {
+        final List<Path> files = listShardFiles(shardRouting);
+        Path corruptedFile = null;
+        for (Path file : files) {
+            if (file.getFileName().toString().startsWith("corrupted_")) {
                 corruptedFile = file;
                 break;
             }
@@ -456,7 +515,7 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
     private ShardRouting corruptRandomFile(final boolean includePerCommitFiles) throws IOException {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         GroupShardsIterator shardIterators = state.getRoutingNodes().getRoutingTable().activePrimaryShardsGrouped(new String[]{"test"}, false);
-        List<ShardIterator>  iterators = Lists.newArrayList(shardIterators);
+        List<ShardIterator> iterators = Lists.newArrayList(shardIterators);
         ShardIterator shardIterator = RandomPicks.randomFrom(getRandom(), iterators);
         ShardRouting shardRouting = shardIterator.nextOrNull();
         assertNotNull(shardRouting);
@@ -464,42 +523,51 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         assertTrue(shardRouting.assignedToNode());
         String nodeId = shardRouting.currentNodeId();
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(nodeId).setFs(true).get();
-        Set<File> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
+        Set<Path> files = new TreeSet<>(); // treeset makes sure iteration order is deterministic
         for (FsStats.Info info : nodeStatses.getNodes()[0].getFs()) {
             String path = info.getPath();
-            final String relativeDataLocationPath =  "indices/test/" + Integer.toString(shardRouting.getId()) + "/index";
-            File file = new File(path, relativeDataLocationPath);
-            files.addAll(Arrays.asList(file.listFiles(new FileFilter() {
-                @Override
-                public boolean accept(File pathname) {
-                    if (pathname.isFile() && "write.lock".equals(pathname.getName()) == false) {
-                        return (includePerCommitFiles || isPerSegmentFile(pathname.getName()));
+            final String relativeDataLocationPath = "indices/test/" + Integer.toString(shardRouting.getId()) + "/index";
+            Path file = Paths.get(path).resolve(relativeDataLocationPath);
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
+                for (Path item : stream) {
+                    if (Files.isRegularFile(item) && "write.lock".equals(item.getFileName().toString()) == false) {
+                        if (includePerCommitFiles || isPerSegmentFile(item.getFileName().toString())) {
+                            files.add(item);
+                        }
                     }
-                    return false; // no dirs no write.locks
                 }
-            })));
+            }
         }
         pruneOldDeleteGenerations(files);
-        File fileToCorrupt = null;
+        Path fileToCorrupt = null;
         if (!files.isEmpty()) {
             fileToCorrupt = RandomPicks.randomFrom(getRandom(), files);
-            try (Directory dir = FSDirectory.open(fileToCorrupt.getParentFile())) {
+            try (Directory dir = FSDirectory.open(fileToCorrupt.toAbsolutePath().getParent())) {
                 long checksumBeforeCorruption;
-                try (IndexInput input = dir.openInput(fileToCorrupt.getName(), IOContext.DEFAULT)) {
+                try (IndexInput input = dir.openInput(fileToCorrupt.getFileName().toString(), IOContext.DEFAULT)) {
                     checksumBeforeCorruption = CodecUtil.retrieveChecksum(input);
                 }
-                try (RandomAccessFile raf = new RandomAccessFile(fileToCorrupt, "rw")) {
-                    raf.seek(randomIntBetween(0, (int)Math.min(Integer.MAX_VALUE, raf.length()-1)));
-                    long filePointer = raf.getFilePointer();
-                    byte b = raf.readByte();
-                    raf.seek(filePointer);
-                    raf.writeByte(~b);
-                    raf.getFD().sync();
-                    logger.info("Corrupting file for shard {} --  flipping at position {} from {} to {} file: {}", shardRouting, filePointer, Integer.toHexString(b),  Integer.toHexString(~b), fileToCorrupt.getName());
+                try (FileChannel raf = FileChannel.open(fileToCorrupt, StandardOpenOption.READ, StandardOpenOption.WRITE)) {
+                    // read
+                    raf.position(randomIntBetween(0, (int) Math.min(Integer.MAX_VALUE, raf.size() - 1)));
+                    long filePointer = raf.position();
+                    ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
+                    raf.read(bb);
+                    bb.flip();
+                    
+                    // corrupt
+                    byte oldValue = bb.get(0);
+                    byte newValue = (byte) (oldValue + 1);
+                    bb.put(0, newValue);
+                    
+                    // rewrite
+                    raf.position(filePointer);
+                    raf.write(bb);
+                    logger.info("Corrupting file for shard {} --  flipping at position {} from {} to {} file: {}", shardRouting, filePointer, Integer.toHexString(oldValue), Integer.toHexString(newValue), fileToCorrupt.getFileName());
                 }
                 long checksumAfterCorruption;
                 long actualChecksumAfterCorruption;
-                try (ChecksumIndexInput input = dir.openChecksumInput(fileToCorrupt.getName(), IOContext.DEFAULT)) {
+                try (ChecksumIndexInput input = dir.openChecksumInput(fileToCorrupt.getFileName().toString(), IOContext.DEFAULT)) {
                     assertThat(input.getFilePointer(), is(0l));
                     input.seek(input.length() - 8); // one long is the checksum... 8 bytes
                     checksumAfterCorruption = input.getChecksum();
@@ -511,10 +579,10 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 msg.append("Checksum before: [").append(checksumBeforeCorruption).append("]");
                 msg.append(" after: [").append(checksumAfterCorruption).append("]");
                 msg.append(" checksum value after corruption: ").append(actualChecksumAfterCorruption).append("]");
-                msg.append(" file: ").append(fileToCorrupt.getName()).append(" length: ").append(dir.fileLength(fileToCorrupt.getName()));
+                msg.append(" file: ").append(fileToCorrupt.getFileName()).append(" length: ").append(dir.fileLength(fileToCorrupt.getFileName().toString()));
                 logger.info(msg.toString());
                 assumeTrue("Checksum collision - " + msg.toString(),
-                                checksumAfterCorruption != checksumBeforeCorruption // collision
+                        checksumAfterCorruption != checksumBeforeCorruption // collision
                                 || actualChecksumAfterCorruption != checksumBeforeCorruption); // checksum corrupted
             }
         }
@@ -523,8 +591,8 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
     }
 
     private static final boolean isPerCommitFile(String fileName) {
-        // .del and segments_N are per commit files and might change after corruption
-        return fileName.startsWith("segments") || fileName.endsWith(".del");
+        // .liv and segments_N are per commit files and might change after corruption
+        return fileName.startsWith("segments") || fileName.endsWith(".liv");
     }
 
     private static final boolean isPerSegmentFile(String fileName) {
@@ -534,21 +602,21 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
     /**
      * prunes the list of index files such that only the latest del generation files are contained.
      */
-    private void pruneOldDeleteGenerations(Set<File> files) {
-        final TreeSet<File> delFiles = new TreeSet<>();
-        for (File file : files) {
-            if (file.getName().endsWith(".del")) {
+    private void pruneOldDeleteGenerations(Set<Path> files) {
+        final TreeSet<Path> delFiles = new TreeSet<>();
+        for (Path file : files) {
+            if (file.getFileName().toString().endsWith(".liv")) {
                 delFiles.add(file);
             }
         }
-        File last = null;
-        for (File current : delFiles) {
+        Path last = null;
+        for (Path current : delFiles) {
             if (last != null) {
-                final String newSegmentName = IndexFileNames.parseSegmentName(current.getName());
-                final String oldSegmentName = IndexFileNames.parseSegmentName(last.getName());
+                final String newSegmentName = IndexFileNames.parseSegmentName(current.getFileName().toString());
+                final String oldSegmentName = IndexFileNames.parseSegmentName(last.getFileName().toString());
                 if (newSegmentName.equals(oldSegmentName)) {
-                    int oldGen = Integer.parseInt(IndexFileNames.stripExtension(IndexFileNames.stripSegmentName(last.getName())).replace("_", ""), Character.MAX_RADIX);
-                    int newGen = Integer.parseInt(IndexFileNames.stripExtension(IndexFileNames.stripSegmentName(current.getName())).replace("_", ""), Character.MAX_RADIX);
+                    int oldGen = Integer.parseInt(IndexFileNames.stripExtension(IndexFileNames.stripSegmentName(last.getFileName().toString())).replace("_", ""), Character.MAX_RADIX);
+                    int newGen = Integer.parseInt(IndexFileNames.stripExtension(IndexFileNames.stripSegmentName(current.getFileName().toString())).replace("_", ""), Character.MAX_RADIX);
                     if (newGen > oldGen) {
                         files.remove(last);
                     } else {
@@ -561,15 +629,19 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
         }
     }
 
-    public List<File> listShardFiles(ShardRouting routing) {
+    public List<Path> listShardFiles(ShardRouting routing) throws IOException {
         NodesStatsResponse nodeStatses = client().admin().cluster().prepareNodesStats(routing.currentNodeId()).setFs(true).get();
 
         assertThat(routing.toString(), nodeStatses.getNodes().length, equalTo(1));
-        List<File> files = new ArrayList<>();
+        List<Path> files = new ArrayList<>();
         for (FsStats.Info info : nodeStatses.getNodes()[0].getFs()) {
             String path = info.getPath();
-            File file = new File(path, "indices/test/" + Integer.toString(routing.getId()) + "/index");
-            files.addAll(Arrays.asList(file.listFiles()));
+            Path file = Paths.get(path).resolve("indices/test/" + Integer.toString(routing.getId()) + "/index");
+            try (DirectoryStream<Path> stream = Files.newDirectoryStream(file)) {
+                for (Path item : stream) {
+                    files.add(item);
+                }
+            }
         }
         return files;
     }
@@ -585,22 +657,4 @@ public class CorruptedFileTest extends ElasticsearchIntegrationTest {
                 "index.routing.allocation.enable", "all"
         )).get();
     }
-
-    public static class NoMergePolicyProvider  extends AbstractMergePolicyProvider<MergePolicy> {
-
-        @Inject
-        public NoMergePolicyProvider(Store store) {
-            super(store);
-        }
-
-        @Override
-        public MergePolicy getMergePolicy() {
-            return NoMergePolicy.INSTANCE;
-        }
-
-        @Override
-        public void close() throws ElasticsearchException {
-        }
-    }
-
 }

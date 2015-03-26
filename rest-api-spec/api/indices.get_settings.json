@@ -1,6 +1,6 @@
 {
   "indices.get_settings": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-get-mapping.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-get-settings.html",
     "methods": ["GET"],
     "url": {
       "path": "/_settings",
@@ -26,7 +26,7 @@
         },
         "expand_wildcards": {
             "type" : "enum",
-            "options" : ["open","closed"],
+            "options" : ["open","closed","none","all"],
             "default" : ["open","closed"],
             "description" : "Whether to expand wildcard expression to concrete indices that are open, closed or both."
         },

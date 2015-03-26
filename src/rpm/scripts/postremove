@@ -10,6 +10,9 @@ if [ $1 -eq 0 ] ; then
     if [ "$?" == "0" ] ; then
         groupdel elasticsearch
     fi
+
+    # Remove plugin directory and all plugins
+    rm -rf /usr/share/elasticsearch/plugins
 fi
 
 exit

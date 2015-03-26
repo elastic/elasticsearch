@@ -20,35 +20,48 @@
 package org.elasticsearch.index.mapper.internal;
 
 import com.google.common.collect.Iterables;
+
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsFilter;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.PrefixFilter;
+import org.apache.lucene.search.PrefixQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.RegexpQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.RegexpFilter;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatService;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatService;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.InternalMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.RootMapper;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.core.AbstractFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -56,7 +69,7 @@ import static org.elasticsearch.index.mapper.MapperBuilders.id;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
- *
+ * 
  */
 public class IdFieldMapper extends AbstractFieldMapper<String> implements InternalMapper, RootMapper {
 
@@ -71,10 +84,9 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         public static final FieldType FIELD_TYPE = new FieldType(AbstractFieldMapper.Defaults.FIELD_TYPE);
 
         static {
-            FIELD_TYPE.setIndexed(false);
+            FIELD_TYPE.setIndexOptions(IndexOptions.NONE);
             FIELD_TYPE.setStored(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
             FIELD_TYPE.freeze();
         }
 
@@ -94,23 +106,33 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             this.path = path;
             return builder;
         }
+        // if we are indexed we use DOCS
+        @Override
+        protected IndexOptions getDefaultIndexOption() {
+            return IndexOptions.DOCS;
+        }
 
         @Override
         public IdFieldMapper build(BuilderContext context) {
-            return new IdFieldMapper(name, indexName, boost, fieldType, docValues, path, postingsProvider, docValuesProvider, fieldDataSettings, context.indexSettings());
+            return new IdFieldMapper(name, indexName, boost, fieldType, docValues, path, fieldDataSettings, context.indexSettings());
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+            if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0)) {
+                throw new MapperParsingException(NAME + " is not configurable");
+            }
             IdFieldMapper.Builder builder = id();
             parseField(builder, builder.name, node, parserContext);
-            for (Map.Entry<String, Object> entry : node.entrySet()) {
+            for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
+                Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
                 Object fieldNode = entry.getValue();
                 if (fieldName.equals("path")) {
                     builder.path(fieldNode.toString());
+                    iterator.remove();
                 }
             }
             return builder;
@@ -119,24 +141,24 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     private final String path;
 
-    public IdFieldMapper() {
-        this(new FieldType(Defaults.FIELD_TYPE));
-    }
-
-    public IdFieldMapper(FieldType fieldType) {
-        this(Defaults.NAME, Defaults.INDEX_NAME, fieldType, null);
-    }
-
-    protected IdFieldMapper(String name, String indexName, FieldType fieldType, Boolean docValues) {
-        this(name, indexName, Defaults.BOOST, fieldType, docValues, Defaults.PATH, null, null, null, ImmutableSettings.EMPTY);
+    public IdFieldMapper(Settings indexSettings) {
+        this(Defaults.NAME, Defaults.INDEX_NAME, Defaults.BOOST, idFieldType(indexSettings), null, Defaults.PATH, null, indexSettings);
     }
 
     protected IdFieldMapper(String name, String indexName, float boost, FieldType fieldType, Boolean docValues, String path,
-                            PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
                             @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(name, indexName, indexName, name), boost, fieldType, docValues, Lucene.KEYWORD_ANALYZER,
-                Lucene.KEYWORD_ANALYZER, postingsProvider, docValuesProvider, null, null, fieldDataSettings, indexSettings);
+                Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
         this.path = path;
+    }
+    
+    private static FieldType idFieldType(Settings indexSettings) {
+        FieldType fieldType = new FieldType(Defaults.FIELD_TYPE);
+        boolean pre2x = Version.indexCreated(indexSettings).before(Version.V_2_0_0);
+        if (pre2x && indexSettings.getAsBoolean("index.mapping._id.indexed", true) == false) {
+            fieldType.setTokenized(false);
+        }
+        return fieldType;
     }
 
     public String path() {
@@ -168,7 +190,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Query termQuery(Object value, @Nullable QueryParseContext context) {
-        if (fieldType.indexed() || context == null) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.termQuery(value, context);
         }
         // no need for constant score filter, since we don't cache the filter, and it always takes deletes into account
@@ -177,7 +199,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Filter termFilter(Object value, @Nullable QueryParseContext context) {
-        if (fieldType.indexed() || context == null) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.termFilter(value, context);
         }
         return new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), value));
@@ -185,7 +207,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Filter termsFilter(List values, @Nullable QueryParseContext context) {
-        if (fieldType.indexed() || context == null) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.termsFilter(values, context);
         }
         return new TermsFilter(UidFieldMapper.NAME, Uid.createTypeUids(context.queryTypes(), values));
@@ -193,7 +215,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Query prefixQuery(Object value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        if (fieldType.indexed() || context == null) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.prefixQuery(value, method, context);
         }
         Collection<String> queryTypes = context.queryTypes();
@@ -217,7 +239,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public Filter prefixFilter(Object value, @Nullable QueryParseContext context) {
-        if (fieldType.indexed() || context == null) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
             return super.prefixFilter(value, context);
         }
         Collection<String> queryTypes = context.queryTypes();
@@ -232,13 +254,14 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
     }
 
     @Override
-    public Query regexpQuery(Object value, int flags, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
-        if (fieldType.indexed() || context == null) {
-            return super.regexpQuery(value, flags, method, context);
+    public Query regexpQuery(Object value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
+            return super.regexpQuery(value, flags, maxDeterminizedStates, method, context);
         }
         Collection<String> queryTypes = context.queryTypes();
         if (queryTypes.size() == 1) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))), flags);
+            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))),
+                                                      flags, maxDeterminizedStates);
             if (method != null) {
                 regexpQuery.setRewriteMethod(method);
             }
@@ -246,7 +269,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         }
         BooleanQuery query = new BooleanQuery();
         for (String queryType : queryTypes) {
-            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))), flags);
+            RegexpQuery regexpQuery = new RegexpQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))), flags, maxDeterminizedStates);
             if (method != null) {
                 regexpQuery.setRewriteMethod(method);
             }
@@ -255,17 +278,20 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
         return query;
     }
 
-    public Filter regexpFilter(Object value, int flags, @Nullable QueryParseContext context) {
-        if (fieldType.indexed() || context == null) {
-            return super.regexpFilter(value, flags, context);
+    @Override
+    public Filter regexpFilter(Object value, int flags, int maxDeterminizedStates, @Nullable QueryParseContext context) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || context == null) {
+            return super.regexpFilter(value, flags, maxDeterminizedStates, context);
         }
         Collection<String> queryTypes = context.queryTypes();
         if (queryTypes.size() == 1) {
-            return new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))), flags);
+            return new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(Iterables.getFirst(queryTypes, null), BytesRefs.toBytesRef(value))),
+                                    flags, maxDeterminizedStates);
         }
         XBooleanFilter filter = new XBooleanFilter();
         for (String queryType : queryTypes) {
-            filter.add(new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))), flags), BooleanClause.Occur.SHOULD);
+            filter.add(new RegexpFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(queryType, BytesRefs.toBytesRef(value))),
+                                        flags, maxDeterminizedStates), BooleanClause.Occur.SHOULD);
         }
         return filter;
     }
@@ -308,7 +334,7 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
             context.id(id);
         } // else we are in the pre/post parse phase
 
-        if (fieldType.indexed() || fieldType.stored()) {
+        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
             fields.add(new Field(names.indexName(), context.id(), fieldType));
         }
         if (hasDocValues()) {
@@ -323,50 +349,27 @@ public class IdFieldMapper extends AbstractFieldMapper<String> implements Intern
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        if (writePre2xSettings == false) {
+            return builder;
+        }
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // if all are defaults, no sense to write it at all
         if (!includeDefaults && fieldType.stored() == Defaults.FIELD_TYPE.stored()
-                && fieldType.indexed() == Defaults.FIELD_TYPE.indexed()
+                && fieldType.indexOptions() == Defaults.FIELD_TYPE.indexOptions()
                 && path == Defaults.PATH
-                && customFieldDataSettings == null
-                && (postingsFormat == null || postingsFormat.name().equals(defaultPostingFormat()))
-                && (docValuesFormat == null || docValuesFormat.name().equals(defaultDocValuesFormat()))) {
+                && customFieldDataSettings == null) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
         if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());
         }
-        if (includeDefaults || fieldType.indexed() != Defaults.FIELD_TYPE.indexed()) {
-            builder.field("index", indexTokenizeOptionToString(fieldType.indexed(), fieldType.tokenized()));
+        if (includeDefaults || fieldType.indexOptions() != Defaults.FIELD_TYPE.indexOptions()) {
+            builder.field("index", indexTokenizeOptionToString(fieldType.indexOptions() != IndexOptions.NONE, fieldType.tokenized()));
         }
         if (includeDefaults || path != Defaults.PATH) {
             builder.field("path", path);
-        }
-
-        if (postingsFormat != null) {
-            if (includeDefaults || !postingsFormat.name().equals(defaultPostingFormat())) {
-                builder.field("postings_format", postingsFormat.name());
-            }
-        } else if (includeDefaults) {
-            String format = defaultPostingFormat();
-            if (format == null) {
-                format = PostingsFormatService.DEFAULT_FORMAT;
-            }
-            builder.field("postings_format", format);
-        }
-
-        if (docValuesFormat != null) {
-            if (includeDefaults || !docValuesFormat.name().equals(defaultDocValuesFormat())) {
-                builder.field(DOC_VALUES_FORMAT, docValuesFormat.name());
-            }
-        } else if (includeDefaults) {
-            String format = defaultDocValuesFormat();
-            if (format == null) {
-                format = DocValuesFormatService.DEFAULT_FORMAT;
-            }
-            builder.field(DOC_VALUES_FORMAT, format);
         }
 
         if (customFieldDataSettings != null) {

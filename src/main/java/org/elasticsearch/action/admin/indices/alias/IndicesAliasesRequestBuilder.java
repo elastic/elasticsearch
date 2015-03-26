@@ -51,7 +51,7 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<Ind
     /**
      * Adds an alias to the index.
      *
-     * @param index The indices
+     * @param indices The indices
      * @param alias The alias
      */
     public IndicesAliasesRequestBuilder addAlias(String[] indices, String alias) {
@@ -184,13 +184,10 @@ public class IndicesAliasesRequestBuilder extends AcknowledgedRequestBuilder<Ind
     /**
      * Adds an alias action to the request.
      *
-     * @param aliasAction The alias action
+     * @param action The alias action
      */
-    public IndicesAliasesRequestBuilder addAliasAction(
-            AliasActions action) {
+    public IndicesAliasesRequestBuilder addAliasAction(AliasActions action) {
         request.addAliasAction(action);
         return this;
     }
-
-   
 }

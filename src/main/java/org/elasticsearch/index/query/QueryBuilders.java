@@ -23,8 +23,10 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
+import org.elasticsearch.script.ScriptService;
 
 import java.util.Collection;
+import java.util.Map;
 
 /**
  * A static factory for simple "import static" usage.
@@ -54,7 +56,7 @@ public abstract class QueryBuilders {
      * @param name The field name.
      * @param text The query text (to be analyzed).
      */
-    public static CommonTermsQueryBuilder commonTerms(String name, Object text) {
+    public static CommonTermsQueryBuilder commonTermsQuery(String name, Object text) {
         return new CommonTermsQueryBuilder(name, text);
     }
 
@@ -73,53 +75,9 @@ public abstract class QueryBuilders {
      *
      * @param name The field name.
      * @param text The query text (to be analyzed).
-     * @deprecated use {@link #textPhraseQuery(String, Object)} instead
-     */
-    public static MatchQueryBuilder textPhrase(String name, Object text) {
-        return textPhraseQuery(name, text);
-    }
-
-    /**
-     * Creates a text query with type "PHRASE" for the provided field name and text.
-     *
-     * @param name The field name.
-     * @param text The query text (to be analyzed).
-     * @deprecated Use {@link #matchPhraseQuery(String, Object)}
-     */
-    public static MatchQueryBuilder textPhraseQuery(String name, Object text) {
-        return new MatchQueryBuilder(name, text).type(MatchQueryBuilder.Type.PHRASE);
-    }
-
-    /**
-     * Creates a text query with type "PHRASE" for the provided field name and text.
-     *
-     * @param name The field name.
-     * @param text The query text (to be analyzed).
      */
     public static MatchQueryBuilder matchPhraseQuery(String name, Object text) {
         return new MatchQueryBuilder(name, text).type(MatchQueryBuilder.Type.PHRASE);
-    }
-
-    /**
-     * Creates a text query with type "PHRASE_PREFIX" for the provided field name and text.
-     *
-     * @param name The field name.
-     * @param text The query text (to be analyzed).
-     * @deprecated use {@link #textPhrasePrefixQuery(String, Object)} instead
-     */
-    public static MatchQueryBuilder textPhrasePrefix(String name, Object text) {
-        return textPhrasePrefixQuery(name, text);
-    }
-
-    /**
-     * Creates a text query with type "PHRASE_PREFIX" for the provided field name and text.
-     *
-     * @param name The field name.
-     * @param text The query text (to be analyzed).
-     * @deprecated Use {@link #matchPhrasePrefixQuery(String, Object)}
-     */
-    public static MatchQueryBuilder textPhrasePrefixQuery(String name, Object text) {
-        return new MatchQueryBuilder(name, text).type(MatchQueryBuilder.Type.PHRASE_PREFIX);
     }
 
     /**
@@ -294,7 +252,7 @@ public abstract class QueryBuilders {
      *
      * @param queryString The query string to run
      */
-    public static QueryStringQueryBuilder queryString(String queryString) {
+    public static QueryStringQueryBuilder queryStringQuery(String queryString) {
         return new QueryStringQueryBuilder(queryString);
     }
 
@@ -304,7 +262,7 @@ public abstract class QueryBuilders {
      * {@link org.apache.lucene.queryparser.XSimpleQueryParser} for the full
      * supported syntax.
      */
-    public static SimpleQueryStringBuilder simpleQueryString(String queryString) {
+    public static SimpleQueryStringBuilder simpleQueryStringQuery(String queryString) {
         return new SimpleQueryStringBuilder(queryString);
     }
 
@@ -376,17 +334,6 @@ public abstract class QueryBuilders {
 
     public static FieldMaskingSpanQueryBuilder fieldMaskingSpanQuery(SpanQueryBuilder query, String field) {
         return new FieldMaskingSpanQueryBuilder(query, field);
-    }
-
-    /**
-     * A query that applies a filter to the results of another query.
-     *
-     * @param queryBuilder  The query to apply the filter to
-     * @param filterBuilder The filter to apply on the query
-     * @deprecated Use filteredQuery instead (rename)
-     */
-    public static FilteredQueryBuilder filtered(QueryBuilder queryBuilder, @Nullable FilterBuilder filterBuilder) {
-        return new FilteredQueryBuilder(queryBuilder, filterBuilder);
     }
 
     /**
@@ -474,6 +421,26 @@ public abstract class QueryBuilders {
     }
 
     /**
+     * A query that allows to define a custom scoring function.
+     *
+     * @param queryBuilder  The query to custom score
+     * @param filterBuilder The filterBuilder to custom score
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, FilterBuilder filterBuilder) {
+        return new FunctionScoreQueryBuilder(queryBuilder, filterBuilder);
+    }
+
+    /**
+     * A query that allows to define a custom scoring function.
+     *
+     * @param queryBuilder  The query to custom score
+     * @param filterBuilder The filterBuilder to custom score
+     */
+    public static FunctionScoreQueryBuilder functionScoreQuery(QueryBuilder queryBuilder, FilterBuilder filterBuilder, ScoreFunctionBuilder function) {
+        return (new FunctionScoreQueryBuilder(queryBuilder, filterBuilder)).add(function);
+    }
+
+    /**
      * A more like this query that finds documents that are "like" the provided {@link MoreLikeThisQueryBuilder#likeText(String)}
      * which is checked against the fields the query is constructed with.
      *
@@ -514,15 +481,6 @@ public abstract class QueryBuilders {
      */
     public static FuzzyLikeThisFieldQueryBuilder fuzzyLikeThisFieldQuery(String name) {
         return new FuzzyLikeThisFieldQueryBuilder(name);
-    }
-
-    /**
-     * A more like this query that runs against a specific field.
-     *
-     * @param name The field name
-     */
-    public static MoreLikeThisFieldQueryBuilder moreLikeThisFieldQuery(String name) {
-        return new MoreLikeThisFieldQueryBuilder(name);
     }
 
     /**
@@ -637,76 +595,6 @@ public abstract class QueryBuilders {
     }
 
     /**
-     * A filer for a field based on several terms matching on any of them.
-     *
-     * @param name   The field name
-     * @param values The terms
-     */
-    public static TermsQueryBuilder inQuery(String name, String... values) {
-        return new TermsQueryBuilder(name, values);
-    }
-
-    /**
-     * A filer for a field based on several terms matching on any of them.
-     *
-     * @param name   The field name
-     * @param values The terms
-     */
-    public static TermsQueryBuilder inQuery(String name, int... values) {
-        return new TermsQueryBuilder(name, values);
-    }
-
-    /**
-     * A filer for a field based on several terms matching on any of them.
-     *
-     * @param name   The field name
-     * @param values The terms
-     */
-    public static TermsQueryBuilder inQuery(String name, long... values) {
-        return new TermsQueryBuilder(name, values);
-    }
-
-    /**
-     * A filer for a field based on several terms matching on any of them.
-     *
-     * @param name   The field name
-     * @param values The terms
-     */
-    public static TermsQueryBuilder inQuery(String name, float... values) {
-        return new TermsQueryBuilder(name, values);
-    }
-
-    /**
-     * A filer for a field based on several terms matching on any of them.
-     *
-     * @param name   The field name
-     * @param values The terms
-     */
-    public static TermsQueryBuilder inQuery(String name, double... values) {
-        return new TermsQueryBuilder(name, values);
-    }
-
-    /**
-     * A filer for a field based on several terms matching on any of them.
-     *
-     * @param name   The field name
-     * @param values The terms
-     */
-    public static TermsQueryBuilder inQuery(String name, Object... values) {
-        return new TermsQueryBuilder(name, values);
-    }
-
-    /**
-     * A filer for a field based on several terms matching on any of them.
-     *
-     * @param name   The field name
-     * @param values The terms
-     */
-    public static TermsQueryBuilder inQuery(String name, Collection<?> values) {
-        return new TermsQueryBuilder(name, values);
-    }
-
-    /**
      * A query that will execute the wrapped query only for the specified indices, and "match_all" when
      * it does not match those indices.
      */
@@ -741,6 +629,20 @@ public abstract class QueryBuilders {
 
     public static GeoShapeQueryBuilder geoShapeQuery(String name, String indexedShapeId, String indexedShapeType) {
         return new GeoShapeQueryBuilder(name, indexedShapeId, indexedShapeType);
+    }
+
+    /**
+     * Facilitates creating template query requests using an inline script
+     */
+    public static TemplateQueryBuilder templateQuery(String template, Map<String, Object> vars) {
+        return new TemplateQueryBuilder(template, vars);
+    }
+
+    /**
+     * Facilitates creating template query requests
+     */
+    public static TemplateQueryBuilder templateQuery(String template, ScriptService.ScriptType templateType, Map<String, Object> vars) {
+        return new TemplateQueryBuilder(template, templateType, vars);
     }
 
     private QueryBuilders() {

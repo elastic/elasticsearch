@@ -48,6 +48,7 @@ import org.apache.lucene.search.similarities.TFIDFSimilarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.FastStringReader;
 
 import java.io.IOException;
@@ -268,6 +269,12 @@ public final class XMoreLikeThis {
     private boolean boost = DEFAULT_BOOST;
 
     /**
+     * Current set of skip terms.
+     */
+    private Set<Term> skipTerms = null;
+
+
+    /**
      * Field name we'll analyze.
      */
     private String[] fieldNames = DEFAULT_FIELD_NAMES;
@@ -324,6 +331,13 @@ public final class XMoreLikeThis {
      */
     public void setBoostFactor(float boostFactor) {
         this.boostFactor = boostFactor;
+    }
+
+    /**
+     * Sets a list of terms to never select from
+     */
+    public void setSkipTerms(Set<Term> skipTerms) {
+        this.skipTerms = skipTerms;
     }
 
     /**
@@ -646,7 +660,7 @@ public final class XMoreLikeThis {
             for (Fields fields : likeFields) {
                 Terms vector = fields.terms(fieldName);
                 if (vector != null) {
-                    addTermFrequencies(termFreqMap, vector);
+                    addTermFrequencies(termFreqMap, vector, fieldName);
                 }
             }
             addToQuery(createQueue(termFreqMap, fieldName), bq);
@@ -803,7 +817,7 @@ public final class XMoreLikeThis {
                     }
                 }
             } else {
-                addTermFrequencies(termFreqMap, vector);
+                addTermFrequencies(termFreqMap, vector, fieldName);
             }
         }
 
@@ -817,6 +831,17 @@ public final class XMoreLikeThis {
      * @param vector List of terms and their frequencies for a doc/field
      */
     private void addTermFrequencies(Map<String, Int> termFreqMap, Terms vector) throws IOException {
+        addTermFrequencies(termFreqMap, vector, null);
+    }
+
+    /**
+     * Adds terms and frequencies found in vector into the Map termFreqMap
+     *
+     * @param termFreqMap a Map of terms and their frequencies
+     * @param vector List of terms and their frequencies for a doc/field
+     * @param fieldName Optional field name of the terms for skip terms
+     */
+    private void addTermFrequencies(Map<String, Int> termFreqMap, Terms vector, @Nullable String fieldName) throws IOException {
         final TermsEnum termsEnum = vector.iterator(null);
         final CharsRefBuilder spare = new CharsRefBuilder();
         BytesRef text;
@@ -826,8 +851,11 @@ public final class XMoreLikeThis {
             if (isNoiseWord(term)) {
                 continue;
             }
+            if (isSkipTerm(fieldName, term)) {
+                continue;
+            }
 
-            DocsEnum docs = termsEnum.docs(null, null);
+            PostingsEnum docs = termsEnum.postings(null, null);
             final int freq = docs.freq();
 
             // increment frequency
@@ -869,6 +897,9 @@ public final class XMoreLikeThis {
                 if (isNoiseWord(word)) {
                     continue;
                 }
+                if (isSkipTerm(fieldName, word)) {
+                    continue;
+                }
 
                 // increment frequency
                 Int cnt = termFreqMap.get(word);
@@ -898,6 +929,13 @@ public final class XMoreLikeThis {
             return true;
         }
         return stopWords != null && stopWords.contains(term);
+    }
+
+    /**
+     * determines if the passed term is to be skipped all together
+     */
+    private boolean isSkipTerm(@Nullable String field, String value) {
+        return field != null && skipTerms != null && skipTerms.contains(new Term(field, value));
     }
 
 

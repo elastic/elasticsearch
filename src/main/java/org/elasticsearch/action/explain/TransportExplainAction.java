@@ -37,14 +37,14 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -84,6 +84,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         super.doExecute(request, listener);
     }
 
+    @Override
     protected String executor() {
         return ThreadPool.Names.GET; // Or use Names.SEARCH?
     }
@@ -113,10 +114,7 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         }
 
         SearchContext context = new DefaultSearchContext(
-                0,
-                new ShardSearchRequest(request).types(new String[]{request.type()})
-                        .filteringAliases(request.filteringAlias())
-                        .nowInMillis(request.nowInMillis),
+                0, new ShardSearchLocalRequest(new String[]{request.type()}, request.nowInMillis, request.filteringAlias()),
                 null, result.searcher(), indexService, indexShard,
                 scriptService, pageCacheRecycler,
                 bigArrays, threadPool.estimatedTimeInMillisCounter()
@@ -149,10 +147,12 @@ public class TransportExplainAction extends TransportShardSingleOperationAction<
         }
     }
 
+    @Override
     protected ExplainRequest newRequest() {
         return new ExplainRequest();
     }
 
+    @Override
     protected ExplainResponse newResponse() {
         return new ExplainResponse();
     }

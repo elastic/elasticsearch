@@ -19,40 +19,44 @@
 
 package org.elasticsearch.indices.recovery;
 
-import com.google.common.collect.Sets;
+import com.google.common.base.Predicate;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.IndexFormatTooNewException;
+import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
+import org.elasticsearch.common.util.CancellableThreads;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
+import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
-import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesLifecycle;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -77,20 +81,20 @@ public class RecoveryTarget extends AbstractComponent {
 
     private final TransportService transportService;
 
-    private final IndicesService indicesService;
-
     private final RecoverySettings recoverySettings;
+    private final ClusterService clusterService;
 
-    private final ConcurrentMapLong<RecoveryStatus> onGoingRecoveries = ConcurrentCollections.newConcurrentMapLong();
+    private final RecoveriesCollection onGoingRecoveries;
 
     @Inject
-    public RecoveryTarget(Settings settings, ThreadPool threadPool, TransportService transportService, IndicesService indicesService,
-                          IndicesLifecycle indicesLifecycle, RecoverySettings recoverySettings) {
+    public RecoveryTarget(Settings settings, ThreadPool threadPool, TransportService transportService,
+                          IndicesLifecycle indicesLifecycle, RecoverySettings recoverySettings, ClusterService clusterService) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
-        this.indicesService = indicesService;
         this.recoverySettings = recoverySettings;
+        this.clusterService = clusterService;
+        this.onGoingRecoveries = new RecoveriesCollection(logger, threadPool);
 
         transportService.registerHandler(Actions.FILES_INFO, new FilesInfoRequestHandler());
         transportService.registerHandler(Actions.FILE_CHUNK, new FileChunkTransportRequestHandler());
@@ -101,263 +105,163 @@ public class RecoveryTarget extends AbstractComponent {
 
         indicesLifecycle.addListener(new IndicesLifecycle.Listener() {
             @Override
-            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard) {
+            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
+                                               @IndexSettings Settings indexSettings) {
                 if (indexShard != null) {
-                    removeAndCleanOnGoingRecovery(findRecoveryByShard(indexShard));
+                    onGoingRecoveries.cancelRecoveriesForShard(shardId, "shard closed");
                 }
             }
         });
     }
 
-    public RecoveryStatus recoveryStatus(IndexShard indexShard) {
-        RecoveryStatus recoveryStatus = findRecoveryByShard(indexShard);
-        if (recoveryStatus == null) {
-            return null;
-        }
-        if (recoveryStatus.recoveryState().getTimer().startTime() > 0 && recoveryStatus.stage() != RecoveryState.Stage.DONE) {
-            recoveryStatus.recoveryState().getTimer().time(System.currentTimeMillis() - recoveryStatus.recoveryState().getTimer().startTime());
-        }
-        return recoveryStatus;
+    /**
+     * cancel all ongoing recoveries for the given shard, if their status match a predicate
+     *
+     * @param reason       reason for cancellation
+     * @param shardId      shardId for which to cancel recoveries
+     * @param shouldCancel a predicate to check if a recovery should be cancelled or not. Null means cancel without an extra check.
+     *                     note that the recovery state can change after this check, but before it is being cancelled via other
+     *                     already issued outstanding references.
+     * @return true if a recovery was cancelled
+     */
+    public boolean cancelRecoveriesForShard(ShardId shardId, String reason, @Nullable Predicate<RecoveryStatus> shouldCancel) {
+        return onGoingRecoveries.cancelRecoveriesForShard(shardId, reason, shouldCancel);
     }
 
-    public void cancelRecovery(IndexShard indexShard) {
-        RecoveryStatus recoveryStatus = findRecoveryByShard(indexShard);
-        // it might be if the recovery source got canceled first
-        if (recoveryStatus == null) {
-            return;
-        }
-        if (recoveryStatus.sentCanceledToSource) {
-            return;
-        }
-        recoveryStatus.cancel();
+    public void startRecovery(final IndexShard indexShard, final RecoveryState.Type recoveryType, final DiscoveryNode sourceNode, final RecoveryListener listener) {
         try {
-            if (recoveryStatus.recoveryThread != null) {
-                recoveryStatus.recoveryThread.interrupt();
-            }
-            // give it a grace period of actually getting the sent ack part
-            final long sleepTime = 100;
-            final long maxSleepTime = 10000;
-            long rounds = Math.round(maxSleepTime / sleepTime);
-            while (!recoveryStatus.sentCanceledToSource &&
-                    transportService.nodeConnected(recoveryStatus.sourceNode) &&
-                    rounds > 0) {
-                rounds--;
-                try {
-                    Thread.sleep(sleepTime);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break; // interrupted - step out!
-                }
-            }
-        } finally {
-            removeAndCleanOnGoingRecovery(recoveryStatus);
-        }
-
-    }
-
-    public void startRecovery(final StartRecoveryRequest request, final InternalIndexShard indexShard, final RecoveryListener listener) {
-        try {
-            indexShard.recovering("from " + request.sourceNode());
+            indexShard.recovering("from " + sourceNode, recoveryType, sourceNode);
         } catch (IllegalIndexShardStateException e) {
             // that's fine, since we might be called concurrently, just ignore this, we are already recovering
-            listener.onIgnoreRecovery(false, "already in recovering process, " + e.getMessage());
+            logger.debug("{} ignore recovery. already in recovering process, {}", indexShard.shardId(), e.getMessage());
             return;
         }
         // create a new recovery status, and process...
-        final RecoveryStatus recoveryStatus = new RecoveryStatus(request.recoveryId(), indexShard, request.sourceNode());
-        recoveryStatus.recoveryState.setType(request.recoveryType());
-        recoveryStatus.recoveryState.setSourceNode(request.sourceNode());
-        recoveryStatus.recoveryState.setTargetNode(request.targetNode());
-        recoveryStatus.recoveryState.setPrimary(indexShard.routingEntry().primary());
-        onGoingRecoveries.put(recoveryStatus.recoveryId, recoveryStatus);
+        final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, listener, recoverySettings.activityTimeout());
+        threadPool.generic().execute(new RecoveryRunner(recoveryId));
 
-        threadPool.generic().execute(new Runnable() {
-            @Override
-            public void run() {
-                doRecovery(request, recoveryStatus, listener);
-            }
-        });
     }
 
-    public void retryRecovery(final StartRecoveryRequest request, TimeValue retryAfter, final RecoveryStatus status, final RecoveryListener listener) {
-        threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new Runnable() {
-            @Override
-            public void run() {
-                doRecovery(request, status, listener);
-            }
-        });
+    protected void retryRecovery(final RecoveryStatus recoveryStatus, final String reason, TimeValue retryAfter, final StartRecoveryRequest currentRequest) {
+        logger.trace("will retrying recovery with id [{}] in [{}] (reason [{}])", recoveryStatus.recoveryId(), retryAfter, reason);
+        try {
+            recoveryStatus.resetRecovery();
+        } catch (IOException e) {
+            onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(), new RecoveryFailedException(currentRequest, e), true);
+        }
+        threadPool.schedule(retryAfter, ThreadPool.Names.GENERIC, new RecoveryRunner(recoveryStatus.recoveryId()));
     }
 
-    private void doRecovery(final StartRecoveryRequest request, final RecoveryStatus recoveryStatus, final RecoveryListener listener) {
-        assert request.sourceNode() != null : "can't do a recovery without a source node";
-        final InternalIndexShard shard = recoveryStatus.indexShard;
-        if (shard == null) {
-            listener.onIgnoreRecovery(false, "shard missing locally, stop recovery");
+    private void doRecovery(final RecoveryStatus recoveryStatus) {
+        assert recoveryStatus.sourceNode() != null : "can't do a recovery without a source node";
+
+        logger.trace("collecting local files for {}", recoveryStatus);
+        final Map<String, StoreFileMetaData> existingFiles;
+        try {
+            existingFiles = recoveryStatus.store().getMetadataOrEmpty().asMap();
+        } catch (Exception e) {
+            logger.debug("error while listing local files, recovery as if there are none", e);
+            onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(),
+                    new RecoveryFailedException(recoveryStatus.state(), "failed to list local files", e), true);
             return;
         }
-        if (shard.state() == IndexShardState.CLOSED) {
-            listener.onIgnoreRecovery(false, "local shard closed, stop recovery");
-            return;
-        }
-        if (recoveryStatus.isCanceled()) {
-            // don't remove it, the cancellation code will remove it...
-            listener.onIgnoreRecovery(false, "canceled recovery");
-            return;
-        }
+        final StartRecoveryRequest request = new StartRecoveryRequest(recoveryStatus.shardId(), recoveryStatus.sourceNode(), clusterService.localNode(),
+                false, existingFiles, recoveryStatus.state().getType(), recoveryStatus.recoveryId());
 
-        recoveryStatus.recoveryThread = Thread.currentThread();
-        if (shard.store().tryIncRef()) {
-            try {
-                logger.trace("[{}][{}] starting recovery from {}", request.shardId().index().name(), request.shardId().id(), request.sourceNode());
-
-                StopWatch stopWatch = new StopWatch().start();
-                RecoveryResponse recoveryResponse = transportService.submitRequest(request.sourceNode(), RecoverySource.Actions.START_RECOVERY, request, new FutureTransportResponseHandler<RecoveryResponse>() {
-                    @Override
-                    public RecoveryResponse newInstance() {
-                        return new RecoveryResponse();
-                    }
-                }).txGet();
-                if (shard.state() == IndexShardState.CLOSED) {
-                    removeAndCleanOnGoingRecovery(recoveryStatus);
-                    listener.onIgnoreRecovery(false, "local shard closed, stop recovery");
-                    return;
+        final AtomicReference<RecoveryResponse> responseHolder = new AtomicReference<>();
+        try {
+            logger.trace("[{}][{}] starting recovery from {}", request.shardId().index().name(), request.shardId().id(), request.sourceNode());
+            recoveryStatus.indexShard().prepareForIndexRecovery();
+            recoveryStatus.CancellableThreads().execute(new CancellableThreads.Interruptable() {
+                @Override
+                public void run() throws InterruptedException {
+                    responseHolder.set(transportService.submitRequest(request.sourceNode(), RecoverySource.Actions.START_RECOVERY, request, new FutureTransportResponseHandler<RecoveryResponse>() {
+                        @Override
+                        public RecoveryResponse newInstance() {
+                            return new RecoveryResponse();
+                        }
+                    }).txGet());
                 }
-                stopWatch.stop();
-                if (logger.isTraceEnabled()) {
-                    StringBuilder sb = new StringBuilder();
-                    sb.append('[').append(request.shardId().index().name()).append(']').append('[').append(request.shardId().id()).append("] ");
-                    sb.append("recovery completed from ").append(request.sourceNode()).append(", took[").append(stopWatch.totalTime()).append("]\n");
-                    sb.append("   phase1: recovered_files [").append(recoveryResponse.phase1FileNames.size()).append("]").append(" with total_size of [").append(new ByteSizeValue(recoveryResponse.phase1TotalSize)).append("]")
-                            .append(", took [").append(timeValueMillis(recoveryResponse.phase1Time)).append("], throttling_wait [").append(timeValueMillis(recoveryResponse.phase1ThrottlingWaitTime)).append(']')
-                            .append("\n");
-                    sb.append("         : reusing_files   [").append(recoveryResponse.phase1ExistingFileNames.size()).append("] with total_size of [").append(new ByteSizeValue(recoveryResponse.phase1ExistingTotalSize)).append("]\n");
-                    sb.append("   phase2: start took [").append(timeValueMillis(recoveryResponse.startTime)).append("]\n");
-                    sb.append("         : recovered [").append(recoveryResponse.phase2Operations).append("]").append(" transaction log operations")
-                            .append(", took [").append(timeValueMillis(recoveryResponse.phase2Time)).append("]")
-                            .append("\n");
-                    sb.append("   phase3: recovered [").append(recoveryResponse.phase3Operations).append("]").append(" transaction log operations")
-                            .append(", took [").append(timeValueMillis(recoveryResponse.phase3Time)).append("]");
-                    logger.trace(sb.toString());
-                } else if (logger.isDebugEnabled()) {
-                    logger.debug("{} recovery completed from [{}], took [{}]", request.shardId(), request.sourceNode(), stopWatch.totalTime());
-                }
-                removeAndCleanOnGoingRecovery(recoveryStatus);
-                listener.onRecoveryDone();
-            } catch (Throwable e) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().index().name(), request.shardId().id());
-                }
-                if (recoveryStatus.isCanceled()) {
-                    // don't remove it, the cancellation code will remove it...
-                    listener.onIgnoreRecovery(false, "canceled recovery");
-                    return;
-                }
-                if (shard.state() == IndexShardState.CLOSED) {
-                    removeAndCleanOnGoingRecovery(recoveryStatus);
-                    listener.onIgnoreRecovery(false, "local shard closed, stop recovery");
-                    return;
-                }
-                Throwable cause = ExceptionsHelper.unwrapCause(e);
-                if (cause instanceof RecoveryEngineException) {
-                    // unwrap an exception that was thrown as part of the recovery
-                    cause = cause.getCause();
-                }
-                // do it twice, in case we have double transport exception
-                cause = ExceptionsHelper.unwrapCause(cause);
-                if (cause instanceof RecoveryEngineException) {
-                    // unwrap an exception that was thrown as part of the recovery
-                    cause = cause.getCause();
-                }
-
-                // here, we would add checks against exception that need to be retried (and not removeAndClean in this case)
-
-                if (cause instanceof IndexShardNotStartedException || cause instanceof IndexMissingException || cause instanceof IndexShardMissingException) {
-                    // if the target is not ready yet, retry
-                    listener.onRetryRecovery(TimeValue.timeValueMillis(500), recoveryStatus);
-                    return;
-                }
-
-                if (cause instanceof DelayRecoveryException) {
-                    listener.onRetryRecovery(TimeValue.timeValueMillis(500), recoveryStatus);
-                    return;
-                }
-
-                // here, we check against ignore recovery options
-
-                // in general, no need to clean the shard on ignored recovery, since we want to try and reuse it later
-                // it will get deleted in the IndicesStore if all are allocated and no shard exists on this node...
-
-                removeAndCleanOnGoingRecovery(recoveryStatus);
-
-                if (cause instanceof ConnectTransportException) {
-                    listener.onIgnoreRecovery(true, "source node disconnected (" + request.sourceNode() + ")");
-                    return;
-                }
-
-                if (cause instanceof IndexShardClosedException) {
-                    listener.onIgnoreRecovery(true, "source shard is closed (" + request.sourceNode() + ")");
-                    return;
-                }
-
-                if (cause instanceof AlreadyClosedException) {
-                    listener.onIgnoreRecovery(true, "source shard is closed (" + request.sourceNode() + ")");
-                    return;
-                }
-
-                logger.warn("[{}][{}] recovery from [{}] failed", e, request.shardId().index().name(), request.shardId().id(), request.sourceNode());
-                listener.onRecoveryFailure(new RecoveryFailedException(request, e), true);
-            } finally {
-                shard.store().decRef();
+            });
+            final RecoveryResponse recoveryResponse = responseHolder.get();
+            assert responseHolder != null;
+            final TimeValue recoveryTime = new TimeValue(recoveryStatus.state().getTimer().time());
+            // do this through ongoing recoveries to remove it from the collection
+            onGoingRecoveries.markRecoveryAsDone(recoveryStatus.recoveryId());
+            if (logger.isTraceEnabled()) {
+                StringBuilder sb = new StringBuilder();
+                sb.append('[').append(request.shardId().index().name()).append(']').append('[').append(request.shardId().id()).append("] ");
+                sb.append("recovery completed from ").append(request.sourceNode()).append(", took[").append(recoveryTime).append("]\n");
+                sb.append("   phase1: recovered_files [").append(recoveryResponse.phase1FileNames.size()).append("]").append(" with total_size of [").append(new ByteSizeValue(recoveryResponse.phase1TotalSize)).append("]")
+                        .append(", took [").append(timeValueMillis(recoveryResponse.phase1Time)).append("], throttling_wait [").append(timeValueMillis(recoveryResponse.phase1ThrottlingWaitTime)).append(']')
+                        .append("\n");
+                sb.append("         : reusing_files   [").append(recoveryResponse.phase1ExistingFileNames.size()).append("] with total_size of [").append(new ByteSizeValue(recoveryResponse.phase1ExistingTotalSize)).append("]\n");
+                sb.append("   phase2: start took [").append(timeValueMillis(recoveryResponse.startTime)).append("]\n");
+                sb.append("         : recovered [").append(recoveryResponse.phase2Operations).append("]").append(" transaction log operations")
+                        .append(", took [").append(timeValueMillis(recoveryResponse.phase2Time)).append("]")
+                        .append("\n");
+                sb.append("   phase3: recovered [").append(recoveryResponse.phase3Operations).append("]").append(" transaction log operations")
+                        .append(", took [").append(timeValueMillis(recoveryResponse.phase3Time)).append("]");
+                logger.trace(sb.toString());
+            } else {
+                logger.debug("{} recovery done from [{}], took [{}]", request.shardId(), recoveryStatus.sourceNode(), recoveryTime);
             }
-        } else {
-            listener.onIgnoreRecovery(false, "local store closed, stop recovery");
+        } catch (CancellableThreads.ExecutionCancelledException e) {
+            logger.trace("recovery cancelled", e);
+        } catch (Throwable e) {
+
+            if (logger.isTraceEnabled()) {
+                logger.trace("[{}][{}] Got exception on recovery", e, request.shardId().index().name(), request.shardId().id());
+            }
+            Throwable cause = ExceptionsHelper.unwrapCause(e);
+            if (cause instanceof RecoveryEngineException) {
+                // unwrap an exception that was thrown as part of the recovery
+                cause = cause.getCause();
+            }
+            // do it twice, in case we have double transport exception
+            cause = ExceptionsHelper.unwrapCause(cause);
+            if (cause instanceof RecoveryEngineException) {
+                // unwrap an exception that was thrown as part of the recovery
+                cause = cause.getCause();
+            }
+
+            // here, we would add checks against exception that need to be retried (and not removeAndClean in this case)
+
+            if (cause instanceof IndexShardNotStartedException || cause instanceof IndexMissingException || cause instanceof IndexShardMissingException) {
+                // if the target is not ready yet, retry
+                retryRecovery(recoveryStatus, "remote shard not ready", recoverySettings.retryDelayStateSync(), request);
+                return;
+            }
+
+            if (cause instanceof DelayRecoveryException) {
+                retryRecovery(recoveryStatus, cause.getMessage(), recoverySettings.retryDelayStateSync(), request);
+                return;
+            }
+
+            if (cause instanceof ConnectTransportException) {
+                logger.debug("delaying recovery of {} for [{}] due to networking error [{}]", recoveryStatus.shardId(), recoverySettings.retryDelayNetwork(), cause.getMessage());
+                retryRecovery(recoveryStatus, cause.getMessage(), recoverySettings.retryDelayNetwork(), request);
+                return;
+            }
+
+            if (cause instanceof IndexShardClosedException) {
+                onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(), new RecoveryFailedException(request, "source shard is closed", cause), false);
+                return;
+            }
+
+            if (cause instanceof AlreadyClosedException) {
+                onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(), new RecoveryFailedException(request, "source shard is closed", cause), false);
+                return;
+            }
+
+            onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(), new RecoveryFailedException(request, e), true);
         }
     }
 
     public static interface RecoveryListener {
-        void onRecoveryDone();
+        void onRecoveryDone(RecoveryState state);
 
-        void onRetryRecovery(TimeValue retryAfter, RecoveryStatus status);
-
-        void onIgnoreRecovery(boolean removeShard, String reason);
-
-        void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
-    }
-
-    @Nullable
-    private RecoveryStatus findRecoveryByShard(IndexShard indexShard) {
-        for (RecoveryStatus recoveryStatus : onGoingRecoveries.values()) {
-            if (recoveryStatus.indexShard == indexShard) {
-                return recoveryStatus;
-            }
-        }
-        return null;
-    }
-
-    private void removeAndCleanOnGoingRecovery(@Nullable RecoveryStatus status) {
-        if (status == null) {
-            return;
-        }
-        // clean it from the on going recoveries since it is being closed
-        status = onGoingRecoveries.remove(status.recoveryId);
-        if (status == null) {
-            return;
-        }
-        // just mark it as canceled as well, just in case there are in flight requests
-        // coming from the recovery target
-        status.cancel();
-        // clean open index outputs
-        Set<Entry<String, IndexOutput>> entrySet = status.cancelAndClearOpenIndexInputs();
-        Iterator<Entry<String, IndexOutput>> iterator = entrySet.iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<String, IndexOutput> entry = iterator.next();
-            synchronized (entry.getValue()) {
-                IOUtils.closeWhileHandlingException(entry.getValue());
-            }
-            iterator.remove();
-
-        }
-        status.legacyChecksums.clear();
+        void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure);
     }
 
     class PrepareForTranslogOperationsRequestHandler extends BaseTransportRequestHandler<RecoveryPrepareForTranslogOperationsRequest> {
@@ -374,12 +278,11 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override
         public void messageReceived(RecoveryPrepareForTranslogOperationsRequest request, TransportChannel channel) throws Exception {
-            RecoveryStatus onGoingRecovery = onGoingRecoveries.get(request.recoveryId());
-            validateRecoveryStatus(onGoingRecovery, request.shardId());
-
-            onGoingRecovery.indexShard.performRecoveryPrepareForTranslog();
-            onGoingRecovery.stage(RecoveryState.Stage.TRANSLOG);
-            onGoingRecovery.recoveryState.getStart().checkIndexTime(onGoingRecovery.indexShard.checkIndexTook());
+            try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
+                final RecoveryStatus recoveryStatus = statusRef.status();
+                recoveryStatus.state().getTranslog().totalOperations(request.totalTranslogOps());
+                recoveryStatus.indexShard().prepareForTranslogRecovery();
+            }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
@@ -398,13 +301,10 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
-            RecoveryStatus onGoingRecovery = onGoingRecoveries.get(request.recoveryId());
-            validateRecoveryStatus(onGoingRecovery, request.shardId());
-
-            onGoingRecovery.stage(RecoveryState.Stage.FINALIZE);
-            onGoingRecovery.indexShard.performRecoveryFinalization(false, onGoingRecovery);
-            onGoingRecovery.recoveryState().getTimer().time(System.currentTimeMillis() - onGoingRecovery.recoveryState().getTimer().startTime());
-            onGoingRecovery.stage(RecoveryState.Stage.DONE);
+            try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
+                final RecoveryStatus recoveryStatus = statusRef.status();
+                recoveryStatus.indexShard().finalizeRecovery();
+            }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }
@@ -424,16 +324,17 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override
         public void messageReceived(RecoveryTranslogOperationsRequest request, TransportChannel channel) throws Exception {
-            RecoveryStatus onGoingRecovery = onGoingRecoveries.get(request.recoveryId());
-            validateRecoveryStatus(onGoingRecovery, request.shardId());
-
-            InternalIndexShard shard = (InternalIndexShard) indicesService.indexServiceSafe(request.shardId().index().name()).shardSafe(request.shardId().id());
-            for (Translog.Operation operation : request.operations()) {
-                validateRecoveryStatus(onGoingRecovery, request.shardId());
-                shard.performRecoveryOperation(operation);
-                onGoingRecovery.recoveryState.getTranslog().incrementTranslogOperations();
+            try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
+                final RecoveryStatus recoveryStatus = statusRef.status();
+                final RecoveryState.Translog translog = recoveryStatus.state().getTranslog();
+                translog.totalOperations(request.totalTranslogOps());
+                for (Translog.Operation operation : request.operations()) {
+                    recoveryStatus.indexShard().performRecoveryOperation(operation);
+                    translog.incrementRecoveredOperations();
+                }
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
+
         }
     }
 
@@ -451,18 +352,20 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override
         public void messageReceived(RecoveryFilesInfoRequest request, TransportChannel channel) throws Exception {
-            RecoveryStatus onGoingRecovery = onGoingRecoveries.get(request.recoveryId());
-            validateRecoveryStatus(onGoingRecovery, request.shardId());
-            final RecoveryState.Index index = onGoingRecovery.recoveryState().getIndex();
-            index.addFileDetails(request.phase1FileNames, request.phase1FileSizes);
-            index.addReusedFileDetails(request.phase1ExistingFileNames, request.phase1ExistingFileSizes);
-            index.totalByteCount(request.phase1TotalSize);
-            index.totalFileCount(request.phase1FileNames.size() + request.phase1ExistingFileNames.size());
-            index.reusedByteCount(request.phase1ExistingTotalSize);
-            index.reusedFileCount(request.phase1ExistingFileNames.size());
-            // recoveryBytesCount / recoveryFileCount will be set as we go...
-            onGoingRecovery.stage(RecoveryState.Stage.INDEX);
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
+                final RecoveryStatus recoveryStatus = statusRef.status();
+                final RecoveryState.Index index = recoveryStatus.state().getIndex();
+                for (int i = 0; i < request.phase1ExistingFileNames.size(); i++) {
+                    index.addFileDetail(request.phase1ExistingFileNames.get(i), request.phase1ExistingFileSizes.get(i), true);
+                }
+                for (int i = 0; i < request.phase1FileNames.size(); i++) {
+                    index.addFileDetail(request.phase1FileNames.get(i), request.phase1FileSizes.get(i), false);
+                }
+                recoveryStatus.state().getTranslog().totalOperations(request.totalTranslogOps);
+                recoveryStatus.state().getTranslog().totalOperationsOnStart(request.totalTranslogOps);
+                // recoveryBytesCount / recoveryFileCount will be set as we go...
+                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            }
         }
     }
 
@@ -480,59 +383,45 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override
         public void messageReceived(RecoveryCleanFilesRequest request, TransportChannel channel) throws Exception {
-            RecoveryStatus onGoingRecovery = onGoingRecoveries.get(request.recoveryId());
-            validateRecoveryStatus(onGoingRecovery, request.shardId());
-
-            final Store store = onGoingRecovery.indexShard.store();
-            store.incRef();
-            try {
+            try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
+                final RecoveryStatus recoveryStatus = statusRef.status();
+                recoveryStatus.state().getTranslog().totalOperations(request.totalTranslogOps());
                 // first, we go and move files that were created with the recovery id suffix to
                 // the actual names, its ok if we have a corrupted index here, since we have replicas
                 // to recover from in case of a full cluster shutdown just when this code executes...
-                String prefix = "recovery." + onGoingRecovery.recoveryState().getTimer().startTime() + ".";
-                Set<String> filesToRename = Sets.newHashSet();
-                for (String existingFile : store.directory().listAll()) {
-                    if (existingFile.startsWith(prefix)) {
-                        filesToRename.add(existingFile.substring(prefix.length(), existingFile.length()));
-                    }
-                }
-                Exception failureToRename = null;
-                if (!filesToRename.isEmpty()) {
-                    // first, go and delete the existing ones
-                    final Directory directory = store.directory();
-                    for (String file : filesToRename) {
-                        try {
-                            directory.deleteFile(file);
-                        } catch (Throwable ex) {
-                            logger.debug("failed to delete file [{}]", ex, file);
-                        }
-                    }
-                    for (String fileToRename : filesToRename) {
-                        // now, rename the files... and fail it it won't work
-                        store.renameFile(prefix + fileToRename, fileToRename);
-                    }
-                }
+                recoveryStatus.indexShard().deleteShardState(); // we have to delete it first since even if we fail to rename the shard might be invalid
+                recoveryStatus.renameAllTempFiles();
+                final Store store = recoveryStatus.store();
                 // now write checksums
-                onGoingRecovery.legacyChecksums.write(store);
-
-                for (String existingFile : store.directory().listAll()) {
-                    // don't delete snapshot file, or the checksums file (note, this is extra protection since the Store won't delete checksum)
-                    if (!request.snapshotFiles().contains(existingFile) && !Store.isChecksum(existingFile)) {
-                        try {
-                            store.directory().deleteFile(existingFile);
-                        } catch (Exception e) {
-                            // ignore, we don't really care, will get deleted later on
-                        }
+                recoveryStatus.legacyChecksums().write(store);
+                Store.MetadataSnapshot sourceMetaData = request.sourceMetaSnapshot();
+                try {
+                    store.cleanupAndVerify("recovery CleanFilesRequestHandler", sourceMetaData);
+                } catch (CorruptIndexException | IndexFormatTooNewException | IndexFormatTooOldException ex) {
+                    // this is a fatal exception at this stage.
+                    // this means we transferred files from the remote that have not be checksummed and they are
+                    // broken. We have to clean up this shard entirely, remove all files and bubble it up to the
+                    // source shard since this index might be broken there as well? The Source can handle this and checks
+                    // its content on disk if possible.
+                    try {
+                        Lucene.cleanLuceneIndex(store.directory()); // clean up and delete all files
+                    } catch (Throwable e) {
+                        logger.debug("Failed to clean lucene index", e);
+                        ex.addSuppressed(e);
                     }
+                    throw new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
+                } catch (Exception ex) {
+                    throw new RecoveryFailedException(recoveryStatus.state(), "failed to clean after recovery", ex);
                 }
                 channel.sendResponse(TransportResponse.Empty.INSTANCE);
-            } finally {
-                store.decRef();
             }
         }
     }
 
     class FileChunkTransportRequestHandler extends BaseTransportRequestHandler<RecoveryFileChunkRequest> {
+
+        // How many bytes we've copied since we last called RateLimiter.pause
+        final AtomicLong bytesSinceLastPause = new AtomicLong();
 
         @Override
         public RecoveryFileChunkRequest newInstance() {
@@ -546,103 +435,93 @@ public class RecoveryTarget extends AbstractComponent {
 
         @Override
         public void messageReceived(final RecoveryFileChunkRequest request, TransportChannel channel) throws Exception {
-            RecoveryStatus onGoingRecovery = onGoingRecoveries.get(request.recoveryId());
-            validateRecoveryStatus(onGoingRecovery, request.shardId());
-
-            final Store store = onGoingRecovery.indexShard.store();
-            store.incRef();
-            try {
+            try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
+                final RecoveryStatus recoveryStatus = statusRef.status();
+                final Store store = recoveryStatus.store();
+                recoveryStatus.state().getTranslog().totalOperations(request.totalTranslogOps());
+                final RecoveryState.Index indexState = recoveryStatus.state().getIndex();
+                if (request.sourceThrottleTimeInNanos() != RecoveryState.Index.UNKNOWN) {
+                    indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());
+                }
                 IndexOutput indexOutput;
                 if (request.position() == 0) {
-                    // first request
-                    onGoingRecovery.legacyChecksums.remove(request.name());
-                    indexOutput = onGoingRecovery.removeOpenIndexOutputs(request.name());
-                    IOUtils.closeWhileHandlingException(indexOutput);
-                    // we create an output with no checksum, this is because the pure binary data of the file is not
-                    // the checksum (because of seek). We will create the checksum file once copying is done
-
-                    // also, we check if the file already exists, if it does, we create a file name based
-                    // on the current recovery "id" and later we make the switch, the reason for that is that
-                    // we only want to overwrite the index files once we copied all over, and not create a
-                    // case where the index is half moved
-
-                    String fileName = request.name();
-                    if (store.directory().fileExists(fileName)) {
-                        fileName = "recovery." + onGoingRecovery.recoveryState().getTimer().startTime() + "." + fileName;
-                    }
-                    indexOutput = onGoingRecovery.openAndPutIndexOutput(request.name(), fileName, request.metadata(), store);
+                    indexOutput = recoveryStatus.openAndPutIndexOutput(request.name(), request.metadata(), store);
                 } else {
-                    indexOutput = onGoingRecovery.getOpenIndexOutput(request.name());
+                    indexOutput = recoveryStatus.getOpenIndexOutput(request.name());
                 }
-                if (indexOutput == null) {
-                    // shard is getting closed on us
-                    throw new IndexShardClosedException(request.shardId());
+                BytesReference content = request.content();
+                if (!content.hasArray()) {
+                    content = content.toBytesArray();
                 }
-                boolean success = false;
-                synchronized (indexOutput) {
-                    try {
-                        if (recoverySettings.rateLimiter() != null) {
-                            recoverySettings.rateLimiter().pause(request.content().length());
-                        }
-                        BytesReference content = request.content();
-                        if (!content.hasArray()) {
-                            content = content.toBytesArray();
-                        }
-                        indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
-                        onGoingRecovery.recoveryState.getIndex().addRecoveredByteCount(content.length());
-                        RecoveryState.File file = onGoingRecovery.recoveryState.getIndex().file(request.name());
-                        if (file != null) {
-                            file.updateRecovered(request.length());
-                        }
-                        if (indexOutput.getFilePointer() >= request.length() || request.lastChunk()) {
-                            Store.verify(indexOutput);
-                            // we are done
-                            indexOutput.close();
-                            // write the checksum
-                            onGoingRecovery.legacyChecksums.add(request.metadata());
-                            store.directory().sync(Collections.singleton(request.name()));
-                            IndexOutput remove = onGoingRecovery.removeOpenIndexOutputs(request.name());
-                            onGoingRecovery.recoveryState.getIndex().addRecoveredFileCount(1);
-                            assert remove == null || remove == indexOutput; // remove maybe null if we got canceled
-                        }
-                        success = true;
-                    } finally {
-                        if (!success || onGoingRecovery.isCanceled()) {
-                            try {
-                                IndexOutput remove = onGoingRecovery.removeOpenIndexOutputs(request.name());
-                                assert remove == null || remove == indexOutput;
-                                IOUtils.closeWhileHandlingException(indexOutput);
-                            } finally {
-                                // trash the file - unsuccessful
-                                store.deleteQuiet(request.name(), "recovery." + onGoingRecovery.recoveryState().getTimer().startTime() + "." + request.name());
-                            }
-                        }
+                RateLimiter rl = recoverySettings.rateLimiter();
+                if (rl != null) {
+                    long bytes = bytesSinceLastPause.addAndGet(content.length());
+                    if (bytes > rl.getMinPauseCheckBytes()) {
+                        // Time to pause
+                        bytesSinceLastPause.addAndGet(-bytes);
+                        long throttleTimeInNanos = rl.pause(bytes);
+                        indexState.addTargetThrottling(throttleTimeInNanos);
+                        recoveryStatus.indexShard().recoveryStats().addThrottleTime(throttleTimeInNanos);
                     }
                 }
-                if (onGoingRecovery.isCanceled()) {
-                    onGoingRecovery.sentCanceledToSource = true;
-                    throw new IndexShardClosedException(request.shardId());
+                indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
+                indexState.addRecoveredBytesToFile(request.name(), content.length());
+                if (indexOutput.getFilePointer() >= request.length() || request.lastChunk()) {
+                    try {
+                        Store.verify(indexOutput);
+                    } finally {
+                        // we are done
+                        indexOutput.close();
+                    }
+                    // write the checksum
+                    recoveryStatus.legacyChecksums().add(request.metadata());
+                    final String temporaryFileName = recoveryStatus.getTempNameForFile(request.name());
+                    assert Arrays.asList(store.directory().listAll()).contains(temporaryFileName);
+                    store.directory().sync(Collections.singleton(temporaryFileName));
+                    IndexOutput remove = recoveryStatus.removeOpenIndexOutputs(request.name());
+                    assert remove == null || remove == indexOutput; // remove maybe null if we got finished
                 }
-                channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            }
+            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+        }
+    }
+
+    class RecoveryRunner extends AbstractRunnable {
+
+        final long recoveryId;
+
+        RecoveryRunner(long recoveryId) {
+            this.recoveryId = recoveryId;
+        }
+
+        @Override
+        public void onFailure(Throwable t) {
+            try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatus(recoveryId)) {
+                if (statusRef != null) {
+                    logger.error("unexpected error during recovery [{}], failing shard", t, recoveryId);
+                    onGoingRecoveries.failRecovery(recoveryId,
+                            new RecoveryFailedException(statusRef.status().state(), "unexpected error", t),
+                            true // be safe
+                    );
+                } else {
+                    logger.debug("unexpected error during recovery, but recovery id [{}] is finished", t, recoveryId);
+                }
+            }
+        }
+
+        @Override
+        public void doRun() {
+            RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatus(recoveryId);
+            if (statusRef == null) {
+                logger.trace("not running recovery with id [{}] - can't find it (probably finished)", recoveryId);
+                return;
+            }
+            try {
+                doRecovery(statusRef.status());
             } finally {
-                store.decRef();
+                statusRef.close();
             }
         }
     }
 
-    private void validateRecoveryStatus(RecoveryStatus onGoingRecovery, ShardId shardId) {
-        if (onGoingRecovery == null) {
-            // shard is getting closed on us
-            throw new IndexShardClosedException(shardId);
-        }
-        if (onGoingRecovery.indexShard.state() == IndexShardState.CLOSED) {
-            removeAndCleanOnGoingRecovery(onGoingRecovery);
-            onGoingRecovery.sentCanceledToSource = true;
-            throw new IndexShardClosedException(shardId);
-        }
-        if (onGoingRecovery.isCanceled()) {
-            onGoingRecovery.sentCanceledToSource = true;
-            throw new IndexShardClosedException(shardId);
-        }
-    }
 }

@@ -34,7 +34,7 @@ import java.util.List;
  */
 public final class Features {
 
-    private static final List<String> SUPPORTED = Lists.newArrayList("gtelte");
+    private static final List<String> SUPPORTED = Lists.newArrayList("stash_in_path", "groovy_scripting");
 
     private Features() {
 
@@ -45,7 +45,7 @@ public final class Features {
      */
     public static boolean areAllSupported(List<String> features) {
         for (String feature : features) {
-            if ("benchmark".equals(feature) && ElasticsearchIntegrationTest.cluster().numBenchNodes() > 0) {
+            if ("requires_replica".equals(feature) && ElasticsearchIntegrationTest.cluster().numDataNodes() >= 2) {
                 continue;
             }
             if (!SUPPORTED.contains(feature)) {

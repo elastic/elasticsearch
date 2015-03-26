@@ -31,7 +31,7 @@ import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.test.CurrentTestFailedMarker;
+import org.elasticsearch.test.AfterTestRule;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
@@ -44,9 +44,12 @@ import org.junit.rules.TestRule;
 import org.junit.runner.RunWith;
 
 import java.io.Closeable;
-import java.io.File;
+import java.io.IOException;
 import java.lang.annotation.*;
 import java.lang.reflect.Method;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Logger;
@@ -57,8 +60,7 @@ import java.util.logging.Logger;
 })
 @Listeners({
         ReproduceInfoPrinter.class,
-        FailureMarker.class,
-        CurrentTestFailedMarker.class
+        FailureMarker.class
 })
 @RunWith(value = com.carrotsearch.randomizedtesting.RandomizedRunner.class)
 @SuppressCodecs(value = "Lucene3x")
@@ -180,7 +182,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
     /**
      * Create indexes in this directory, optimally use a subdir, named after the test
      */
-    public static final File TEMP_DIR;
+    public static final Path TEMP_DIR;
 
     public static final int TESTS_PROCESSORS;
 
@@ -188,8 +190,12 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
         String s = System.getProperty("tempDir", System.getProperty("java.io.tmpdir"));
         if (s == null)
             throw new RuntimeException("To run tests, you need to define system property 'tempDir' or 'java.io.tmpdir'.");
-        TEMP_DIR = new File(s);
-        TEMP_DIR.mkdirs();
+        TEMP_DIR = Paths.get(s);
+        try {
+            Files.createDirectories(TEMP_DIR);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
 
         String processors = System.getProperty(SYSPROP_PROCESSORS, ""); // mvn sets "" as default
         if (processors == null || processors.isEmpty()) {
@@ -247,6 +253,8 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      */
     private static final AtomicReference<TestRuleIgnoreAfterMaxFailures> ignoreAfterMaxFailuresDelegate;
     private static final TestRule ignoreAfterMaxFailures;
+
+    private static final AfterTestRule.Task noOpAfterRuleTask = new AfterTestRule.Task();
 
     static {
         int maxFailures = systemPropertyAsInt(SYSPROP_MAXFAILURES, Integer.MAX_VALUE);
@@ -352,6 +360,8 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      */
     private TestRuleMarkFailure testFailureMarker = new TestRuleMarkFailure(suiteFailureMarker);
 
+    protected AfterTestRule afterTestRule = new AfterTestRule(afterTestTask());
+
     /**
      * This controls how individual test rules are nested. It is important that
      * _all_ rules declared in {@link LuceneTestCase} are executed in proper order
@@ -364,8 +374,8 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
             .around(threadAndTestNameRule)
             .around(new SystemPropertiesInvariantRule(IGNORED_INVARIANT_PROPERTIES))
             .around(new TestRuleSetupAndRestoreInstanceEnv())
-            .around(new TestRuleFieldCacheSanity())
-            .around(parentChainCallRule);
+            .around(parentChainCallRule)
+            .around(afterTestRule);
 
     // -----------------------------------------------------------------
     // Suite and test case setup/ cleanup.
@@ -403,6 +413,7 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      *
      * @return <code>resource</code> (for call chaining).
      */
+    @Override
     public <T extends Closeable> T closeAfterTest(T resource) {
         return RandomizedContext.current().closeAtEnd(resource, LifecycleScope.TEST);
     }
@@ -429,5 +440,9 @@ public abstract class AbstractRandomizedTest extends RandomizedTest {
      */
     public String getTestName() {
         return threadAndTestNameRule.testMethodName;
+    }
+
+    protected AfterTestRule.Task afterTestTask() {
+        return noOpAfterRuleTask;
     }
 }

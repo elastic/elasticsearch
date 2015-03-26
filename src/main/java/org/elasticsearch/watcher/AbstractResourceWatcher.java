@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.watcher;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 
@@ -30,7 +31,7 @@ public abstract class AbstractResourceWatcher<Listener> implements ResourceWatch
     private boolean initialized = false;
 
     @Override
-    public void init() {
+    public void init() throws IOException {
         if (!initialized) {
             doInit();
             initialized = true;
@@ -38,7 +39,7 @@ public abstract class AbstractResourceWatcher<Listener> implements ResourceWatch
     }
 
     @Override
-    public void checkAndNotify() {
+    public void checkAndNotify() throws IOException {
         init();
         doCheckAndNotify();
     }
@@ -67,13 +68,13 @@ public abstract class AbstractResourceWatcher<Listener> implements ResourceWatch
     /**
      * Will be called once on initialization
      */
-    protected abstract void doInit();
+    protected abstract void doInit() throws IOException;
 
     /**
      * Will be called periodically
      * <p/>
      * Implementing watcher should check resource and notify all {@link #listeners()}.
      */
-    protected abstract void doCheckAndNotify();
+    protected abstract void doCheckAndNotify() throws IOException;
 
 }

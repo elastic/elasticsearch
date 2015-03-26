@@ -21,10 +21,7 @@ package org.elasticsearch.script.groovy;
 
 import com.google.common.collect.ImmutableSet;
 import org.codehaus.groovy.ast.ClassNode;
-import org.codehaus.groovy.ast.expr.ConstructorCallExpression;
-import org.codehaus.groovy.ast.expr.Expression;
-import org.codehaus.groovy.ast.expr.GStringExpression;
-import org.codehaus.groovy.ast.expr.MethodCallExpression;
+import org.codehaus.groovy.ast.expr.*;
 import org.codehaus.groovy.control.customizers.SecureASTCustomizer;
 import org.elasticsearch.common.settings.Settings;
 
@@ -49,11 +46,13 @@ public class GroovySandboxExpressionChecker implements SecureASTCustomizer.Expre
     public static String GROOVY_SCRIPT_SANDBOX_RECEIVER_WHITELIST = "script.groovy.sandbox.receiver_whitelist";
 
     private final Set<String> methodBlacklist;
+    private final Set<String> additionalMethodBlacklist;
     private final Set<String> packageWhitelist;
     private final Set<String> classWhitelist;
 
-    public GroovySandboxExpressionChecker(Settings settings) {
+    public GroovySandboxExpressionChecker(Settings settings, Set<String> blacklistAdditions) {
         this.methodBlacklist = ImmutableSet.copyOf(settings.getAsArray(GROOVY_SANDBOX_METHOD_BLACKLIST, defaultMethodBlacklist, true));
+        this.additionalMethodBlacklist = ImmutableSet.copyOf(blacklistAdditions);
         this.packageWhitelist = ImmutableSet.copyOf(settings.getAsArray(GROOVY_SANDBOX_PACKAGE_WHITELIST, defaultPackageWhitelist, true));
         this.classWhitelist = ImmutableSet.copyOf(settings.getAsArray(GROOVY_SANDBOX_CLASS_WHITELIST, defaultClassConstructionWhitelist, true));
     }
@@ -61,9 +60,12 @@ public class GroovySandboxExpressionChecker implements SecureASTCustomizer.Expre
     // Never allow calling these methods, regardless of the object type
     public static String[] defaultMethodBlacklist = new String[]{
             "getClass",
+            "class",
+            "forName",
             "wait",
             "notify",
             "notifyAll",
+            "invokeMethod",
             "finalize"
     };
 
@@ -116,10 +118,14 @@ public class GroovySandboxExpressionChecker implements SecureASTCustomizer.Expre
      */
     @Override
     public boolean isAuthorized(Expression expression) {
-        if (expression instanceof MethodCallExpression) {
+        if (expression instanceof MethodPointerExpression) {
+            return false;
+        } else if (expression instanceof MethodCallExpression) {
             MethodCallExpression mce = (MethodCallExpression) expression;
             String methodName = mce.getMethodAsString();
             if (methodBlacklist.contains(methodName)) {
+                return false;
+            } else if (additionalMethodBlacklist.contains(methodName)) {
                 return false;
             } else if (methodName == null && mce.getMethod() instanceof GStringExpression) {
                 // We do not allow GStrings for method invocation, they are a security risk
@@ -142,7 +148,7 @@ public class GroovySandboxExpressionChecker implements SecureASTCustomizer.Expre
      * Returns a customized ASTCustomizer that includes the whitelists and
      * expression checker.
      */
-    public static SecureASTCustomizer getSecureASTCustomizer(Settings settings) {
+    public static SecureASTCustomizer getSecureASTCustomizer(Settings settings, Set<String> blacklistAdditions) {
         SecureASTCustomizer scz = new SecureASTCustomizer();
         // Closures are allowed
         scz.setClosuresAllowed(true);
@@ -158,7 +164,7 @@ public class GroovySandboxExpressionChecker implements SecureASTCustomizer.Expre
         String[] receiverWhitelist = settings.getAsArray(GROOVY_SCRIPT_SANDBOX_RECEIVER_WHITELIST, defaultReceiverWhitelist, true);
         scz.setReceiversWhiteList(newArrayList(receiverWhitelist));
         // Add the customized expression checker for finer-grained checking
-        scz.addExpressionCheckers(new GroovySandboxExpressionChecker(settings));
+        scz.addExpressionCheckers(new GroovySandboxExpressionChecker(settings, blacklistAdditions));
         return scz;
     }
 }

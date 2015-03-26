@@ -22,14 +22,14 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamDataOutput;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.io.stream.*;
 
-import java.io.EOFException;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
+import java.io.*;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Version 1 of the translog file format. Writes a header to identify the
@@ -65,6 +65,8 @@ public class ChecksummedTranslogStream implements TranslogStream {
             Translog.Operation.Type type = Translog.Operation.Type.fromId(in.readByte());
             operation = TranslogStreams.newOperationFromType(type);
             operation.readFrom(in);
+        } catch (EOFException e) {
+            throw new TruncatedTranslogException("reached premature end of file, translog is truncated", e);
         } catch (AssertionError|Exception e) {
             throw new TranslogCorruptedException("translog corruption while reading from stream", e);
         }
@@ -105,15 +107,22 @@ public class ChecksummedTranslogStream implements TranslogStream {
     }
 
     @Override
-    public StreamInput openInput(File translogFile) throws IOException {
+    public StreamInput openInput(Path translogFile) throws IOException {
+        final InputStream fileInputStream = Files.newInputStream(translogFile);
+        boolean success = false;
         try {
-            InputStreamStreamInput in = new InputStreamStreamInput(new FileInputStream(translogFile));
+            final InputStreamStreamInput in = new InputStreamStreamInput(fileInputStream);
             CodecUtil.checkHeader(new InputStreamDataInput(in), TranslogStreams.TRANSLOG_CODEC, VERSION, VERSION);
+            success = true;
             return in;
         } catch (EOFException e) {
             throw new TruncatedTranslogException("translog header truncated", e);
         } catch (IOException e) {
             throw new TranslogCorruptedException("translog header corrupted", e);
+        } finally {
+            if (success == false) {
+                IOUtils.closeWhileHandlingException(fileInputStream);
+            }
         }
     }
 }

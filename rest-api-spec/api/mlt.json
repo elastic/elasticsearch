@@ -1,6 +1,6 @@
 {
   "mlt": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/search-more-like-this.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/search-more-like-this.html",
     "methods": ["GET", "POST"],
     "url": {
       "path": "/{index}/{type}/{id}/_mlt",
@@ -23,6 +23,10 @@
         }
       },
       "params": {
+        "source": {
+          "type" : "string",
+          "description" : "The URL-encoded request definition"
+        },
         "boost_terms": {
           "type" : "number",
           "description" : "The boost factor"
@@ -45,7 +49,7 @@
         },
         "min_term_freq": {
           "type" : "number",
-          "description" : "The term frequency as percent: terms with lower occurence in the source document will be ignored"
+          "description" : "The term frequency as percent: terms with lower occurrence in the source document will be ignored"
         },
         "min_word_length": {
           "type" : "number",

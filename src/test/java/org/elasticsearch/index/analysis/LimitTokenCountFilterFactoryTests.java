@@ -39,14 +39,16 @@ public class LimitTokenCountFilterFactoryTests extends ElasticsearchTokenStreamT
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("limit_default");
             String source = "the quick brown fox";
             String[] expected = new String[] { "the" };
-            Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+            Tokenizer tokenizer = new WhitespaceTokenizer();
+            tokenizer.setReader(new StringReader(source));
             assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
         }
         {
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("limit");
             String source = "the quick brown fox";
             String[] expected = new String[] { "the" };
-            Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+            Tokenizer tokenizer = new WhitespaceTokenizer();
+            tokenizer.setReader(new StringReader(source));
             assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
         }
     }
@@ -61,7 +63,8 @@ public class LimitTokenCountFilterFactoryTests extends ElasticsearchTokenStreamT
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("limit_1");
             String source = "the quick brown fox";
             String[] expected = new String[] { "the", "quick", "brown" };
-            Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+            Tokenizer tokenizer = new WhitespaceTokenizer();
+            tokenizer.setReader(new StringReader(source));
             assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
         }
         {
@@ -72,7 +75,8 @@ public class LimitTokenCountFilterFactoryTests extends ElasticsearchTokenStreamT
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("limit_1");
             String source = "the quick brown fox";
             String[] expected = new String[] { "the", "quick", "brown" };
-            Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+            Tokenizer tokenizer = new WhitespaceTokenizer();
+            tokenizer.setReader(new StringReader(source));
             assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
         }
 
@@ -84,7 +88,8 @@ public class LimitTokenCountFilterFactoryTests extends ElasticsearchTokenStreamT
             TokenFilterFactory tokenFilter = analysisService.tokenFilter("limit_1");
             String source = "the quick brown fox";
             String[] expected = new String[] { "the", "quick", "brown", "fox" };
-            Tokenizer tokenizer = new WhitespaceTokenizer(TEST_VERSION_CURRENT, new StringReader(source));
+            Tokenizer tokenizer = new WhitespaceTokenizer();
+            tokenizer.setReader(new StringReader(source));
             assertTokenStreamContents(tokenFilter.create(tokenizer), expected);
         }
     }

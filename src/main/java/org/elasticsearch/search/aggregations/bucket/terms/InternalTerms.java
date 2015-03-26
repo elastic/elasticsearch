@@ -21,22 +21,31 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import com.google.common.collect.ArrayListMultimap;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Multimap;
+
 import org.elasticsearch.ElasticsearchIllegalStateException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.support.BucketPriorityQueue;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
  */
-public abstract class InternalTerms extends InternalAggregation implements Terms, ToXContent, Streamable {
+public abstract class InternalTerms extends InternalMultiBucketAggregation implements Terms, ToXContent, Streamable {
 
     protected static final String DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = "doc_count_error_upper_bound";
+    protected static final String SUM_OF_OTHER_DOC_COUNTS = "sum_other_doc_count";
 
     public static abstract class Bucket extends Terms.Bucket {
 
@@ -46,12 +55,18 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         protected long docCountError;
         protected InternalAggregations aggregations;
         protected boolean showDocCountError;
+        transient final ValueFormatter formatter;
 
+        protected Bucket(@Nullable ValueFormatter formatter, boolean showDocCountError) {
+            // for serialization
+            this.showDocCountError = showDocCountError;
+            this.formatter = formatter;
+        }
 
-        protected Bucket(long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError) {
+        protected Bucket(long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError, @Nullable ValueFormatter formatter) {
+            this(formatter, showDocCountError);
             this.docCount = docCount;
             this.aggregations = aggregations;
-            this.showDocCountError = showDocCountError;
             this.docCountError = docCountError;
         }
 
@@ -60,6 +75,7 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
             return docCount;
         }
 
+        @Override
         public long getDocCountError() {
             if (!showDocCountError) {
                 throw new ElasticsearchIllegalStateException("show_terms_doc_count_error is false");
@@ -71,8 +87,6 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         public Aggregations getAggregations() {
             return aggregations;
         }
-
-        abstract Object getKeyAsObject();
 
         abstract Bucket newBucket(long docCount, InternalAggregations aggs, long docCountError);
 
@@ -104,11 +118,12 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
     protected Map<String, Bucket> bucketMap;
     protected long docCountError;
     protected boolean showTermDocCountError;
+    protected long otherDocCount;
 
     protected InternalTerms() {} // for serialization
 
-    protected InternalTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, List<Bucket> buckets, boolean showTermDocCountError, long docCountError) {
-        super(name);
+    protected InternalTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, List<Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount, Map<String, Object> metaData) {
+        super(name, metaData);
         this.order = order;
         this.requiredSize = requiredSize;
         this.shardSize = shardSize;
@@ -116,6 +131,7 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         this.buckets = buckets;
         this.showTermDocCountError = showTermDocCountError;
         this.docCountError = docCountError;
+        this.otherDocCount = otherDocCount;
     }
 
     @Override
@@ -129,14 +145,20 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         if (bucketMap == null) {
             bucketMap = Maps.newHashMapWithExpectedSize(buckets.size());
             for (Bucket bucket : buckets) {
-                bucketMap.put(bucket.getKey(), bucket);
+                bucketMap.put(bucket.getKeyAsString(), bucket);
             }
         }
         return bucketMap.get(term);
     }
-    
+
+    @Override
     public long getDocCountError() {
         return docCountError;
+    }
+
+    @Override
+    public long getSumOfOtherDocCounts() {
+        return otherDocCount;
     }
 
     @Override
@@ -145,8 +167,10 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
 
         Multimap<Object, InternalTerms.Bucket> buckets = ArrayListMultimap.create();
         long sumDocCountError = 0;
+        long otherDocCount = 0;
         for (InternalAggregation aggregation : aggregations) {
             InternalTerms terms = (InternalTerms) aggregation;
+            otherDocCount += terms.getSumOfOtherDocCounts();
             final long thisAggDocCountError;
             if (terms.buckets.size() < this.shardSize || this.order == InternalOrder.TERM_ASC || this.order == InternalOrder.TERM_DESC) {
                 thisAggDocCountError = 0;
@@ -165,7 +189,7 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
             terms.docCountError = thisAggDocCountError;
             for (Bucket bucket : terms.buckets) {
                 bucket.docCountError = thisAggDocCountError;
-                buckets.put(bucket.getKeyAsObject(), bucket);
+                buckets.put(bucket.getKey(), bucket);
             }
         }
 
@@ -182,7 +206,10 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
                 }
             }
             if (b.docCount >= minDocCount) {
-                ordered.insertWithOverflow(b);
+                Terms.Bucket removed = ordered.insertWithOverflow(b);
+                if (removed != null) {
+                    otherDocCount += removed.getDocCount();
+                }
             }
         }
         Bucket[] list = new Bucket[ordered.size()];
@@ -195,9 +222,9 @@ public abstract class InternalTerms extends InternalAggregation implements Terms
         } else {
             docCountError = aggregations.size() == 1 ? 0 : sumDocCountError;
         }
-        return newAggregation(name, Arrays.asList(list), showTermDocCountError, docCountError);
+        return newAggregation(name, Arrays.asList(list), showTermDocCountError, docCountError, otherDocCount, getMetaData());
     }
 
-    protected abstract InternalTerms newAggregation(String name, List<Bucket> buckets, boolean showTermDocCountError, long docCountError);
+    protected abstract InternalTerms newAggregation(String name, List<Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount, Map<String, Object> metaData);
 
 }

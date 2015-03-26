@@ -19,13 +19,13 @@
 
 package org.elasticsearch.stresstest.rollingrestart;
 
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -36,10 +36,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
-import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.search.SearchHit;
 
-import java.io.File;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
@@ -167,10 +166,15 @@ public class RollingRestartStressTest {
         // start doing the rolling restart
         int nodeIndex = 0;
         while (true) {
-            File[] nodeData = ((InternalNode) nodes[nodeIndex]).injector().getInstance(NodeEnvironment.class).nodeDataLocations();
+            Path[] nodeData = nodes[nodeIndex].injector().getInstance(NodeEnvironment.class).nodeDataPaths();
             nodes[nodeIndex].close();
             if (clearNodeData) {
-                FileSystemUtils.deleteRecursively(nodeData);
+                try {
+                    IOUtils.rm(nodeData);
+                } catch (Exception ex) {
+                     logger.debug("Failed to delete node data directories", ex);
+
+                }
             }
 
             try {
@@ -330,7 +334,6 @@ public class RollingRestartStressTest {
 
         Settings settings = settingsBuilder()
                 .put("index.shard.check_on_startup", true)
-                .put("gateway.type", "none")
                 .put("path.data", "data/data1,data/data2")
                 .build();
 

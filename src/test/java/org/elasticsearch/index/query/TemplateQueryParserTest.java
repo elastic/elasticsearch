@@ -20,7 +20,9 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -36,8 +38,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
-import org.elasticsearch.index.codec.CodecModule;
-import org.elasticsearch.index.engine.IndexEngineModule;
 import org.elasticsearch.index.query.functionscore.FunctionScoreModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
@@ -66,22 +66,21 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
     @Before
     public void setup() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
-                .put("path.conf", this.getResource("config").getPath())
+                .put("path.conf", this.getResourcePath("config"))
                 .put("name", getClass().getName())
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
 
         Index index = new Index("test");
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings),
-                new CodecModule(settings),
                 new ThreadPoolModule(settings),
                 new IndicesQueriesModule(),
                 new ScriptModule(settings),
                 new IndexSettingsModule(index, settings),
                 new IndexCacheModule(settings),
                 new AnalysisModule(settings),
-                new IndexEngineModule(settings),
                 new SimilarityModule(settings),
                 new IndexNameModule(index),
                 new IndexQueryParserModule(settings),
@@ -99,6 +98,7 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
         context = new QueryParseContext(index, queryParserService);
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

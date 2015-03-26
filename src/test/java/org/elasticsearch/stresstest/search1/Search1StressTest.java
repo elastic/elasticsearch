@@ -402,13 +402,8 @@ public class Search1StressTest {
     }
 
     public static void main(String[] args) throws Exception {
-        Settings settings = ImmutableSettings.settingsBuilder()
-                .put("gateway.type", "none")
-                .build();
-
         Search1StressTest test = new Search1StressTest()
                 .setPeriod(TimeValue.timeValueMinutes(10))
-                .setSettings(settings)
                 .setNumberOfNodes(2)
                 .setPreIndexDocs(SizeValue.parseSizeValue("100"))
                 .setIndexers(2)

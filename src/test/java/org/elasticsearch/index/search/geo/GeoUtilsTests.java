@@ -586,12 +586,12 @@ public class GeoUtilsTests extends ElasticsearchTestCase {
             assertThat("height at level " + i, gNode.getShape().getBoundingBox().getHeight(), equalTo(180.d * height
                     / GeoUtils.EARTH_POLAR_DISTANCE));
 
-            gNode = gNode.getSubCells(null).iterator().next();
+            gNode = gNode.getNextLevelCells(null).next();
         }
 
         QuadPrefixTree quadPrefixTree = new QuadPrefixTree(spatialContext);
         Cell qNode = quadPrefixTree.getWorldCell();
-        for (int i = 0; i < QuadPrefixTree.DEFAULT_MAX_LEVELS; i++) {
+        for (int i = 0; i < quadPrefixTree.getMaxLevels(); i++) {
 
             double degrees = 360.0 / (1L << i);
             double width = GeoUtils.quadTreeCellWidth(i);
@@ -607,7 +607,7 @@ public class GeoUtilsTests extends ElasticsearchTestCase {
             assertThat("height at level " + i, qNode.getShape().getBoundingBox().getHeight(), equalTo(180.d * height
                     / GeoUtils.EARTH_POLAR_DISTANCE));
 
-            qNode = qNode.getSubCells(null).iterator().next();
+            qNode = qNode.getNextLevelCells(null).next();
         }
     }
 

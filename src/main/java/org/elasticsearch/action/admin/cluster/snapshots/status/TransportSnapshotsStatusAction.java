@@ -21,7 +21,6 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -42,6 +41,7 @@ import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
@@ -86,7 +86,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
     @Override
     protected void masterOperation(final SnapshotsStatusRequest request,
                                    final ClusterState state,
-                                   final ActionListener<SnapshotsStatusResponse> listener) throws ElasticsearchException {
+                                   final ActionListener<SnapshotsStatusResponse> listener) throws Exception {
         ImmutableList<SnapshotMetaData.Entry> currentSnapshots = snapshotsService.currentSnapshots(request.repository(), request.snapshots());
 
         if (currentSnapshots.isEmpty()) {
@@ -110,8 +110,9 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
                 snapshotIds[i] = currentSnapshots.get(i).snapshotId();
             }
 
-            transportNodesSnapshotsStatus.status(nodesIds.toArray(new String[nodesIds.size()]),
-                    snapshotIds, request.masterNodeTimeout(), new ActionListener<TransportNodesSnapshotsStatus.NodesSnapshotStatus>() {
+            TransportNodesSnapshotsStatus.Request nodesRequest = new TransportNodesSnapshotsStatus.Request(request, nodesIds.toArray(new String[nodesIds.size()]))
+                    .snapshotIds(snapshotIds).timeout(request.masterNodeTimeout());
+            transportNodesSnapshotsStatus.execute(nodesRequest, new ActionListener<TransportNodesSnapshotsStatus.NodesSnapshotStatus>() {
                         @Override
                         public void onResponse(TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) {
                             try {
@@ -136,7 +137,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeOperation
     }
 
     private SnapshotsStatusResponse buildResponse(SnapshotsStatusRequest request, ImmutableList<SnapshotMetaData.Entry> currentSnapshots,
-                                                  TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) {
+                                                  TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) throws IOException {
         // First process snapshot that are currently processed
         ImmutableList.Builder<SnapshotStatus> builder = ImmutableList.builder();
         Set<SnapshotId> currentSnapshotIds = newHashSet();

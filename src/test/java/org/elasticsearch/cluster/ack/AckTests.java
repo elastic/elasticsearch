@@ -19,15 +19,16 @@
 
 package org.elasticsearch.cluster.ack;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import com.google.common.base.Predicate;
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
-import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsResponse;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersResponse;
@@ -46,11 +47,7 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.Test;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableList;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
@@ -85,12 +82,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testUpdateSettingsNoAcknowledgement() {
-        // TODO: this test fails CheckIndex test for some reason ... seems like the index is being deleted while we run CheckIndex??
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(
-                    ImmutableSettings.settingsBuilder()
-                    // Never run CheckIndex in the end:
-                    .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false).build()));
-
+        createIndex("test");
         UpdateSettingsResponse updateSettingsResponse = client().admin().indices().prepareUpdateSettings("test").setTimeout("0s")
                 .setSettings(ImmutableSettings.builder().put("refresh_interval", 9999)).get();
         assertThat(updateSettingsResponse.isAcknowledged(), equalTo(false));
@@ -99,7 +91,8 @@ public class AckTests extends ElasticsearchIntegrationTest {
     @Test
     public void testPutWarmerAcknowledgement() {
         createIndex("test");
-        ensureGreen();
+        // make sure one shard is started so the search during put warmer will not fail
+        index("test", "type", "1", "f", 1);
 
         assertAcked(client().admin().indices().preparePutWarmer("custom_warmer")
                 .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())));
@@ -117,7 +110,8 @@ public class AckTests extends ElasticsearchIntegrationTest {
     @Test
     public void testPutWarmerNoAcknowledgement() throws InterruptedException {
         createIndex("test");
-        ensureGreen();
+        // make sure one shard is started so the search during put warmer will not fail
+        index("test", "type", "1", "f", 1);
 
         PutWarmerResponse putWarmerResponse = client().admin().indices().preparePutWarmer("custom_warmer").setTimeout("0s")
                 .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery()))
@@ -143,12 +137,8 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDeleteWarmerAcknowledgement() {
-        // TODO: this test fails CheckIndex test for some reason ... seems like the index is being deleted while we run CheckIndex??
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(
-                    ImmutableSettings.settingsBuilder()
-                    // Never run CheckIndex in the end:
-                    .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false).build()));
-        ensureGreen();
+        createIndex("test");
+        index("test", "type", "1", "f", 1);
 
         assertAcked(client().admin().indices().preparePutWarmer("custom_warmer")
                 .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())));
@@ -163,12 +153,8 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testDeleteWarmerNoAcknowledgement() throws InterruptedException {
-        // TODO: this test fails CheckIndex test for some reason ... seems like the index is being deleted while we run CheckIndex??
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(
-                    ImmutableSettings.settingsBuilder()
-                    // Never run CheckIndex in the end:
-                    .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false).build()));
-        ensureGreen();
+        createIndex("test");
+        index("test", "type", "1", "f", 1);
 
         assertAcked(client().admin().indices().preparePutWarmer("custom_warmer")
                 .setSearchRequest(client().prepareSearch("test").setTypes("test").setQuery(QueryBuilders.matchAllQuery())));
@@ -187,37 +173,6 @@ public class AckTests extends ElasticsearchIntegrationTest {
                 return true;
             }
         }));
-    }
-
-    @Test
-    public void testDeleteMappingAcknowledgement() {
-        client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field1", "type=string").get();
-        ensureGreen();
-
-        client().prepareIndex("test", "type1").setSource("field1", "value1");
-
-        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").addTypes("type1").get();
-        assertThat(getMappingsResponse.mappings().get("test").get("type1"), notNullValue());
-
-        assertAcked(client().admin().indices().prepareDeleteMapping("test").setType("type1"));
-
-        for (Client client : clients()) {
-            getMappingsResponse = client.admin().indices().prepareGetMappings("test").addTypes("type1").setLocal(true).get();
-            assertThat(getMappingsResponse.mappings().size(), equalTo(0));
-        }
-    }
-
-    @Test
-    public void testDeleteMappingNoAcknowledgement() {
-        client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field1", "type=string").get();
-        ensureGreen();
-
-        client().prepareIndex("test", "type1").setSource("field1", "value1");
-
-        DeleteMappingResponse deleteMappingResponse = client().admin().indices().prepareDeleteMapping("test").setTimeout("0s").setType("type1").get();
-        assertThat(deleteMappingResponse.isAcknowledged(), equalTo(false));
     }
 
     @Test
@@ -364,11 +319,7 @@ public class AckTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testIndicesAliasesNoAcknowledgement() {
-        // TODO: this test fails CheckIndex test for some reason ... seems like the index is being deleted while we run CheckIndex??
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(
-                    ImmutableSettings.settingsBuilder()
-                    // Never run CheckIndex in the end:
-                    .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false).build()));
+        createIndex("test");
 
         IndicesAliasesResponse indicesAliasesResponse = client().admin().indices().prepareAliases().addAlias("test", "alias").setTimeout("0s").get();
         assertThat(indicesAliasesResponse.isAcknowledged(), equalTo(false));
@@ -408,22 +359,6 @@ public class AckTests extends ElasticsearchIntegrationTest {
             IndexMetaData indexMetaData = getLocalClusterState(client).metaData().indices().get("test");
             assertThat(indexMetaData.getState(), equalTo(State.OPEN));
         }
-    }
-
-    @Test
-    public void testOpenIndexNoAcknowledgement() {
-        // TODO: this test fails CheckIndex test for some reason ... seems like the index is being deleted while we run CheckIndex??
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(
-                    ImmutableSettings.settingsBuilder()
-                    // Never run CheckIndex in the end:
-                    .put(MockFSDirectoryService.CHECK_INDEX_ON_CLOSE, false).build()));
-        ensureGreen();
-
-        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
-        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
-
-        OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test").setTimeout("0s").get();
-        assertThat(openIndexResponse.isAcknowledged(), equalTo(false));
     }
 
     @Test

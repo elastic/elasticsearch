@@ -21,7 +21,6 @@ package org.elasticsearch.common.blobstore.fs;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
@@ -30,6 +29,8 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.FileSystemUtils;
 
 import java.io.*;
+import java.nio.file.*;
+import java.nio.file.attribute.BasicFileAttributes;
 
 /**
  *
@@ -38,51 +39,55 @@ public class FsBlobContainer extends AbstractBlobContainer {
 
     protected final FsBlobStore blobStore;
 
-    protected final File path;
+    protected final Path path;
 
-    public FsBlobContainer(FsBlobStore blobStore, BlobPath blobPath, File path) {
+    public FsBlobContainer(FsBlobStore blobStore, BlobPath blobPath, Path path) {
         super(blobPath);
         this.blobStore = blobStore;
         this.path = path;
     }
 
-    public File filePath() {
-        return this.path;
-    }
-
+    @Override
     public ImmutableMap<String, BlobMetaData> listBlobs() throws IOException {
-        File[] files = path.listFiles();
-        if (files == null || files.length == 0) {
+        Path[] files = FileSystemUtils.files(path);
+        if (files.length == 0) {
             return ImmutableMap.of();
         }
         // using MapBuilder and not ImmutableMap.Builder as it seems like File#listFiles might return duplicate files!
         MapBuilder<String, BlobMetaData> builder = MapBuilder.newMapBuilder();
-        for (File file : files) {
-            if (file.isFile()) {
-                builder.put(file.getName(), new PlainBlobMetaData(file.getName(), file.length()));
+        for (Path file : files) {
+            final BasicFileAttributes attrs = Files.readAttributes(file, BasicFileAttributes.class);
+            if (attrs.isRegularFile()) {
+                builder.put(file.getFileName().toString(), new PlainBlobMetaData(file.getFileName().toString(), attrs.size()));
             }
         }
         return builder.immutableMap();
     }
 
-    public boolean deleteBlob(String blobName) throws IOException {
-        return new File(path, blobName).delete();
+    @Override
+    public void deleteBlob(String blobName) throws IOException {
+        Path blobPath = path.resolve(blobName);
+        Files.deleteIfExists(blobPath);
     }
 
     @Override
     public boolean blobExists(String blobName) {
-        return new File(path, blobName).exists();
+        return Files.exists(path.resolve(blobName));
     }
 
     @Override
     public InputStream openInput(String name) throws IOException {
-        return new BufferedInputStream(new FileInputStream(new File(path, name)), blobStore.bufferSizeInBytes());
+        return new BufferedInputStream(Files.newInputStream(path.resolve(name)), blobStore.bufferSizeInBytes());
     }
 
     @Override
     public OutputStream createOutput(String blobName) throws IOException {
-        final File file = new File(path, blobName);
-        return new BufferedOutputStream(new FilterOutputStream(new FileOutputStream(file)) {
+        final Path file = path.resolve(blobName);
+        return new BufferedOutputStream(new FilterOutputStream(Files.newOutputStream(file)) {
+
+            @Override // FilterOutputStream#write(byte[] b, int off, int len) is trappy writes every single byte
+            public void write(byte[] b, int off, int len) throws IOException { out.write(b, off, len);}
+
             @Override
             public void close() throws IOException {
                 super.close();
@@ -90,5 +95,16 @@ public class FsBlobContainer extends AbstractBlobContainer {
                 IOUtils.fsync(path, true);
             }
         }, blobStore.bufferSizeInBytes());
+    }
+
+    @Override
+    public void move(String source, String target) throws IOException {
+        Path sourcePath = path.resolve(source);
+        Path targetPath = path.resolve(target);
+        // If the target file exists then Files.move() behaviour is implementation specific
+        // the existing file might be replaced or this method fails by throwing an IOException.
+        assert !Files.exists(targetPath);
+        Files.move(sourcePath, targetPath, StandardCopyOption.ATOMIC_MOVE);
+        IOUtils.fsync(path, true);
     }
 }

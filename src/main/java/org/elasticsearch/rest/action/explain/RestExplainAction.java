@@ -70,7 +70,7 @@ public class RestExplainAction extends BaseRestHandler {
         } else if (sourceString != null) {
             explainRequest.source(new BytesArray(request.param("source")), false);
         } else if (queryString != null) {
-            QueryStringQueryBuilder queryStringBuilder = QueryBuilders.queryString(queryString);
+            QueryStringQueryBuilder queryStringBuilder = QueryBuilders.queryStringQuery(queryString);
             queryStringBuilder.defaultField(request.param("df"));
             queryStringBuilder.analyzer(request.param("analyzer"));
             queryStringBuilder.analyzeWildcard(request.paramAsBoolean("analyze_wildcard", false));
@@ -106,10 +106,9 @@ public class RestExplainAction extends BaseRestHandler {
             @Override
             public RestResponse buildResponse(ExplainResponse response, XContentBuilder builder) throws Exception {
                 builder.startObject();
-                //null checks for bw comp, since we only added in 1.4 index, type and id to ExplainResponse
-                builder.field(Fields._INDEX, response.getIndex() != null ? response.getIndex() : explainRequest.index())
-                        .field(Fields._TYPE, response.getType() != null ? response.getType() : explainRequest.type())
-                        .field(Fields._ID, response.getId() != null ? response.getId() : explainRequest.id())
+                builder.field(Fields._INDEX, response.getIndex())
+                        .field(Fields._TYPE, response.getType())
+                        .field(Fields._ID, response.getId())
                         .field(Fields.MATCHED, response.isMatch());
 
                 if (response.hasExplanation()) {

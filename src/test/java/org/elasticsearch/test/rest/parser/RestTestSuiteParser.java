@@ -18,29 +18,30 @@
  */
 package org.elasticsearch.test.rest.parser;
 
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.section.RestTestSuite;
 import org.elasticsearch.test.rest.section.TestSection;
 
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
-import java.io.RandomAccessFile;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
 /**
  * Parser for a complete test suite (yaml file)
  */
 public class RestTestSuiteParser implements RestTestFragmentParser<RestTestSuite> {
 
-    public RestTestSuite parse(String api, File file) throws IOException, RestTestParseException {
+    public RestTestSuite parse(String api, Path file) throws IOException, RestTestParseException {
 
-        if (!file.isFile()) {
-            throw new IllegalArgumentException(file.getAbsolutePath() + " is not a file");
+        if (!Files.isRegularFile(file)) {
+            throw new IllegalArgumentException(file.toAbsolutePath() + " is not a file");
         }
 
-        String filename = file.getName();
+        String filename = file.getFileName().toString();
         //remove the file extension
         int i = filename.lastIndexOf('.');
         if (i > 0) {
@@ -48,18 +49,15 @@ public class RestTestSuiteParser implements RestTestFragmentParser<RestTestSuite
         }
 
         //our yaml parser seems to be too tolerant. Each yaml suite must end with \n, otherwise clients tests might break.
-        RandomAccessFile randomAccessFile = null;
-        try {
-            randomAccessFile = new RandomAccessFile(file, "r");
-            randomAccessFile.skipBytes((int)randomAccessFile.length() - 1);
-            if (randomAccessFile.read() != 10) {
+        try (FileChannel channel = FileChannel.open(file, StandardOpenOption.READ)) {
+            ByteBuffer bb = ByteBuffer.wrap(new byte[1]);
+            channel.read(bb, channel.size() - 1);
+            if (bb.get(0) != 10) {
                 throw new RestTestParseException("test suite [" + api + "/" + filename + "] doesn't end with line feed (\\n)");
             }
-        } finally {
-            IOUtils.close(randomAccessFile);
         }
 
-        XContentParser parser = YamlXContent.yamlXContent.createParser(new FileInputStream(file));
+        XContentParser parser = YamlXContent.yamlXContent.createParser(Files.newInputStream(file));
         try {
             RestTestSuiteParseContext testParseContext = new RestTestSuiteParseContext(api, filename, parser);
             return parse(testParseContext);

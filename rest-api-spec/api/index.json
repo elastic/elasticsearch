@@ -1,6 +1,6 @@
 {
   "index": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/docs-index_.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/docs-index_.html",
     "methods": ["POST", "PUT"],
     "url": {
       "path": "/{index}/{type}",
@@ -40,12 +40,6 @@
         "refresh": {
           "type" : "boolean",
           "description" : "Refresh the index after performing the operation"
-        },
-        "replication": {
-          "type" : "enum",
-          "options" : ["sync","async"],
-          "default" : "sync",
-          "description" : "Specific replication type"
         },
         "routing": {
           "type" : "string",

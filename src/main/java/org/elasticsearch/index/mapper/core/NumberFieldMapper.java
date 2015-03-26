@@ -22,20 +22,22 @@ package org.elasticsearch.index.mapper.core;
 import com.carrotsearch.hppc.DoubleOpenHashSet;
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.LongOpenHashSet;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.NumericTokenStream;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.SortedNumericDocValuesField;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FieldInfo.IndexOptions;
+import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
@@ -45,10 +47,12 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MergeContext;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.search.FieldDataTermsFilter;
@@ -75,7 +79,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         static {
             FIELD_TYPE.setTokenized(false);
             FIELD_TYPE.setOmitNorms(true);
-            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS_ONLY);
+            FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
             FIELD_TYPE.setStoreTermVectors(false);
             FIELD_TYPE.freeze();
         }
@@ -185,12 +189,11 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
     protected NumberFieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
                                 Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce, NamedAnalyzer indexAnalyzer,
-                                NamedAnalyzer searchAnalyzer, PostingsFormatProvider postingsProvider,
-                                DocValuesFormatProvider docValuesProvider, SimilarityProvider similarity,
+                                NamedAnalyzer searchAnalyzer, SimilarityProvider similarity,
                                 Loading normsLoading, @Nullable Settings fieldDataSettings, Settings indexSettings,
                                 MultiFields multiFields, CopyTo copyTo) {
         // LUCENE 4 UPGRADE: Since we can't do anything before the super call, we have to push the boost check down to subclasses
-        super(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer, postingsProvider, docValuesProvider, 
+        super(names, boost, fieldType, docValues, indexAnalyzer, searchAnalyzer,
                 similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         if (precisionStep <= 0 || precisionStep >= maxPrecisionStep()) {
             this.precisionStep = Integer.MAX_VALUE;
@@ -233,7 +236,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
         RuntimeException e = null;
         try {
             innerParseCreateField(context, fields);
-        } catch (IllegalArgumentException e1) {
+        } catch (IllegalArgumentException | ElasticsearchIllegalArgumentException e1) {
             e = e1;
         } catch (MapperParsingException e2) {
             e = e2;
@@ -433,7 +436,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
         public static final FieldType TYPE = new FieldType();
         static {
-          TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
+          TYPE.setDocValuesType(DocValuesType.BINARY);
           TYPE.freeze();
         }
 
@@ -484,7 +487,7 @@ public abstract class NumberFieldMapper<T extends Number> extends AbstractFieldM
 
         public static final FieldType TYPE = new FieldType();
         static {
-          TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
+          TYPE.setDocValuesType(DocValuesType.BINARY);
           TYPE.freeze();
         }
 

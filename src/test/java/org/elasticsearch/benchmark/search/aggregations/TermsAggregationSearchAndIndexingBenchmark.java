@@ -37,7 +37,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
-import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.node.Node;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -69,7 +69,7 @@ public class TermsAggregationSearchAndIndexingBenchmark {
     static int NUMBER_OF_MULTI_VALUE_TERMS = 10;
     static int STRING_TERM_SIZE = 5;
 
-    static InternalNode[] nodes;
+    static Node[] nodes;
 
     public static void main(String[] args) throws Exception {
         Natives.tryMlockall();
@@ -80,9 +80,9 @@ public class TermsAggregationSearchAndIndexingBenchmark {
                 .build();
 
         String clusterName = TermsAggregationSearchAndIndexingBenchmark.class.getSimpleName();
-        nodes = new InternalNode[1];
+        nodes = new Node[1];
         for (int i = 0; i < nodes.length; i++) {
-            nodes[i] = (InternalNode) nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node1"))
+            nodes[i] = nodeBuilder().settings(settingsBuilder().put(settings).put("name", "node1"))
                     .clusterName(clusterName)
                     .node();
         }
@@ -197,7 +197,7 @@ public class TermsAggregationSearchAndIndexingBenchmark {
         System.out.println("----------------------------------------- SUMMARY ----------------------------------------------");
 
         client.close();
-        for (InternalNode node : nodes) {
+        for (Node node : nodes) {
             node.close();
         }
     }

@@ -47,7 +47,7 @@ public class LoggingListener extends RunListener {
 
     @Override
     public void testRunStarted(Description description) throws Exception {
-        previousPackageLoggingMap = processTestLogging( description.getTestClass().getPackage().getAnnotation(TestLogging.class));
+        previousPackageLoggingMap = processTestLogging(description.getTestClass().getPackage().getAnnotation(TestLogging.class));
         previousClassLoggingMap = processTestLogging(description.getAnnotation(TestLogging.class));
     }
 
@@ -76,6 +76,20 @@ public class LoggingListener extends RunListener {
     }
 
     private Map<String, String> processTestLogging(TestLogging testLogging) {
+        Map<String, String> map = getLoggersAndLevelsFromAnnotation(testLogging);
+        if (map == null) {
+            return null;
+        }
+        Map<String, String> previousValues = new HashMap<>();
+        for (Map.Entry<String, String> entry : map.entrySet()) {
+            ESLogger esLogger = resolveLogger(entry.getKey());
+            previousValues.put(entry.getKey(), esLogger.getLevel());
+            esLogger.setLevel(entry.getValue());
+        }
+        return previousValues;
+    }
+
+    public static Map<String, String> getLoggersAndLevelsFromAnnotation(TestLogging testLogging) {
         if (testLogging == null) {
             return null;
         }
@@ -86,9 +100,7 @@ public class LoggingListener extends RunListener {
             if (loggerAndLevelArray.length >=2) {
                 String loggerName = loggerAndLevelArray[0];
                 String level = loggerAndLevelArray[1];
-                ESLogger esLogger = resolveLogger(loggerName);
-                map.put(loggerName, esLogger.getLevel());
-                esLogger.setLevel(level);
+                map.put(loggerName, level);
             }
         }
         return map;

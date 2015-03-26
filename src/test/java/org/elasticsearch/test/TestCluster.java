@@ -44,10 +44,19 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 public abstract class TestCluster implements Iterable<Client>, Closeable {
 
     protected final ESLogger logger = Loggers.getLogger(getClass());
+    private final long seed;
 
     protected Random random;
 
     protected double transportClientRatio = 0.0;
+
+    public TestCluster(long seed) {
+        this.seed = seed;
+    }
+
+    public long seed() {
+        return seed;
+    }
 
     /**
      * This method should be executed before each test to reset the cluster to its initial state.
@@ -71,7 +80,7 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
     /**
      * This method checks all the things that need to be checked after each test
      */
-    public void assertAfterTest() {
+    public void assertAfterTest() throws IOException {
         assertAllSearchersClosed();
         assertAllFilesClosed();
         ensureEstimatedStats();
@@ -98,9 +107,9 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
     public abstract int numDataNodes();
 
     /**
-     * Returns the number of bench nodes in the cluster.
+     * Returns the number of data and master eligible nodes in the cluster.
      */
-    public abstract int numBenchNodes();
+    public abstract int numDataAndMasterNodes();
 
     /**
      * Returns the http addresses of the nodes within the cluster.
@@ -111,6 +120,7 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
     /**
      * Closes the current cluster
      */
+    @Override
     public abstract void close() throws IOException;
 
     /**
@@ -137,6 +147,12 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
                         assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));
                     }
                 }
+            } catch (AssertionError ae) {
+                // Try to see what threads are doing when we hit the "Delete index failed - not acked":
+                logger.info("dump all threads on AssertionError");
+                ElasticsearchTestCase.printStackDump(logger);
+                logger.info("done dump all threads on AssertionError");
+                throw ae;
             }
         }
     }
@@ -187,11 +203,6 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
      * checking some breaker stats can increase them.
      */
     public abstract void ensureEstimatedStats();
-
-    /**
-     * Return whether or not this cluster can cache filters.
-     */
-    public abstract boolean hasFilterCache();
 
     /**
      * Returns the cluster name

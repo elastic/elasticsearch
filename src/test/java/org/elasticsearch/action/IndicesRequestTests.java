@@ -30,8 +30,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
@@ -85,19 +83,21 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.support.QuerySourceBuilder;
-import org.elasticsearch.action.termvector.MultiTermVectorsAction;
-import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
-import org.elasticsearch.action.termvector.TermVectorAction;
-import org.elasticsearch.action.termvector.TermVectorRequest;
+import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
+import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvectors.TermVectorsAction;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
+import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -107,10 +107,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CopyOnWriteArraySet;
 
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
@@ -118,11 +114,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = Scope.SUITE)
+@ClusterScope(scope = Scope.SUITE, numClientNodes = 1)
 public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
     private final List<String> indices = new ArrayList<>();
-    private Client nodeClient;
 
     @Override
     protected int minimumNumberOfShards() {
@@ -147,8 +142,6 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
     @Before
     public void setup() {
-        //make sure there is a node client around before each test starts
-        nodeClient = internalCluster().clientNodeClient();
         int numIndices = iterations(1, 5);
         for (int i = 0; i < numIndices; i++) {
             indices.add("test" + i);
@@ -172,7 +165,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
         GetFieldMappingsRequest getFieldMappingsRequest = new GetFieldMappingsRequest();
         getFieldMappingsRequest.indices(randomIndicesOrAliases());
-        nodeClient.admin().indices().getFieldMappings(getFieldMappingsRequest).actionGet();
+        internalCluster().clientNodeClient().admin().indices().getFieldMappings(getFieldMappingsRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(getFieldMappingsRequest, getFieldMappingsShardAction);
@@ -184,7 +177,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(analyzeShardAction);
 
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(randomIndexOrAlias(), "text");
-        nodeClient.admin().indices().analyze(analyzeRequest).actionGet();
+        internalCluster().clientNodeClient().admin().indices().analyze(analyzeRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(analyzeRequest, analyzeShardAction);
@@ -196,7 +189,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(indexShardActions);
 
         IndexRequest indexRequest = new IndexRequest(randomIndexOrAlias(), "type", "id").source("field", "value");
-        nodeClient.index(indexRequest).actionGet();
+        internalCluster().clientNodeClient().index(indexRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(indexRequest, indexShardActions);
@@ -208,7 +201,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(deleteShardActions);
 
         DeleteRequest deleteRequest = new DeleteRequest(randomIndexOrAlias(), "type", "id");
-        nodeClient.delete(deleteRequest).actionGet();
+        internalCluster().clientNodeClient().delete(deleteRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(deleteRequest, deleteShardActions);
@@ -223,7 +216,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         String indexOrAlias = randomIndexOrAlias();
         client().prepareIndex(indexOrAlias, "type", "id").setSource("field", "value").get();
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").doc("field1", "value1");
-        UpdateResponse updateResponse = nodeClient.update(updateRequest).actionGet();
+        UpdateResponse updateResponse = internalCluster().clientNodeClient().update(updateRequest).actionGet();
         assertThat(updateResponse.isCreated(), equalTo(false));
 
         clearInterceptedActions();
@@ -238,7 +231,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
         String indexOrAlias = randomIndexOrAlias();
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").upsert("field", "value").doc("field1", "value1");
-        UpdateResponse updateResponse = nodeClient.update(updateRequest).actionGet();
+        UpdateResponse updateResponse = internalCluster().clientNodeClient().update(updateRequest).actionGet();
         assertThat(updateResponse.isCreated(), equalTo(true));
 
         clearInterceptedActions();
@@ -254,7 +247,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         String indexOrAlias = randomIndexOrAlias();
         client().prepareIndex(indexOrAlias, "type", "id").setSource("field", "value").get();
         UpdateRequest updateRequest = new UpdateRequest(indexOrAlias, "type", "id").script("ctx.op='delete'");
-        UpdateResponse updateResponse = nodeClient.update(updateRequest).actionGet();
+        UpdateResponse updateResponse = internalCluster().clientNodeClient().update(updateRequest).actionGet();
         assertThat(updateResponse.isCreated(), equalTo(false));
 
         clearInterceptedActions();
@@ -267,7 +260,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(deleteByQueryShardActions);
 
         DeleteByQueryRequest deleteByQueryRequest = new DeleteByQueryRequest(randomIndicesOrAliases()).source(new QuerySourceBuilder().setQuery(QueryBuilders.matchAllQuery()));
-        nodeClient.deleteByQuery(deleteByQueryRequest).actionGet();
+        internalCluster().clientNodeClient().deleteByQuery(deleteByQueryRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(deleteByQueryRequest, deleteByQueryShardActions);
@@ -299,7 +292,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
             indices.add(indexOrAlias);
         }
 
-        nodeClient.bulk(bulkRequest).actionGet();
+        internalCluster().clientNodeClient().bulk(bulkRequest).actionGet();
 
         clearInterceptedActions();
         assertIndicesSubset(indices, bulkShardActions);
@@ -311,7 +304,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(getShardAction);
 
         GetRequest getRequest = new GetRequest(randomIndexOrAlias(), "type", "id");
-        nodeClient.get(getRequest).actionGet();
+        internalCluster().clientNodeClient().get(getRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(getRequest, getShardAction);
@@ -323,7 +316,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(explainShardAction);
 
         ExplainRequest explainRequest = new ExplainRequest(randomIndexOrAlias(), "type", "id").source(new QuerySourceBuilder().setQuery(QueryBuilders.matchAllQuery()));
-        nodeClient.explain(explainRequest).actionGet();
+        internalCluster().clientNodeClient().explain(explainRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(explainRequest, explainShardAction);
@@ -331,14 +324,14 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testTermVector() {
-        String termVectorShardAction = TermVectorAction.NAME + "[s]";
+        String termVectorShardAction = TermVectorsAction.NAME + "[s]";
         interceptTransportActions(termVectorShardAction);
 
-        TermVectorRequest termVectorRequest = new TermVectorRequest(randomIndexOrAlias(), "type", "id");
-        nodeClient.termVector(termVectorRequest).actionGet();
+        TermVectorsRequest termVectorsRequest = new TermVectorsRequest(randomIndexOrAlias(), "type", "id");
+        internalCluster().clientNodeClient().termVectors(termVectorsRequest).actionGet();
 
         clearInterceptedActions();
-        assertSameIndices(termVectorRequest, termVectorShardAction);
+        assertSameIndices(termVectorsRequest, termVectorShardAction);
     }
 
     @Test
@@ -354,7 +347,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
             multiTermVectorsRequest.add(indexOrAlias, "type", Integer.toString(i));
             indices.add(indexOrAlias);
         }
-        nodeClient.multiTermVectors(multiTermVectorsRequest).actionGet();
+        internalCluster().clientNodeClient().multiTermVectors(multiTermVectorsRequest).actionGet();
 
         clearInterceptedActions();
         assertIndicesSubset(indices, multiTermVectorsShardAction);
@@ -373,7 +366,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
             multiGetRequest.add(indexOrAlias, "type", Integer.toString(i));
             indices.add(indexOrAlias);
         }
-        nodeClient.multiGet(multiGetRequest).actionGet();
+        internalCluster().clientNodeClient().multiGet(multiGetRequest).actionGet();
 
         clearInterceptedActions();
         assertIndicesSubset(indices, multiGetShardAction);
@@ -385,7 +378,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(countShardAction);
 
         CountRequest countRequest = new CountRequest(randomIndicesOrAliases());
-        nodeClient.count(countRequest).actionGet();
+        internalCluster().clientNodeClient().count(countRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(countRequest, countShardAction);
@@ -397,7 +390,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(existsShardAction);
 
         ExistsRequest existsRequest = new ExistsRequest(randomIndicesOrAliases());
-        nodeClient.exists(existsRequest).actionGet();
+        internalCluster().clientNodeClient().exists(existsRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(existsRequest, existsShardAction);
@@ -409,7 +402,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(flushShardAction);
 
         FlushRequest flushRequest = new FlushRequest(randomIndicesOrAliases());
-        nodeClient.admin().indices().flush(flushRequest).actionGet();
+        internalCluster().clientNodeClient().admin().indices().flush(flushRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(flushRequest, flushShardAction);
@@ -421,7 +414,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(optimizeShardAction);
 
         OptimizeRequest optimizeRequest = new OptimizeRequest(randomIndicesOrAliases());
-        nodeClient.admin().indices().optimize(optimizeRequest).actionGet();
+        internalCluster().clientNodeClient().admin().indices().optimize(optimizeRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(optimizeRequest, optimizeShardAction);
@@ -433,7 +426,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(refreshShardAction);
 
         RefreshRequest refreshRequest = new RefreshRequest(randomIndicesOrAliases());
-        nodeClient.admin().indices().refresh(refreshRequest).actionGet();
+        internalCluster().clientNodeClient().admin().indices().refresh(refreshRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(refreshRequest, refreshShardAction);
@@ -445,7 +438,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(clearCacheAction);
 
         ClearIndicesCacheRequest clearIndicesCacheRequest = new ClearIndicesCacheRequest(randomIndicesOrAliases());
-        nodeClient.admin().indices().clearCache(clearIndicesCacheRequest).actionGet();
+        internalCluster().clientNodeClient().admin().indices().clearCache(clearIndicesCacheRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(clearIndicesCacheRequest, clearCacheAction);
@@ -457,7 +450,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(recoveryAction);
 
         RecoveryRequest recoveryRequest = new RecoveryRequest(randomIndicesOrAliases());
-        nodeClient.admin().indices().recoveries(recoveryRequest).actionGet();
+        internalCluster().clientNodeClient().admin().indices().recoveries(recoveryRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(recoveryRequest, recoveryAction);
@@ -469,7 +462,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(segmentsAction);
 
         IndicesSegmentsRequest segmentsRequest = new IndicesSegmentsRequest(randomIndicesOrAliases());
-        nodeClient.admin().indices().segments(segmentsRequest).actionGet();
+        internalCluster().clientNodeClient().admin().indices().segments(segmentsRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(segmentsRequest, segmentsAction);
@@ -481,7 +474,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(indicesStats);
 
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest().indices(randomIndicesOrAliases());
-        nodeClient.admin().indices().stats(indicesStatsRequest).actionGet();
+        internalCluster().clientNodeClient().admin().indices().stats(indicesStatsRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(indicesStatsRequest, indicesStats);
@@ -493,7 +486,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(suggestAction);
 
         SuggestRequest suggestRequest = new SuggestRequest(randomIndicesOrAliases());
-        nodeClient.suggest(suggestRequest).actionGet();
+        internalCluster().clientNodeClient().suggest(suggestRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(suggestRequest, suggestAction);
@@ -505,7 +498,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(validateQueryShardAction);
 
         ValidateQueryRequest validateQueryRequest = new ValidateQueryRequest(randomIndicesOrAliases());
-        nodeClient.admin().indices().validateQuery(validateQueryRequest).actionGet();
+        internalCluster().clientNodeClient().admin().indices().validateQuery(validateQueryRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(validateQueryRequest, validateQueryShardAction);
@@ -524,7 +517,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         } else {
             percolateRequest.source("\"field\":\"value\"");
         }
-        nodeClient.percolate(percolateRequest).actionGet();
+        internalCluster().clientNodeClient().percolate(percolateRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(percolateRequest, percolateShardAction);
@@ -552,7 +545,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
             multiPercolateRequest.add(percolateRequest);
         }
 
-        nodeClient.multiPercolate(multiPercolateRequest).actionGet();
+        internalCluster().clientNodeClient().multiPercolate(multiPercolateRequest).actionGet();
 
         clearInterceptedActions();
         assertIndicesSubset(indices, multiPercolateShardAction);
@@ -563,7 +556,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(OpenIndexAction.NAME);
 
         OpenIndexRequest openIndexRequest = new OpenIndexRequest(randomUniqueIndicesOrAliases());
-        nodeClient.admin().indices().open(openIndexRequest).actionGet();
+        internalCluster().clientNodeClient().admin().indices().open(openIndexRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(openIndexRequest, OpenIndexAction.NAME);
@@ -574,7 +567,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(CloseIndexAction.NAME);
 
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(randomUniqueIndicesOrAliases());
-        nodeClient.admin().indices().close(closeIndexRequest).actionGet();
+        internalCluster().clientNodeClient().admin().indices().close(closeIndexRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(closeIndexRequest, CloseIndexAction.NAME);
@@ -586,7 +579,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
         String[] randomIndicesOrAliases = randomUniqueIndicesOrAliases();
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(randomIndicesOrAliases);
-        assertAcked(nodeClient.admin().indices().delete(deleteIndexRequest).actionGet());
+        assertAcked(internalCluster().clientNodeClient().admin().indices().delete(deleteIndexRequest).actionGet());
 
         clearInterceptedActions();
         assertSameIndices(deleteIndexRequest, DeleteIndexAction.NAME);
@@ -597,7 +590,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(GetMappingsAction.NAME);
 
         GetMappingsRequest getMappingsRequest = new GetMappingsRequest().indices(randomIndicesOrAliases());
-        nodeClient.admin().indices().getMappings(getMappingsRequest).actionGet();
+        internalCluster().clientNodeClient().admin().indices().getMappings(getMappingsRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(getMappingsRequest, GetMappingsAction.NAME);
@@ -608,23 +601,10 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(PutMappingAction.NAME);
 
         PutMappingRequest putMappingRequest = new PutMappingRequest(randomUniqueIndicesOrAliases()).type("type").source("field", "type=string");
-        nodeClient.admin().indices().putMapping(putMappingRequest).actionGet();
+        internalCluster().clientNodeClient().admin().indices().putMapping(putMappingRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(putMappingRequest, PutMappingAction.NAME);
-    }
-
-    @Test
-    public void testDeleteMapping() {
-        interceptTransportActions(DeleteMappingAction.NAME);
-
-        String[] indices = randomUniqueIndicesOrAliases();
-        client().admin().indices().putMapping(new PutMappingRequest(indices).type("type").source("field", "type=string")).actionGet();
-        DeleteMappingRequest deleteMappingRequest = new DeleteMappingRequest(indices).types("type");
-        nodeClient.admin().indices().deleteMapping(deleteMappingRequest).actionGet();
-
-        clearInterceptedActions();
-        assertSameIndices(deleteMappingRequest, DeleteMappingAction.NAME);
     }
 
     @Test
@@ -632,7 +612,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(GetSettingsAction.NAME);
 
         GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(randomIndicesOrAliases());
-        nodeClient.admin().indices().getSettings(getSettingsRequest).actionGet();
+        internalCluster().clientNodeClient().admin().indices().getSettings(getSettingsRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(getSettingsRequest, GetSettingsAction.NAME);
@@ -643,7 +623,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         interceptTransportActions(UpdateSettingsAction.NAME);
 
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(randomIndicesOrAliases()).settings(ImmutableSettings.builder().put("refresh_interval", -1));
-        nodeClient.admin().indices().updateSettings(updateSettingsRequest).actionGet();
+        internalCluster().clientNodeClient().admin().indices().updateSettings(updateSettingsRequest).actionGet();
 
         clearInterceptedActions();
         assertSameIndices(updateSettingsRequest, UpdateSettingsAction.NAME);
@@ -661,7 +641,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.QUERY_THEN_FETCH);
-        SearchResponse searchResponse = nodeClient.search(searchRequest).actionGet();
+        SearchResponse searchResponse = internalCluster().clientNodeClient().search(searchRequest).actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
 
@@ -683,7 +663,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.DFS_QUERY_THEN_FETCH);
-        SearchResponse searchResponse = nodeClient.search(searchRequest).actionGet();
+        SearchResponse searchResponse = internalCluster().clientNodeClient().search(searchRequest).actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
 
@@ -706,7 +686,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.QUERY_AND_FETCH);
-        SearchResponse searchResponse = nodeClient.search(searchRequest).actionGet();
+        SearchResponse searchResponse = internalCluster().clientNodeClient().search(searchRequest).actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
 
@@ -728,7 +708,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.DFS_QUERY_AND_FETCH);
-        SearchResponse searchResponse = nodeClient.search(searchRequest).actionGet();
+        SearchResponse searchResponse = internalCluster().clientNodeClient().search(searchRequest).actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
 
@@ -749,7 +729,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchRequest searchRequest = new SearchRequest(randomIndicesOrAliases).searchType(SearchType.SCAN).scroll(new TimeValue(500));
-        SearchResponse searchResponse = nodeClient.search(searchRequest).actionGet();
+        SearchResponse searchResponse = internalCluster().clientNodeClient().search(searchRequest).actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), greaterThan(0l));
 
@@ -776,7 +756,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
         MoreLikeThisRequest moreLikeThisRequest = new MoreLikeThisRequest(indexGet).type("type").id("1")
                 .searchIndices(randomIndicesOrAliases());
-        nodeClient.moreLikeThis(moreLikeThisRequest).actionGet();
+        internalCluster().clientNodeClient().moreLikeThis(moreLikeThisRequest).actionGet();
 
         clearInterceptedActions();
         //get might end up being executed locally, only optionally over the transport
@@ -907,24 +887,25 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
     public static class InterceptingTransportService extends TransportService {
 
-        private final Set<String> actions = new CopyOnWriteArraySet<>();
+        private final Set<String> actions = new HashSet<>();
 
-        private final ConcurrentMap<String, List<TransportRequest>> requests = new ConcurrentHashMap<>();
+        private final Map<String, List<TransportRequest>> requests = new HashMap<>();
 
         @Inject
-        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
+        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool,
+                                            NodeSettingsService nodeSettingsService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
             super(settings, transport, threadPool);
         }
 
-        List<TransportRequest> consumeRequests(String action) {
+        synchronized List<TransportRequest> consumeRequests(String action) {
             return requests.remove(action);
         }
 
-        void interceptTransportActions(String... actions) {
+        synchronized void interceptTransportActions(String... actions) {
             Collections.addAll(this.actions, actions);
         }
 
-        void clearInterceptedActions() {
+        synchronized void clearInterceptedActions() {
             actions.clear();
         }
 
@@ -949,14 +930,17 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
             }
 
             @Override
-            @SuppressWarnings("unchecked")
             public void messageReceived(TransportRequest request, TransportChannel channel) throws Exception {
-                if (actions.contains(action)) {
-                    List<TransportRequest> requestList = new CopyOnWriteArrayList<>();
-                    requestList.add(request);
-                    List<TransportRequest> transportRequests = requests.putIfAbsent(action, requestList);
-                    if (transportRequests != null) {
-                        transportRequests.add(request);
+                synchronized (InterceptingTransportService.this) {
+                    if (actions.contains(action)) {
+                        List<TransportRequest> requestList = requests.get(action);
+                        if (requestList == null) {
+                            requestList = new ArrayList<>();
+                            requestList.add(request);
+                            requests.put(action, requestList);
+                        } else {
+                            requestList.add(request);
+                        }
                     }
                 }
                 requestHandler.messageReceived(request, channel);

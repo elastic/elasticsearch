@@ -24,8 +24,8 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.CloseableIndexComponent;
 
+import java.io.Closeable;
 import java.util.Collection;
 
 /**
@@ -81,7 +81,7 @@ public abstract class AbstractPlugin implements Plugin {
      * Defaults to return an empty list.
      */
     @Override
-    public Collection<Class<? extends CloseableIndexComponent>> indexServices() {
+    public Collection<Class<? extends Closeable>> indexServices() {
         return ImmutableList.of();
     }
 
@@ -105,7 +105,7 @@ public abstract class AbstractPlugin implements Plugin {
      * Defaults to return an empty list.
      */
     @Override
-    public Collection<Class<? extends CloseableIndexComponent>> shardServices() {
+    public Collection<Class<? extends Closeable>> shardServices() {
         return ImmutableList.of();
     }
 

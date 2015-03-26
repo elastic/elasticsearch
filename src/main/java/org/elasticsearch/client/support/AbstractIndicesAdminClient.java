@@ -67,10 +67,6 @@ import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequestBuilder;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.*;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -372,21 +368,6 @@ public abstract class AbstractIndicesAdminClient implements IndicesAdminClient {
     @Override
     public PutMappingRequestBuilder preparePutMapping(String... indices) {
         return new PutMappingRequestBuilder(this).setIndices(indices);
-    }
-
-    @Override
-    public ActionFuture<DeleteMappingResponse> deleteMapping(final DeleteMappingRequest request) {
-        return execute(DeleteMappingAction.INSTANCE, request);
-    }
-
-    @Override
-    public void deleteMapping(final DeleteMappingRequest request, final ActionListener<DeleteMappingResponse> listener) {
-        execute(DeleteMappingAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public DeleteMappingRequestBuilder prepareDeleteMapping(String... indices) {
-        return new DeleteMappingRequestBuilder(this).setIndices(indices);
     }
 
     @Override

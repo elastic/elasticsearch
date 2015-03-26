@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations;
 
 import com.google.common.collect.ImmutableList;
+
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
@@ -27,7 +28,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.filters.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.geogrid.InternalGeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.missing.InternalMissing;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
@@ -96,7 +96,6 @@ public class TransportAggregationModule extends AbstractModule implements SpawnM
         InternalDateRange.registerStream();
         InternalIPv4Range.registerStream();
         InternalHistogram.registerStream();
-        InternalDateHistogram.registerStream();
         InternalGeoDistance.registerStream();
         InternalNested.registerStream();
         InternalReverseNested.registerStream();

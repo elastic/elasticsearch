@@ -32,8 +32,8 @@ import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.explain.ExplainFetchSubPhase;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsFetchSubPhase;
 import org.elasticsearch.search.fetch.matchedqueries.MatchedQueriesFetchSubPhase;
-import org.elasticsearch.search.fetch.partial.PartialFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.source.FetchSourceSubPhase;
 import org.elasticsearch.search.fetch.version.VersionFetchSubPhase;
@@ -63,11 +63,11 @@ public class SearchModule extends AbstractModule implements SpawnModules {
         bind(ExplainFetchSubPhase.class).asEagerSingleton();
         bind(FieldDataFieldsFetchSubPhase.class).asEagerSingleton();
         bind(ScriptFieldsFetchSubPhase.class).asEagerSingleton();
-        bind(PartialFieldsFetchSubPhase.class).asEagerSingleton();
         bind(FetchSourceSubPhase.class).asEagerSingleton();
         bind(VersionFetchSubPhase.class).asEagerSingleton();
         bind(MatchedQueriesFetchSubPhase.class).asEagerSingleton();
         bind(HighlightPhase.class).asEagerSingleton();
+        bind(InnerHitsFetchSubPhase.class).asEagerSingleton();
 
         bind(SearchServiceTransportAction.class).asEagerSingleton();
         bind(MoreLikeThisFetchService.class).asEagerSingleton();

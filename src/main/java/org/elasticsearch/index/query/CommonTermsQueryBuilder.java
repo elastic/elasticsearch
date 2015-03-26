@@ -113,6 +113,7 @@ public class CommonTermsQueryBuilder extends BaseQueryBuilder implements Boostab
     /**
      * Set the boost to apply to the query.
      */
+    @Override
     public CommonTermsQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;

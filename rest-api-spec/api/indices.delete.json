@@ -1,6 +1,6 @@
 {
   "indices.delete": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/indices-delete-index.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/indices-delete-index.html",
     "methods": ["DELETE"],
     "url": {
       "path": "/{index}",
@@ -8,6 +8,7 @@
       "parts": {
         "index": {
           "type" : "list",
+          "required" : true,
           "description" : "A comma-separated list of indices to delete; use `_all` or `*` string to delete all indices"
         }
       },

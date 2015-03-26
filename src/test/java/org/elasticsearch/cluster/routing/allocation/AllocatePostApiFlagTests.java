@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -46,7 +47,7 @@ public class AllocatePostApiFlagTests extends ElasticsearchAllocationTestCase {
 
         logger.info("creating an index with 1 shard, no replica");
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(1).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
                 .build();
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))

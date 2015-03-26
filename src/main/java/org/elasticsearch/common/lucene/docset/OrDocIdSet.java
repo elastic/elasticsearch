@@ -23,6 +23,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.lucene.search.XDocIdSetIterator;
 
 import java.io.IOException;
 
@@ -73,10 +74,12 @@ public class OrDocIdSet extends DocIdSet {
         return new IteratorBasedIterator(sets);
     }
 
-    static class OrBits implements Bits {
+    /** A disjunction between several {@link Bits} instances with short-circuit logic. */
+    public static class OrBits implements Bits {
+
         private final Bits[] bits;
 
-        OrBits(Bits[] bits) {
+        public OrBits(Bits[] bits) {
             this.bits = bits;
         }
 
@@ -96,7 +99,7 @@ public class OrDocIdSet extends DocIdSet {
         }
     }
 
-    static class IteratorBasedIterator extends DocIdSetIterator {
+    static class IteratorBasedIterator extends XDocIdSetIterator {
 
         final class Item {
             public final DocIdSetIterator iter;
@@ -112,21 +115,30 @@ public class OrDocIdSet extends DocIdSet {
         private final Item[] _heap;
         private int _size;
         private final long cost;
+        private final boolean broken;
 
         IteratorBasedIterator(DocIdSet[] sets) throws IOException {
             _curDoc = -1;
             _heap = new Item[sets.length];
             _size = 0;
             long cost = 0;
+            boolean broken = false;
             for (DocIdSet set : sets) {
                 DocIdSetIterator iterator = set.iterator();
+                broken |= DocIdSets.isBroken(iterator);
                 if (iterator != null) {
                     _heap[_size++] = new Item(iterator);
                     cost += iterator.cost();
                 }
             }
             this.cost = cost;
+            this.broken = broken;
             if (_size == 0) _curDoc = DocIdSetIterator.NO_MORE_DOCS;
+        }
+
+        @Override
+        public boolean isBroken() {
+            return broken;
         }
 
         @Override

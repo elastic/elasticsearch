@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.search.child;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
@@ -35,12 +35,21 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.cache.filter.AutoFilterCachingPolicy;
+import org.elasticsearch.index.cache.filter.FilterCacheModule;
+import org.elasticsearch.index.cache.filter.weighted.WeightedFilterCache;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.FilterBuilder;
+import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.HasChildFilterBuilder;
+import org.elasticsearch.index.query.HasChildQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.search.child.ScoreType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -50,11 +59,18 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -64,18 +80,57 @@ import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
 import static org.elasticsearch.common.settings.ImmutableSettings.builder;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.FilterBuilders.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.FilterBuilders.boolFilter;
+import static org.elasticsearch.index.query.FilterBuilders.hasParentFilter;
+import static org.elasticsearch.index.query.FilterBuilders.matchAllFilter;
+import static org.elasticsearch.index.query.FilterBuilders.notFilter;
+import static org.elasticsearch.index.query.FilterBuilders.queryFilter;
+import static org.elasticsearch.index.query.FilterBuilders.termFilter;
+import static org.elasticsearch.index.query.FilterBuilders.termsFilter;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
+import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
+import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.topChildrenQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.factorFunction;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  *
  */
+@ClusterScope(scope = Scope.SUITE)
 public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+                // aggressive filter caching so that we can assert on the filter cache size
+                .put(FilterCacheModule.FilterCacheSettings.FILTER_CACHE_TYPE, WeightedFilterCache.class)
+                .put(AutoFilterCachingPolicy.AGGRESSIVE_CACHING_SETTINGS)
+                .build();
+    }
 
     @Test
     public void multiLevelChild() throws Exception {
@@ -195,15 +250,6 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(0).field("_parent").value().toString(), equalTo("p1"));
 
         // TEST matching on parent
-        searchResponse = client().prepareSearch("test").setQuery(termQuery("child._parent", "p1")).addFields("_parent").execute()
-                .actionGet();
-        assertNoFailures(searchResponse);
-        assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
-        assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("c1"), equalTo("c2")));
-        assertThat(searchResponse.getHits().getAt(0).field("_parent").value().toString(), equalTo("p1"));
-        assertThat(searchResponse.getHits().getAt(1).id(), anyOf(equalTo("c1"), equalTo("c2")));
-        assertThat(searchResponse.getHits().getAt(1).field("_parent").value().toString(), equalTo("p1"));
-
         searchResponse = client().prepareSearch("test").setQuery(termQuery("_parent", "p1")).addFields("_parent").get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
@@ -212,7 +258,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getAt(1).id(), anyOf(equalTo("c1"), equalTo("c2")));
         assertThat(searchResponse.getHits().getAt(1).field("_parent").value().toString(), equalTo("p1"));
 
-        searchResponse = client().prepareSearch("test").setQuery(queryString("_parent:p1")).addFields("_parent").get();
+        searchResponse = client().prepareSearch("test").setQuery(queryStringQuery("_parent:p1")).addFields("_parent").get();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(2l));
         assertThat(searchResponse.getHits().getAt(0).id(), anyOf(equalTo("c1"), equalTo("c2")));
@@ -270,6 +316,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9270")
     public void testClearIdCacheBug() throws Exception {
         // enforce lazy loading to make sure that p/c stats are not counted as part of field data
         assertAcked(prepareCreate("test")
@@ -347,63 +394,6 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .prepareStats("test").setFieldData(true).get();
         assertThat(indicesStatsResponse.getTotal().getIdCache().getMemorySizeInBytes(), equalTo(0l));
         assertThat(indicesStatsResponse.getTotal().getFieldData().getMemorySizeInBytes(), equalTo(0l));
-    }
-
-    @Test
-    public void testCheckFixedBitSetCache() throws Exception {
-        boolean loadFixedBitSetLazily = randomBoolean();
-        ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder().put(indexSettings())
-                .put("index.refresh_interval", -1);
-        if (loadFixedBitSetLazily) {
-            settingsBuilder.put("index.load_fixed_bitset_filters_eagerly", false);
-        }
-        // enforce lazy loading to make sure that p/c stats are not counted as part of field data
-        assertAcked(prepareCreate("test")
-                .setSettings(settingsBuilder)
-                .addMapping("parent")
-        );
-
-        client().prepareIndex("test", "parent", "p0").setSource("p_field", "p_value0").get();
-        client().prepareIndex("test", "parent", "p1").setSource("p_field", "p_value1").get();
-        refresh();
-        ensureSearchable("test");
-
-        // No _parent field yet, there shouldn't be anything in the parent id cache
-        ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
-
-        // Now add mapping + children
-        assertAcked(
-                client().admin().indices().preparePutMapping("test").setType("child").setSource("_parent", "type=parent")
-        );
-
-        // index simple data
-        client().prepareIndex("test", "child", "c1").setSource("c_field", "red").setParent("p1").get();
-        client().prepareIndex("test", "child", "c2").setSource("c_field", "yellow").setParent("p1").get();
-        client().prepareIndex("test", "parent", "p2").setSource("p_field", "p_value2").get();
-        client().prepareIndex("test", "child", "c3").setSource("c_field", "blue").setParent("p2").get();
-        client().prepareIndex("test", "child", "c4").setSource("c_field", "red").setParent("p2").get();
-        refresh();
-        ensureSearchable("test");
-
-        if (loadFixedBitSetLazily) {
-            clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-            assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
-
-            // only when querying with has_child the fixed bitsets are loaded
-            SearchResponse searchResponse = client().prepareSearch("test")
-                    // Use setShortCircuitCutoff(0), otherwise the parent filter isn't used.
-                    .setQuery(hasChildQuery("child", termQuery("c_field", "blue")).setShortCircuitCutoff(0))
-                    .get();
-            assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        }
-        clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), greaterThan(0l));
-
-        assertAcked(client().admin().indices().prepareDelete("test"));
-        clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
     }
 
     @Test
@@ -619,9 +609,9 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         Filter filter = global.getAggregations().get("filter");
         Terms termsFacet = filter.getAggregations().get("facet1");
         assertThat(termsFacet.getBuckets().size(), equalTo(2));
-        assertThat(termsFacet.getBuckets().get(0).getKey(), equalTo("red"));
+        assertThat(termsFacet.getBuckets().get(0).getKeyAsString(), equalTo("red"));
         assertThat(termsFacet.getBuckets().get(0).getDocCount(), equalTo(2L));
-        assertThat(termsFacet.getBuckets().get(1).getKey(), equalTo("yellow"));
+        assertThat(termsFacet.getBuckets().get(1).getKeyAsString(), equalTo("yellow"));
         assertThat(termsFacet.getBuckets().get(1).getDocCount(), equalTo(1L));
     }
 
@@ -695,16 +685,16 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(boolQuery().mustNot(hasChildQuery("child", boolQuery().should(queryString("c_field:*"))))).get();
+                .setQuery(boolQuery().mustNot(hasChildQuery("child", boolQuery().should(queryStringQuery("c_field:*"))))).get();
         assertNoFailures(searchResponse);
 
         searchResponse = client().prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(boolQuery().mustNot(hasParentQuery("parent", boolQuery().should(queryString("p_field:*"))))).execute()
+                .setQuery(boolQuery().mustNot(hasParentQuery("parent", boolQuery().should(queryStringQuery("p_field:*"))))).execute()
                 .actionGet();
         assertNoFailures(searchResponse);
 
         searchResponse = client().prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
-                .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(queryString("c_field:*"))))).execute()
+                .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(queryStringQuery("c_field:*"))))).execute()
                 .actionGet();
         assertNoFailures(searchResponse);
     }
@@ -727,7 +717,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch("test").setSearchType(SearchType.QUERY_THEN_FETCH)
-                .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(queryString("c_field:*"))))).execute()
+                .setQuery(boolQuery().mustNot(topChildrenQuery("child", boolQuery().should(queryStringQuery("c_field:*"))))).execute()
                 .actionGet();
         assertNoFailures(searchResponse);
     }
@@ -1146,8 +1136,8 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .setSettings(settingsBuilder()
                         .put(indexSettings())
                         .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, between(2, DEFAULT_MAX_NUM_SHARDS)))
-                .addMapping("parent")
-                .addMapping("child", "_parent", "type=parent"));
+                .addMapping("parent", "p_field", "type=string")
+                .addMapping("child", "_parent", "type=parent", "c_field", "type=string"));
         ensureGreen();
 
         // index simple data
@@ -1433,9 +1423,9 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         // Delete by query doesn't support p/c queries. If the delete by query has a different execution mode
         // that doesn't rely on IW#deleteByQuery() then this test can be changed.
         DeleteByQueryResponse deleteByQueryResponse = client().prepareDeleteByQuery("test").setQuery(randomHasChild("child", "c_field", "blue")).get();
-        assertThat(deleteByQueryResponse.getIndex("test").getSuccessfulShards(), equalTo(0));
-        assertThat(deleteByQueryResponse.getIndex("test").getFailedShards(), equalTo(getNumShards("test").numPrimaries));
-        assertThat(deleteByQueryResponse.getIndex("test").getFailures()[0].reason(), containsString("[has_child] unsupported in delete_by_query api"));
+        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getSuccessful(), equalTo(0));
+        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getFailures().length, equalTo(getNumShards("test").numPrimaries));
+        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getFailures()[0].reason(), containsString("[has_child] query and filter unsupported in delete_by_query api"));
         client().admin().indices().prepareRefresh("test").get();
 
         searchResponse = client().prepareSearch("test")
@@ -1478,9 +1468,9 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertHitCount(searchResponse, 3l);
 
         DeleteByQueryResponse deleteByQueryResponse = client().prepareDeleteByQuery("test").setQuery(randomHasChild("child", "c_field", "blue")).get();
-        assertThat(deleteByQueryResponse.getIndex("test").getSuccessfulShards(), equalTo(0));
-        assertThat(deleteByQueryResponse.getIndex("test").getFailedShards(), equalTo(getNumShards("test").numPrimaries));
-        assertThat(deleteByQueryResponse.getIndex("test").getFailures()[0].reason(), containsString("[has_child] unsupported in delete_by_query api"));
+        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getSuccessful(), equalTo(0));
+        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getFailures().length, equalTo(getNumShards("test").numPrimaries));
+        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getFailures()[0].reason(), containsString("[has_child] query and filter unsupported in delete_by_query api"));
         client().admin().indices().prepareRefresh("test").get();
 
         searchResponse = client().prepareSearch("test")
@@ -1531,9 +1521,9 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         DeleteByQueryResponse deleteByQueryResponse = client().prepareDeleteByQuery("test")
                 .setQuery(randomHasParent("parent", "p_field", "p_value2"))
                 .get();
-        assertThat(deleteByQueryResponse.getIndex("test").getSuccessfulShards(), equalTo(0));
-        assertThat(deleteByQueryResponse.getIndex("test").getFailedShards(), equalTo(getNumShards("test").numPrimaries));
-        assertThat(deleteByQueryResponse.getIndex("test").getFailures()[0].reason(), containsString("[has_parent] unsupported in delete_by_query api"));
+        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getSuccessful(), equalTo(0));
+        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getFailures().length, equalTo(getNumShards("test").numPrimaries));
+        assertThat(deleteByQueryResponse.getIndex("test").getShardInfo().getFailures()[0].reason(), containsString("[has_parent] query and filter unsupported in delete_by_query api"));
         client().admin().indices().prepareRefresh("test").get();
         client().admin().indices().prepareRefresh("test").get();
         client().admin().indices().prepareRefresh("test").get();
@@ -1583,7 +1573,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                                         hasChildQuery(
                                                 "child_type_one",
                                                 boolQuery().must(
-                                                        queryString("name:William*").analyzeWildcard(true)
+                                                        queryStringQuery("name:William*").analyzeWildcard(true)
                                                 )
                                         )
                                 )
@@ -1600,7 +1590,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                                         hasChildQuery(
                                                 "child_type_two",
                                                 boolQuery().must(
-                                                        queryString("name:William*").analyzeWildcard(true)
+                                                        queryStringQuery("name:William*").analyzeWildcard(true)
                                                 )
                                         )
                                 )
@@ -1939,7 +1929,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "child", "c1").setParent("p1").setSource("c_field", "blue").get();
         client().prepareIndex("test", "child", "c2").setParent("p1").setSource("c_field", "red").get();
         client().prepareIndex("test", "child", "c3").setParent("p2").setSource("c_field", "red").get();
-        client().admin().indices().prepareOptimize("test").setFlush(true).setWaitForMerge(true).get();
+        client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).setFlush(true).get();
         client().prepareIndex("test", "parent", "p3").setSource("p_field", "p_value3").get();
         client().prepareIndex("test", "parent", "p4").setSource("p_field", "p_value4").get();
         client().prepareIndex("test", "child", "c4").setParent("p3").setSource("c_field", "green").get();
@@ -2005,7 +1995,6 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
             assertNoFailures(scrollResponse);
             assertThat(scrollResponse.getHits().totalHits(), equalTo(10l));
-
             int scannedDocs = 0;
             do {
                 scrollResponse = client()
@@ -2112,7 +2101,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
 
         // filter cache should not contain any thing, b/c has_child and has_parent can't be cached.
         statsResponse = client().admin().indices().prepareStats("test").clear().setFilterCache(true).get();
-        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), cluster().hasFilterCache() ? greaterThan(initialCacheSize) : is(initialCacheSize));
+        assertThat(statsResponse.getIndex("test").getTotal().getFilterCache().getMemorySizeInBytes(), greaterThan(initialCacheSize));
     }
 
     // https://github.com/elasticsearch/elasticsearch/issues/5783
@@ -2160,7 +2149,41 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().getAt(0).id(), equalTo("1"));
     }
 
-    List<IndexRequestBuilder> createMinMaxDocBuilders() {
+    @Test
+    public void testTypeIsAppliedInHasParentInnerQuery() throws Exception {
+        assertAcked(prepareCreate("test")
+                .addMapping("parent")
+                .addMapping("child", "_parent", "type=parent"));
+        ensureGreen();
+
+        List<IndexRequestBuilder> indexRequests = new ArrayList<>();
+        indexRequests.add(client().prepareIndex("test", "parent", "1").setSource("field1", "a"));
+        indexRequests.add(client().prepareIndex("test", "child", "1").setParent("1").setSource("{}"));
+        indexRequests.add(client().prepareIndex("test", "child", "2").setParent("1").setSource("{}"));
+        indexRandom(true, indexRequests);
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .setQuery(constantScoreQuery(hasParentFilter("parent", notFilter(termFilter("field1", "a")))))
+                .get();
+        assertHitCount(searchResponse, 0l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(hasParentQuery("parent", constantScoreQuery(notFilter(termFilter("field1", "a")))))
+                .get();
+        assertHitCount(searchResponse, 0l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(constantScoreQuery(hasParentFilter("parent", termFilter("field1", "a"))))
+                .get();
+        assertHitCount(searchResponse, 2l);
+
+        searchResponse = client().prepareSearch("test")
+                .setQuery(hasParentQuery("parent", constantScoreQuery(termFilter("field1", "a"))))
+                .get();
+        assertHitCount(searchResponse, 2l);
+    }
+
+    private List<IndexRequestBuilder> createMinMaxDocBuilders() {
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();
         // Parent 1 and its children
         indexBuilders.add(client().prepareIndex().setType("parent").setId("1").setIndex("test").setSource("id",1));
@@ -2197,7 +2220,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         return indexBuilders;
     }
 
-    SearchResponse MinMaxQuery(String scoreType, int minChildren, int maxChildren, int cutoff) throws SearchPhaseExecutionException {
+    private SearchResponse minMaxQuery(String scoreType, int minChildren, int maxChildren, int cutoff) throws SearchPhaseExecutionException {
         return client()
                 .prepareSearch("test")
                 .setQuery(
@@ -2212,7 +2235,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .addSort("_score", SortOrder.DESC).addSort("id", SortOrder.ASC).get();
     }
 
-    SearchResponse MinMaxFilter( int minChildren, int maxChildren, int cutoff) throws SearchPhaseExecutionException {
+    private SearchResponse minMaxFilter(int minChildren, int maxChildren, int cutoff) throws SearchPhaseExecutionException {
         return client()
                 .prepareSearch("test")
                 .setQuery(
@@ -2221,10 +2244,11 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
                 .addSort("id", SortOrder.ASC).setTrackScores(true).get();
     }
 
-
     @Test
     public void testMinMaxChildren() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("parent").addMapping("child", "_parent", "type=parent"));
+        assertAcked(prepareCreate("test")
+                .addMapping("parent", "id", "type=long")
+                .addMapping("child", "_parent", "type=parent"));
         ensureGreen();
 
         indexRandom(true, createMinMaxDocBuilders().toArray(new IndexRequestBuilder[0]));
@@ -2232,7 +2256,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         int cutoff = getRandom().nextInt(4);
 
         // Score mode = NONE
-        response = MinMaxQuery("none", 0, 0, cutoff);
+        response = minMaxQuery("none", 0, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("2"));
@@ -2242,7 +2266,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("4"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxQuery("none", 1, 0, cutoff);
+        response = minMaxQuery("none", 1, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("2"));
@@ -2252,7 +2276,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("4"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxQuery("none", 2, 0, cutoff);
+        response = minMaxQuery("none", 2, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         assertThat(response.getHits().hits()[0].id(), equalTo("3"));
@@ -2260,17 +2284,17 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[1].id(), equalTo("4"));
         assertThat(response.getHits().hits()[1].score(), equalTo(1f));
 
-        response = MinMaxQuery("none", 3, 0, cutoff);
+        response = minMaxQuery("none", 3, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
         assertThat(response.getHits().hits()[0].score(), equalTo(1f));
 
-        response = MinMaxQuery("none", 4, 0, cutoff);
+        response = minMaxQuery("none", 4, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(0l));
 
-        response = MinMaxQuery("none", 0, 4, cutoff);
+        response = minMaxQuery("none", 0, 4, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("2"));
@@ -2280,7 +2304,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("4"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxQuery("none", 0, 3, cutoff);
+        response = minMaxQuery("none", 0, 3, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("2"));
@@ -2290,7 +2314,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("4"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxQuery("none", 0, 2, cutoff);
+        response = minMaxQuery("none", 0, 2, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         assertThat(response.getHits().hits()[0].id(), equalTo("2"));
@@ -2298,21 +2322,21 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[1].id(), equalTo("3"));
         assertThat(response.getHits().hits()[1].score(), equalTo(1f));
 
-        response = MinMaxQuery("none", 2, 2, cutoff);
+        response = minMaxQuery("none", 2, 2, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(response.getHits().hits()[0].id(), equalTo("3"));
         assertThat(response.getHits().hits()[0].score(), equalTo(1f));
 
         try {
-            response = MinMaxQuery("none", 3, 2, cutoff);
+            response = minMaxQuery("none", 3, 2, cutoff);
             fail();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
         }
 
         // Score mode = SUM
-        response = MinMaxQuery("sum", 0, 0, cutoff);
+        response = minMaxQuery("sum", 0, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -2322,7 +2346,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxQuery("sum", 1, 0, cutoff);
+        response = minMaxQuery("sum", 1, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -2332,7 +2356,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxQuery("sum", 2, 0, cutoff);
+        response = minMaxQuery("sum", 2, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -2340,17 +2364,17 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[1].id(), equalTo("3"));
         assertThat(response.getHits().hits()[1].score(), equalTo(3f));
 
-        response = MinMaxQuery("sum", 3, 0, cutoff);
+        response = minMaxQuery("sum", 3, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
         assertThat(response.getHits().hits()[0].score(), equalTo(6f));
 
-        response = MinMaxQuery("sum", 4, 0, cutoff);
+        response = minMaxQuery("sum", 4, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(0l));
 
-        response = MinMaxQuery("sum", 0, 4, cutoff);
+        response = minMaxQuery("sum", 0, 4, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -2360,7 +2384,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxQuery("sum", 0, 3, cutoff);
+        response = minMaxQuery("sum", 0, 3, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -2370,7 +2394,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxQuery("sum", 0, 2, cutoff);
+        response = minMaxQuery("sum", 0, 2, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         assertThat(response.getHits().hits()[0].id(), equalTo("3"));
@@ -2378,21 +2402,21 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[1].id(), equalTo("2"));
         assertThat(response.getHits().hits()[1].score(), equalTo(1f));
 
-        response = MinMaxQuery("sum", 2, 2, cutoff);
+        response = minMaxQuery("sum", 2, 2, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(response.getHits().hits()[0].id(), equalTo("3"));
         assertThat(response.getHits().hits()[0].score(), equalTo(3f));
 
         try {
-            response = MinMaxQuery("sum", 3, 2, cutoff);
+            response = minMaxQuery("sum", 3, 2, cutoff);
             fail();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
         }
 
         // Score mode = MAX
-        response = MinMaxQuery("max", 0, 0, cutoff);
+        response = minMaxQuery("max", 0, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -2402,7 +2426,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxQuery("max", 1, 0, cutoff);
+        response = minMaxQuery("max", 1, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -2412,7 +2436,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxQuery("max", 2, 0, cutoff);
+        response = minMaxQuery("max", 2, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -2420,17 +2444,17 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[1].id(), equalTo("3"));
         assertThat(response.getHits().hits()[1].score(), equalTo(2f));
 
-        response = MinMaxQuery("max", 3, 0, cutoff);
+        response = minMaxQuery("max", 3, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
         assertThat(response.getHits().hits()[0].score(), equalTo(3f));
 
-        response = MinMaxQuery("max", 4, 0, cutoff);
+        response = minMaxQuery("max", 4, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(0l));
 
-        response = MinMaxQuery("max", 0, 4, cutoff);
+        response = minMaxQuery("max", 0, 4, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -2440,7 +2464,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxQuery("max", 0, 3, cutoff);
+        response = minMaxQuery("max", 0, 3, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -2450,7 +2474,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxQuery("max", 0, 2, cutoff);
+        response = minMaxQuery("max", 0, 2, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         assertThat(response.getHits().hits()[0].id(), equalTo("3"));
@@ -2458,21 +2482,21 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[1].id(), equalTo("2"));
         assertThat(response.getHits().hits()[1].score(), equalTo(1f));
 
-        response = MinMaxQuery("max", 2, 2, cutoff);
+        response = minMaxQuery("max", 2, 2, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(response.getHits().hits()[0].id(), equalTo("3"));
         assertThat(response.getHits().hits()[0].score(), equalTo(2f));
 
         try {
-            response = MinMaxQuery("max", 3, 2, cutoff);
+            response = minMaxQuery("max", 3, 2, cutoff);
             fail();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
         }
 
         // Score mode = AVG
-        response = MinMaxQuery("avg", 0, 0, cutoff);
+        response = minMaxQuery("avg", 0, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -2482,7 +2506,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxQuery("avg", 1, 0, cutoff);
+        response = minMaxQuery("avg", 1, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -2492,7 +2516,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxQuery("avg", 2, 0, cutoff);
+        response = minMaxQuery("avg", 2, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -2500,17 +2524,17 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[1].id(), equalTo("3"));
         assertThat(response.getHits().hits()[1].score(), equalTo(1.5f));
 
-        response = MinMaxQuery("avg", 3, 0, cutoff);
+        response = minMaxQuery("avg", 3, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
         assertThat(response.getHits().hits()[0].score(), equalTo(2f));
 
-        response = MinMaxQuery("avg", 4, 0, cutoff);
+        response = minMaxQuery("avg", 4, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(0l));
 
-        response = MinMaxQuery("avg", 0, 4, cutoff);
+        response = minMaxQuery("avg", 0, 4, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -2520,7 +2544,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxQuery("avg", 0, 3, cutoff);
+        response = minMaxQuery("avg", 0, 3, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
@@ -2530,7 +2554,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("2"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxQuery("avg", 0, 2, cutoff);
+        response = minMaxQuery("avg", 0, 2, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         assertThat(response.getHits().hits()[0].id(), equalTo("3"));
@@ -2538,21 +2562,21 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[1].id(), equalTo("2"));
         assertThat(response.getHits().hits()[1].score(), equalTo(1f));
 
-        response = MinMaxQuery("avg", 2, 2, cutoff);
+        response = minMaxQuery("avg", 2, 2, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(response.getHits().hits()[0].id(), equalTo("3"));
         assertThat(response.getHits().hits()[0].score(), equalTo(1.5f));
 
         try {
-            response = MinMaxQuery("avg", 3, 2, cutoff);
+            response = minMaxQuery("avg", 3, 2, cutoff);
             fail();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
         }
 
         // HasChildFilter
-        response = MinMaxFilter(0, 0, cutoff);
+        response = minMaxFilter(0, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("2"));
@@ -2562,7 +2586,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("4"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxFilter(1, 0, cutoff);
+        response = minMaxFilter(1, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("2"));
@@ -2572,7 +2596,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("4"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxFilter(2, 0, cutoff);
+        response = minMaxFilter(2, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         assertThat(response.getHits().hits()[0].id(), equalTo("3"));
@@ -2580,17 +2604,17 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[1].id(), equalTo("4"));
         assertThat(response.getHits().hits()[1].score(), equalTo(1f));
 
-        response = MinMaxFilter(3, 0, cutoff);
+        response = minMaxFilter(3, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(response.getHits().hits()[0].id(), equalTo("4"));
         assertThat(response.getHits().hits()[0].score(), equalTo(1f));
 
-        response = MinMaxFilter(4, 0, cutoff);
+        response = minMaxFilter(4, 0, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(0l));
 
-        response = MinMaxFilter(0, 4, cutoff);
+        response = minMaxFilter(0, 4, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("2"));
@@ -2600,7 +2624,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("4"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxFilter(0, 3, cutoff);
+        response = minMaxFilter(0, 3, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(3l));
         assertThat(response.getHits().hits()[0].id(), equalTo("2"));
@@ -2610,7 +2634,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[2].id(), equalTo("4"));
         assertThat(response.getHits().hits()[2].score(), equalTo(1f));
 
-        response = MinMaxFilter(0, 2, cutoff);
+        response = minMaxFilter(0, 2, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(2l));
         assertThat(response.getHits().hits()[0].id(), equalTo("2"));
@@ -2618,14 +2642,14 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
         assertThat(response.getHits().hits()[1].id(), equalTo("3"));
         assertThat(response.getHits().hits()[1].score(), equalTo(1f));
 
-        response = MinMaxFilter(2, 2, cutoff);
+        response = minMaxFilter(2, 2, cutoff);
 
         assertThat(response.getHits().totalHits(), equalTo(1l));
         assertThat(response.getHits().hits()[0].id(), equalTo("3"));
         assertThat(response.getHits().hits()[0].score(), equalTo(1f));
 
         try {
-            response = MinMaxFilter(3, 2, cutoff);
+            response = minMaxFilter(3, 2, cutoff);
             fail();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getMessage(), containsString("[has_child] 'max_children' is less than 'min_children'"));
@@ -2634,6 +2658,7 @@ public class SimpleChildQuerySearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9461")
     public void testParentFieldToNonExistingType() {
         assertAcked(prepareCreate("test").addMapping("parent").addMapping("child", "_parent", "type=parent2"));
         client().prepareIndex("test", "parent", "1").setSource("{}").get();

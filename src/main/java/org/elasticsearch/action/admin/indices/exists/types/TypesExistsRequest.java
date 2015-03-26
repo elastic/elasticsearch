@@ -76,6 +76,7 @@ public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExis
         return this;
     }
 
+    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
         if (indices == null) { // Specifying '*' via rest api results in an empty array
@@ -94,7 +95,6 @@ public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExis
         out.writeStringArray(indices);
         out.writeStringArray(types);
         indicesOptions.writeIndicesOptions(out);
-        writeLocal(out, Version.V_1_0_0_RC2);
     }
 
     @Override
@@ -103,6 +103,5 @@ public class TypesExistsRequest extends MasterNodeReadOperationRequest<TypesExis
         indices = in.readStringArray();
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        readLocal(in, Version.V_1_0_0_RC2);
     }
 }

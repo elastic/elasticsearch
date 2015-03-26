@@ -19,24 +19,22 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.TermRangeFilter;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.lucene.search.NotFilter;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.XBooleanFilter;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.cache.filter.support.CacheKeyFilter;
 import org.elasticsearch.index.mapper.FieldMappers;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
-
-import static org.elasticsearch.index.query.support.QueryParsers.wrapSmartNameFilter;
 
 /**
  *
@@ -97,7 +95,8 @@ public class MissingFilterParser implements FilterParser {
             throw new QueryParsingException(parseContext.index(), "missing must have either existence, or null_value, or both set to true");
         }
 
-        final FieldMappers fieldNamesMapper = parseContext.mapperService().indexName(FieldNamesFieldMapper.NAME);
+        final FieldMappers fieldNamesMappers = parseContext.mapperService().indexName(FieldNamesFieldMapper.NAME);
+        final FieldNamesFieldMapper fieldNamesMapper = (FieldNamesFieldMapper)fieldNamesMappers.mapper();
         MapperService.SmartNameObjectMapper smartNameObjectMapper = parseContext.smartObjectMapper(fieldPattern);
         if (smartNameObjectMapper != null && smartNameObjectMapper.hasMapper()) {
             // automatic make the object mapper pattern
@@ -126,14 +125,14 @@ public class MissingFilterParser implements FilterParser {
                     nonNullFieldMappers = smartNameFieldMappers;
                 }
                 Filter filter = null;
-                if (fieldNamesMapper != null && fieldNamesMapper.mapper().fieldType().indexed()) {
+                if (fieldNamesMapper != null && fieldNamesMapper.enabled()) {
                     final String f;
                     if (smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
                         f = smartNameFieldMappers.mapper().names().indexName();
                     } else {
                         f = field;
                     }
-                    filter = fieldNamesMapper.mapper().termFilter(f, parseContext);
+                    filter = fieldNamesMapper.termFilter(f, parseContext);
                 }
                 // if _field_names are not indexed, we need to go the slow way
                 if (filter == null && smartNameFieldMappers != null && smartNameFieldMappers.hasMapper()) {
@@ -147,10 +146,10 @@ public class MissingFilterParser implements FilterParser {
 
             // we always cache this one, really does not change... (exists)
             // its ok to cache under the fieldName cacheKey, since its per segment and the mapping applies to this data on this segment...
-            existenceFilter = parseContext.cacheFilter(boolFilter, new CacheKeyFilter.Key("$exists$" + fieldPattern));
+            existenceFilter = parseContext.cacheFilter(boolFilter, new HashedBytesRef("$exists$" + fieldPattern), parseContext.autoFilterCachePolicy());
             existenceFilter = new NotFilter(existenceFilter);
             // cache the not filter as well, so it will be faster
-            existenceFilter = parseContext.cacheFilter(existenceFilter, new CacheKeyFilter.Key("$missing$" + fieldPattern));
+            existenceFilter = parseContext.cacheFilter(existenceFilter, new HashedBytesRef("$missing$" + fieldPattern), parseContext.autoFilterCachePolicy());
         }
 
         if (nullValue) {
@@ -160,7 +159,7 @@ public class MissingFilterParser implements FilterParser {
                     nullFilter = smartNameFieldMappers.mapper().nullValueFilter();
                     if (nullFilter != null) {
                         // cache the not filter as well, so it will be faster
-                        nullFilter = parseContext.cacheFilter(nullFilter, new CacheKeyFilter.Key("$null$" + fieldPattern));
+                        nullFilter = parseContext.cacheFilter(nullFilter, new HashedBytesRef("$null$" + fieldPattern), parseContext.autoFilterCachePolicy());
                     }
                 }
             }
@@ -173,7 +172,7 @@ public class MissingFilterParser implements FilterParser {
                 combined.add(existenceFilter, BooleanClause.Occur.SHOULD);
                 combined.add(nullFilter, BooleanClause.Occur.SHOULD);
                 // cache the not filter as well, so it will be faster
-                filter = parseContext.cacheFilter(combined, null);
+                filter = parseContext.cacheFilter(combined, null, parseContext.autoFilterCachePolicy());
             } else {
                 filter = nullFilter;
             }
@@ -185,7 +184,6 @@ public class MissingFilterParser implements FilterParser {
             return null;
         }
 
-        filter = wrapSmartNameFilter(filter, nonNullFieldMappers, parseContext);
         if (filterName != null) {
             parseContext.addNamedFilter(filterName, existenceFilter);
         }

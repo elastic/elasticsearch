@@ -27,9 +27,6 @@ import org.elasticsearch.client.IndicesAdminClient;
  * A request to optimize one or more indices. In order to optimize on all the indices, pass an empty array or
  * <tt>null</tt> for the indices.
  * <p/>
- * <p>{@link #setWaitForMerge(boolean)} allows to control if the call will block until the optimize completes and
- * defaults to <tt>true</tt>.
- * <p/>
  * <p>{@link #setMaxNumSegments(int)} allows to control the number of segments to optimize down to. By default, will
  * cause the optimize process to optimize down to half the configured number of segments.
  */
@@ -37,14 +34,6 @@ public class OptimizeRequestBuilder extends BroadcastOperationRequestBuilder<Opt
 
     public OptimizeRequestBuilder(IndicesAdminClient indicesClient) {
         super(indicesClient, new OptimizeRequest());
-    }
-
-    /**
-     * Should the call block until the optimize completes. Defaults to <tt>true</tt>.
-     */
-    public OptimizeRequestBuilder setWaitForMerge(boolean waitForMerge) {
-        request.waitForMerge(waitForMerge);
-        return this;
     }
 
     /**
@@ -70,15 +59,6 @@ public class OptimizeRequestBuilder extends BroadcastOperationRequestBuilder<Opt
      */
     public OptimizeRequestBuilder setFlush(boolean flush) {
         request.flush(flush);
-        return this;
-    }
-
-    /**
-     * Should the merge be forced even if there is a single segment with no deletions in the shard.
-     * Defaults to <tt>false</tt>.
-     */
-    public OptimizeRequestBuilder setForce(boolean force) {
-        request.force(force);
         return this;
     }
 

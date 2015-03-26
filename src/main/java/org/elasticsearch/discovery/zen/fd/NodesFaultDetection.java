@@ -20,7 +20,6 @@
 package org.elasticsearch.discovery.zen.fd;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -115,6 +114,7 @@ public class NodesFaultDetection extends FaultDetection {
         return this;
     }
 
+    @Override
     public void close() {
         super.close();
         stop();
@@ -313,22 +313,18 @@ public class NodesFaultDetection extends FaultDetection {
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             nodeId = in.readString();
-            if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                clusterName = ClusterName.readClusterName(in);
-                masterNode = DiscoveryNode.readNode(in);
-                clusterStateVersion = in.readLong();
-            }
+            clusterName = ClusterName.readClusterName(in);
+            masterNode = DiscoveryNode.readNode(in);
+            clusterStateVersion = in.readLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(nodeId);
-            if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                clusterName.writeTo(out);
-                masterNode.writeTo(out);
-                out.writeLong(clusterStateVersion);
-            }
+            clusterName.writeTo(out);
+            masterNode.writeTo(out);
+            out.writeLong(clusterStateVersion);
         }
     }
 

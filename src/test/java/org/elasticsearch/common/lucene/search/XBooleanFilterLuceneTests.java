@@ -23,15 +23,27 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SlowCompositeReaderWrapper;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.FilterClause;
 import org.apache.lucene.queries.TermsFilter;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TermRangeFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.lucene.Lucene;
+import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -39,7 +51,6 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
@@ -48,13 +59,14 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
     
     private Directory directory;
-    private AtomicReader reader;
+    private LeafReader reader;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
         directory = new RAMDirectory();
-        IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(Lucene.VERSION, new WhitespaceAnalyzer(Lucene.VERSION)));
+        IndexWriter writer = new IndexWriter(directory, new IndexWriterConfig(new WhitespaceAnalyzer()));
 
         //Add series of docs with filterable fields : acces rights, prices, dates and "in-stock" flags
         addDoc(writer, "admin guest", "010", "20040101", "Y");
@@ -67,6 +79,7 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
         writer.close();
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
@@ -98,8 +111,13 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
     private Filter getEmptyFilter() {
         return new Filter() {
             @Override
-            public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) {
-                return new FixedBitSet(context.reader().maxDoc());
+            public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) {
+                return new BitDocIdSet(new SparseFixedBitSet(context.reader().maxDoc()));
+            }
+
+            @Override
+            public String toString(String field) {
+                return "empty";
             }
         };
     }
@@ -107,8 +125,13 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
     private Filter getNullDISFilter() {
         return new Filter() {
             @Override
-            public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) {
+            public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) {
                 return null;
+            }
+
+            @Override
+            public String toString(String field) {
+                return "nulldis";
             }
         };
     }
@@ -116,7 +139,7 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
     private Filter getNullDISIFilter() {
         return new Filter() {
             @Override
-            public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) {
+            public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) {
                 return new DocIdSet() {
                     @Override
                     public DocIdSetIterator iterator() {
@@ -127,7 +150,17 @@ public class XBooleanFilterLuceneTests extends ElasticsearchTestCase {
                     public boolean isCacheable() {
                         return true;
                     }
+
+                    @Override
+                    public long ramBytesUsed() {
+                        return 0;
+                    }
                 };
+            }
+
+            @Override
+            public String toString(String field) {
+                return "nulldisi";
             }
         };
     }

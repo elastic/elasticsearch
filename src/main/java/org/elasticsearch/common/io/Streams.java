@@ -26,6 +26,8 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.Callback;
 
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 
 /**
@@ -39,53 +41,6 @@ import java.util.List;
 public abstract class Streams {
 
     public static final int BUFFER_SIZE = 1024 * 8;
-
-
-    //---------------------------------------------------------------------
-    // Copy methods for java.io.File
-    //---------------------------------------------------------------------
-
-    /**
-     * Copy the contents of the given input File to the given output File.
-     *
-     * @param in  the file to copy from
-     * @param out the file to copy to
-     * @return the number of bytes copied
-     * @throws IOException in case of I/O errors
-     */
-    public static long copy(File in, File out) throws IOException {
-        Preconditions.checkNotNull(in, "No input File specified");
-        Preconditions.checkNotNull(out, "No output File specified");
-        return copy(new BufferedInputStream(new FileInputStream(in)),
-                new BufferedOutputStream(new FileOutputStream(out)));
-    }
-
-    /**
-     * Copy the contents of the given byte array to the given output File.
-     *
-     * @param in  the byte array to copy from
-     * @param out the file to copy to
-     * @throws IOException in case of I/O errors
-     */
-    public static void copy(byte[] in, File out) throws IOException {
-        Preconditions.checkNotNull(in, "No input byte array specified");
-        Preconditions.checkNotNull(out, "No output File specified");
-        ByteArrayInputStream inStream = new ByteArrayInputStream(in);
-        OutputStream outStream = new BufferedOutputStream(new FileOutputStream(out));
-        copy(inStream, outStream);
-    }
-
-    /**
-     * Copy the contents of the given input File into a new byte array.
-     *
-     * @param in the file to copy from
-     * @return the new byte array that has been copied to
-     * @throws IOException in case of I/O errors
-     */
-    public static byte[] copyToByteArray(File in) throws IOException {
-        Preconditions.checkNotNull(in, "No input File specified");
-        return copyToByteArray(new BufferedInputStream(new FileInputStream(in)));
-    }
 
 
     //---------------------------------------------------------------------
@@ -152,20 +107,6 @@ public abstract class Streams {
                 // do nothing
             }
         }
-    }
-
-    /**
-     * Copy the contents of the given InputStream into a new byte array.
-     * Closes the stream when done.
-     *
-     * @param in the stream to copy from
-     * @return the new byte array that has been copied to
-     * @throws IOException in case of I/O errors
-     */
-    public static byte[] copyToByteArray(InputStream in) throws IOException {
-        BytesStreamOutput out = new BytesStreamOutput();
-        copy(in, out);
-        return out.bytes().toBytes();
     }
 
 
@@ -262,11 +203,15 @@ public abstract class Streams {
     }
 
     public static byte[] copyToBytesFromClasspath(String path) throws IOException {
-        InputStream is = Streams.class.getResourceAsStream(path);
-        if (is == null) {
-            throw new FileNotFoundException("Resource [" + path + "] not found in classpath");
+        try (InputStream is = Streams.class.getResourceAsStream(path)) {
+            if (is == null) {
+                throw new FileNotFoundException("Resource [" + path + "] not found in classpath");
+            }
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                copy(is, out);
+                return out.bytes().toBytes();
+            }
         }
-        return copyToByteArray(is);
     }
 
     public static int readFully(Reader reader, char[] dest) throws IOException {

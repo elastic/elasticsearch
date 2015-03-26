@@ -32,7 +32,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.RestoreService;
-import org.elasticsearch.snapshots.RestoreService.RestoreSnapshotListener;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -74,27 +73,29 @@ public class TransportRestoreSnapshotAction extends TransportMasterNodeOperation
         RestoreService.RestoreRequest restoreRequest = new RestoreService.RestoreRequest(
                 "restore_snapshot[" + request.snapshot() + "]", request.repository(), request.snapshot(),
                 request.indices(), request.indicesOptions(), request.renamePattern(), request.renameReplacement(),
-                request.settings(), request.masterNodeTimeout(), request.includeGlobalState(), request.partial(), request.includeAliases());
+                request.settings(), request.masterNodeTimeout(), request.includeGlobalState(), request.partial(), request.includeAliases(),
+                request.indexSettings(), request.ignoreIndexSettings());
 
-        restoreService.restoreSnapshot(restoreRequest, new RestoreSnapshotListener() {
+        restoreService.restoreSnapshot(restoreRequest, new ActionListener<RestoreInfo>() {
             @Override
             public void onResponse(RestoreInfo restoreInfo) {
-                if (restoreInfo == null) {
-                    if (request.waitForCompletion()) {
-                        restoreService.addListener(new RestoreService.RestoreCompletionListener() {
-                            SnapshotId snapshotId = new SnapshotId(request.repository(), request.snapshot());
+                if (restoreInfo == null && request.waitForCompletion()) {
+                    restoreService.addListener(new ActionListener<RestoreService.RestoreCompletionResponse>() {
+                        SnapshotId snapshotId = new SnapshotId(request.repository(), request.snapshot());
 
-                            @Override
-                            public void onRestoreCompletion(SnapshotId snapshotId, RestoreInfo snapshot) {
-                                if (this.snapshotId.equals(snapshotId)) {
-                                    listener.onResponse(new RestoreSnapshotResponse(snapshot));
-                                    restoreService.removeListener(this);
-                                }
+                        @Override
+                        public void onResponse(RestoreService.RestoreCompletionResponse restoreCompletionResponse) {
+                            if (this.snapshotId.equals(restoreCompletionResponse.getSnapshotId())) {
+                                listener.onResponse(new RestoreSnapshotResponse(restoreCompletionResponse.getRestoreInfo()));
+                                restoreService.removeListener(this);
                             }
-                        });
-                    } else {
-                        listener.onResponse(new RestoreSnapshotResponse(null));
-                    }
+                        }
+
+                        @Override
+                        public void onFailure(Throwable e) {
+                            listener.onFailure(e);
+                        }
+                    });
                 } else {
                     listener.onResponse(new RestoreSnapshotResponse(restoreInfo));
                 }

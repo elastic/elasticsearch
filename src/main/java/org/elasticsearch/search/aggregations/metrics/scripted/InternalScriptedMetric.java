@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -60,13 +61,13 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
     private InternalScriptedMetric() {
     }
 
-    private InternalScriptedMetric(String name) {
-        super(name);
+    private InternalScriptedMetric(String name, Map<String, Object> metaData) {
+        super(name, metaData);
     }
 
     public InternalScriptedMetric(String name, Object aggregation, String scriptLang, ScriptType scriptType, String reduceScript,
-            Map<String, Object> reduceParams) {
-        this(name);
+            Map<String, Object> reduceParams, Map<String, Object> metaData) {
+        this(name, metaData);
         this.aggregation = aggregation;
         this.scriptType = scriptType;
         this.reduceScript = reduceScript;
@@ -91,9 +92,9 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
         if (firstAggregation.reduceScript != null) {
             Map<String, Object> params;
             if (firstAggregation.reduceParams != null) {
-                params = new HashMap<String, Object>(firstAggregation.reduceParams);
+                params = new HashMap<>(firstAggregation.reduceParams);
             } else {
-                params = new HashMap<String, Object>();
+                params = new HashMap<>();
             }
             params.put("_aggs", aggregationObjects);
             ExecutableScript script = reduceContext.scriptService().executable(firstAggregation.scriptLang, firstAggregation.reduceScript,
@@ -103,7 +104,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
             aggregation = aggregationObjects;
         }
         return new InternalScriptedMetric(firstAggregation.getName(), aggregation, firstAggregation.scriptLang, firstAggregation.scriptType,
-                firstAggregation.reduceScript, firstAggregation.reduceParams);
+                firstAggregation.reduceScript, firstAggregation.reduceParams, getMetaData());
 
     }
 
@@ -113,8 +114,18 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    public Object getProperty(List<String> path) {
+        if (path.isEmpty()) {
+            return this;
+        } else if (path.size() == 1 && "value".equals(path.get(0))) {
+            return aggregation;
+        } else {
+            throw new ElasticsearchIllegalArgumentException("path not supported for [" + getName() + "]: " + path);
+        }
+    }
+
+    @Override
+    protected void doReadFrom(StreamInput in) throws IOException {
         scriptLang = in.readOptionalString();
         scriptType = ScriptType.readFrom(in);
         reduceScript = in.readOptionalString();
@@ -123,8 +134,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalString(scriptLang);
         ScriptType.writeTo(scriptType, out);
         out.writeOptionalString(reduceScript);

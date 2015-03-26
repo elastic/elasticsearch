@@ -28,8 +28,8 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.filter.FilterCache;
-import org.elasticsearch.index.cache.fixedbitset.FixedBitSetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMappers;
@@ -37,8 +37,9 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedFilter;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.service.IndexService;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.Scroll;
@@ -47,7 +48,7 @@ import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
-import org.elasticsearch.search.fetch.partial.PartialFieldsContext;
+import org.elasticsearch.search.fetch.innerhits.InnerHitsContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
@@ -70,13 +71,14 @@ public class TestSearchContext extends SearchContext {
     final IndexService indexService;
     final FilterCache filterCache;
     final IndexFieldDataService indexFieldDataService;
-    final FixedBitSetFilterCache fixedBitSetFilterCache;
+    final BitsetFilterCache fixedBitSetFilterCache;
     final ThreadPool threadPool;
 
     ContextIndexSearcher searcher;
     int size;
     private int terminateAfter = DEFAULT_TERMINATE_AFTER;
     private String[] types;
+    private SearchContextAggregations aggregations;
 
     public TestSearchContext(ThreadPool threadPool,PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService, FilterCache filterCache, IndexFieldDataService indexFieldDataService) {
         this.pageCacheRecycler = pageCacheRecycler;
@@ -84,7 +86,7 @@ public class TestSearchContext extends SearchContext {
         this.indexService = indexService;
         this.filterCache = indexService.cache().filter();
         this.indexFieldDataService = indexService.fieldData();
-        this.fixedBitSetFilterCache = indexService.fixedBitSetFilterCache();
+        this.fixedBitSetFilterCache = indexService.bitsetFilterCache();
         this.threadPool = threadPool;
     }
 
@@ -143,7 +145,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public int numberOfShards() {
-        return 0;
+        return 1;
     }
 
     @Override
@@ -183,12 +185,13 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchContextAggregations aggregations() {
-        return null;
+        return aggregations;
     }
 
     @Override
     public SearchContext aggregations(SearchContextAggregations aggregations) {
-        return null;
+        this.aggregations = aggregations;
+        return this;
     }
 
     @Override
@@ -235,16 +238,6 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public ScriptFieldsContext scriptFields() {
-        return null;
-    }
-
-    @Override
-    public boolean hasPartialFields() {
-        return false;
-    }
-
-    @Override
-    public PartialFieldsContext partialFields() {
         return null;
     }
 
@@ -297,7 +290,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public IndexQueryParserService queryParserService() {
-        return null;
+        return indexService.queryParserService();
     }
 
     @Override
@@ -307,7 +300,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public ScriptService scriptService() {
-        return null;
+        return indexService.injector().getInstance(ScriptService.class);
     }
 
     @Override
@@ -326,7 +319,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public FixedBitSetFilterCache fixedBitSetFilterCache() {
+    public BitsetFilterCache bitsetFilterCache() {
         return fixedBitSetFilterCache;
     }
 
@@ -539,7 +532,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public SearchLookup lookup() {
-        return null;
+        return new SearchLookup(mapperService(), fieldData(), null);
     }
 
     @Override
@@ -581,7 +574,18 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
+    public FieldMapper<?> smartNameFieldMapperFromAnyType(String name) {
+        if (mapperService() != null) {
+            return mapperService().smartNameFieldMapper(name);
+        }
+        return null;
+    }
+
+    @Override
     public MapperService.SmartNameObjectMapper smartNameObjectMapper(String name) {
+        if (mapperService() != null) {
+            return mapperService().smartNameObjectMapper(name, types);
+        }
         return null;
     }
 
@@ -590,17 +594,18 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean useSlowScroll() {
-        return false;
-    }
-
-    @Override
-    public SearchContext useSlowScroll(boolean useSlowScroll) {
-        return null;
-    }
-
-    @Override
     public Counter timeEstimateCounter() {
         throw new UnsupportedOperationException();
     }
+
+    @Override
+    public void innerHits(InnerHitsContext innerHitsContext) {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public InnerHitsContext innerHits() {
+        throw new UnsupportedOperationException();
+    }
+
 }

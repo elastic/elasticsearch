@@ -25,7 +25,7 @@ of `indices`, `os`, `process`, `jvm`, `network`, `transport`, `http`,
 [horizontal]
 `indices`:: 
 	Indices stats about size, document count, indexing and
-	deletion times, search times, field cache size , merges and flushes
+	deletion times, search times, field cache size, merges and flushes
 
 `fs`:: 
 	File system information, data path, free disk space, read/write
@@ -82,14 +82,14 @@ level or on index level.
 [source,js]
 --------------------------------------------------
 # Node Stats
-curl localhost:9200/_nodes/stats/indices/?fields=field1,field2&pretty
+curl -XGET 'http://localhost:9200/_nodes/stats/indices/?fields=field1,field2&pretty'
 
 # Indices Stat
-curl localhost:9200/_stats/fielddata/?fields=field1,field2&pretty
+curl -XGET 'http://localhost:9200/_stats/fielddata/?fields=field1,field2&pretty'
 
 # You can use wildcards for field names
-curl localhost:9200/_stats/fielddata/?fields=field*&pretty
-curl localhost:9200/_nodes/stats/indices/?fields=field*&pretty
+curl -XGET 'http://localhost:9200/_stats/fielddata/?fields=field*&pretty'
+curl -XGET 'http://localhost:9200/_nodes/stats/indices/?fields=field*&pretty'
 --------------------------------------------------
 
 [float]
@@ -102,8 +102,8 @@ on this node.
 [source,js]
 --------------------------------------------------
 # All groups with all stats
-curl localhost:9200/_nodes/stats?pretty&groups=_all
+curl -XGET 'http://localhost:9200/_nodes/stats?pretty&groups=_all'
 
 # Some groups from just the indices stats
-curl localhost:9200/_nodes/stats/indices?pretty&groups=foo,bar
+curl -XGET 'http://localhost:9200/_nodes/stats/indices?pretty&groups=foo,bar'
 --------------------------------------------------

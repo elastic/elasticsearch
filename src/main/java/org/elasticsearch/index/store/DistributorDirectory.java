@@ -18,28 +18,29 @@
  */
 package org.elasticsearch.index.store;
 
-import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.math.MathUtils;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.store.distributor.Distributor;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.concurrent.ConcurrentMap;
+import java.util.HashMap;
+import java.util.IdentityHashMap;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A directory implementation that uses the Elasticsearch {@link Distributor} abstraction to distribute
  * files across multiple data directories.
  */
-public final class DistributorDirectory extends BaseDirectory {
+public final class DistributorDirectory extends Directory {
 
     private final Distributor distributor;
-    private final ConcurrentMap<String, Directory> nameDirMapping = ConcurrentCollections.newConcurrentMap();
+    private final HashMap<String, Directory> nameDirMapping = new HashMap<>();
+    private boolean closed = false;
 
     /**
      * Creates a new DistributorDirectory from multiple directories. Note: The first directory in the given array
@@ -74,65 +75,82 @@ public final class DistributorDirectory extends BaseDirectory {
         this.distributor = distributor;
         for (Directory dir : distributor.all()) {
             for (String file : dir.listAll()) {
-                if (!usePrimary(file)) {
-                    nameDirMapping.put(file, dir);
-                }
+                nameDirMapping.put(file, dir);
             }
         }
     }
 
     @Override
-    public final String[] listAll() throws IOException {
-        final ArrayList<String> files = new ArrayList<>();
-        for (Directory dir : distributor.all()) {
-            for (String file : dir.listAll()) {
-                files.add(file);
-            }
-        }
-        return files.toArray(new String[files.size()]);
+    public synchronized final String[] listAll() throws IOException {
+        return nameDirMapping.keySet().toArray(new String[nameDirMapping.size()]);
     }
 
     @Override
-    public boolean fileExists(String name) throws IOException {
-        try {
-            return getDirectory(name).fileExists(name);
-        } catch (FileNotFoundException ex) {
-            return false;
-        }
-    }
-
-    @Override
-    public void deleteFile(String name) throws IOException {
-        getDirectory(name, true, true).deleteFile(name);
+    public synchronized void deleteFile(String name) throws IOException {
+        getDirectory(name, true).deleteFile(name);
         Directory remove = nameDirMapping.remove(name);
-        assert usePrimary(name) || remove != null : "Tried to delete file " + name + " but couldn't";
+        assert remove != null : "Tried to delete file " + name + " but couldn't";
     }
 
     @Override
-    public long fileLength(String name) throws IOException {
+    public synchronized long fileLength(String name) throws IOException {
         return getDirectory(name).fileLength(name);
     }
 
     @Override
-    public IndexOutput createOutput(String name, IOContext context) throws IOException {
-        return getDirectory(name, false, false).createOutput(name, context);
+    public synchronized IndexOutput createOutput(String name, IOContext context) throws IOException {
+        return getDirectory(name, false).createOutput(name, context);
     }
 
     @Override
     public void sync(Collection<String> names) throws IOException {
-        for (Directory dir : distributor.all()) {
-            dir.sync(names);
+        // no need to sync this operation it could be long running too
+        final Map<Directory, Collection<String>> perDirectory = new IdentityHashMap<>();
+        for (String name : names) {
+            final Directory dir = getDirectory(name);
+            Collection<String> dirNames = perDirectory.get(dir);
+            if (dirNames == null) {
+                dirNames = new ArrayList<>();
+                perDirectory.put(dir, dirNames);
+            }
+            dirNames.add(name);
+        }
+        for (Map.Entry<Directory, Collection<String>> entry : perDirectory.entrySet()) {
+            final Directory dir = entry.getKey();
+            final Collection<String> dirNames = entry.getValue();
+            dir.sync(dirNames);
         }
     }
 
     @Override
-    public IndexInput openInput(String name, IOContext context) throws IOException {
+    public synchronized void renameFile(String source, String dest) throws IOException {
+        final Directory directory = getDirectory(source);
+        final Directory targetDir = nameDirMapping.get(dest);
+        if (targetDir != null && targetDir != directory) {
+            throw new IOException("Can't rename file from " + source
+                    + " to: " + dest + ": target file already exists in a different directory");
+        }
+        directory.renameFile(source, dest);
+        nameDirMapping.remove(source);
+        nameDirMapping.put(dest, directory);
+    }
+
+    @Override
+    public synchronized IndexInput openInput(String name, IOContext context) throws IOException {
         return getDirectory(name).openInput(name, context);
     }
 
     @Override
-    public void close() throws IOException {
-        IOUtils.close(distributor.all());
+    public synchronized void close() throws IOException {
+        if (closed) {
+            return;
+        }
+        try {
+            assert assertConsistency();
+        } finally {
+            closed = true;
+            IOUtils.close(distributor.all());
+        }
     }
 
     /**
@@ -140,107 +158,102 @@ public final class DistributorDirectory extends BaseDirectory {
      *
      * @throws IOException if the name has not yet been associated with any directory ie. fi the file does not exists
      */
-    private Directory getDirectory(String name) throws IOException {
-        return getDirectory(name, true, false);
-    }
-
-    /**
-     * Returns true if the primary directory should be used for the given file.
-     */
-    private boolean usePrimary(String name) {
-        return IndexFileNames.SEGMENTS_GEN.equals(name) || Store.isChecksum(name);
+    synchronized Directory getDirectory(String name) throws IOException { // pkg private for testing
+        return getDirectory(name, true);
     }
 
     /**
      * Returns the directory that has previously been associated with this file name or associates the name with a directory
      * if failIfNotAssociated is set to false.
      */
-    private Directory getDirectory(String name, boolean failIfNotAssociated, boolean iterate) throws IOException {
-        if (usePrimary(name)) {
-            return distributor.primary();
-        }
-        Directory directory = nameDirMapping.get(name);
+    private synchronized Directory getDirectory(String name, boolean failIfNotAssociated) throws IOException {
+        final Directory directory = nameDirMapping.get(name);
         if (directory == null) {
-            // name is not yet bound to a directory:
-
-            if (iterate) { // in order to get stuff like "write.lock" that might not be written through this directory
-                for (Directory dir : distributor.all()) {
-                    if (dir.fileExists(name)) {
-                        directory = nameDirMapping.putIfAbsent(name, dir);
-                        return directory == null ? dir : directory;
-                    }
-                }
-            }
-
             if (failIfNotAssociated) {
                 throw new FileNotFoundException("No such file [" + name + "]");
             }
-
             // Pick a directory and associate this new file with it:
             final Directory dir = distributor.any();
-            directory = nameDirMapping.putIfAbsent(name, dir);
-            if (directory == null) {
-                // putIfAbsent did in fact put dir:
-                directory = dir;
-            }
+            assert nameDirMapping.containsKey(name) == false;
+            nameDirMapping.put(name, dir);
+            return dir;
         }
             
         return directory;
     }
 
     @Override
-    public Lock makeLock(String name) {
-        return distributor.primary().makeLock(name);
-    }
-
-    @Override
-    public void clearLock(String name) throws IOException {
-        distributor.primary().clearLock(name);
-    }
-
-    @Override
-    public LockFactory getLockFactory() {
-        return distributor.primary().getLockFactory();
-    }
-
-    @Override
-    public void setLockFactory(LockFactory lockFactory) throws IOException {
-        distributor.primary().setLockFactory(lockFactory);
-    }
-
-    @Override
-    public String getLockID() {
-        return distributor.primary().getLockID();
-    }
-
-    @Override
-    public String toString() {
+    public synchronized String toString() {
         return distributor.toString();
     }
 
+    Distributor getDistributor() {
+        return distributor;
+    }
+
     /**
-     * Renames the given source file to the given target file unless the target already exists.
-     *
-     * @param directoryService the DirecotrySerivce to use.
-     * @param from the source file name.
-     * @param to the target file name
-     * @throws IOException if the target file already exists.
+     * Basic checks to ensure the internal mapping is consistent - should only be used in assertions
      */
-    public void renameFile(DirectoryService directoryService, String from, String to) throws IOException {
-        Directory directory = getDirectory(from);
-        if (nameDirMapping.putIfAbsent(to, directory) != null) {
-            throw new IOException("Can't rename file from " + from
-                    + " to: " + to + ": target file already exists");
-        }
-        boolean success = false;
-        try {
-            directoryService.renameFile(directory, from, to);
-            nameDirMapping.remove(from);
-            success = true;
-        } finally {
-            if (!success) {
-                nameDirMapping.remove(to);
+    private synchronized boolean assertConsistency() throws IOException {
+        boolean consistent = true;
+        StringBuilder builder = new StringBuilder();
+        Directory[] all = distributor.all();
+        for (Directory d : all) {
+            for (String file : d.listAll()) {
+                final Directory directory = nameDirMapping.get(file);
+                if (directory == null) {
+                    consistent = false;
+                    builder.append("File ").append(file)
+                            .append(" was not mapped to a directory but exists in one of the distributors directories")
+                            .append(System.lineSeparator());
+                } else if (directory != d) {
+                    consistent = false;
+                    builder.append("File ").append(file).append(" was mapped to a directory ").append(directory)
+                            .append(" but exists in another distributor directory ").append(d)
+                            .append(System.lineSeparator());
+                }
+
             }
+        }
+        assert consistent : builder.toString();
+        return consistent; // return boolean so it can be easily be used in asserts
+    }
+
+    @Override
+    public Lock makeLock(final String lockName) {
+        final Directory primary = distributor.primary();
+        final Lock delegateLock = primary.makeLock(lockName);
+        if (DirectoryUtils.getLeaf(primary, FSDirectory.class) != null) {
+            // Wrap the delegate's lock just so we can monitor when it actually wrote a lock file.  We assume that an FSDirectory writes its
+            // locks as actual files (we don't support NoLockFactory):
+            return new Lock() {
+                @Override
+                public boolean obtain() throws IOException {
+                    if (delegateLock.obtain()) {
+                        synchronized(DistributorDirectory.this) {
+                            assert nameDirMapping.containsKey(lockName) == false || nameDirMapping.get(lockName) == primary;
+                            if (nameDirMapping.get(lockName) == null) {
+                                nameDirMapping.put(lockName, primary);
+                            }
+                        }
+                        return true;
+                    } else {
+                        return false;
+                    }
+                }
+
+                @Override
+                public void close() throws IOException {
+                    delegateLock.close();
+                }
+
+                @Override
+                public boolean isLocked() throws IOException {
+                    return delegateLock.isLocked();
+                }
+            };
+        } else {
+            return delegateLock;
         }
     }
 }

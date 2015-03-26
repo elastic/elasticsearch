@@ -19,7 +19,9 @@
 
 package org.elasticsearch.repositories;
 
+import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableMap;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.*;
@@ -39,7 +41,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -58,10 +62,12 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
     private final ClusterService clusterService;
 
+    private final VerifyNodeRepositoryAction verifyAction;
+
     private volatile ImmutableMap<String, RepositoryHolder> repositories = ImmutableMap.of();
 
     @Inject
-    public RepositoriesService(Settings settings, ClusterService clusterService, RepositoryTypesRegistry typesRegistry, Injector injector) {
+    public RepositoriesService(Settings settings, ClusterService clusterService, TransportService transportService, RepositoryTypesRegistry typesRegistry, Injector injector) {
         super(settings);
         this.typesRegistry = typesRegistry;
         this.injector = injector;
@@ -71,6 +77,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         if (DiscoveryNode.dataNode(settings) || DiscoveryNode.masterNode(settings)) {
             clusterService.add(this);
         }
+        this.verifyAction = new VerifyNodeRepositoryAction(settings, transportService, clusterService, this);
     }
 
     /**
@@ -85,14 +92,21 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
     public void registerRepository(final RegisterRepositoryRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         final RepositoryMetaData newRepositoryMetaData = new RepositoryMetaData(request.name, request.type, request.settings);
 
-        clusterService.submitStateUpdateTask(request.cause, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
+        final ActionListener<ClusterStateUpdateResponse> registrationListener;
+        if (request.verify) {
+            registrationListener = new VerifyingRegisterRepositoryListener(request.name, listener);
+        } else {
+            registrationListener = listener;
+        }
+
+        clusterService.submitStateUpdateTask(request.cause, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, registrationListener) {
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                 return new ClusterStateUpdateResponse(acknowledged);
             }
 
             @Override
-            public ClusterState execute(ClusterState currentState) {
+            public ClusterState execute(ClusterState currentState) throws IOException {
                 ensureRepositoryNotInUse(currentState, request.name);
                 // Trying to create the new repository on master to make sure it works
                 if (!registerRepository(newRepositoryMetaData)) {
@@ -141,7 +155,6 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             }
         });
     }
-
     /**
      * Unregisters repository in the cluster
      * <p/>
@@ -190,6 +203,47 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             }
         });
     }
+
+    public void verifyRepository(final String repositoryName, final ActionListener<VerifyResponse> listener) {
+        final Repository repository = repository(repositoryName);
+        try {
+            final String verificationToken = repository.startVerification();
+            if (verificationToken != null) {
+                try {
+                    verifyAction.verify(repositoryName, verificationToken, new ActionListener<VerifyResponse>() {
+                        @Override
+                        public void onResponse(VerifyResponse verifyResponse) {
+                            try {
+                                repository.endVerification(verificationToken);
+                            } catch (Throwable t) {
+                                logger.warn("[{}] failed to finish repository verification", repositoryName, t);
+                                listener.onFailure(t);
+                                return;
+                            }
+                            listener.onResponse(verifyResponse);
+                        }
+
+                        @Override
+                        public void onFailure(Throwable e) {
+                            listener.onFailure(e);
+                        }
+                    });
+                } catch (Throwable t) {
+                    try {
+                        repository.endVerification(verificationToken);
+                    } catch (Throwable t1) {
+                        logger.warn("[{}] failed to finish repository verification", repositoryName, t);
+                    }
+                    listener.onFailure(t);
+                }
+            } else {
+                listener.onResponse(new VerifyResponse(new DiscoveryNode[0], new VerificationFailure[0]));
+            }
+        } catch (Throwable t) {
+            listener.onFailure(t);
+        }
+    }
+
 
     /**
      * Checks if new repositories appeared in or disappeared from cluster metadata and updates current list of
@@ -293,7 +347,7 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
      * @param repositoryMetaData new repository metadata
      * @return {@code true} if new repository was added or {@code false} if it was ignored
      */
-    private boolean registerRepository(RepositoryMetaData repositoryMetaData) {
+    private boolean registerRepository(RepositoryMetaData repositoryMetaData) throws IOException {
         RepositoryHolder previous = repositories.get(repositoryMetaData.name());
         if (previous != null) {
             if (!previous.type.equals(repositoryMetaData.type()) && previous.settings.equals(repositoryMetaData.settings())) {
@@ -318,11 +372,8 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
      * @param name   repository name
      * @param holder repository holder
      */
-    private void closeRepository(String name, RepositoryHolder holder) {
+    private void closeRepository(String name, RepositoryHolder holder) throws IOException {
         logger.debug("closing repository [{}][{}]", holder.type, name);
-        if (holder.injector != null) {
-            Injectors.close(holder.injector);
-        }
         if (holder.repository != null) {
             holder.repository.close();
         }
@@ -346,9 +397,6 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             repository.start();
             return new RepositoryHolder(repositoryMetaData.type(), repositoryMetaData.settings(), repositoryInjector, repository, indexShardRepository);
         } catch (Throwable t) {
-            if (repositoryInjector != null) {
-                Injectors.close(repositoryInjector);
-            }
             logger.warn("failed to create repository [{}][{}]", t, repositoryMetaData.type(), repositoryMetaData.name());
             throw new RepositoryException(repositoryMetaData.name(), "failed to create repository", t);
         }
@@ -360,6 +408,47 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         }
     }
 
+    private class VerifyingRegisterRepositoryListener implements ActionListener<ClusterStateUpdateResponse> {
+
+        private final String name;
+
+        private final ActionListener<ClusterStateUpdateResponse> listener;
+
+        public VerifyingRegisterRepositoryListener(String name, final ActionListener<ClusterStateUpdateResponse> listener) {
+            this.name = name;
+            this.listener = listener;
+        }
+
+        @Override
+        public void onResponse(final ClusterStateUpdateResponse clusterStateUpdateResponse) {
+            if (clusterStateUpdateResponse.isAcknowledged()) {
+                // The response was acknowledged - all nodes should know about the new repository, let's verify them
+                verifyRepository(name, new ActionListener<VerifyResponse>() {
+                    @Override
+                    public void onResponse(VerifyResponse verifyResponse) {
+                        if (verifyResponse.failed()) {
+                            listener.onFailure(new RepositoryVerificationException(name, verifyResponse.failureDescription()));
+                        } else {
+                            listener.onResponse(clusterStateUpdateResponse);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Throwable e) {
+                        listener.onFailure(e);
+                    }
+                });
+            } else {
+                listener.onResponse(clusterStateUpdateResponse);
+            }
+        }
+
+        @Override
+        public void onFailure(Throwable e) {
+            listener.onFailure(e);
+        }
+    }
+
     /**
      * Internal data structure for holding repository with its configuration information and injector
      */
@@ -367,7 +456,6 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
         private final String type;
         private final Settings settings;
-        private final Injector injector;
         private final Repository repository;
         private final IndexShardRepository indexShardRepository;
 
@@ -376,7 +464,6 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
             this.settings = settings;
             this.repository = repository;
             this.indexShardRepository = indexShardRepository;
-            this.injector = injector;
         }
     }
 
@@ -391,6 +478,8 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
 
         final String type;
 
+        final boolean verify;
+
         Settings settings = EMPTY_SETTINGS;
 
         /**
@@ -399,11 +488,13 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
          * @param cause repository registration cause
          * @param name  repository name
          * @param type  repository type
+         * @param verify verify repository after creation
          */
-        public RegisterRepositoryRequest(String cause, String name, String type) {
+        public RegisterRepositoryRequest(String cause, String name, String type, boolean verify) {
             this.cause = cause;
             this.name = name;
             this.type = type;
+            this.verify = verify;
         }
 
         /**
@@ -439,4 +530,39 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
         }
 
     }
+
+    /**
+     * Verify repository request
+     */
+    public static class VerifyResponse {
+
+        private VerificationFailure[] failures;
+
+        private DiscoveryNode[] nodes;
+
+        public VerifyResponse(DiscoveryNode[] nodes, VerificationFailure[] failures) {
+            this.nodes = nodes;
+            this.failures = failures;
+        }
+
+        public VerificationFailure[] failures() {
+            return failures;
+        }
+
+        public DiscoveryNode[] nodes() {
+            return nodes;
+        }
+
+        public boolean failed() {
+            return  failures.length > 0;
+        }
+
+        public String failureDescription() {
+            StringBuilder builder = new StringBuilder('[');
+            Joiner.on(", ").appendTo(builder, failures);
+            return builder.append(']').toString();
+        }
+
+    }
+
 }

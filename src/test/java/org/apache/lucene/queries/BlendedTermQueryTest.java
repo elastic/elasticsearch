@@ -24,7 +24,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
@@ -110,12 +110,12 @@ public class BlendedTermQueryTest extends ElasticsearchLuceneTestCase {
         };
         final boolean omitNorms = random().nextBoolean();
         FieldType ft = new FieldType(TextField.TYPE_NOT_STORED);
-        ft.setIndexOptions(random().nextBoolean() ? FieldInfo.IndexOptions.DOCS_ONLY : FieldInfo.IndexOptions.DOCS_AND_FREQS);
+        ft.setIndexOptions(random().nextBoolean() ? IndexOptions.DOCS : IndexOptions.DOCS_AND_FREQS);
         ft.setOmitNorms(omitNorms);
         ft.freeze();
 
         FieldType ft1 = new FieldType(TextField.TYPE_NOT_STORED);
-        ft1.setIndexOptions(random().nextBoolean() ? FieldInfo.IndexOptions.DOCS_ONLY : FieldInfo.IndexOptions.DOCS_AND_FREQS);
+        ft1.setIndexOptions(random().nextBoolean() ? IndexOptions.DOCS : IndexOptions.DOCS_AND_FREQS);
         ft1.setOmitNorms(omitNorms);
         ft1.freeze();
         for (int i = 0; i < username.length; i++) {

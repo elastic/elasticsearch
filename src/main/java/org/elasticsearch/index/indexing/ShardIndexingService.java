@@ -107,6 +107,14 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         }
     }
 
+    public void throttlingActivated() {
+        totalStats.setThrottled(true);
+    }
+
+    public void throttlingDeactivated() {
+        totalStats.setThrottled(false);
+    }
+
     public void postCreate(Engine.Create create) {
         long took = create.endTime() - create.startTime();
         totalStats.indexMetric.inc(took);
@@ -122,6 +130,9 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
                 logger.warn("post listener [{}] failed", e, listener);
             }
         }
+    }
+
+    public void postCreate(Engine.Create create, Throwable ex) {
     }
 
     public Engine.Index preIndex(Engine.Index index) {
@@ -160,7 +171,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         }
     }
 
-    public void failedIndex(Engine.Index index) {
+    public void postIndex(Engine.Index index, Throwable ex) {
         totalStats.indexCurrent.dec();
         typeStats(index.type()).indexCurrent.dec();
     }
@@ -200,7 +211,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         }
     }
 
-    public void failedDelete(Engine.Delete delete) {
+    public void postDelete(Engine.Delete delete, Throwable ex) {
         totalStats.deleteCurrent.dec();
         typeStats(delete.type()).deleteCurrent.dec();
     }
@@ -259,12 +270,38 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         public final CounterMetric indexCurrent = new CounterMetric();
         public final CounterMetric deleteCurrent = new CounterMetric();
         public final CounterMetric noopUpdates = new CounterMetric();
+        public final CounterMetric throttleTimeMillisMetric = new CounterMetric();
+        volatile boolean isThrottled = false;
+        volatile long startOfThrottleMillis;
 
         public IndexingStats.Stats stats() {
+            long currentThrottleMillis = 0;
+            if (isThrottled && startOfThrottleMillis != 0) {
+                currentThrottleMillis +=  System.currentTimeMillis() - startOfThrottleMillis;
+                if (currentThrottleMillis < 0) {
+                    //Timeslip must have happened, have to ignore this value
+                    currentThrottleMillis = 0;
+                }
+            }
             return new IndexingStats.Stats(
                     indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(),
                     deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count(),
-                    noopUpdates.count());
+                    noopUpdates.count(), isThrottled, TimeUnit.MILLISECONDS.toMillis(throttleTimeMillisMetric.count() + currentThrottleMillis));
+        }
+
+
+        void setThrottled(boolean isThrottled) {
+            if (!this.isThrottled && isThrottled) {
+                startOfThrottleMillis = System.currentTimeMillis();
+            } else if (this.isThrottled && !isThrottled) {
+                assert startOfThrottleMillis > 0 : "Bad state of startOfThrottleMillis";
+                long throttleTimeMillis = System.currentTimeMillis() - startOfThrottleMillis;
+                if (throttleTimeMillis >= 0) {
+                    //A timeslip may have occurred but never want to add a negative number
+                    throttleTimeMillisMetric.inc(throttleTimeMillis);
+                }
+            }
+            this.isThrottled = isThrottled;
         }
 
         public long totalCurrent() {
@@ -275,5 +312,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
             indexMetric.clear();
             deleteMetric.clear();
         }
+
+
     }
 }

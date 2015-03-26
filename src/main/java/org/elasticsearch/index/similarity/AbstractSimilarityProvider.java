@@ -24,7 +24,7 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.settings.Settings;
 
 /**
- * Abstract implemenetation of {@link SimilarityProvider} providing common behaviour
+ * Abstract implementation of {@link SimilarityProvider} providing common behaviour
  */
 public abstract class AbstractSimilarityProvider implements SimilarityProvider {
 

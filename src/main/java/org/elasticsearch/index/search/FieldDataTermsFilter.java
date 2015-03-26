@@ -18,22 +18,23 @@
  */
 package org.elasticsearch.index.search;
 
+import java.io.IOException;
+
 import com.carrotsearch.hppc.DoubleOpenHashSet;
 import com.carrotsearch.hppc.LongOpenHashSet;
 import com.carrotsearch.hppc.ObjectOpenHashSet;
-import org.apache.lucene.index.AtomicReaderContext;
+
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-
-import java.io.IOException;
 
 /**
  * Similar to a {@link org.apache.lucene.queries.TermsFilter} but pulls terms from the fielddata.
@@ -96,9 +97,6 @@ public abstract class FieldDataTermsFilter extends Filter {
     @Override
     public abstract int hashCode();
 
-    @Override
-    public abstract String toString();
-
     /**
      * Filters on non-numeric fields.
      */
@@ -119,7 +117,7 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
-        public String toString() {
+        public String toString(String field) {
             final StringBuilder sb = new StringBuilder("BytesFieldDataFilter:");
             return sb
                     .append(fieldData.getFieldNames().indexName())
@@ -129,12 +127,12 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
             // make sure there are terms to filter on
             if (terms == null || terms.isEmpty()) return null;
 
             final SortedBinaryDocValues values = fieldData.load(context).getBytesValues(); // load fielddata
-            return new MatchDocIdSet(context.reader().maxDoc(), acceptDocs) {
+            return new DocValuesDocIdSet(context.reader().maxDoc(), acceptDocs) {
                 @Override
                 protected boolean matchDoc(int doc) {
                     values.setDocument(doc);
@@ -146,6 +144,11 @@ public abstract class FieldDataTermsFilter extends Filter {
                     }
 
                     return false;
+                }
+
+                @Override
+                public long ramBytesUsed() {
+                    return 0;
                 }
             };
         }
@@ -171,7 +174,7 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
-        public String toString() {
+        public String toString(String field) {
             final StringBuilder sb = new StringBuilder("LongsFieldDataFilter:");
             return sb
                     .append(fieldData.getFieldNames().indexName())
@@ -181,14 +184,14 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
             // make sure there are terms to filter on
             if (terms == null || terms.isEmpty()) return null;
 
             IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;
             if (!numericFieldData.getNumericType().isFloatingPoint()) {
                 final SortedNumericDocValues values = numericFieldData.load(context).getLongValues(); // load fielddata
-                return new MatchDocIdSet(context.reader().maxDoc(), acceptDocs) {
+                return new DocValuesDocIdSet(context.reader().maxDoc(), acceptDocs) {
                     @Override
                     protected boolean matchDoc(int doc) {
                         values.setDocument(doc);
@@ -230,7 +233,7 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
-        public String toString() {
+        public String toString(String field) {
             final StringBuilder sb = new StringBuilder("DoublesFieldDataFilter");
             return sb
                     .append(fieldData.getFieldNames().indexName())
@@ -240,7 +243,7 @@ public abstract class FieldDataTermsFilter extends Filter {
         }
 
         @Override
-        public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+        public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
             // make sure there are terms to filter on
             if (terms == null || terms.isEmpty()) return null;
 
@@ -248,7 +251,7 @@ public abstract class FieldDataTermsFilter extends Filter {
             IndexNumericFieldData indexNumericFieldData = (IndexNumericFieldData) fieldData;
             if (indexNumericFieldData.getNumericType().isFloatingPoint()) {
                 final SortedNumericDoubleValues values = indexNumericFieldData.load(context).getDoubleValues(); // load fielddata
-                return new MatchDocIdSet(context.reader().maxDoc(), acceptDocs) {
+                return new DocValuesDocIdSet(context.reader().maxDoc(), acceptDocs) {
                     @Override
                     protected boolean matchDoc(int doc) {
                         values.setDocument(doc);

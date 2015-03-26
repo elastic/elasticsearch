@@ -32,11 +32,6 @@ public class FlushRequestBuilder extends BroadcastOperationRequestBuilder<FlushR
         super(indicesClient, new FlushRequest());
     }
 
-    public FlushRequestBuilder setFull(boolean full) {
-        request.full(full);
-        return this;
-    }
-
     public FlushRequestBuilder setForce(boolean force) {
         request.force(force);
         return this;

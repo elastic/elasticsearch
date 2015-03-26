@@ -21,7 +21,6 @@ package org.elasticsearch.action.count;
 
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastOperationRequest;
@@ -36,11 +35,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 
-import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
-
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+
+import static org.elasticsearch.search.internal.SearchContext.DEFAULT_TERMINATE_AFTER;
 
 /**
  * A request to count the number of documents matching a specific query. Best created with
@@ -101,7 +100,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     /**
      * The minimum score of the documents to include in the count.
      */
-    float minScore() {
+    public float minScore() {
         return minScore;
     }
 
@@ -117,7 +116,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     /**
      * The source to execute.
      */
-    BytesReference source() {
+    public BytesReference source() {
         return source;
     }
 
@@ -250,10 +249,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
         sourceUnsafe = false;
         source = in.readBytesReference();
         types = in.readStringArray();
-
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            terminateAfter = in.readVInt();
-        }
+        terminateAfter = in.readVInt();
     }
 
     @Override
@@ -264,10 +260,7 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
         out.writeOptionalString(preference);
         out.writeBytesReference(source);
         out.writeStringArray(types);
-
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeVInt(terminateAfter);
-        }
+        out.writeVInt(terminateAfter);
     }
 
     @Override

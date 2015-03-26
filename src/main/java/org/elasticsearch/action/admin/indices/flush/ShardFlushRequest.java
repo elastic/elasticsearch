@@ -31,52 +31,30 @@ import java.io.IOException;
  *
  */
 class ShardFlushRequest extends BroadcastShardOperationRequest {
-
-    private boolean full;
-    private boolean force;
-    private boolean waitIfOngoing;
+    private FlushRequest request = new FlushRequest();
 
     ShardFlushRequest() {
     }
 
     ShardFlushRequest(ShardId shardId, FlushRequest request) {
         super(shardId, request);
-        this.full = request.full();
-        this.force = request.force();
-        this.waitIfOngoing = request.waitIfOngoing();
+        this.request = request;
     }
 
-    public boolean full() {
-        return this.full;
-    }
-
-    public boolean force() {
-        return this.force;
-    }
-
-    public boolean waitIfOngoing() {
-        return waitIfOngoing;
-    }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        full = in.readBoolean();
-        force = in.readBoolean();
-        if (in.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            waitIfOngoing = in.readBoolean();
-        } else {
-            waitIfOngoing = false;
-        }
+        request.readFrom(in);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(full);
-        out.writeBoolean(force);
-        if (out.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            out.writeBoolean(waitIfOngoing);
-        }
+        request.writeTo(out);
+    }
+
+    FlushRequest getRequest() {
+        return request;
     }
 }

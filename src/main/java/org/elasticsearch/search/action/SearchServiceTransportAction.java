@@ -37,7 +37,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.fetch.*;
 import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
@@ -149,14 +149,8 @@ public class SearchServiceTransportAction extends AbstractComponent {
             final boolean freed = searchService.freeContext(contextId);
             actionListener.onResponse(freed);
         } else {
-            if (node.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-                //use the separate action for scroll when possible
-                transportService.sendRequest(node, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(request, contextId), new FreeContextResponseHandler(actionListener));
-            } else {
-                //fallback to the previous action name if the new one is not supported by the node we are talking to.
-                //Do use the same request since it has the same binary format as the previous SearchFreeContextRequest (without the OriginalIndices addition).
-                transportService.sendRequest(node, FREE_CONTEXT_ACTION_NAME, new ScrollFreeContextRequest(request, contextId), new FreeContextResponseHandler(actionListener));
-            }
+            //use the separate action for scroll when possible
+            transportService.sendRequest(node, FREE_CONTEXT_SCROLL_ACTION_NAME, new ScrollFreeContextRequest(request, contextId), new FreeContextResponseHandler(actionListener));
         }
     }
 
@@ -189,7 +183,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    public void sendExecuteDfs(DiscoveryNode node, final ShardSearchRequest request, final SearchServiceListener<DfsSearchResult> listener) {
+    public void sendExecuteDfs(DiscoveryNode node, final ShardSearchTransportRequest request, final SearchServiceListener<DfsSearchResult> listener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             execute(new Callable<DfsSearchResult>() {
                 @Override
@@ -223,7 +217,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    public void sendExecuteQuery(DiscoveryNode node, final ShardSearchRequest request, final SearchServiceListener<QuerySearchResultProvider> listener) {
+    public void sendExecuteQuery(DiscoveryNode node, final ShardSearchTransportRequest request, final SearchServiceListener<QuerySearchResultProvider> listener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             execute(new Callable<QuerySearchResultProvider>() {
                 @Override
@@ -325,7 +319,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    public void sendExecuteFetch(DiscoveryNode node, final ShardSearchRequest request, final SearchServiceListener<QueryFetchSearchResult> listener) {
+    public void sendExecuteFetch(DiscoveryNode node, final ShardSearchTransportRequest request, final SearchServiceListener<QueryFetchSearchResult> listener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             execute(new Callable<QueryFetchSearchResult>() {
                 @Override
@@ -432,16 +426,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
     }
 
     public void sendExecuteFetchScroll(DiscoveryNode node, final ShardFetchRequest request, final SearchServiceListener<FetchSearchResult> listener) {
-        String action;
-        if (node.getVersion().onOrAfter(Version.V_1_4_0_Beta1)) {
-            //use the separate action for scroll when possible
-            action = FETCH_ID_SCROLL_ACTION_NAME;
-        } else {
-            //fallback to the previous action name if the new one is not supported by the node we are talking to.
-            //Do use the same request since it has the same binary format as the previous FetchSearchRequest (without the OriginalIndices addition).
-            action = FETCH_ID_ACTION_NAME;
-        }
-        sendExecuteFetch(node, action, request, listener);
+        sendExecuteFetch(node, FETCH_ID_SCROLL_ACTION_NAME, request, listener);
     }
 
     private void sendExecuteFetch(DiscoveryNode node, String action, final ShardFetchRequest request, final SearchServiceListener<FetchSearchResult> listener) {
@@ -478,7 +463,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    public void sendExecuteScan(DiscoveryNode node, final ShardSearchRequest request, final SearchServiceListener<QuerySearchResult> listener) {
+    public void sendExecuteScan(DiscoveryNode node, final ShardSearchTransportRequest request, final SearchServiceListener<QuerySearchResult> listener) {
         if (clusterService.state().nodes().localNodeId().equals(node.id())) {
             execute(new Callable<QuerySearchResult>() {
                 @Override
@@ -665,19 +650,13 @@ public class SearchServiceTransportAction extends AbstractComponent {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
-            if (in.getVersion().onOrAfter(Version.V_1_2_0)) {
-                freed = in.readBoolean();
-            } else {
-                freed = true;
-            }
+            freed = in.readBoolean();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_1_2_0)) {
-                out.writeBoolean(freed);
-            }
+            out.writeBoolean(freed);
         }
     }
 
@@ -745,15 +724,15 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    private class SearchDfsTransportHandler extends BaseTransportRequestHandler<ShardSearchRequest> {
+    private class SearchDfsTransportHandler extends BaseTransportRequestHandler<ShardSearchTransportRequest> {
 
         @Override
-        public ShardSearchRequest newInstance() {
-            return new ShardSearchRequest();
+        public ShardSearchTransportRequest newInstance() {
+            return new ShardSearchTransportRequest();
         }
 
         @Override
-        public void messageReceived(ShardSearchRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel) throws Exception {
             DfsSearchResult result = searchService.executeDfsPhase(request);
             channel.sendResponse(result);
         }
@@ -764,15 +743,15 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    private class SearchQueryTransportHandler extends BaseTransportRequestHandler<ShardSearchRequest> {
+    private class SearchQueryTransportHandler extends BaseTransportRequestHandler<ShardSearchTransportRequest> {
 
         @Override
-        public ShardSearchRequest newInstance() {
-            return new ShardSearchRequest();
+        public ShardSearchTransportRequest newInstance() {
+            return new ShardSearchTransportRequest();
         }
 
         @Override
-        public void messageReceived(ShardSearchRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel) throws Exception {
             QuerySearchResultProvider result = searchService.executeQueryPhase(request);
             channel.sendResponse(result);
         }
@@ -821,15 +800,15 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    private class SearchQueryFetchTransportHandler extends BaseTransportRequestHandler<ShardSearchRequest> {
+    private class SearchQueryFetchTransportHandler extends BaseTransportRequestHandler<ShardSearchTransportRequest> {
 
         @Override
-        public ShardSearchRequest newInstance() {
-            return new ShardSearchRequest();
+        public ShardSearchTransportRequest newInstance() {
+            return new ShardSearchTransportRequest();
         }
 
         @Override
-        public void messageReceived(ShardSearchRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel) throws Exception {
             QueryFetchSearchResult result = searchService.executeFetchPhase(request);
             channel.sendResponse(result);
         }
@@ -861,6 +840,7 @@ public class SearchServiceTransportAction extends AbstractComponent {
 
     private abstract class FetchByIdTransportHandler<Request extends ShardFetchRequest> extends BaseTransportRequestHandler<Request> {
 
+        @Override
         public abstract Request newInstance();
 
         @Override
@@ -908,15 +888,15 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    private class SearchScanTransportHandler extends BaseTransportRequestHandler<ShardSearchRequest> {
+    private class SearchScanTransportHandler extends BaseTransportRequestHandler<ShardSearchTransportRequest> {
 
         @Override
-        public ShardSearchRequest newInstance() {
-            return new ShardSearchRequest();
+        public ShardSearchTransportRequest newInstance() {
+            return new ShardSearchTransportRequest();
         }
 
         @Override
-        public void messageReceived(ShardSearchRequest request, TransportChannel channel) throws Exception {
+        public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel) throws Exception {
             QuerySearchResult result = searchService.executeScan(request);
             channel.sendResponse(result);
         }

@@ -23,9 +23,6 @@ import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.*;
-import org.elasticsearch.action.bench.BenchmarkRequest;
-import org.elasticsearch.action.bench.BenchmarkRequestBuilder;
-import org.elasticsearch.action.bench.BenchmarkResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.count.CountRequest;
@@ -48,10 +45,10 @@ import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.*;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestResponse;
-import org.elasticsearch.action.termvector.MultiTermVectorsRequest;
-import org.elasticsearch.action.termvector.MultiTermVectorsResponse;
-import org.elasticsearch.action.termvector.TermVectorRequest;
-import org.elasticsearch.action.termvector.TermVectorResponse;
+import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
+import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
+import org.elasticsearch.action.termvectors.TermVectorsRequest;
+import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -66,7 +63,6 @@ import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
-import org.elasticsearch.common.io.CachedStreams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -84,6 +80,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.util.concurrent.TimeUnit;
 
@@ -156,7 +153,9 @@ public class TransportClient extends AbstractClient {
      */
     public TransportClient(Settings pSettings, boolean loadConfigSettings) throws ElasticsearchException {
         Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(pSettings, loadConfigSettings);
-        Settings settings = settingsBuilder().put(tuple.v1())
+        Settings settings = settingsBuilder()
+                .put(NettyTransport.PING_SCHEDULE, "5s") // enable by default the transport schedule ping interval
+                .put(tuple.v1())
                 .put("network.server", false)
                 .put("node.client", true)
                 .put(CLIENT_TYPE_SETTING, CLIENT_TYPE)
@@ -286,8 +285,6 @@ public class TransportClient extends AbstractClient {
         }
 
         injector.getInstance(PageCacheRecycler.class).close();
-
-        CachedStreams.clear();
     }
 
     @Override
@@ -446,13 +443,13 @@ public class TransportClient extends AbstractClient {
     }
 
     @Override
-    public ActionFuture<TermVectorResponse> termVector(TermVectorRequest request) {
-        return internalClient.termVector(request);
+    public ActionFuture<TermVectorsResponse> termVectors(TermVectorsRequest request) {
+        return internalClient.termVectors(request);
     }
 
     @Override
-    public void termVector(TermVectorRequest request, ActionListener<TermVectorResponse> listener) {
-        internalClient.termVector(request, listener);
+    public void termVectors(TermVectorsRequest request, ActionListener<TermVectorsResponse> listener) {
+        internalClient.termVectors(request, listener);
     }
 
     @Override
@@ -483,15 +480,5 @@ public class TransportClient extends AbstractClient {
     @Override
     public void explain(ExplainRequest request, ActionListener<ExplainResponse> listener) {
         internalClient.explain(request, listener);
-    }
-
-    @Override
-    public void bench(BenchmarkRequest request, ActionListener<BenchmarkResponse> listener) {
-        internalClient.bench(request, listener);
-    }
-
-    @Override
-    public BenchmarkRequestBuilder prepareBench(String... indices) {
-        return internalClient.prepareBench(indices);
     }
 }

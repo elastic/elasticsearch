@@ -23,6 +23,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.SingleObjectCache;
 
 import java.net.InetAddress;
 import java.net.NetworkInterface;
@@ -31,29 +32,26 @@ import java.util.Enumeration;
 /**
  *
  */
-public class NetworkService extends AbstractComponent {
+public final class NetworkService extends AbstractComponent {
 
     private final NetworkProbe probe;
 
     private final NetworkInfo info;
 
-    private final TimeValue refreshInterval;
-
-    private NetworkStats cachedStats;
+    private final SingleObjectCache<NetworkStats> networkStatsCache;
 
     @Inject
     public NetworkService(Settings settings, NetworkProbe probe) {
         super(settings);
         this.probe = probe;
 
-        this.refreshInterval = componentSettings.getAsTime("refresh_interval", TimeValue.timeValueSeconds(5));
+        TimeValue refreshInterval = settings.getAsTime("monitor.network.refresh_interval", TimeValue.timeValueSeconds(5));
 
         logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);
 
         this.info = probe.networkInfo();
         this.info.refreshInterval = refreshInterval.millis();
-        this.cachedStats = probe.networkStats();
-
+        networkStatsCache = new NetworkStatsCache(refreshInterval, probe.networkStats());
         if (logger.isDebugEnabled()) {
             StringBuilder netDebug = new StringBuilder("net_info");
             try {
@@ -104,17 +102,26 @@ public class NetworkService extends AbstractComponent {
         if (logger.isTraceEnabled()) {
             logger.trace("ifconfig\n\n" + ifconfig());
         }
+        stats(); // pull the stats one time
     }
 
     public NetworkInfo info() {
         return this.info;
     }
 
-    public synchronized NetworkStats stats() {
-        if ((System.currentTimeMillis() - cachedStats.timestamp()) > refreshInterval.millis()) {
-            cachedStats = probe.networkStats();
+    public  NetworkStats stats() {
+        return networkStatsCache.getOrRefresh();
+    }
+
+    private class NetworkStatsCache extends SingleObjectCache<NetworkStats> {
+        public NetworkStatsCache(TimeValue interval, NetworkStats initValue) {
+            super(interval, initValue);
         }
-        return cachedStats;
+
+        @Override
+        protected NetworkStats refresh() {
+            return probe.networkStats();
+        }
     }
 
     public String ifconfig() {

@@ -19,86 +19,69 @@
 
 package org.elasticsearch.codecs;
 
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.SearchResponse;
+import org.apache.lucene.codecs.Codec;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.junit.Test;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.test.ElasticsearchSingleNodeTest;
+import org.junit.Assert;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  */
-public class CodecTests extends ElasticsearchIntegrationTest {
+public class CodecTests extends ElasticsearchSingleNodeTest {
 
-    @Override
-    protected int numberOfShards() {
-        return 1;
-    }
-
-    @Override
-    protected int numberOfReplicas() {
-        return 0;
-    }
-
-    @Test
-    public void testFieldsWithCustomPostingsFormat() throws Exception {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
-        }
-
-        assertAcked(prepareCreate("test")
-                .addMapping("type1", jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
-                        .field("postings_format", "test1").field("index_options", "docs").field("type", "string").endObject().endObject().endObject().endObject())
-                .setSettings(ImmutableSettings.settingsBuilder()
-                        .put(indexSettings())
-                        .put("index.codec.postings_format.test1.type", "default")));
-
-        client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox").setRefresh(true).execute().actionGet();
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchQuery("field2", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).execute().actionGet();
-        assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        try {
-            client().prepareSearch().setQuery(QueryBuilders.matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).execute().actionGet();
-        } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getMessage(), endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
+    public void testAcceptPostingsFormat() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string").field("postings_format", Codec.getDefault().postingsFormat().getName()).endObject().endObject()
+                .endObject().endObject().string();
+        int i = 0;
+        for (Version v : allVersions()) {
+            IndexService indexService = createIndex("test-" + i++, ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
+            DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+            try {
+                parser.parse(mapping);
+                if (v.onOrAfter(Version.V_2_0_0)) {
+                    fail("Elasticsearch 2.0 should not support custom postings formats");
+                }
+            } catch (MapperParsingException e) {
+                if (v.before(Version.V_2_0_0)) {
+                    // Elasticsearch 1.x should ignore custom postings formats
+                    throw e;
+                }
+                Assert.assertThat(e.getMessage(), containsString("unsupported parameters:  [postings_format"));
+            }
         }
     }
 
-    @Test
-    public void testCustomDocValuesFormat() throws IOException {
-        try {
-            client().admin().indices().prepareDelete("test").execute().actionGet();
-        } catch (Exception e) {
-            // ignore
+    public void testAcceptDocValuesFormat() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("field").field("type", "string").field("doc_values_format", Codec.getDefault().docValuesFormat().getName()).endObject().endObject()
+                .endObject().endObject().string();
+        int i = 0;
+        for (Version v : allVersions()) {
+            IndexService indexService = createIndex("test-" + i++, ImmutableSettings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, v).build());
+            DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
+            try {
+                parser.parse(mapping);
+                if (v.onOrAfter(Version.V_2_0_0)) {
+                    fail("Elasticsearch 2.0 should not support custom postings formats");
+                }
+            } catch (MapperParsingException e) {
+                if (v.before(Version.V_2_0_0)) {
+                    // Elasticsearch 1.x should ignore custom postings formats
+                    throw e;
+                }
+                Assert.assertThat(e.getMessage(), containsString("unsupported parameters:  [doc_values_format"));
+            }
         }
-
-        assertAcked(prepareCreate("test")
-            .addMapping("test", jsonBuilder().startObject().startObject("test")
-                    .startObject("_version").field("doc_values_format", "Lucene410").endObject()
-                    .startObject("properties").startObject("field").field("type", "long").field("doc_values_format", "dvf").endObject().endObject()
-                    .endObject().endObject())
-            .setSettings(ImmutableSettings.settingsBuilder()
-                    .put(indexSettings())
-                    .put("index.codec.doc_values_format.dvf.type", "default")));
-
-        for (int i = 10; i >= 0; --i) {
-            client().prepareIndex("test", "test", Integer.toString(i)).setSource("field", randomLong()).setRefresh(i == 0 || rarely()).execute().actionGet();
-        }
-
-        SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.matchAllQuery()).addSort(new FieldSortBuilder("field")).execute().actionGet();
-        assertThat(searchResponse.getFailedShards(), equalTo(0));
     }
 
 }

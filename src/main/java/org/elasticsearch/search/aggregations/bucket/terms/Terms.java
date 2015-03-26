@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
 import java.util.Arrays;
@@ -61,12 +62,12 @@ public interface Terms extends MultiBucketsAggregation {
     /**
      * A bucket that is associated with a single term
      */
-    static abstract class Bucket implements MultiBucketsAggregation.Bucket {
+    static abstract class Bucket extends InternalMultiBucketAggregation.InternalBucket {
 
         public abstract Number getKeyAsNumber();
 
         abstract int compareTerm(Terms.Bucket other);
-        
+
         public abstract long getDocCountError();
 
     }
@@ -74,6 +75,7 @@ public interface Terms extends MultiBucketsAggregation {
     /**
      * Return the sorted list of the buckets in this terms aggregation.
      */
+    @Override
     List<Bucket> getBuckets();
 
     /**
@@ -85,6 +87,12 @@ public interface Terms extends MultiBucketsAggregation {
      * Get an upper bound of the error on document counts in this aggregation.
      */
     long getDocCountError();
+
+    /**
+     * Return the sum of the document counts of all buckets that did not make
+     * it to the top buckets.
+     */
+    long getSumOfOtherDocCounts();
 
     /**
      * Determines the order by which the term buckets will be sorted

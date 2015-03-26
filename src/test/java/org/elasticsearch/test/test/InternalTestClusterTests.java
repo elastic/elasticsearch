@@ -50,11 +50,12 @@ public class InternalTestClusterTests extends ElasticsearchTestCase {
         SettingsSource settingsSource = SettingsSource.EMPTY;
         int numClientNodes = randomIntBetween(0, 10);
         boolean enableRandomBenchNodes = randomBoolean();
+        boolean enableHttpPipelining = randomBoolean();
         int jvmOrdinal = randomIntBetween(0, 10);
         String nodePrefix = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
 
-        InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, settingsSource, numClientNodes, enableRandomBenchNodes, jvmOrdinal, nodePrefix);
-        InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, settingsSource, numClientNodes, enableRandomBenchNodes, jvmOrdinal, nodePrefix);
+        InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, settingsSource, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
+        InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, settingsSource, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
         assertClusters(cluster0, cluster1, true);
 
     }
@@ -64,7 +65,6 @@ public class InternalTestClusterTests extends ElasticsearchTestCase {
         Settings defaultSettings1 = cluster1.getDefaultSettings();
         assertSettings(defaultSettings0, defaultSettings1, assertClusterName);
         assertThat(cluster0.numDataNodes(), equalTo(cluster1.numDataNodes()));
-        assertThat(cluster0.numBenchNodes(), equalTo(cluster1.numBenchNodes()));
         if (assertClusterName) {
             assertThat(cluster0.getClusterName(), equalTo(cluster1.getClusterName()));
         }
@@ -94,11 +94,12 @@ public class InternalTestClusterTests extends ElasticsearchTestCase {
         SettingsSource settingsSource = SettingsSource.EMPTY;
         int numClientNodes = randomIntBetween(0, 2);
         boolean enableRandomBenchNodes = randomBoolean();
+        boolean enableHttpPipelining = randomBoolean();
         int jvmOrdinal = randomIntBetween(0, 10);
         String nodePrefix = "foobar";
 
-        InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, settingsSource, numClientNodes, enableRandomBenchNodes, jvmOrdinal, nodePrefix);
-        InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName1, settingsSource, numClientNodes, enableRandomBenchNodes, jvmOrdinal, nodePrefix);
+        InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, settingsSource, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
+        InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName1, settingsSource, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
 
         assertClusters(cluster0, cluster1, false);
         long seed = randomLong();

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Comparators;
@@ -30,10 +29,15 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
-import org.elasticsearch.search.aggregations.support.OrderPath;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  *
@@ -113,6 +117,7 @@ class InternalOrder extends Terms.Order {
         this.comparator = comparator;
     }
 
+    @Override
     byte id() {
         return id;
     }
@@ -136,7 +141,7 @@ class InternalOrder extends Terms.Order {
         } else if (!(order instanceof Aggregation)) {
             return order;
         }
-        OrderPath path = ((Aggregation) order).path();
+        AggregationPath path = ((Aggregation) order).path();
         path.validate(termsAggregator);
         return order;
     }
@@ -149,7 +154,7 @@ class InternalOrder extends Terms.Order {
             super(ID, key, asc, new MultiBucketsAggregation.Bucket.SubAggregationComparator<Terms.Bucket>(key, asc));
         }
 
-        OrderPath path() {
+        AggregationPath path() {
             return ((MultiBucketsAggregation.Bucket.SubAggregationComparator) comparator).path();
         }
 
@@ -167,9 +172,9 @@ class InternalOrder extends Terms.Order {
             // sub aggregation values directly from the sub aggregators bypassing bucket creation. Note that the comparator
             // attached to the order will still be used in the reduce phase of the Aggregation.
 
-            OrderPath path = path();
+            AggregationPath path = path();
             final Aggregator aggregator = path.resolveAggregator(termsAggregator);
-            final String key = path.tokens[path.tokens.length - 1].key;
+            final String key = path.lastPathElement().key;
 
             if (aggregator instanceof SingleBucketAggregator) {
                 assert key == null : "this should be picked up before the aggregation is executed - on validate";
@@ -215,7 +220,7 @@ class InternalOrder extends Terms.Order {
         }
     }
 
-    static class CompoundOrder extends Terms.Order{
+    static class CompoundOrder extends Terms.Order {
 
         static final byte ID = -1;
 
@@ -286,19 +291,8 @@ class InternalOrder extends Terms.Order {
                 out.writeByte(order.id());
                 Aggregation aggregationOrder = (Aggregation) order;
                 out.writeBoolean(((MultiBucketsAggregation.Bucket.SubAggregationComparator) aggregationOrder.comparator).asc());
-                OrderPath path = ((Aggregation) order).path();
-                if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-                    out.writeString(path.toString());
-                } else {
-                    // prev versions only supported sorting on a single level -> a single token;
-                    OrderPath.Token token = path.lastToken();
-                    out.writeString(token.name);
-                    boolean hasValueName = token.key != null;
-                    out.writeBoolean(hasValueName);
-                    if (hasValueName) {
-                        out.writeString(token.key);
-                    }
-                }
+                AggregationPath path = ((Aggregation) order).path();
+                out.writeString(path.toString());
             } else if (order instanceof CompoundOrder) {
                 CompoundOrder compoundOrder = (CompoundOrder) order;
                     out.writeByte(order.id());
@@ -325,15 +319,7 @@ class InternalOrder extends Terms.Order {
                 case Aggregation.ID:
                     boolean asc = in.readBoolean();
                     String key = in.readString();
-                    if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-                        return new InternalOrder.Aggregation(key, asc);
-                    }
-                    boolean hasValueNmae = in.readBoolean();
-                    if (hasValueNmae) {
-                        return new InternalOrder.Aggregation(key + "." + in.readString(), asc);
-                    }
-                    Terms.Order order = new InternalOrder.Aggregation(key, asc);
-                    return absoluteOrder ? new CompoundOrder(Collections.singletonList(order)) : order;
+                    return new InternalOrder.Aggregation(key, asc);
                 case CompoundOrder.ID:
                     int size = in.readVInt();
                     List<Terms.Order> compoundOrder = new ArrayList<>(size);

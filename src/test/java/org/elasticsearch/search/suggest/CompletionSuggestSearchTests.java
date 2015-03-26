@@ -179,6 +179,68 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testThatWeightCanBeAString() throws Exception {
+        createIndexAndMapping(completionMappingBuilder);
+
+        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                        .startObject().startObject(FIELD)
+                        .startArray("input").value("testing").endArray()
+                        .field("weight", "10")
+                        .endObject().endObject()
+        ).get();
+
+        refresh();
+
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
+                new CompletionSuggestionBuilder("testSuggestions").field(FIELD).text("test").size(10)
+        ).execute().actionGet();
+
+        assertSuggestions(suggestResponse, "testSuggestions", "testing");
+        Suggest.Suggestion.Entry.Option option = suggestResponse.getSuggest().getSuggestion("testSuggestions").getEntries().get(0).getOptions().get(0);
+        assertThat(option, is(instanceOf(CompletionSuggestion.Entry.Option.class)));
+        CompletionSuggestion.Entry.Option prefixOption = (CompletionSuggestion.Entry.Option) option;
+
+        assertThat(prefixOption.getText().string(), equalTo("testing"));
+        assertThat((long) prefixOption.getScore(), equalTo(10l));
+    }
+
+
+    @Test
+    public void testThatWeightMustNotBeANonNumberString() throws Exception {
+        createIndexAndMapping(completionMappingBuilder);
+
+        try {
+            client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                            .startObject().startObject(FIELD)
+                            .startArray("input").value("sth").endArray()
+                            .field("weight", "thisIsNotValid")
+                            .endObject().endObject()
+            ).get();
+            fail("Indexing with a non-number representing string as weight was successful, but should not be");
+        } catch (MapperParsingException e) {
+            assertThat(ExceptionsHelper.detailedMessage(e), containsString("thisIsNotValid"));
+        }
+    }
+
+    @Test
+    public void testThatWeightAsStringMustBeInt() throws Exception {
+        createIndexAndMapping(completionMappingBuilder);
+
+        String weight = String.valueOf(Long.MAX_VALUE - 4);
+        try {
+            client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                            .startObject().startObject(FIELD)
+                            .startArray("input").value("testing").endArray()
+                            .field("weight", weight)
+                            .endObject().endObject()
+            ).get();
+            fail("Indexing with weight string representing value > Int.MAX_VALUE was successful, but should not be");
+        } catch (MapperParsingException e) {
+            assertThat(ExceptionsHelper.detailedMessage(e), containsString(weight));
+        }
+    }
+
+    @Test
     public void testThatInputCanBeAStringInsteadOfAnArray() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -299,7 +361,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testDisabledPreserveSeperators() throws Exception {
+    public void testDisabledPreserveSeparators() throws Exception {
         completionMappingBuilder.preserveSeparators(false);
         createIndexAndMapping(completionMappingBuilder);
 
@@ -323,7 +385,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testEnabledPreserveSeperators() throws Exception {
+    public void testEnabledPreserveSeparators() throws Exception {
         completionMappingBuilder.preserveSeparators(true);
         createIndexAndMapping(completionMappingBuilder);
 
@@ -425,7 +487,6 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject("properties")
                 .startObject(FIELD)
                 .field("type", "string")
-                .field("path", "just_name") // The path can't be changed / upgraded
                 .endObject()
                 .endObject()
                 .endObject()
@@ -438,10 +499,9 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
                 .field("type", "multi_field")
-                .field("path", "just_name")
                 .startObject("fields")
                 .startObject(FIELD).field("type", "string").endObject()
-                .startObject("suggest").field("type", "completion").field("index_analyzer", "simple").field("search_analyzer", "simple").endObject()
+                .startObject("suggest").field("type", "completion").field("analyzer", "simple").endObject()
                 .endObject()
                 .endObject()
                 .endObject().endObject()
@@ -450,7 +510,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertThat(putMappingResponse.isAcknowledged(), is(true));
 
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                new CompletionSuggestionBuilder("suggs").field("suggest").text("f").size(10)
+                new CompletionSuggestionBuilder("suggs").field(FIELD + ".suggest").text("f").size(10)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, "suggs");
 
@@ -458,7 +518,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         ensureGreen(INDEX);
 
         SuggestResponse afterReindexingResponse = client().prepareSuggest(INDEX).addSuggestion(
-                SuggestBuilders.completionSuggestion("suggs").field("suggest").text("f").size(10)
+                SuggestBuilders.completionSuggestion("suggs").field(FIELD + ".suggest").text("f").size(10)
         ).execute().actionGet();
         assertSuggestions(afterReindexingResponse, "suggs", "Foo Fighters");
     }
@@ -471,7 +531,6 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject("properties")
                 .startObject(FIELD)
                 .field("type", "string")
-                .field("path", "just_name") // The path can't be changed / upgraded
                 .endObject()
                 .endObject()
                 .endObject()
@@ -484,9 +543,8 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                 .startObject(TYPE).startObject("properties")
                 .startObject(FIELD)
                 .field("type", "string")
-                .field("path", "just_name") // Need to specify path again, to make sure that the `path` is known when this mapping is parsed and turned into DocumentMapper that we merge with.
                 .startObject("fields")
-                .startObject("suggest").field("type", "completion").field("index_analyzer", "simple").field("search_analyzer", "simple").endObject()
+                .startObject("suggest").field("type", "completion").field("analyzer", "simple").endObject()
                 .endObject()
                 .endObject()
                 .endObject().endObject()
@@ -495,7 +553,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         assertThat(putMappingResponse.isAcknowledged(), is(true));
 
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
-                SuggestBuilders.completionSuggestion("suggs").field("suggest").text("f").size(10)
+                SuggestBuilders.completionSuggestion("suggs").field(FIELD + ".suggest").text("f").size(10)
         ).execute().actionGet();
         assertSuggestions(suggestResponse, "suggs");
 
@@ -503,7 +561,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         ensureGreen(INDEX);
 
         SuggestResponse afterReindexingResponse = client().prepareSuggest(INDEX).addSuggestion(
-                SuggestBuilders.completionSuggestion("suggs").field("suggest").text("f").size(10)
+                SuggestBuilders.completionSuggestion("suggs").field(FIELD + ".suggest").text("f").size(10)
         ).execute().actionGet();
         assertSuggestions(afterReindexingResponse, "suggs", "Foo Fighters");
     }
@@ -837,7 +895,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
                         .startObject(TYPE).startObject("properties")
                         .startObject(FIELD)
                         .field("type", "completion")
-                        .field("index_analyzer", completionMappingBuilder.indexAnalyzer)
+                        .field("analyzer", completionMappingBuilder.indexAnalyzer)
                         .field("search_analyzer", completionMappingBuilder.searchAnalyzer)
                         .field("payloads", completionMappingBuilder.payloads)
                         .field("preserve_separators", completionMappingBuilder.preserveSeparators)
@@ -890,7 +948,7 @@ public class CompletionSuggestSearchTests extends ElasticsearchIntegrationTest {
         if (optimize) {
             // make sure merging works just fine
             client().admin().indices().prepareFlush(INDEX).execute().actionGet();
-            client().admin().indices().prepareOptimize(INDEX).execute().actionGet();
+            client().admin().indices().prepareOptimize(INDEX).setMaxNumSegments(randomIntBetween(1, 5)).get();
         }
     }
 

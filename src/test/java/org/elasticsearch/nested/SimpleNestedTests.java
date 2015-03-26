@@ -19,6 +19,7 @@
 
 package org.elasticsearch.nested;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
@@ -61,7 +62,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         // check on no data, see it works
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
-        searchResponse = client().prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -91,13 +92,13 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         // check that _all is working on nested docs
         searchResponse = client().prepareSearch("test").setQuery(termQuery("_all", "n_value1_1")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        searchResponse = client().prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")).execute().actionGet();
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
 
         // search for something that matches the nested doc, and see that we don't find the nested doc
         searchResponse = client().prepareSearch("test").setQuery(matchAllQuery()).get();
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        searchResponse = client().prepareSearch("test").setQuery(termQuery("nested1.n_field1", "n_value1_1")).get();
+        searchResponse = client().prepareSearch("test").setQuery(termQuery("n_field1", "n_value1_1")).get();
         assertThat(searchResponse.getHits().totalHits(), equalTo(0l));
 
         // now, do a nested query
@@ -141,7 +142,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
 
         // check with type prefix
-        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("type1.nested1",
+        searchResponse = client().prepareSearch("test").setQuery(nestedQuery("nested1",
                 boolQuery().must(termQuery("nested1.n_field1", "n_value1_1")).must(termQuery("nested1.n_field2", "n_value2_1")))).execute().actionGet();
         assertNoFailures(searchResponse);
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
@@ -355,7 +356,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
         client().prepareDeleteByQuery("test").setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(docToDelete))).execute().actionGet();
         flush();
         refresh();
-        assertDocumentCount("test", total-1);
+        assertDocumentCount("test", total - 1);
 
         for (int i = 0; i < total; i++) {
             assertThat(client().prepareGet("test", "type1", Integer.toString(i)).execute().actionGet().isExists(), equalTo(i != docToDelete));
@@ -1167,6 +1168,142 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    // https://github.com/elasticsearch/elasticsearch/issues/9305
+    public void testNestedSortingWithNestedFilterAsFilter() throws Exception {
+        assertAcked(prepareCreate("test").addMapping("type", jsonBuilder().startObject().startObject("properties")
+                .startObject("officelocation").field("type", "string").endObject()
+                .startObject("users")
+                    .field("type", "nested")
+                    .startObject("properties")
+                        .startObject("first").field("type", "string").endObject()
+                        .startObject("last").field("type", "string").endObject()
+                        .startObject("workstations")
+                            .field("type", "nested")
+                            .startObject("properties")
+                                .startObject("stationid").field("type", "string").endObject()
+                                .startObject("phoneid").field("type", "string").endObject()
+                            .endObject()
+                        .endObject()
+                    .endObject()
+                .endObject()
+                .endObject().endObject()));
+
+        client().prepareIndex("test", "type", "1").setSource(jsonBuilder().startObject()
+                .field("officelocation", "gendale")
+                .startArray("users")
+                    .startObject()
+                        .field("first", "fname1")
+                        .field("last", "lname1")
+                        .startArray("workstations")
+                            .startObject()
+                                .field("stationid", "s1")
+                                .field("phoneid", "p1")
+                            .endObject()
+                            .startObject()
+                                .field("stationid", "s2")
+                                .field("phoneid", "p2")
+                            .endObject()
+                        .endArray()
+                    .endObject()
+                    .startObject()
+                        .field("first", "fname2")
+                        .field("last", "lname2")
+                        .startArray("workstations")
+                            .startObject()
+                                .field("stationid", "s3")
+                                .field("phoneid", "p3")
+                            .endObject()
+                            .startObject()
+                                .field("stationid", "s4")
+                                .field("phoneid", "p4")
+                            .endObject()
+                        .endArray()
+                    .endObject()
+                    .startObject()
+                        .field("first", "fname3")
+                        .field("last", "lname3")
+                        .startArray("workstations")
+                            .startObject()
+                                .field("stationid", "s5")
+                                .field("phoneid", "p5")
+                            .endObject()
+                            .startObject()
+                                .field("stationid", "s6")
+                                .field("phoneid", "p6")
+                            .endObject()
+                        .endArray()
+                    .endObject()
+                .endArray()
+                .endObject()).get();
+
+        client().prepareIndex("test", "type", "2").setSource(jsonBuilder().startObject()
+                .field("officelocation", "gendale")
+                .startArray("users")
+                    .startObject()
+                    .field("first", "fname4")
+                    .field("last", "lname4")
+                    .startArray("workstations")
+                        .startObject()
+                            .field("stationid", "s1")
+                            .field("phoneid", "p1")
+                        .endObject()
+                        .startObject()
+                            .field("stationid", "s2")
+                            .field("phoneid", "p2")
+                        .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("first", "fname5")
+                    .field("last", "lname5")
+                    .startArray("workstations")
+                        .startObject()
+                            .field("stationid", "s3")
+                            .field("phoneid", "p3")
+                        .endObject()
+                        .startObject()
+                            .field("stationid", "s4")
+                            .field("phoneid", "p4")
+                        .endObject()
+                    .endArray()
+                    .endObject()
+                    .startObject()
+                    .field("first", "fname1")
+                    .field("last", "lname1")
+                    .startArray("workstations")
+                        .startObject()
+                            .field("stationid", "s5")
+                            .field("phoneid", "p5")
+                        .endObject()
+                        .startObject()
+                            .field("stationid", "s6")
+                            .field("phoneid", "p6")
+                        .endObject()
+                    .endArray()
+                    .endObject()
+                .endArray()
+                .endObject()).get();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test")
+                .addSort(SortBuilders.fieldSort("users.first")
+                        .order(SortOrder.ASC))
+                .addSort(SortBuilders.fieldSort("users.first")
+                        .order(SortOrder.ASC)
+                        .setNestedPath("users")
+                        .setNestedFilter(nestedFilter("users.workstations", termFilter("users.workstations.stationid", "s5"))))
+                .get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 2);
+        assertThat(searchResponse.getHits().getAt(0).id(), equalTo("2"));
+        assertThat(searchResponse.getHits().getAt(0).sortValues()[0].toString(), equalTo("fname1"));
+        assertThat(searchResponse.getHits().getAt(0).sortValues()[1].toString(), equalTo("fname1"));
+        assertThat(searchResponse.getHits().getAt(1).id(), equalTo("1"));
+        assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("fname1"));
+        assertThat(searchResponse.getHits().getAt(1).sortValues()[1].toString(), equalTo("fname3"));
+    }
+
+    @Test
     public void testCheckFixedBitSetCache() throws Exception {
         boolean loadFixedBitSeLazily = randomBoolean();
         ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder().put(indexSettings())
@@ -1186,7 +1323,7 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
 
         // No nested mapping yet, there shouldn't be anything in the fixed bit set cache
         ClusterStatsResponse clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0l));
 
         // Now add nested mapping
         assertAcked(
@@ -1207,21 +1344,21 @@ public class SimpleNestedTests extends ElasticsearchIntegrationTest {
 
         if (loadFixedBitSeLazily) {
             clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-            assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
+            assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0l));
 
             // only when querying with nested the fixed bitsets are loaded
             SearchResponse searchResponse = client().prepareSearch("test")
-                    .setQuery(nestedQuery("array1", termQuery("field1", "value1")))
+                    .setQuery(nestedQuery("array1", termQuery("array1.field1", "value1")))
                     .get();
             assertNoFailures(searchResponse);
             assertThat(searchResponse.getHits().totalHits(), equalTo(5l));
         }
         clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), greaterThan(0l));
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), greaterThan(0l));
 
         assertAcked(client().admin().indices().prepareDelete("test"));
         clusterStatsResponse = client().admin().cluster().prepareClusterStats().get();
-        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getFixedBitSetMemoryInBytes(), equalTo(0l));
+        assertThat(clusterStatsResponse.getIndicesStats().getSegments().getBitsetMemoryInBytes(), equalTo(0l));
     }
 
     /**

@@ -55,6 +55,7 @@ public class IdentityHashSet<E>
      * @return an Iterator over the elements in this set
      * @see ConcurrentModificationException
      */
+    @Override
     public Iterator<E> iterator() {
         return map.keySet().iterator();
     }
@@ -64,6 +65,7 @@ public class IdentityHashSet<E>
      *
      * @return the number of elements in this set (its cardinality)
      */
+    @Override
     public int size() {
         return map.size();
     }
@@ -73,6 +75,7 @@ public class IdentityHashSet<E>
      *
      * @return <tt>true</tt> if this set contains no elements
      */
+    @Override
     public boolean isEmpty() {
         return map.isEmpty();
     }
@@ -86,6 +89,7 @@ public class IdentityHashSet<E>
      * @param o element whose presence in this set is to be tested
      * @return <tt>true</tt> if this set contains the specified element
      */
+    @Override
     public boolean contains(Object o) {
         return map.containsKey(o);
     }
@@ -102,6 +106,7 @@ public class IdentityHashSet<E>
      * @return <tt>true</tt> if this set did not already contain the specified
      *         element
      */
+    @Override
     public boolean add(E e) {
         return map.put(e, PRESENT) == null;
     }
@@ -118,6 +123,7 @@ public class IdentityHashSet<E>
      * @param o object to be removed from this set, if present
      * @return <tt>true</tt> if the set contained the specified element
      */
+    @Override
     public boolean remove(Object o) {
         return map.remove(o) == PRESENT;
     }
@@ -126,6 +132,7 @@ public class IdentityHashSet<E>
      * Removes all of the elements from this set.
      * The set will be empty after this call returns.
      */
+    @Override
     public void clear() {
         map.clear();
     }
@@ -136,6 +143,7 @@ public class IdentityHashSet<E>
      *
      * @return a shallow copy of this set
      */
+    @Override
     public Object clone() {
         try {
             IdentityHashSet<E> newSet = (IdentityHashSet<E>) super.clone();

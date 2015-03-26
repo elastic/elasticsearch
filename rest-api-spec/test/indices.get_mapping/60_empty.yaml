@@ -1,0 +1,19 @@
+---
+setup:
+
+  - do:
+      indices.create:
+        index: test_1
+
+  - do:
+      indices.create:
+        index: test_2
+
+---
+"Check empty mapping when getting all mappings via /_mapping":
+
+ - do:
+    indices.get_mapping: {}
+
+ - match: { test_1.mappings: {}}
+ - match: { test_2.mappings: {}}

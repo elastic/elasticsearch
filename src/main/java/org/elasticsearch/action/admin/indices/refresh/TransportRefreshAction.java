@@ -33,8 +33,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.shard.service.IndexShard;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -108,8 +107,8 @@ public class TransportRefreshAction extends TransportBroadcastOperationAction<Re
     @Override
     protected ShardRefreshResponse shardOperation(ShardRefreshRequest request) throws ElasticsearchException {
         IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).shardSafe(request.shardId().id());
-        indexShard.refresh(new Engine.Refresh("api").force(request.force()));
-        logger.trace("{} refresh request executed, force: [{}]", indexShard.shardId(), request.force());
+        indexShard.refresh("api");
+        logger.trace("{} refresh request executed", indexShard.shardId());
         return new ShardRefreshResponse(request.shardId());
     }
 

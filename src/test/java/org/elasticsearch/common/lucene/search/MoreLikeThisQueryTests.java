@@ -44,7 +44,7 @@ public class MoreLikeThisQueryTests extends ElasticsearchTestCase {
     @Test
     public void testSimple() throws Exception {
         Directory dir = new RAMDirectory();
-        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.VERSION, Lucene.STANDARD_ANALYZER));
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         indexWriter.commit();
 
 

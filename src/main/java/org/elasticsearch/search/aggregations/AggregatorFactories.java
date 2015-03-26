@@ -18,12 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.index.AtomicReaderContext;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.ObjectArray;
-import org.elasticsearch.search.aggregations.Aggregator.BucketAggregationMode;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -49,13 +44,10 @@ public class AggregatorFactories {
         this.factories = factories;
     }
 
-    private static Aggregator createAndRegisterContextAware(AggregationContext context, AggregatorFactory factory, Aggregator parent, long estimatedBucketsCount) {
-        final Aggregator aggregator = factory.create(context, parent, estimatedBucketsCount);
-        if (aggregator.shouldCollect()) {
-            context.registerReaderContextAware(aggregator);
-        }
+    private static Aggregator createAndRegisterContextAware(AggregationContext context, AggregatorFactory factory, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
+        final Aggregator aggregator = factory.create(context, parent, collectsFromSingleBucket);
         // Once the aggregator is fully constructed perform any initialisation -
-        // can't do everything in constructors if Aggregator base class needs 
+        // can't do everything in constructors if Aggregator base class needs
         // to delegate to subclasses as part of construction.
         aggregator.preCollection();
         return aggregator;
@@ -64,97 +56,26 @@ public class AggregatorFactories {
     /**
      * Create all aggregators so that they can be consumed with multiple buckets.
      */
-    public Aggregator[] createSubAggregators(Aggregator parent, final long estimatedBucketsCount) {
+    public Aggregator[] createSubAggregators(Aggregator parent) throws IOException {
         Aggregator[] aggregators = new Aggregator[count()];
         for (int i = 0; i < factories.length; ++i) {
-            final AggregatorFactory factory = factories[i];
-            final Aggregator first = createAndRegisterContextAware(parent.context(), factory, parent, estimatedBucketsCount);
-            if (first.bucketAggregationMode() == BucketAggregationMode.MULTI_BUCKETS) {
-                // This aggregator already supports multiple bucket ordinals, can be used directly
-                aggregators[i] = first;
-                continue;
-            }
-            // the aggregator doesn't support multiple ordinals, let's wrap it so that it does.
-            aggregators[i] = new Aggregator(first.name(), BucketAggregationMode.MULTI_BUCKETS, AggregatorFactories.EMPTY, 1, first.context(), first.parent()) {
-
-                ObjectArray<Aggregator> aggregators;
-
-                {
-                    // if estimated count is zero, we at least create a single aggregator.
-                    // The estimated count is just an estimation and we can't rely on how it's estimated (that is, an
-                    // estimation of 0 should not imply that we'll end up without any buckets)
-                    long arraySize = estimatedBucketsCount > 0 ?  estimatedBucketsCount : 1;
-                    aggregators = bigArrays.newObjectArray(arraySize);
-                    aggregators.set(0, first);
-                }
-
-                @Override
-                public boolean shouldCollect() {
-                    return first.shouldCollect();
-                }
-
-                @Override
-                protected void doPostCollection() throws IOException {
-                    for (long i = 0; i < aggregators.size(); ++i) {
-                        final Aggregator aggregator = aggregators.get(i);
-                        if (aggregator != null) {
-                            aggregator.postCollection();
-                        }
-                    }
-                }
-
-                @Override
-                public void collect(int doc, long owningBucketOrdinal) throws IOException {
-                    aggregators = bigArrays.grow(aggregators, owningBucketOrdinal + 1);
-                    Aggregator aggregator = aggregators.get(owningBucketOrdinal);
-                    if (aggregator == null) {
-                        aggregator = createAndRegisterContextAware(parent.context(), factory, parent, estimatedBucketsCount);
-                        aggregators.set(owningBucketOrdinal, aggregator);
-                    }
-                    aggregator.collect(doc, 0);
-                }
-
-                @Override
-                public void setNextReader(AtomicReaderContext reader) {
-                }
-
-                @Override
-                public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-                    throw new ElasticsearchIllegalStateException("Invalid context - aggregation must use addResults() to collect child results");
-                }
-
-                @Override
-                public InternalAggregation buildEmptyAggregation() {
-                    return first.buildEmptyAggregation();
-                }
-
-                @Override
-                public void doClose() {
-                    Releasables.close(aggregators);
-                }
-
-                @Override
-                public void gatherAnalysis(BucketAnalysisCollector results, long owningBucketOrdinal) {
-                    // The bucket ordinal may be out of range in case of eg. a terms/filter/terms where
-                    // the filter matches no document in the highest buckets of the first terms agg
-                    if (owningBucketOrdinal >= aggregators.size() || aggregators.get(owningBucketOrdinal) == null) {
-                        results.add(first.buildEmptyAggregation());
-                    } else {
-                        aggregators.get(owningBucketOrdinal).gatherAnalysis(results,0);
-                    }                 
-                }
-            };
-            
-            aggregators[i].preCollection();
+            // TODO: sometimes even sub aggregations always get called with bucket 0, eg. if
+            // you have a terms agg under a top-level filter agg. We should have a way to
+            // propagate the fact that only bucket 0 will be collected with single-bucket
+            // aggs
+            final boolean collectsFromSingleBucket = false;
+            aggregators[i] = createAndRegisterContextAware(parent.context(), factories[i], parent, collectsFromSingleBucket);
         }
         return aggregators;
     }
 
-    public Aggregator[] createTopLevelAggregators(AggregationContext ctx) {
+    public Aggregator[] createTopLevelAggregators(AggregationContext ctx) throws IOException {
         // These aggregators are going to be used with a single bucket ordinal, no need to wrap the PER_BUCKET ones
         Aggregator[] aggregators = new Aggregator[factories.length];
         for (int i = 0; i < factories.length; i++) {
-            aggregators[i] = createAndRegisterContextAware(ctx, factories[i], null, 0);
+            // top-level aggs only get called with bucket 0
+            final boolean collectsFromSingleBucket = true;
+            aggregators[i] = createAndRegisterContextAware(ctx, factories[i], null, collectsFromSingleBucket);
         }
         return aggregators;
     }
@@ -185,7 +106,7 @@ public class AggregatorFactories {
         }
 
         @Override
-        public Aggregator[] createSubAggregators(Aggregator parent, long estimatedBucketsCount) {
+        public Aggregator[] createSubAggregators(Aggregator parent) {
             return EMPTY_AGGREGATORS;
         }
 

@@ -21,12 +21,33 @@ package org.elasticsearch.transport.netty;
 
 import org.elasticsearch.Version;
 import org.jboss.netty.buffer.ChannelBuffer;
+import org.jboss.netty.buffer.ChannelBuffers;
 
 /**
  */
 public class NettyHeader {
 
     public static final int HEADER_SIZE = 2 + 4 + 8 + 1 + 4;
+
+    /**
+     * The magic number (must be lower than 0) for a ping message. This is handled
+     * specifically in {@link org.elasticsearch.transport.netty.SizeHeaderFrameDecoder}.
+     */
+    public static final int PING_DATA_SIZE = -1;
+    private final static ChannelBuffer pingHeader;
+    static {
+        pingHeader = ChannelBuffers.buffer(6);
+        pingHeader.writeByte('E');
+        pingHeader.writeByte('S');
+        pingHeader.writeInt(PING_DATA_SIZE);
+    }
+
+    /**
+     * A ping header is same as regular header, just with -1 for the size of the message.
+     */
+    public static ChannelBuffer pingHeader() {
+        return pingHeader.duplicate();
+    }
 
     public static void writeHeader(ChannelBuffer buffer, long requestId, byte status, Version version) {
         int index = buffer.readerIndex();

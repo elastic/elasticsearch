@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.collect.Lists;
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -292,7 +293,7 @@ public class AddIncrementallyTests extends ElasticsearchAllocationTestCase {
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
         for (int i = 0; i < numberOfIndices; i++) {
-            IndexMetaData.Builder index = IndexMetaData.builder("test" + i).numberOfShards(numberOfShards).numberOfReplicas(
+            IndexMetaData.Builder index = IndexMetaData.builder("test" + i).settings(settings(Version.CURRENT)).numberOfShards(numberOfShards).numberOfReplicas(
                     numberOfReplicas);
             metaDataBuilder = metaDataBuilder.put(index);
         }
@@ -347,7 +348,7 @@ public class AddIncrementallyTests extends ElasticsearchAllocationTestCase {
         MetaData.Builder metaDataBuilder = MetaData.builder(clusterState.getMetaData());
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(clusterState.routingTable());
 
-        IndexMetaData.Builder index = IndexMetaData.builder("test" + indexOrdinal).numberOfShards(numberOfShards).numberOfReplicas(
+        IndexMetaData.Builder index = IndexMetaData.builder("test" + indexOrdinal).settings(settings(Version.CURRENT)).numberOfShards(numberOfShards).numberOfReplicas(
                 numberOfReplicas);
         IndexMetaData imd = index.build();
         metaDataBuilder = metaDataBuilder.put(imd, true);

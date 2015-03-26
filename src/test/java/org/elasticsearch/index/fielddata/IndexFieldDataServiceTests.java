@@ -33,7 +33,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.core.*;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 
 import java.util.Arrays;
@@ -134,15 +134,15 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
         final IndexFieldDataService ifdService = indexService.fieldData();
         final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
         final StringFieldMapper mapper1 = MapperBuilders.stringField("s").tokenized(false).fieldDataSettings(ImmutableSettings.builder().put(FieldDataType.FORMAT_KEY, "paged_bytes").build()).build(ctx);
-        final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(TEST_VERSION_CURRENT, new KeywordAnalyzer()));
+        final IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new KeywordAnalyzer()));
         Document doc = new Document();
         doc.add(new StringField("s", "thisisastring", Store.NO));
         writer.addDocument(doc);
         final IndexReader reader1 = DirectoryReader.open(writer, true);
         IndexFieldData<?> ifd = ifdService.getForField(mapper1);
         assertThat(ifd, instanceOf(PagedBytesIndexFieldData.class));
-        Set<AtomicReader> oldSegments = Collections.newSetFromMap(new IdentityHashMap<AtomicReader, Boolean>());
-        for (AtomicReaderContext arc : reader1.leaves()) {
+        Set<LeafReader> oldSegments = Collections.newSetFromMap(new IdentityHashMap<LeafReader, Boolean>());
+        for (LeafReaderContext arc : reader1.leaves()) {
             oldSegments.add(arc.reader());
             AtomicFieldData afd = ifd.load(arc);
             assertThat(afd, instanceOf(PagedBytesAtomicFieldData.class));
@@ -154,7 +154,7 @@ public class IndexFieldDataServiceTests extends ElasticsearchSingleNodeTest {
         ifdService.onMappingUpdate();
         ifd = ifdService.getForField(mapper2);
         assertThat(ifd, instanceOf(FSTBytesIndexFieldData.class));
-        for (AtomicReaderContext arc : reader2.leaves()) {
+        for (LeafReaderContext arc : reader2.leaves()) {
             AtomicFieldData afd = ifd.load(arc);
             if (oldSegments.contains(arc.reader())) {
                 assertThat(afd, instanceOf(PagedBytesAtomicFieldData.class));

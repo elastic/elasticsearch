@@ -29,10 +29,11 @@ import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalOrder.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalOrder.CompoundOrder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.OrderPath;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 public abstract class TermsAggregator extends BucketsAggregator {
@@ -130,24 +131,24 @@ public abstract class TermsAggregator extends BucketsAggregator {
     }
 
     protected final BucketCountThresholds bucketCountThresholds;
-    protected Terms.Order order;
-    protected Set<Aggregator> aggsUsedForSorting = new HashSet<>();
-    protected SubAggCollectionMode subAggCollectMode;
+    protected final Terms.Order order;
+    protected final Set<Aggregator> aggsUsedForSorting = new HashSet<>();
+    protected final SubAggCollectionMode collectMode;
 
-    public TermsAggregator(String name, BucketAggregationMode bucketAggregationMode, AggregatorFactories factories, long estimatedBucketsCount, AggregationContext context, Aggregator parent, BucketCountThresholds bucketCountThresholds, Terms.Order order, SubAggCollectionMode subAggCollectMode) {
-        super(name, bucketAggregationMode, factories, estimatedBucketsCount, context, parent);
+    public TermsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent, BucketCountThresholds bucketCountThresholds, Terms.Order order, SubAggCollectionMode collectMode, Map<String, Object> metaData) throws IOException {
+        super(name, factories, context, parent, metaData);
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = InternalOrder.validate(order, this);
-        this.subAggCollectMode = subAggCollectMode;
+        this.collectMode = collectMode;
         // Don't defer any child agg if we are dependent on it for pruning results
         if (order instanceof Aggregation){
-            OrderPath path = ((Aggregation) order).path();
+            AggregationPath path = ((Aggregation) order).path();
             aggsUsedForSorting.add(path.resolveTopmostAggregator(this));
         } else if (order instanceof CompoundOrder) {
             CompoundOrder compoundOrder = (CompoundOrder) order;
             for (Terms.Order orderElement : compoundOrder.orderElements()) {
                 if (orderElement instanceof Aggregation) {
-                    OrderPath path = ((Aggregation) orderElement).path();
+                    AggregationPath path = ((Aggregation) orderElement).path();
                     aggsUsedForSorting.add(path.resolveTopmostAggregator(this));
                 }
             }
@@ -156,7 +157,7 @@ public abstract class TermsAggregator extends BucketsAggregator {
 
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
-        return (subAggCollectMode == SubAggCollectionMode.BREADTH_FIRST) && (!aggsUsedForSorting.contains(aggregator));
+        return (collectMode == SubAggCollectionMode.BREADTH_FIRST) && (!aggsUsedForSorting.contains(aggregator));
     }
     
 }

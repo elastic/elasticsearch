@@ -24,7 +24,12 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.ReduceSearchPhaseException;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
@@ -46,7 +51,7 @@ import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.controller.SearchPhaseController;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -77,7 +82,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         this.searchPhaseController = searchPhaseController;
     }
 
-    protected abstract class BaseAsyncAction<FirstResult extends SearchPhaseResult> {
+    protected abstract class BaseAsyncAction<FirstResult extends SearchPhaseResult> extends AbstractAsyncAction {
 
         protected final ActionListener<SearchResponse> listener;
 
@@ -98,9 +103,6 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
         private volatile AtomicArray<ShardSearchFailure> shardFailures;
         private final Object shardFailuresMutex = new Object();
         protected volatile ScoreDoc[] sortedShardList;
-
-        protected final boolean useSlowScroll;
-        protected final long startTime = System.currentTimeMillis();
 
         protected BaseAsyncAction(SearchRequest request, ActionListener<SearchResponse> listener) {
             this.request = request;
@@ -125,24 +127,12 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
 
             firstResults = new AtomicArray<>(shardsIts.size());
-            // Not so nice, but we need to know if there're nodes below the supported version
-            // and if so fall back to classic scroll (based on from). We need to check every node
-            // because we don't to what nodes we end up sending the request (shard may fail or relocate)
-            boolean useSlowScroll = false;
-            if (request.scroll() != null) {
-                for (DiscoveryNode discoveryNode : clusterState.nodes()) {
-                    if (discoveryNode.getVersion().before(ParsedScrollId.SCROLL_SEARCH_AFTER_MINIMUM_VERSION)) {
-                        useSlowScroll = true;
-                    }
-                }
-            }
-            this.useSlowScroll = useSlowScroll;
         }
 
         public void start() {
             if (expectedSuccessfulOps == 0) {
                 // no search shards to search on, bail with empty response (it happens with search across _all with no indices around and consistent with broadcast operations)
-                listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, System.currentTimeMillis() - startTime, ShardSearchFailure.EMPTY_ARRAY));
+                listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, buildTookInMillis(), ShardSearchFailure.EMPTY_ARRAY));
                 return;
             }
             request.beforeStart();
@@ -169,7 +159,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                     onFirstPhaseResult(shardIndex, shard, null, shardIt, new NoShardAvailableActionException(shardIt.shardId()));
                 } else {
                     String[] filteringAliases = clusterState.metaData().filteringAliases(shard.index(), request.indices());
-                    sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request, filteringAliases, startTime, useSlowScroll), new SearchServiceListener<FirstResult>() {
+                    sendExecuteFirstPhase(node, internalSearchRequest(shard, shardsIts.size(), request, filteringAliases, startTime()), new SearchServiceListener<FirstResult>() {
                         @Override
                         public void onResult(FirstResult result) {
                             onFirstPhaseResult(shardIndex, shard, result, shardIt);
@@ -228,7 +218,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 }
                 if (successfulOps.get() == 0) {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("All shards failed for phase: [{}]", firstPhaseName(), t);
+                        logger.debug("All shards failed for phase: [{}]", t, firstPhaseName());
                     }
                     // no successful ops, raise an exception
                     raiseEarlyFailure(new SearchPhaseExecutionException(firstPhaseName(), "all shards failed", buildShardFailures()));
@@ -269,13 +259,6 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             } else {
                 return shardIt.shardId() + ": Failed to execute [" + request + "] lastShard [" + lastShard + "]";
             }
-        }
-
-        /**
-         * Builds how long it took to execute the search.
-         */
-        protected final long buildTookInMillis() {
-            return System.currentTimeMillis() - startTime;
         }
 
         protected final ShardSearchFailure[] buildShardFailures() {
@@ -365,7 +348,7 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             }
         }
 
-        protected abstract void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchRequest request, SearchServiceListener<FirstResult> listener);
+        protected abstract void sendExecuteFirstPhase(DiscoveryNode node, ShardSearchTransportRequest request, SearchServiceListener<FirstResult> listener);
 
         protected final void processFirstPhaseResult(int shardIndex, ShardRouting shard, FirstResult result) {
             firstResults.set(shardIndex, result);

@@ -27,19 +27,17 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.rest.ElasticsearchRestTests;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
 
-import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
-import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
-import static org.elasticsearch.test.ElasticsearchIntegrationTest.TESTS_CLUSTER;
-import static org.elasticsearch.test.rest.ElasticsearchRestTests.REST_TESTS_BLACKLIST;
-import static org.elasticsearch.test.rest.ElasticsearchRestTests.REST_TESTS_SPEC;
-import static org.elasticsearch.test.rest.ElasticsearchRestTests.REST_TESTS_SUITE;
+import java.util.Locale;
+import java.util.TimeZone;
 
+import static com.carrotsearch.randomizedtesting.SysGlobals.*;
+import static org.elasticsearch.test.ElasticsearchIntegrationTest.TESTS_CLUSTER;
+import static org.elasticsearch.test.rest.ElasticsearchRestTests.*;
 
 /**
  * A {@link RunListener} that emits to {@link System#err} a string with command
@@ -73,8 +71,8 @@ public class ReproduceInfoPrinter extends RunListener {
         MavenMessageBuilder mavenMessageBuilder = new MavenMessageBuilder(b);
         mavenMessageBuilder.appendAllOpts(failure.getDescription());
 
-        //ElasticsearchRestTests is a special case as it allows for additional parameters
-        if (ElasticsearchRestTests.class.isAssignableFrom(failure.getDescription().getTestClass())) {
+        //Rest tests are a special case as they allow for additional parameters
+        if (failure.getDescription().getTestClass().isAnnotationPresent(Rest.class)) {
             mavenMessageBuilder.appendRestTestsProperties();
         }
 
@@ -115,6 +113,12 @@ public class ReproduceInfoPrinter extends RunListener {
             return appendESProperties();
         }
 
+        @Override
+        public ReproduceErrorMessageBuilder appendEnvironmentSettings() {
+            // we handle our own environment settings
+            return this;
+        }
+
         /**
          * Append a single VM option.
          */
@@ -126,6 +130,10 @@ public class ReproduceInfoPrinter extends RunListener {
             if (sysPropName.equals(SYSPROP_TESTMETHOD())) {
                 //don't print out the test method, we print it ourselves in appendAllOpts
                 //without filtering out the parameters (needed for REST tests)
+                return this;
+            }
+            if (sysPropName.equals(SYSPROP_PREFIX())) {
+                // we always use the default prefix
                 return this;
             }
             if (Strings.hasLength(value)) {
@@ -141,6 +149,8 @@ public class ReproduceInfoPrinter extends RunListener {
             if (System.getProperty("tests.jvm.argline") != null && !System.getProperty("tests.jvm.argline").isEmpty()) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }
+            appendOpt("tests.locale", Locale.getDefault().toString());
+            appendOpt("tests.timezone", TimeZone.getDefault().getID());
             appendOpt(AbstractRandomizedTest.SYSPROP_PROCESSORS, Integer.toString(AbstractRandomizedTest.TESTS_PROCESSORS));
             return this;
         }

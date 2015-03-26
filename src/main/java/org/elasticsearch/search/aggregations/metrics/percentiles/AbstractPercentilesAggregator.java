@@ -19,18 +19,24 @@
 
 package org.elasticsearch.search.aggregations.metrics.percentiles;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.ArrayUtils;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.metrics.percentiles.tdigest.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
+import java.util.Map;
 
 public abstract class AbstractPercentilesAggregator extends NumericMetricsAggregator.MultiValue {
 
@@ -40,46 +46,54 @@ public abstract class AbstractPercentilesAggregator extends NumericMetricsAggreg
 
     protected final double[] keys;
     protected final ValuesSource.Numeric valuesSource;
-    private SortedNumericDoubleValues values;
+    protected final ValueFormatter formatter;
     protected ObjectArray<TDigestState> states;
     protected final double compression;
     protected final boolean keyed;
 
-    public AbstractPercentilesAggregator(String name, long estimatedBucketsCount, ValuesSource.Numeric valuesSource, AggregationContext context,
-                                 Aggregator parent, double[] keys, double compression, boolean keyed) {
-        super(name, estimatedBucketsCount, context, parent);
+    public AbstractPercentilesAggregator(String name, ValuesSource.Numeric valuesSource, AggregationContext context,
+                                 Aggregator parent, double[] keys, double compression, boolean keyed,
+                                 @Nullable ValueFormatter formatter, Map<String, Object> metaData) throws IOException {
+        super(name, context, parent, metaData);
         this.valuesSource = valuesSource;
         this.keyed = keyed;
-        this.states = bigArrays.newObjectArray(estimatedBucketsCount);
+        this.formatter = formatter;
+        this.states = context.bigArrays().newObjectArray(1);
         this.keys = keys;
         this.compression = compression;
     }
 
     @Override
-    public boolean shouldCollect() {
-        return valuesSource != null;
+    public boolean needsScores() {
+        return valuesSource != null && valuesSource.needsScores();
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext reader) {
-        values = valuesSource.doubleValues();
-    }
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
+            final LeafBucketCollector sub) throws IOException {
+        if (valuesSource == null) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
+        }
+        final BigArrays bigArrays = context.bigArrays();
+        final SortedNumericDoubleValues values = valuesSource.doubleValues(ctx);
+        return new LeafBucketCollectorBase(sub, values) {
+            @Override
+            public void collect(int doc, long bucket) throws IOException {
+                states = bigArrays.grow(states, bucket + 1);
 
-    @Override
-    public void collect(int doc, long bucketOrd) throws IOException {
-        states = bigArrays.grow(states, bucketOrd + 1);
-    
-        TDigestState state = states.get(bucketOrd);
-        if (state == null) {
-            state = new TDigestState(compression);
-            states.set(bucketOrd, state);
-        }
-    
-        values.setDocument(doc);
-        final int valueCount = values.count();
-        for (int i = 0; i < valueCount; i++) {
-            state.add(values.valueAt(i));
-        }
+                TDigestState state = states.get(bucket);
+                if (state == null) {
+                    state = new TDigestState(compression);
+                    states.set(bucket, state);
+                }
+
+                values.setDocument(doc);
+                final int valueCount = values.count();
+                for (int i = 0; i < valueCount; i++) {
+                    state.add(values.valueAt(i));
+                }
+            }
+        };
     }
 
     @Override

@@ -417,11 +417,7 @@ public class SimpleAllMapperTests extends ElasticsearchSingleNodeTest {
         rootTypes.put(SizeFieldMapper.NAME, "{\"enabled\" : true}");
         rootTypes.put(IndexFieldMapper.NAME, "{\"enabled\" : true}");
         rootTypes.put(SourceFieldMapper.NAME, "{\"enabled\" : true}");
-        rootTypes.put(TypeFieldMapper.NAME, "{\"store\" : true}");
         rootTypes.put("include_in_all", "true");
-        rootTypes.put("index_analyzer", "\"standard\"");
-        rootTypes.put("search_analyzer", "\"standard\"");
-        rootTypes.put("analyzer", "\"standard\"");
         rootTypes.put("dynamic_date_formats", "[\"yyyy-MM-dd\", \"dd-MM-yyyy\"]");
         rootTypes.put("numeric_detection", "true");
         rootTypes.put("dynamic_templates", "[]");

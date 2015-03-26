@@ -19,13 +19,14 @@
 
 package org.elasticsearch.common.lucene.search;
 
-import org.apache.lucene.index.AtomicReaderContext;
-import org.apache.lucene.search.DocIdSet;
-import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.docset.MatchDocIdSet;
-
 import java.io.IOException;
+
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocValuesDocIdSet;
+import org.apache.lucene.util.Bits;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.Nullable;
 
 public class LimitFilter extends NoCacheFilter {
 
@@ -41,14 +42,14 @@ public class LimitFilter extends NoCacheFilter {
     }
 
     @Override
-    public DocIdSet getDocIdSet(AtomicReaderContext context, Bits acceptDocs) throws IOException {
+    public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
         if (counter > limit) {
             return null;
         }
         return new LimitDocIdSet(context.reader().maxDoc(), acceptDocs, limit);
     }
 
-    public class LimitDocIdSet extends MatchDocIdSet {
+    public class LimitDocIdSet extends DocValuesDocIdSet {
 
         private final int limit;
 
@@ -64,5 +65,15 @@ public class LimitFilter extends NoCacheFilter {
             }
             return true;
         }
+
+        @Override
+        public long ramBytesUsed() {
+            return RamUsageEstimator.NUM_BYTES_INT;
+        }
+    }
+
+    @Override
+    public String toString(String field) {
+        return "limit(limit=" + limit + ")";
     }
 }

@@ -47,10 +47,6 @@ public class InternalScrollSearchRequest extends TransportRequest {
         this.scroll = request.scroll();
     }
 
-    public InternalScrollSearchRequest(long id) {
-        this.id = id;
-    }
-
     public long id() {
         return id;
     }

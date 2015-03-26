@@ -28,7 +28,7 @@ The following settings may be used:
        Allow to control specifically the number of initial recoveries
        of primaries that are allowed per node. Since most times local
        gateway is used, those should be fast and we can handle more of
-       those per node without creating load.
+       those per node without creating load.  Defaults to `4`.
 
 
 `cluster.routing.allocation.node_concurrent_recoveries`::
@@ -36,14 +36,32 @@ The following settings may be used:
      Defaults to `2`.
 
 `cluster.routing.allocation.enable`::
-    Controls shard allocation for all indices, by allowing specific
-    kinds of shard to be allocated.
 
-    Can be set to:
-    * `all` (default) - Allows shard allocation for all kinds of shards.
-    * `primaries` - Allows shard allocation only for primary shards.
-    * `new_primaries` - Allows shard allocation only for primary shards for new indices.
-    * `none` - No shard allocations of any kind are allowed for all indices.
+Controls shard allocation for all indices, by allowing specific
+kinds of shard to be allocated.
++
+--
+Can be set to:
+
+* `all` - (default) Allows shard allocation for all kinds of shards.
+* `primaries` -  Allows shard allocation only for primary shards.
+* `new_primaries` - Allows shard allocation only for primary shards for new indices.
+* `none` - No shard allocations of any kind are allowed for all indices.
+--
+
+`cluster.routing.rebalance.enable`::
+
+Controls shard rebalance for all indices, by allowing specific
+kinds of shard to be rebalanced.
++
+--
+Can be set to:
+
+* `all` - (default) Allows shard balancing for all kinds of shards.
+* `primaries` - Allows shard balancing only for primary shards.
+* `replicas` - Allows shard balancing only for replica shards.
+* `none` - No shard balancing of any kind are allowed for all indices.
+--
 
 `cluster.routing.allocation.same_shard.host`::
       Allows to perform a check to prevent allocation of multiple instances
@@ -107,7 +125,7 @@ nodes that don't have values set for those attributes.
 
 Sometimes, we know in advance the number of values an awareness
 attribute can have, and more over, we would like never to have more
-replicas then needed allocated on a specific group of nodes with the
+replicas than needed allocated on a specific group of nodes with the
 same awareness attribute value. For that, we can force awareness on
 specific attributes.
 
@@ -132,7 +150,9 @@ allocated.
 
 When executing a search, or doing a get, the node receiving the request
 will prefer to execute the request on shards that exists on nodes that
-have the same attribute values as the executing node.
+have the same attribute values as the executing node. This only happens
+when the `cluster.routing.allocation.awareness.attributes` setting has
+been set to a value.
 
 [float]
 ==== Realtime Settings Update

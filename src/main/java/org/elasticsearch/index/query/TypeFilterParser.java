@@ -64,13 +64,13 @@ public class TypeFilterParser implements FilterParser {
         parser.nextToken();
 
         Filter filter;
-        //LUCENE 4 UPGRADE document mapper should use bytesref aswell? 
+        //LUCENE 4 UPGRADE document mapper should use bytesref as well? 
         DocumentMapper documentMapper = parseContext.mapperService().documentMapper(type.utf8ToString());
         if (documentMapper == null) {
             filter = new TermFilter(new Term(TypeFieldMapper.NAME, type));
         } else {
             filter = documentMapper.typeFilter();
         }
-        return parseContext.cacheFilter(filter, null);
+        return parseContext.cacheFilter(filter, null, parseContext.autoFilterCachePolicy());
     }
 }

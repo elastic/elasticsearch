@@ -20,10 +20,10 @@
 package org.elasticsearch.rest.action.index;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -98,10 +98,6 @@ public class RestIndexAction extends BaseRestHandler {
                 }
             }
         }
-        String replicationType = request.param("replication");
-        if (replicationType != null) {
-            indexRequest.replicationType(ReplicationType.fromString(replicationType));
-        }
         String consistencyLevel = request.param("consistency");
         if (consistencyLevel != null) {
             indexRequest.consistencyLevel(WriteConsistencyLevel.fromString(consistencyLevel));
@@ -109,14 +105,16 @@ public class RestIndexAction extends BaseRestHandler {
         client.index(indexRequest, new RestBuilderListener<IndexResponse>(channel) {
             @Override
             public RestResponse buildResponse(IndexResponse response, XContentBuilder builder) throws Exception {
-                builder.startObject()
-                        .field(Fields._INDEX, response.getIndex())
+                builder.startObject();
+                ActionWriteResponse.ShardInfo shardInfo = response.getShardInfo();
+                builder.field(Fields._INDEX, response.getIndex())
                         .field(Fields._TYPE, response.getType())
                         .field(Fields._ID, response.getId())
-                        .field(Fields._VERSION, response.getVersion())
-                        .field(Fields.CREATED, response.isCreated());
+                        .field(Fields._VERSION, response.getVersion());
+                shardInfo.toXContent(builder, request);
+                builder.field(Fields.CREATED, response.isCreated());
                 builder.endObject();
-                RestStatus status = OK;
+                RestStatus status = shardInfo.status();
                 if (response.isCreated()) {
                     status = CREATED;
                 }

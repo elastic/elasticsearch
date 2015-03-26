@@ -20,12 +20,13 @@
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.component.CloseableComponent;
+
+import java.io.Closeable;
 
 /**
  * A filter allowing to filter rest operations.
  */
-public abstract class RestFilter implements CloseableComponent {
+public abstract class RestFilter implements Closeable {
 
     /**
      * Optionally, the order of the filter. Execution is done from lowest value to highest.

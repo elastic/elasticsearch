@@ -28,13 +28,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.SnapshotFailedEngineException;
-import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.service.IndexShard;
-import org.elasticsearch.index.shard.service.InternalIndexShard;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.RestoreService;
 
@@ -46,7 +45,7 @@ import org.elasticsearch.snapshots.RestoreService;
  */
 public class IndexShardSnapshotAndRestoreService extends AbstractIndexShardComponent {
 
-    private final InternalIndexShard indexShard;
+    private final IndexShard indexShard;
 
     private final RepositoriesService repositoriesService;
 
@@ -55,7 +54,7 @@ public class IndexShardSnapshotAndRestoreService extends AbstractIndexShardCompo
     @Inject
     public IndexShardSnapshotAndRestoreService(ShardId shardId, @IndexSettings Settings indexSettings, IndexShard indexShard, RepositoriesService repositoriesService, RestoreService restoreService) {
         super(shardId, indexSettings);
-        this.indexShard = (InternalIndexShard) indexShard;
+        this.indexShard = indexShard;
         this.repositoriesService = repositoriesService;
         this.restoreService = restoreService;
     }
@@ -116,12 +115,18 @@ public class IndexShardSnapshotAndRestoreService extends AbstractIndexShardCompo
             logger.trace("[{}] restoring shard  [{}]", restoreSource.snapshotId(), shardId);
         }
         try {
+            recoveryState.getTranslog().totalOperations(0);
+            recoveryState.getTranslog().totalOperationsOnStart(0);
+            indexShard.prepareForIndexRecovery();
             IndexShardRepository indexShardRepository = repositoriesService.indexShardRepository(restoreSource.snapshotId().getRepository());
             ShardId snapshotShardId = shardId;
             if (!shardId.getIndex().equals(restoreSource.index())) {
                 snapshotShardId = new ShardId(restoreSource.index(), shardId.id());
             }
             indexShardRepository.restore(restoreSource.snapshotId(), shardId, snapshotShardId, recoveryState);
+            indexShard.prepareForTranslogRecovery();
+            indexShard.finalizeRecovery();
+            indexShard.postRecovery("restore done");
             restoreService.indexShardRestoreCompleted(restoreSource.snapshotId(), shardId);
         } catch (Throwable t) {
             if (Lucene.isCorruptionException(t)) {

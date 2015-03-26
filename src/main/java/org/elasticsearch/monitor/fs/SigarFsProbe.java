@@ -32,6 +32,8 @@ import org.hyperic.sigar.Sigar;
 import org.hyperic.sigar.SigarException;
 
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Map;
 
 /**
@@ -42,7 +44,7 @@ public class SigarFsProbe extends AbstractComponent implements FsProbe {
 
     private final SigarService sigarService;
 
-    private Map<File, FileSystem> fileSystems = Maps.newHashMap();
+    private Map<Path, FileSystem> fileSystems = Maps.newHashMap();
 
     @Inject
     public SigarFsProbe(Settings settings, NodeEnvironment nodeEnv, SigarService sigarService) {
@@ -56,13 +58,13 @@ public class SigarFsProbe extends AbstractComponent implements FsProbe {
         if (!nodeEnv.hasNodeFile()) {
             return new FsStats(System.currentTimeMillis(), new FsStats.Info[0]);
         }
-        File[] dataLocations = nodeEnv.nodeDataLocations();
+        Path[] dataLocations = nodeEnv.nodeDataPaths();
         FsStats.Info[] infos = new FsStats.Info[dataLocations.length];
         for (int i = 0; i < dataLocations.length; i++) {
-            File dataLocation = dataLocations[i];
+            Path dataLocation = dataLocations[i];
 
             FsStats.Info info = new FsStats.Info();
-            info.path = dataLocation.getAbsolutePath();
+            info.path = dataLocation.toAbsolutePath().toString();
 
             try {
                 FileSystem fileSystem = fileSystems.get(dataLocation);
@@ -70,7 +72,7 @@ public class SigarFsProbe extends AbstractComponent implements FsProbe {
                 if (fileSystem == null) {
                     FileSystemMap fileSystemMap = sigar.getFileSystemMap();
                     if (fileSystemMap != null) {
-                        fileSystem = fileSystemMap.getMountPoint(dataLocation.getPath());
+                        fileSystem = fileSystemMap.getMountPoint(dataLocation.toAbsolutePath().toString());
                         fileSystems.put(dataLocation, fileSystem);
                     }
                 }

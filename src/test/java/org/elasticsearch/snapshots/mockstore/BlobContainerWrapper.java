@@ -58,8 +58,8 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public boolean deleteBlob(String blobName) throws IOException {
-        return delegate.deleteBlob(blobName);
+    public void deleteBlob(String blobName) throws IOException {
+        delegate.deleteBlob(blobName);
     }
 
     @Override
@@ -80,5 +80,10 @@ public class BlobContainerWrapper implements BlobContainer {
     @Override
     public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
         return delegate.listBlobsByPrefix(blobNamePrefix);
+    }
+
+    @Override
+    public void move(String sourceBlobName, String targetBlobName) throws IOException {
+        delegate.move(sourceBlobName, targetBlobName);
     }
 }

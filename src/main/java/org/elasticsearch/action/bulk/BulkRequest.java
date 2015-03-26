@@ -24,7 +24,6 @@ import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -58,7 +57,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     List<Object> payloads = null;
 
     protected TimeValue timeout = BulkShardRequest.DEFAULT_TIMEOUT;
-    private ReplicationType replicationType = ReplicationType.DEFAULT;
     private WriteConsistencyLevel consistencyLevel = WriteConsistencyLevel.DEFAULT;
     private boolean refresh = false;
 
@@ -353,14 +351,13 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                                 .create(true)
                                 .source(data.slice(from, nextMarker - from), contentUnsafe), payload);
                     } else if ("update".equals(action)) {
-                        UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).parent(parent).retryOnConflict(retryOnConflict)
+                        UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).retryOnConflict(retryOnConflict)
                                 .version(version).versionType(versionType)
                                 .source(data.slice(from, nextMarker - from));
 
                         IndexRequest upsertRequest = updateRequest.upsertRequest();
                         if (upsertRequest != null) {
                             upsertRequest.routing(routing);
-                            upsertRequest.parent(parent); // order is important, set it after routing, so it will set the routing
                             upsertRequest.timestamp(timestamp);
                             upsertRequest.ttl(ttl);
                             upsertRequest.version(version);
@@ -369,7 +366,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                         IndexRequest doc = updateRequest.doc();
                         if (doc != null) {
                             doc.routing(routing);
-                            doc.parent(parent); // order is important, set it after routing, so it will set the routing
                             doc.timestamp(timestamp);
                             doc.ttl(ttl);
                             doc.version(version);
@@ -410,18 +406,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
 
     public boolean refresh() {
         return this.refresh;
-    }
-
-    /**
-     * Set the replication type for this operation.
-     */
-    public BulkRequest replicationType(ReplicationType replicationType) {
-        this.replicationType = replicationType;
-        return this;
-    }
-
-    public ReplicationType replicationType() {
-        return this.replicationType;
     }
 
     /**
@@ -474,7 +458,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        replicationType = ReplicationType.fromId(in.readByte());
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
@@ -500,7 +483,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeByte(replicationType.id());
         out.writeByte(consistencyLevel.id());
         out.writeVInt(requests.size());
         for (ActionRequest request : requests) {

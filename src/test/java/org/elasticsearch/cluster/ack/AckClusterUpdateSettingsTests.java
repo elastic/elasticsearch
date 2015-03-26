@@ -22,6 +22,8 @@ package org.elasticsearch.cluster.ack;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
+import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -45,11 +47,8 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        //to test that the acknowledgement mechanism is working we better disable the wait for publish
-        //otherwise the operation is most likely acknowledged even if it doesn't support ack
         return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put(DiscoverySettings.PUBLISH_TIMEOUT, 0)
                 //make sure that enough concurrent reroutes can happen at the same time
                 //we have a minimum of 2 nodes, and a maximum of 10 shards, thus 5 should be enough
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, 5)
@@ -66,10 +65,20 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
         return 0;
     }
 
+
+    private void removePublishTimeout() {
+        //to test that the acknowledgement mechanism is working we better disable the wait for publish
+        //otherwise the operation is most likely acknowledged even if it doesn't support ack
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(ImmutableSettings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "0")));
+    }
+
     @Test
     public void testClusterUpdateSettingsAcknowledgement() {
         createIndex("test");
         ensureGreen();
+
+        // now that the cluster is stable, remove timeout
+        removePublishTimeout();
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().get();
         String excludedNodeId = null;
@@ -92,7 +101,8 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
             for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
                     for (ShardRouting shardRouting : indexShardRoutingTable) {
-                        if (clusterState.nodes().get(shardRouting.currentNodeId()).id().equals(excludedNodeId)) {
+                        assert clusterState.nodes() != null;
+                        if (shardRouting.unassigned() == false && clusterState.nodes().get(shardRouting.currentNodeId()).id().equals(excludedNodeId)) {
                             //if the shard is still there it must be relocating and all nodes need to know, since the request was acknowledged
                             //reroute happens as part of the update settings and we made sure no throttling comes into the picture via settings
                             assertThat(shardRouting.relocating(), equalTo(true));
@@ -110,6 +120,9 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
                         .put("number_of_shards", between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
                         .put("number_of_replicas", 0)).get();
         ensureGreen();
+
+        // now that the cluster is stable, remove timeout
+        removePublishTimeout();
 
         NodesInfoResponse nodesInfo = client().admin().cluster().prepareNodesInfo().get();
         String excludedNodeId = null;
@@ -129,5 +142,18 @@ public class AckClusterUpdateSettingsTests extends ElasticsearchIntegrationTest 
 
     private static ClusterState getLocalClusterState(Client client) {
         return client.admin().cluster().prepareState().setLocal(true).get().getState();
+    }
+
+    @Test
+    public void testOpenIndexNoAcknowledgement() {
+        createIndex("test");
+        ensureGreen();
+        removePublishTimeout();
+        CloseIndexResponse closeIndexResponse = client().admin().indices().prepareClose("test").execute().actionGet();
+        assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
+
+        OpenIndexResponse openIndexResponse = client().admin().indices().prepareOpen("test").setTimeout("0s").get();
+        assertThat(openIndexResponse.isAcknowledged(), equalTo(false));
+        ensureGreen("test"); // make sure that recovery from disk has completed, so that check index doesn't fail.
     }
 }

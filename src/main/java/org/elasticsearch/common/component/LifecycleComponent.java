@@ -20,11 +20,14 @@
 package org.elasticsearch.common.component;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.lease.Releasable;
+
+import java.io.Closeable;
 
 /**
  *
  */
-public interface LifecycleComponent<T> extends CloseableComponent {
+public interface LifecycleComponent<T> extends Releasable {
 
     Lifecycle.State lifecycleState();
 

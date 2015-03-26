@@ -1121,6 +1121,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
         return this;
     }
 
+    @Override
     public void close() {
         try {
             generator.close();
@@ -1272,7 +1273,7 @@ public final class XContentBuilder implements BytesStream, Releasable {
             generator.writeEndArray();
         } else if (value instanceof short[]) {
             generator.writeStartArray();
-            for (float v : (short[]) value) {
+            for (short v : (short[]) value) {
                 generator.writeNumber(v);
             }
             generator.writeEndArray();

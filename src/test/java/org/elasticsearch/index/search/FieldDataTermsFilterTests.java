@@ -28,7 +28,6 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -43,7 +42,7 @@ import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.service.IndexService;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.After;
@@ -63,7 +62,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchSingleNodeTest {
     protected QueryParseContext parseContext;
     protected IndexFieldDataService ifdService;
     protected IndexWriter writer;
-    protected AtomicReader reader;
+    protected LeafReader reader;
     protected StringFieldMapper strMapper;
     protected LongFieldMapper lngMapper;
     protected DoubleFieldMapper dblMapper;
@@ -79,7 +78,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchSingleNodeTest {
         IndexQueryParserService parserService = indexService.queryParserService();
         parseContext = new QueryParseContext(indexService.index(), parserService);
         writer = new IndexWriter(new RAMDirectory(),
-                new IndexWriterConfig(Lucene.VERSION, new StandardAnalyzer(Lucene.VERSION)));
+                new IndexWriterConfig(new StandardAnalyzer()));
 
         // setup field mappers
         strMapper = new StringFieldMapper.Builder("str_value")
@@ -103,6 +102,7 @@ public class FieldDataTermsFilterTests extends ElasticsearchSingleNodeTest {
         reader = SlowCompositeReaderWrapper.wrap(DirectoryReader.open(writer, true));
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();

@@ -2,7 +2,8 @@
 "Test cat thread_pool output":
 
   - do:
-      cat.thread_pool: {}
+      cat.thread_pool:
+        v: false
 
   - match:
       $body: |
@@ -21,6 +22,7 @@
   - do:
       cat.thread_pool:
           h: pid,id,h,i,po
+          v: false
 
   - match:
       $body: |
@@ -35,8 +37,8 @@
 
   - match:
       $body: |
-               /^  id   \s+  ba   \s+  fa   \s+  gea  \s+  ga   \s+  ia   \s+  maa  \s+  ma   \s+  oa   \s+  pa  \s+  \n
-                  (\S+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+ \s+  \n)+  $/
+               /^  id   \s+  ba   \s+  fa   \s+  gea  \s+  ga   \s+  ia   \s+  maa  \s+  oa   \s+  pa  \s+  \n
+                  (\S+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+ \s+  \n)+  $/
 
   - do:
       cat.thread_pool:
@@ -97,16 +99,6 @@
       $body: |
                /^  id  \s+  management.type          \s+  management.active  \s+  management.size  \s+  management.queue  \s+  management.queueSize  \s+  management.rejected  \s+  management.largest  \s+  management.completed  \s+  management.min  \s+  management.max  \s+  management.keepAlive  \s+  \n
                   (\S+ \s+  (cached|fixed|scaling)?  \s+                \d+  \s+              \d+  \s+               \d+  \s+                   \d*  \s+                  \d+  \s+                 \d+  \s+                   \d+  \s+             \d*  \s+             \d*  \s+                   \S*  \s+  \n)+  $/
-
-  - do:
-      cat.thread_pool:
-          h: id,merge.type,merge.active,merge.size,merge.queue,merge.queueSize,merge.rejected,merge.largest,merge.completed,merge.min,merge.max,merge.keepAlive
-          v: true
-
-  - match:
-      $body: |
-               /^  id  \s+  merge.type               \s+  merge.active  \s+  merge.size  \s+  merge.queue  \s+  merge.queueSize  \s+  merge.rejected  \s+  merge.largest  \s+  merge.completed  \s+  merge.min  \s+  merge.max  \s+  merge.keepAlive  \s+  \n
-                  (\S+ \s+  (cached|fixed|scaling)?  \s+           \d+  \s+         \d+  \s+          \d+  \s+              \d*  \s+             \d+  \s+            \d+  \s+              \d+  \s+        \d*  \s+        \d*  \s+              \S*  \s+  \n)+  $/
 
   - do:
       cat.thread_pool:

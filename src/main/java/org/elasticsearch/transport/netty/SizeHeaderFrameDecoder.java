@@ -19,8 +19,11 @@
 
 package org.elasticsearch.transport.netty;
 
+import com.google.common.base.Charsets;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.rest.RestStatus;
 import org.jboss.netty.buffer.ChannelBuffer;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelHandlerContext;
@@ -43,6 +46,19 @@ public class SizeHeaderFrameDecoder extends FrameDecoder {
 
         int readerIndex = buffer.readerIndex();
         if (buffer.getByte(readerIndex) != 'E' || buffer.getByte(readerIndex + 1) != 'S') {
+            // special handling for what is probably HTTP
+            if (bufferStartsWith(buffer, readerIndex, "GET ") ||
+                bufferStartsWith(buffer, readerIndex, "POST ") ||
+                bufferStartsWith(buffer, readerIndex, "PUT ") ||
+                bufferStartsWith(buffer, readerIndex, "HEAD ") ||
+                bufferStartsWith(buffer, readerIndex, "DELETE ") ||
+                bufferStartsWith(buffer, readerIndex, "OPTIONS ") ||
+                bufferStartsWith(buffer, readerIndex, "PATCH ") ||
+                bufferStartsWith(buffer, readerIndex, "TRACE ")) {
+
+                throw new HttpOnTransportException("This is not a HTTP port");
+            }
+
             // we have 6 readable bytes, show 4 (should be enough)
             throw new StreamCorruptedException("invalid internal transport message format, got ("
                     + Integer.toHexString(buffer.getByte(readerIndex) & 0xFF) + ","
@@ -52,6 +68,12 @@ public class SizeHeaderFrameDecoder extends FrameDecoder {
         }
 
         int dataLen = buffer.getInt(buffer.readerIndex() + 2);
+        if (dataLen == NettyHeader.PING_DATA_SIZE) {
+            // discard the messages we read and continue, this is achieved by skipping the bytes
+            // and returning null
+            buffer.skipBytes(6);
+            return null;
+        }
         if (dataLen <= 0) {
             throw new StreamCorruptedException("invalid data length: " + dataLen);
         }
@@ -66,5 +88,32 @@ public class SizeHeaderFrameDecoder extends FrameDecoder {
         }
         buffer.skipBytes(6);
         return buffer;
+    }
+
+    private boolean bufferStartsWith(ChannelBuffer buffer, int readerIndex, String method) {
+        char[] chars = method.toCharArray();
+        for (int i = 0; i < chars.length; i++) {
+            if (buffer.getByte(readerIndex + i) != chars[i]) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * A helper exception to mark an incoming connection as potentially being HTTP
+     * so an appropriate error code can be returned
+     */
+    public class HttpOnTransportException extends ElasticsearchException {
+
+        public HttpOnTransportException(String msg) {
+            super(msg);
+        }
+
+        @Override
+        public RestStatus status() {
+            return RestStatus.BAD_REQUEST;
+        }
     }
 }

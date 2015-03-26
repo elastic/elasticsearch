@@ -200,12 +200,7 @@ including:
 `routing`::     Sets the routing that will be used to route the 
                 document to the relevant shard.
 
-`parent`::      Simply sets the routing.
-
 `timeout`::     Timeout waiting for a shard to become available.
-
-`replication`:: The replication type for the delete/index operation
-                (sync or async).
 
 `consistency`:: The write consistency of the index/delete operation.
 
@@ -234,3 +229,7 @@ It also allows to update the `ttl` of a document using `ctx._ttl` and
 timestamp using `ctx._timestamp`. Note that if the timestamp is not
 updated and not extracted from the `_source` it will be set to the
 update date.
+
+In addition to `_source`, the following variables are available through
+the `ctx` map: `_index`, `_type`, `_id`, `_version`, `_routing`,
+`_parent`, `_timestamp`, `_ttl`.

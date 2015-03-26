@@ -24,7 +24,9 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -33,10 +35,15 @@ import org.elasticsearch.cluster.metadata.RestoreMetaData.ShardRestoreStatus;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
+import org.elasticsearch.cluster.settings.DynamicSettings;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
@@ -46,14 +53,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static com.google.common.collect.Maps.newHashMap;
+import static com.google.common.collect.Sets.newHashSet;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
 import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.INDEX_CLOSED_BLOCK;
 
 /**
@@ -61,7 +67,7 @@ import static org.elasticsearch.cluster.metadata.MetaDataIndexStateService.INDEX
  * <p/>
  * Restore operation is performed in several stages.
  * <p/>
- * First {@link #restoreSnapshot(RestoreRequest, RestoreSnapshotListener)}
+ * First {@link #restoreSnapshot(RestoreRequest, org.elasticsearch.action.ActionListener))}
  * method reads information about snapshot and metadata from repository. In update cluster state task it checks restore
  * preconditions, restores global state if needed, creates {@link RestoreMetaData} record with list of shards that needs
  * to be restored and adds this shard to the routing table using {@link RoutingTable.Builder#addAsRestore(IndexMetaData, RestoreSource)}
@@ -82,6 +88,21 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
     public static final String UPDATE_RESTORE_ACTION_NAME = "internal:cluster/snapshot/update_restore";
 
+    private static final ImmutableSet<String> UNMODIFIABLE_SETTINGS = ImmutableSet.of(
+            SETTING_NUMBER_OF_SHARDS,
+            SETTING_VERSION_CREATED,
+            SETTING_LEGACY_ROUTING_HASH_FUNCTION,
+            SETTING_LEGACY_ROUTING_USE_TYPE,
+            SETTING_UUID,
+            SETTING_CREATION_DATE);
+
+    // It's OK to change some settings, but we shouldn't allow simply removing them
+    private static final ImmutableSet<String> UNREMOVABLE_SETTINGS = ImmutableSet.<String>builder()
+            .addAll(UNMODIFIABLE_SETTINGS)
+            .add(SETTING_NUMBER_OF_REPLICAS)
+            .add(SETTING_AUTO_EXPAND_REPLICAS)
+            .build();
+
     private final ClusterService clusterService;
 
     private final RepositoriesService repositoriesService;
@@ -92,16 +113,20 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
     private final MetaDataCreateIndexService createIndexService;
 
-    private final CopyOnWriteArrayList<RestoreCompletionListener> listeners = new CopyOnWriteArrayList<>();
+    private final DynamicSettings dynamicSettings;
+
+    private final CopyOnWriteArrayList<ActionListener<RestoreCompletionResponse>> listeners = new CopyOnWriteArrayList<>();
 
     @Inject
-    public RestoreService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService, TransportService transportService, AllocationService allocationService, MetaDataCreateIndexService createIndexService) {
+    public RestoreService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService, TransportService transportService,
+                          AllocationService allocationService, MetaDataCreateIndexService createIndexService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
         super(settings);
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
         this.transportService = transportService;
         this.allocationService = allocationService;
         this.createIndexService = createIndexService;
+        this.dynamicSettings = dynamicSettings;
         transportService.registerHandler(UPDATE_RESTORE_ACTION_NAME, new UpdateRestoreStateRequestHandler());
         clusterService.add(this);
     }
@@ -112,7 +137,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
      * @param request  restore request
      * @param listener restore listener
      */
-    public void restoreSnapshot(final RestoreRequest request, final RestoreSnapshotListener listener) {
+    public void restoreSnapshot(final RestoreRequest request, final ActionListener<RestoreInfo> listener) {
         try {
             // Read snapshot info and metadata from the repository
             Repository repository = repositoriesService.repository(request.repository());
@@ -146,6 +171,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
                     RoutingTable.Builder rtBuilder = RoutingTable.builder(currentState.routingTable());
                     final ImmutableMap<ShardId, RestoreMetaData.ShardRestoreStatus> shards;
+                    Set<String> aliases = newHashSet();
                     if (!renamedIndices.isEmpty()) {
                         // We have some indices to restore
                         ImmutableMap.Builder<ShardId, RestoreMetaData.ShardRestoreStatus> shardsBuilder = ImmutableMap.builder();
@@ -155,6 +181,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                             RestoreSource restoreSource = new RestoreSource(snapshotId, index);
                             String renamedIndex = indexEntry.getKey();
                             IndexMetaData snapshotIndexMetaData = metaData.index(index);
+                            snapshotIndexMetaData = updateIndexSettings(snapshotIndexMetaData, request.indexSettings, request.ignoreIndexSettings);
                             // Check that the index is closed or doesn't exist
                             IndexMetaData currentIndexMetaData = currentState.metaData().index(renamedIndex);
                             IntSet ignoreShards = new IntOpenHashSet();
@@ -166,6 +193,10 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                 if (!request.includeAliases() && !snapshotIndexMetaData.aliases().isEmpty()) {
                                     // Remove all aliases - they shouldn't be restored
                                     indexMdBuilder.removeAllAliases();
+                                } else {
+                                    for (ObjectCursor<String> alias : snapshotIndexMetaData.aliases().keys()) {
+                                        aliases.add(alias.value);
+                                    }
                                 }
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.build();
                                 if (partial) {
@@ -186,6 +217,10 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                     /// Add existing aliases
                                     for (ObjectCursor<AliasMetaData> alias : currentIndexMetaData.aliases().values()) {
                                         indexMdBuilder.putAlias(alias.value);
+                                    }
+                                } else {
+                                    for (ObjectCursor<String> alias : snapshotIndexMetaData.aliases().keys()) {
+                                        aliases.add(alias.value);
                                     }
                                 }
                                 IndexMetaData updatedIndexMetaData = indexMdBuilder.index(renamedIndex).build();
@@ -209,18 +244,28 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                         shards = ImmutableMap.of();
                     }
 
+                    checkAliasNameConflicts(renamedIndices, aliases);
+
                     // Restore global state if needed
                     restoreGlobalStateIfRequested(mdBuilder);
 
                     if (completed(shards)) {
                         // We don't have any indices to restore - we are done
-                        restoreInfo = new RestoreInfo(request.name(), ImmutableList.<String>copyOf(renamedIndices.keySet()),
+                        restoreInfo = new RestoreInfo(request.name(), ImmutableList.copyOf(renamedIndices.keySet()),
                                 shards.size(), shards.size() - failedShards(shards));
                     }
 
                     ClusterState updatedState = ClusterState.builder(currentState).metaData(mdBuilder).blocks(blocks).routingTable(rtBuilder).build();
                     RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder).build());
                     return ClusterState.builder(updatedState).routingResult(routingResult).build();
+                }
+
+                private void checkAliasNameConflicts(Map<String, String> renamedIndices, Set<String> aliases) {
+                    for (Map.Entry<String, String> renamedIndex : renamedIndices.entrySet()) {
+                        if (aliases.contains(renamedIndex.getKey())) {
+                            throw new SnapshotRestoreException(snapshotId, "cannot rename index [" + renamedIndex.getValue() + "] into [" + renamedIndex.getKey() + "] because of conflict with an alias with the same name");
+                        }
+                    }
                 }
 
                 private void populateIgnoredShards(String index, IntSet ignoreShards) {
@@ -261,10 +306,72 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     }
                 }
 
+                /**
+                 * Optionally updates index settings in indexMetaData by removing settings listed in ignoreSettings and
+                 * merging them with settings in changeSettings.
+                 */
+                private IndexMetaData updateIndexSettings(IndexMetaData indexMetaData, Settings changeSettings, String[] ignoreSettings) {
+                    if (changeSettings.names().isEmpty() && ignoreSettings.length == 0) {
+                        return indexMetaData;
+                    }
+                    IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
+                    Map<String, String> settingsMap = newHashMap(indexMetaData.settings().getAsMap());
+                    List<String> simpleMatchPatterns = newArrayList();
+                    for (String ignoredSetting : ignoreSettings) {
+                        if (!Regex.isSimpleMatchPattern(ignoredSetting)) {
+                            if (UNREMOVABLE_SETTINGS.contains(ignoredSetting)) {
+                                throw new SnapshotRestoreException(snapshotId, "cannot remove setting [" + ignoredSetting + "] on restore");
+                            } else {
+                                settingsMap.remove(ignoredSetting);
+                            }
+                        } else {
+                            simpleMatchPatterns.add(ignoredSetting);
+                        }
+                    }
+                    if (!simpleMatchPatterns.isEmpty()) {
+                        String[] removePatterns = simpleMatchPatterns.toArray(new String[simpleMatchPatterns.size()]);
+                        Iterator<Map.Entry<String, String>> iterator = settingsMap.entrySet().iterator();
+                        while (iterator.hasNext()) {
+                            Map.Entry<String, String> entry = iterator.next();
+                            if (UNREMOVABLE_SETTINGS.contains(entry.getKey()) == false) {
+                                if (Regex.simpleMatch(removePatterns, entry.getKey())) {
+                                    iterator.remove();
+                                }
+                            }
+                        }
+                    }
+                    for(Map.Entry<String, String> entry : changeSettings.getAsMap().entrySet()) {
+                        if (UNMODIFIABLE_SETTINGS.contains(entry.getKey())) {
+                            throw new SnapshotRestoreException(snapshotId, "cannot modify setting [" + entry.getKey() + "] on restore");
+                        } else {
+                            settingsMap.put(entry.getKey(), entry.getValue());
+                        }
+                    }
+
+                    return builder.settings(ImmutableSettings.builder().put(settingsMap)).build();
+                }
+
                 private void restoreGlobalStateIfRequested(MetaData.Builder mdBuilder) {
                     if (request.includeGlobalState()) {
                         if (metaData.persistentSettings() != null) {
-                            mdBuilder.persistentSettings(metaData.persistentSettings());
+                            boolean changed = false;
+                            ImmutableSettings.Builder persistentSettings = ImmutableSettings.settingsBuilder().put();
+                            for (Map.Entry<String, String> entry : metaData.persistentSettings().getAsMap().entrySet()) {
+                                if (dynamicSettings.isDynamicOrLoggingSetting(entry.getKey())) {
+                                    String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue());
+                                    if (error == null) {
+                                        persistentSettings.put(entry.getKey(), entry.getValue());
+                                        changed = true;
+                                    } else {
+                                        logger.warn("ignoring persistent setting [{}], [{}]", entry.getKey(), error);
+                                    }
+                                } else {
+                                    logger.warn("ignoring persistent setting [{}], not dynamically updateable", entry.getKey());
+                                }
+                            }
+                            if (changed) {
+                                mdBuilder.persistentSettings(persistentSettings.build());
+                            }
                         }
                         if (metaData.templates() != null) {
                             // TODO: Should all existing templates be deleted first?
@@ -328,6 +435,24 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         }
     }
 
+    public final static class RestoreCompletionResponse {
+        private final SnapshotId snapshotId;
+        private final RestoreInfo restoreInfo;
+
+        private RestoreCompletionResponse(SnapshotId snapshotId, RestoreInfo restoreInfo) {
+            this.snapshotId = snapshotId;
+            this.restoreInfo = restoreInfo;
+        }
+
+        public SnapshotId getSnapshotId() {
+            return snapshotId;
+        }
+
+        public RestoreInfo getRestoreInfo() {
+            return restoreInfo;
+        }
+    }
+
     /**
      * Updates shard restore record in the cluster state.
      *
@@ -337,6 +462,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         clusterService.submitStateUpdateTask("update snapshot state", new ProcessedClusterStateUpdateTask() {
 
             private RestoreInfo restoreInfo = null;
+            private Map<ShardId, ShardRestoreStatus> shards = null;
 
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -345,10 +471,13 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                 RestoreMetaData restore = metaData.custom(RestoreMetaData.TYPE);
                 if (restore != null) {
                     boolean changed = false;
+                    boolean found = false;
                     ArrayList<RestoreMetaData.Entry> entries = newArrayList();
                     for (RestoreMetaData.Entry entry : restore.entries()) {
                         if (entry.snapshotId().equals(request.snapshotId())) {
-                            HashMap<ShardId, ShardRestoreStatus> shards = newHashMap(entry.shards());
+                            assert !found;
+                            found = true;
+                            Map<ShardId, ShardRestoreStatus> shards = newHashMap(entry.shards());
                             logger.trace("[{}] Updating shard [{}] with status [{}]", request.snapshotId(), request.shardId(), request.status().state());
                             shards.put(request.shardId(), request.status());
                             if (!completed(shards)) {
@@ -356,6 +485,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                             } else {
                                 logger.info("restore [{}] is done", request.snapshotId());
                                 restoreInfo = new RestoreInfo(entry.snapshotId().getSnapshot(), entry.indices(), shards.size(), shards.size() - failedShards(shards));
+                                this.shards = shards;
                             }
                             changed = true;
                         } else {
@@ -372,19 +502,70 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             }
 
             @Override
-            public void onFailure(String source, Throwable t) {
+            public void onFailure(String source, @Nullable Throwable t) {
                 logger.warn("[{}][{}] failed to update snapshot status to [{}]", t, request.snapshotId(), request.shardId(), request.status());
             }
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 if (restoreInfo != null) {
-                    for (RestoreCompletionListener listener : listeners) {
-                        try {
-                            listener.onRestoreCompletion(request.snapshotId, restoreInfo);
-                        } catch (Throwable e) {
-                            logger.warn("failed to update snapshot status for [{}]", e, listener);
+                    RoutingTable routingTable = newState.getRoutingTable();
+                    final List<ShardId> waitForStarted = newArrayList();
+                    for (Map.Entry<ShardId, ShardRestoreStatus> shard : shards.entrySet()) {
+                        if (shard.getValue().state() == RestoreMetaData.State.SUCCESS ) {
+                            ShardId shardId = shard.getKey();
+                            ShardRouting shardRouting = findPrimaryShard(routingTable, shardId);
+                            if (shardRouting != null && !shardRouting.active()) {
+                                logger.trace("[{}][{}] waiting for the shard to start", request.snapshotId(), shardId);
+                                waitForStarted.add(shardId);
+                            }
                         }
+                    }
+                    if (waitForStarted.isEmpty()) {
+                        notifyListeners();
+                    } else {
+                        clusterService.addLast(new ClusterStateListener() {
+                            @Override
+                            public void clusterChanged(ClusterChangedEvent event) {
+                                if (event.routingTableChanged()) {
+                                    RoutingTable routingTable = event.state().getRoutingTable();
+                                    for (Iterator<ShardId> iterator = waitForStarted.iterator(); iterator.hasNext();) {
+                                        ShardId shardId = iterator.next();
+                                        ShardRouting shardRouting = findPrimaryShard(routingTable, shardId);
+                                        // Shard disappeared (index deleted) or became active
+                                        if (shardRouting == null || shardRouting.active()) {
+                                            iterator.remove();
+                                            logger.trace("[{}][{}] shard disappeared or started - removing", request.snapshotId(), shardId);
+                                        }
+                                    }
+                                }
+                                if (waitForStarted.isEmpty()) {
+                                    notifyListeners();
+                                    clusterService.remove(this);
+                                }
+                            }
+                        });
+                    }
+                }
+            }
+
+            private ShardRouting findPrimaryShard(RoutingTable routingTable, ShardId shardId) {
+                IndexRoutingTable indexRoutingTable = routingTable.index(shardId.getIndex());
+                if (indexRoutingTable != null) {
+                    IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId.id());
+                    if (indexShardRoutingTable != null) {
+                        return indexShardRoutingTable.primaryShard();
+                    }
+                }
+                return null;
+            }
+
+            private void notifyListeners() {
+                for (ActionListener<RestoreCompletionResponse> listener : listeners) {
+                    try {
+                        listener.onResponse(new RestoreCompletionResponse(request.snapshotId, restoreInfo));
+                    } catch (Throwable e) {
+                        logger.warn("failed to update snapshot status for [{}]", e, listener);
                     }
                 }
             }
@@ -511,7 +692,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
      *
      * @param listener restore completion listener
      */
-    public void addListener(RestoreCompletionListener listener) {
+    public void addListener(ActionListener<RestoreCompletionResponse> listener) {
         this.listeners.add(listener);
     }
 
@@ -522,7 +703,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
      *
      * @param listener restore completion listener
      */
-    public void removeListener(RestoreCompletionListener listener) {
+    public void removeListener(ActionListener<RestoreCompletionResponse> listener) {
         this.listeners.remove(listener);
     }
 
@@ -586,6 +767,10 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
         final private boolean includeAliases;
 
+        final private Settings indexSettings;
+
+        final private String[] ignoreIndexSettings;
+
         /**
          * Constructs new restore request
          *
@@ -600,10 +785,13 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
          * @param masterNodeTimeout  master node timeout
          * @param includeGlobalState include global state into restore
          * @param partial            allow partial restore
+         * @param indexSettings      index settings that should be changed on restore
+         * @param ignoreIndexSettings index settings that shouldn't be restored
          */
         public RestoreRequest(String cause, String repository, String name, String[] indices, IndicesOptions indicesOptions,
                               String renamePattern, String renameReplacement, Settings settings,
-                              TimeValue masterNodeTimeout, boolean includeGlobalState, boolean partial, boolean includeAliases) {
+                              TimeValue masterNodeTimeout, boolean includeGlobalState, boolean partial, boolean includeAliases,
+                              Settings indexSettings, String[] ignoreIndexSettings ) {
             this.cause = cause;
             this.name = name;
             this.repository = repository;
@@ -616,6 +804,9 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             this.includeGlobalState = includeGlobalState;
             this.partial = partial;
             this.includeAliases = includeAliases;
+            this.indexSettings = indexSettings;
+            this.ignoreIndexSettings = ignoreIndexSettings;
+
         }
 
         /**
@@ -718,6 +909,25 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         }
 
         /**
+         * Returns index settings that should be changed on restore
+         *
+         * @return restore aliases state flag
+         */
+        public Settings indexSettings() {
+            return indexSettings;
+        }
+
+        /**
+         * Returns index settings that that shouldn't be restored
+         *
+         * @return restore aliases state flag
+         */
+        public String[] ignoreIndexSettings() {
+            return ignoreIndexSettings;
+        }
+
+
+        /**
          * Return master node timeout
          *
          * @return master node timeout
@@ -726,42 +936,6 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
             return masterNodeTimeout;
         }
 
-    }
-
-
-    /**
-     * This listener is called as soon as restore operation starts in the cluster.
-     * <p/>
-     * To receive notifications about  when operation ends in the cluster use {@link RestoreCompletionListener}
-     */
-    public static interface RestoreSnapshotListener {
-        /**
-         * Called when restore operations successfully starts in the cluster. Not null value of {@code snapshot} parameter
-         * means that restore operation didn't involve any shards and therefore has already completed.
-         *
-         * @param restoreInfo if restore operation finished, contains information about restore operation, null otherwise
-         */
-        void onResponse(RestoreInfo restoreInfo);
-
-        /**
-         * Called when restore operation failed to start
-         *
-         * @param t exception that prevented the restore operation to start
-         */
-        void onFailure(Throwable t);
-    }
-
-    /**
-     * This listener is called every time a snapshot is restored in the cluster
-     */
-    public static interface RestoreCompletionListener {
-        /**
-         * Called for every snapshot that is completed in the cluster
-         *
-         * @param snapshotId  snapshot id
-         * @param restoreInfo restore completion information
-         */
-        void onRestoreCompletion(SnapshotId snapshotId, RestoreInfo restoreInfo);
     }
 
     /**

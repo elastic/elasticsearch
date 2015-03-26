@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,14 +29,17 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.support.AggregationPath;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 /**
  * An internal implementation of {@link Aggregation}. Serves as a base class for all aggregation implementations.
  */
 public abstract class InternalAggregation implements Aggregation, ToXContent, Streamable {
+
 
     /**
      * The aggregation type that holds all the string types that are associated with an aggregation:
@@ -111,6 +115,8 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
     protected String name;
 
+    protected Map<String, Object> metaData;
+
     /** Constructs an un initialized addAggregation (used for serialization) **/
     protected InternalAggregation() {}
 
@@ -119,8 +125,9 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      *
      * @param name The name of the get.
      */
-    protected InternalAggregation(String name) {
+    protected InternalAggregation(String name, Map<String, Object> metaData) {
         this.name = name;
+        this.metaData = metaData;
     }
 
     @Override
@@ -141,6 +148,14 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      */
     public abstract InternalAggregation reduce(ReduceContext reduceContext);
 
+    @Override
+    public Object getProperty(String path) {
+        AggregationPath aggPath = AggregationPath.parse(path);
+        return getProperty(aggPath.getPathElementsAsStringList());
+    }
+
+    public abstract Object getProperty(List<String> path);
+
     /**
      * Read a size under the assumption that a value of 0 means unlimited.
      */
@@ -158,10 +173,19 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
         }
         out.writeVInt(size);
     }
-    
+
+    @Override
+    public Map<String, Object> getMetaData() {
+        return metaData;
+    }
+
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(name);
+        if (this.metaData != null) {
+            builder.field(CommonFields.META);
+            builder.map(this.metaData);
+        }
         doXContentBody(builder, params);
         builder.endObject();
         return builder;
@@ -169,10 +193,29 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
     public abstract XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException;
 
+    @Override
+    public final void writeTo(StreamOutput out) throws IOException {
+        out.writeString(name);
+        out.writeGenericValue(metaData);
+        doWriteTo(out);
+    }
+
+    protected abstract void doWriteTo(StreamOutput out) throws IOException;
+
+    @Override
+    public final void readFrom(StreamInput in) throws IOException {
+        name = in.readString();
+        metaData = in.readMap();
+        doReadFrom(in);
+    }
+
+    protected abstract void doReadFrom(StreamInput in) throws IOException;
+
     /**
      * Common xcontent fields that are shared among addAggregation
      */
     public static final class CommonFields {
+        public static final XContentBuilderString META = new XContentBuilderString("meta");
         public static final XContentBuilderString BUCKETS = new XContentBuilderString("buckets");
         public static final XContentBuilderString VALUE = new XContentBuilderString("value");
         public static final XContentBuilderString VALUES = new XContentBuilderString("values");

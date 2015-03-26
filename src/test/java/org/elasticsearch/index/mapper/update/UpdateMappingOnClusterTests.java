@@ -30,6 +30,7 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
@@ -64,10 +65,58 @@ public class UpdateMappingOnClusterTests extends ElasticsearchIntegrationTest {
                 "[_all] has different store_term_vector_offsets values",
                 "[_all] has different store_term_vector_positions values",
                 "[_all] has different store_term_vector_payloads values",
-                "[_all] has different index_analyzer",
+                "[_all] has different analyzer",
                 "[_all] has different similarity"};
         // auto_boost and fielddata and search_analyzer should not report conflict
         testConflict(mapping, mappingUpdate, errorMessage);
+    }
+
+
+    @Test
+    public void test_all_with_default() throws Exception {
+        String defaultMapping = jsonBuilder().startObject().startObject("_default_")
+                .startObject("_all")
+                .field("enabled", false)
+                .endObject()
+                .endObject().endObject().string();
+        client().admin().indices().prepareCreate("index").addMapping("_default_", defaultMapping).get();
+        String docMapping = jsonBuilder().startObject()
+                .startObject("doc")
+                .endObject()
+                .endObject().string();
+        PutMappingResponse response = client().admin().indices().preparePutMapping("index").setType("doc").setSource(docMapping).get();
+        assertTrue(response.isAcknowledged());
+        String docMappingUpdate = jsonBuilder().startObject().startObject("doc")
+                .startObject("properties")
+                .startObject("text")
+                .field("type", "string")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject().string();
+        response = client().admin().indices().preparePutMapping("index").setType("doc").setSource(docMappingUpdate).get();
+        assertTrue(response.isAcknowledged());
+        String docMappingAllExplicitEnabled = jsonBuilder().startObject()
+                .startObject("doc_all_enabled")
+                .startObject("_all")
+                .field("enabled", true)
+                .endObject()
+                .endObject()
+                .endObject().string();
+        response = client().admin().indices().preparePutMapping("index").setType("doc_all_enabled").setSource(docMappingAllExplicitEnabled).get();
+        assertTrue(response.isAcknowledged());
+
+        GetMappingsResponse mapping = client().admin().indices().prepareGetMappings("index").get();
+        HashMap props = (HashMap)mapping.getMappings().get("index").get("doc").getSourceAsMap().get("_all");
+        assertThat((Boolean)props.get("enabled"), equalTo(false));
+        props = (HashMap)mapping.getMappings().get("index").get("doc").getSourceAsMap().get("properties");
+        assertNotNull(props);
+        assertNotNull(props.get("text"));
+        props = (HashMap)mapping.getMappings().get("index").get("doc_all_enabled").getSourceAsMap().get("_all");
+        assertThat((Boolean)props.get("enabled"), equalTo(true));
+        props = (HashMap)mapping.getMappings().get("index").get("_default_").getSourceAsMap().get("_all");
+        assertThat((Boolean)props.get("enabled"), equalTo(false));
+
     }
 
     @Test
@@ -135,21 +184,21 @@ public class UpdateMappingOnClusterTests extends ElasticsearchIntegrationTest {
     @Test
     public void testUpdateTimestamp() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "lazy").field("format", "doc_values").endObject().field("store", "yes").endObject()
+                .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "lazy").field("format", "doc_values").endObject().field("store", "no").endObject()
                 .endObject().endObject();
         client().admin().indices().prepareCreate("test").addMapping("type", mapping).get();
         GetMappingsResponse appliedMappings = client().admin().indices().prepareGetMappings("test").get();
         LinkedHashMap timestampMapping = (LinkedHashMap) appliedMappings.getMappings().get("test").get("type").getSourceAsMap().get("_timestamp");
-        assertThat((Boolean) timestampMapping.get("store"), equalTo(true));
+        assertThat((Boolean) timestampMapping.get("store"), equalTo(false));
         assertThat((String)((LinkedHashMap) timestampMapping.get("fielddata")).get("loading"), equalTo("lazy"));
         assertThat((String)((LinkedHashMap) timestampMapping.get("fielddata")).get("format"), equalTo("doc_values"));
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "eager").field("format", "array").endObject().field("store", "yes").endObject()
+                .startObject("_timestamp").field("enabled", randomBoolean()).startObject("fielddata").field("loading", "eager").field("format", "array").endObject().field("store", "no").endObject()
                 .endObject().endObject();
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type").setSource(mapping).get();
         appliedMappings = client().admin().indices().prepareGetMappings("test").get();
         timestampMapping = (LinkedHashMap) appliedMappings.getMappings().get("test").get("type").getSourceAsMap().get("_timestamp");
-        assertThat((Boolean) timestampMapping.get("store"), equalTo(true));
+        assertThat((Boolean) timestampMapping.get("store"), equalTo(false));
         assertThat((String)((LinkedHashMap) timestampMapping.get("fielddata")).get("loading"), equalTo("eager"));
         assertThat((String)((LinkedHashMap) timestampMapping.get("fielddata")).get("format"), equalTo("array"));
     }

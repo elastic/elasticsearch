@@ -36,15 +36,13 @@ public class PreBuiltTokenizerFactoryFactoryTests extends ElasticsearchTestCase 
     public void testThatDifferentVersionsCanBeLoaded() {
         PreBuiltTokenizerFactoryFactory factory = new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.STANDARD.getTokenizerFactory(Version.CURRENT));
 
-        TokenizerFactory emptySettingsTokenizerFactory = factory.create("standard", ImmutableSettings.EMPTY);
         // different es versions, same lucene version, thus cached
         TokenizerFactory former090TokenizerFactory = factory.create("standard", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_1).build());
         TokenizerFactory former090TokenizerFactoryCopy = factory.create("standard", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_2).build());
         TokenizerFactory currentTokenizerFactory = factory.create("standard", ImmutableSettings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
 
-        assertThat(emptySettingsTokenizerFactory, is(currentTokenizerFactory));
-        assertThat(emptySettingsTokenizerFactory, is(not(former090TokenizerFactory)));
-        assertThat(emptySettingsTokenizerFactory, is(not(former090TokenizerFactoryCopy)));
+        assertThat(currentTokenizerFactory, is(not(former090TokenizerFactory)));
+        assertThat(currentTokenizerFactory, is(not(former090TokenizerFactoryCopy)));
         assertThat(former090TokenizerFactory, is(former090TokenizerFactoryCopy));
     }
 

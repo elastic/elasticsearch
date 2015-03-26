@@ -114,65 +114,46 @@ public class SimpleSearchTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.termQuery("_id", "XXX1")).execute().actionGet();
         assertHitCount(searchResponse, 1l);
 
-        searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryString("_id:XXX1")).execute().actionGet();
+        searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryStringQuery("_id:XXX1")).execute().actionGet();
         assertHitCount(searchResponse, 1l);
 
         // id is not index, but we can automatically support prefix as well
         searchResponse = client().prepareSearch().setQuery(QueryBuilders.prefixQuery("_id", "XXX")).execute().actionGet();
         assertHitCount(searchResponse, 1l);
 
-        searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryString("_id:XXX*").lowercaseExpandedTerms(false)).execute().actionGet();
+        searchResponse = client().prepareSearch().setQuery(QueryBuilders.queryStringQuery("_id:XXX*").lowercaseExpandedTerms(false)).execute().actionGet();
         assertHitCount(searchResponse, 1l);
     }
 
     @Test
-    public void simpleDateRangeWithUpperInclusiveEnabledTests() throws Exception {
-        createIndex("test");
-        client().prepareIndex("test", "type1", "1").setSource("field", "2010-01-05T02:00").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field", "2010-01-06T02:00").execute().actionGet();
-        refresh();
-
-        // test include upper on ranges to include the full day on the upper bound
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05").lte("2010-01-06")).execute().actionGet();
-        assertHitCount(searchResponse, 2l);
-        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05").lt("2010-01-06")).execute().actionGet();
-        assertHitCount(searchResponse, 1l);
-    }
-
-    @Test
-    public void simpleDateRangeWithUpperInclusiveDisabledTests() throws Exception {
-        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.settingsBuilder()
-                .put(indexSettings())
-                .put("index.mapping.date.round_ceil", false)));
-        client().prepareIndex("test", "type1", "1").setSource("field", "2010-01-05T02:00").execute().actionGet();
-        client().prepareIndex("test", "type1", "2").setSource("field", "2010-01-06T02:00").execute().actionGet();
-        ensureGreen();
-        refresh();
-        // test include upper on ranges to include the full day on the upper bound (disabled here though...)
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05").lte("2010-01-06")).execute().actionGet();
-        assertNoFailures(searchResponse);
-        assertHitCount(searchResponse, 1l);
-        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05").lt("2010-01-06")).execute().actionGet();
-        assertHitCount(searchResponse, 1l);
-    }
-
-    @Test @TestLogging("action.search.type:TRACE,action.admin.indices.refresh:TRACE")
-    public void simpleDateMathTests() throws Exception {
+    public void simpleDateRangeTests() throws Exception {
         createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("field", "2010-01-05T02:00").execute().actionGet();
         client().prepareIndex("test", "type1", "2").setSource("field", "2010-01-06T02:00").execute().actionGet();
         ensureGreen();
         refresh();
-        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d").lte("2010-01-04||+2d")).execute().actionGet();
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d").lte("2010-01-04||+2d/d")).execute().actionGet();
         assertNoFailures(searchResponse);
         assertHitCount(searchResponse, 2l);
 
-        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryString("field:[2010-01-03||+2d TO 2010-01-04||+2d]")).execute().actionGet();
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05T02:00").lte("2010-01-06T02:00")).execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 2l);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-05T02:00").lt("2010-01-06T02:00")).execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 1l);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("2010-01-05T02:00").lt("2010-01-06T02:00")).execute().actionGet();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 0l);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("field:[2010-01-03||+2d TO 2010-01-04||+2d/d]")).execute().actionGet();
         assertHitCount(searchResponse, 2l);
     }
     
     @Test
-    public void localDependentDateTests() throws Exception {
+    public void localeDependentDateTests() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1",
                         jsonBuilder().startObject()
@@ -219,28 +200,25 @@ public class SimpleSearchTests extends ElasticsearchIntegrationTest {
 
         for (int i = 1; i <= max; i++) {
             String id = String.valueOf(i);
-            docbuilders.add(client().prepareIndex("test", "type1", id).setSource("field", "2010-01-"+ id +"T02:00"));
+            docbuilders.add(client().prepareIndex("test", "type1", id).setSource("field", i));
         }
 
         indexRandom(true, docbuilders);
         ensureGreen();
         refresh();
 
-        String upperBound = "2010-01-" + String.valueOf(max+1) + "||+2d";
-        String lowerBound = "2009-12-01||+2d";
-
         SearchResponse searchResponse;
 
         for (int i = 1; i <= max; i++) {
             searchResponse = client().prepareSearch("test")
-                    .setQuery(QueryBuilders.rangeQuery("field").gte(lowerBound).lte(upperBound))
+                    .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max))
                     .setTerminateAfter(i).execute().actionGet();
             assertHitCount(searchResponse, (long)i);
             assertTrue(searchResponse.isTerminatedEarly());
         }
 
         searchResponse = client().prepareSearch("test")
-                .setQuery(QueryBuilders.rangeQuery("field").gte(lowerBound).lte(upperBound))
+                .setQuery(QueryBuilders.rangeQuery("field").gte(1).lte(max))
                 .setTerminateAfter(2 * max).execute().actionGet();
 
         assertHitCount(searchResponse, max);

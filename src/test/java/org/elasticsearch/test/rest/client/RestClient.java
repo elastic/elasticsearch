@@ -23,6 +23,8 @@ import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
+import org.apache.http.impl.conn.PoolingHttpClientConnectionManager;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
@@ -38,6 +40,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * REST client used to test the elasticsearch REST layer
@@ -218,21 +221,14 @@ public class RestClient implements Closeable {
     }
 
     protected CloseableHttpClient createHttpClient() {
-        return HttpClients.createDefault();
-    }
-
-    public InetSocketAddress[] httpAddresses() {
-        return addresses;
+        return HttpClients.createMinimal(new PoolingHttpClientConnectionManager(15, TimeUnit.SECONDS));
     }
 
     /**
      * Closes the REST client and the underlying http client
      */
+    @Override
     public void close() {
-        try {
-            httpClient.close();
-        } catch(IOException e) {
-            logger.error(e.getMessage(), e);
-        }
+        IOUtils.closeWhileHandlingException(httpClient);
     }
 }

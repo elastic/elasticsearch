@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
@@ -59,7 +59,7 @@ public class RandomScoreFunction extends ScoreFunction {
     }
 
     @Override
-    public void setNextReader(AtomicReaderContext context) {
+    public void setNextReader(LeafReaderContext context) {
         AtomicFieldData leafData = uidFieldData.load(context);
         uidByteData = leafData.getBytesValues();
         if (uidByteData == null) throw new NullPointerException("failed to get uid byte data");
@@ -73,7 +73,7 @@ public class RandomScoreFunction extends ScoreFunction {
     }
 
     @Override
-    public Explanation explainScore(int docId, float subQueryScore) {
+    public Explanation explainScore(int docId, Explanation subQueryScore) {
         Explanation exp = new Explanation();
         exp.setDescription("random score function (seed: " + originalSeed + ")");
         return exp;

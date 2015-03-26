@@ -18,11 +18,9 @@
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
-import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 
-import java.util.Collection;
+import java.util.List;
 
 /**
  * A {@code geohash_grid} aggregation. Defines multiple buckets, each representing a cell in a geo-grid of a specific
@@ -35,29 +33,12 @@ public interface GeoHashGrid extends MultiBucketsAggregation {
      */
     public static interface Bucket extends MultiBucketsAggregation.Bucket {
 
-        /**
-         * @return  The geohash of the cell as a geo point
-         */
-        GeoPoint getKeyAsGeoPoint();
-
-        /**
-         * @return  A numeric representation of the geohash of the cell
-         */
-        Number getKeyAsNumber();
-
     }
 
     /**
      * @return  The buckets of this aggregation (each bucket representing a geohash grid cell)
      */
     @Override
-    Collection<Bucket> getBuckets();
-
-    @Override
-    Bucket getBucketByKey(String key);
-
-    Bucket getBucketByKey(Number key);
-
-    Bucket getBucketByKey(GeoPoint key);
+    List<Bucket> getBuckets();
 
 }

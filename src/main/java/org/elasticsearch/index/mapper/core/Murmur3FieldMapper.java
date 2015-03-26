@@ -26,8 +26,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.codec.docvaluesformat.DocValuesFormatProvider;
-import org.elasticsearch.index.codec.postingsformat.PostingsFormatProvider;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -58,8 +56,8 @@ public class Murmur3FieldMapper extends LongFieldMapper {
         @Override
         public Murmur3FieldMapper build(BuilderContext context) {
             fieldType.setOmitNorms(fieldType.omitNorms() && boost == 1.0f);
-            Murmur3FieldMapper fieldMapper = new Murmur3FieldMapper(buildNames(context), fieldType.numericPrecisionStep(), boost, fieldType, docValues, ~0L,
-                    ignoreMalformed(context), coerce(context), postingsProvider, docValuesProvider, similarity, normsLoading,
+            Murmur3FieldMapper fieldMapper = new Murmur3FieldMapper(buildNames(context), fieldType.numericPrecisionStep(), boost, fieldType, docValues, null,
+                    ignoreMalformed(context), coerce(context), similarity, normsLoading,
                     fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
             fieldMapper.includeInAll(includeInAll);
             return fieldMapper;
@@ -72,17 +70,21 @@ public class Murmur3FieldMapper extends LongFieldMapper {
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = murmur3Field(name);
             parseNumberField(builder, name, node, parserContext);
+            // Because this mapper extends LongFieldMapper the null_value field will be added to the JSON when transferring cluster state
+            // between nodes so we have to remove the entry here so that the validation doesn't fail
+            // TODO should murmur3 support null_value? at the moment if a user sets null_value it has to be silently ignored since we can't
+            // determine whether the JSON is the original JSON from the user or if its the serialised cluster state being passed between nodes.
+//            node.remove("null_value");
             return builder;
         }
     }
 
     protected Murmur3FieldMapper(Names names, int precisionStep, float boost, FieldType fieldType, Boolean docValues,
             Long nullValue, Explicit<Boolean> ignoreMalformed, Explicit<Boolean> coerce,
-            PostingsFormatProvider postingsProvider, DocValuesFormatProvider docValuesProvider,
             SimilarityProvider similarity, Loading normsLoading, @Nullable Settings fieldDataSettings,
             Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(names, precisionStep, boost, fieldType, docValues, nullValue, ignoreMalformed, coerce,
-                postingsProvider, docValuesProvider, similarity, normsLoading, fieldDataSettings,
+                similarity, normsLoading, fieldDataSettings,
                 indexSettings, multiFields, copyTo);
     }
 

@@ -49,12 +49,11 @@ public class SameShardRoutingTests extends ElasticsearchAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(SameShardRoutingTests.class);
 
     @Test
-    @TestLogging("cluster.routing.allocation:TRACE")
     public void sameHost() {
         AllocationService strategy = createAllocationService(settingsBuilder().put(SameShardAllocationDecider.SAME_HOST_SETTING, true).build());
 
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").numberOfShards(2).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(1))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()

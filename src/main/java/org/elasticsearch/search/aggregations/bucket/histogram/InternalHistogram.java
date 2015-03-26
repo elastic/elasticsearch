@@ -18,37 +18,41 @@
  */
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import com.carrotsearch.hppc.LongObjectOpenHashMap;
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.Version;
+import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.rounding.Rounding;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
-import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.search.aggregations.bucket.BucketStreamContext;
+import org.elasticsearch.search.aggregations.bucket.BucketStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Map;
 
 /**
  * TODO should be renamed to InternalNumericHistogram (see comment on {@link Histogram})?
  */
-public class InternalHistogram<B extends InternalHistogram.Bucket> extends InternalAggregation implements Histogram {
+public class InternalHistogram<B extends InternalHistogram.Bucket> extends InternalMultiBucketAggregation implements Histogram {
 
     final static Type TYPE = new Type("histogram", "histo");
-    final static Factory FACTORY = new Factory();
 
     private final static AggregationStreams.Stream STREAM = new AggregationStreams.Stream() {
         @Override
@@ -59,40 +63,67 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
     };
 
+    private final static BucketStreams.Stream<Bucket> BUCKET_STREAM = new BucketStreams.Stream<Bucket>() {
+        @Override
+        public Bucket readResult(StreamInput in, BucketStreamContext context) throws IOException {
+            Factory<?> factory = (Factory<?>) context.attributes().get("factory");
+            if (factory == null) {
+                throw new ElasticsearchIllegalStateException("No factory found for histogram buckets");
+            }
+            Bucket histogram = new Bucket(context.keyed(), context.formatter(), factory);
+            histogram.readFrom(in);
+            return histogram;
+        }
+
+        @Override
+        public BucketStreamContext getBucketStreamContext(Bucket bucket) {
+            BucketStreamContext context = new BucketStreamContext();
+            context.formatter(bucket.formatter);
+            context.keyed(bucket.keyed);
+            return context;
+        }
+    };
+
     public static void registerStream() {
+
         AggregationStreams.registerStream(STREAM, TYPE.stream());
+        BucketStreams.registerStream(BUCKET_STREAM, TYPE.stream());
     }
 
-    public static class Bucket implements Histogram.Bucket {
+    public static class Bucket extends InternalMultiBucketAggregation.InternalBucket implements Histogram.Bucket {
 
-        final long key;
-        final long docCount;
+        long key;
+        long docCount;
+        InternalAggregations aggregations;
+        private transient final boolean keyed;
         protected transient final @Nullable ValueFormatter formatter;
-        final InternalAggregations aggregations;
+        private Factory<?> factory;
 
-        public Bucket(long key, long docCount, @Nullable ValueFormatter formatter, InternalAggregations aggregations) {
+        public Bucket(boolean keyed, @Nullable ValueFormatter formatter, Factory<?> factory) {
+            this.formatter = formatter;
+            this.keyed = keyed;
+            this.factory = factory;
+        }
+
+        public Bucket(long key, long docCount, boolean keyed, @Nullable ValueFormatter formatter, Factory factory,
+                InternalAggregations aggregations) {
+            this(keyed, formatter, factory);
             this.key = key;
             this.docCount = docCount;
-            this.formatter = formatter;
             this.aggregations = aggregations;
         }
 
         protected Factory<?> getFactory() {
-            return FACTORY;
+            return factory;
         }
 
         @Override
-        public String getKey() {
+        public String getKeyAsString() {
             return formatter != null ? formatter.format(key) : ValueFormatter.RAW.format(key);
         }
 
         @Override
-        public Text getKeyAsText() {
-            return new StringText(getKey());
-        }
-
-        @Override
-        public Number getKeyAsNumber() {
+        public Object getKey() {
             return key;
         }
 
@@ -114,10 +145,11 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                 aggregations.add((InternalAggregations) bucket.getAggregations());
             }
             InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-            return (B) getFactory().createBucket(key, docCount, aggs, formatter);
+            return (B) getFactory().createBucket(key, docCount, aggs, keyed, formatter);
         }
 
-        void toXContent(XContentBuilder builder, Params params, boolean keyed, @Nullable ValueFormatter formatter) throws IOException {
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (formatter != null && formatter != ValueFormatter.RAW) {
                 Text keyTxt = new StringText(formatter.format(key));
                 if (keyed) {
@@ -128,7 +160,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
                 builder.field(CommonFields.KEY_AS_STRING, keyTxt);
             } else {
                 if (keyed) {
-                    builder.startObject(String.valueOf(getKeyAsNumber()));
+                    builder.startObject(String.valueOf(getKey()));
                 } else {
                     builder.startObject();
                 }
@@ -137,6 +169,21 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             builder.field(CommonFields.DOC_COUNT, docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            key = in.readLong();
+            docCount = in.readVLong();
+            aggregations = InternalAggregations.readAggregations(in);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeLong(key);
+            out.writeVLong(docCount);
+            aggregations.writeTo(out);
         }
     }
 
@@ -159,10 +206,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         public static EmptyBucketInfo readFrom(StreamInput in) throws IOException {
             Rounding rounding = Rounding.Streams.read(in);
             InternalAggregations aggs = InternalAggregations.readAggregations(in);
-            if (in.getVersion().onOrAfter(Version.V_1_1_0)) {
-                if (in.readBoolean()) {
-                    return new EmptyBucketInfo(rounding, aggs, ExtendedBounds.readFrom(in));
-                }
+            if (in.readBoolean()) {
+                return new EmptyBucketInfo(rounding, aggs, ExtendedBounds.readFrom(in));
             }
             return new EmptyBucketInfo(rounding, aggs);
         }
@@ -170,11 +215,9 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         public static void writeTo(EmptyBucketInfo info, StreamOutput out) throws IOException {
             Rounding.Streams.write(info.rounding, out);
             info.subAggregations.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_1_1_0)) {
-                out.writeBoolean(info.bounds != null);
-                if (info.bounds != null) {
-                    info.bounds.writeTo(out);
-                }
+            out.writeBoolean(info.bounds != null);
+            if (info.bounds != null) {
+                info.bounds.writeTo(out);
             }
         }
 
@@ -190,29 +233,34 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         }
 
         public InternalHistogram<B> create(String name, List<B> buckets, InternalOrder order, long minDocCount,
-                                           EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed) {
-            return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
+                                           EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed, Map<String, Object> metaData) {
+            return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, this, metaData);
         }
 
-        public B createBucket(long key, long docCount, InternalAggregations aggregations, @Nullable ValueFormatter formatter) {
-            return (B) new Bucket(key, docCount, formatter, aggregations);
+        public B createBucket(long key, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
+            return (B) new Bucket(key, docCount, keyed, formatter, this, aggregations);
+        }
+
+        protected B createEmptyBucket(boolean keyed, @Nullable ValueFormatter formatter) {
+            return (B) new Bucket(keyed, formatter, this);
         }
 
     }
 
     protected List<B> buckets;
-    private LongObjectOpenHashMap<B> bucketsMap;
     private InternalOrder order;
     private @Nullable ValueFormatter formatter;
     private boolean keyed;
     private long minDocCount;
     private EmptyBucketInfo emptyBucketInfo;
+    protected Factory<B> factory;
 
     InternalHistogram() {} // for serialization
 
     InternalHistogram(String name, List<B> buckets, InternalOrder order, long minDocCount,
-                      EmptyBucketInfo emptyBucketInfo, @Nullable ValueFormatter formatter, boolean keyed) {
-        super(name);
+ EmptyBucketInfo emptyBucketInfo,
+            @Nullable ValueFormatter formatter, boolean keyed, Factory<B> factory, Map<String, Object> metaData) {
+        super(name, metaData);
         this.buckets = buckets;
         this.order = order;
         assert (minDocCount == 0) == (emptyBucketInfo != null);
@@ -220,6 +268,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         this.emptyBucketInfo = emptyBucketInfo;
         this.formatter = formatter;
         this.keyed = keyed;
+        this.factory = factory;
     }
 
     @Override
@@ -232,129 +281,163 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         return buckets;
     }
 
-    @Override
-    public B getBucketByKey(String key) {
-        return getBucketByKey(Long.valueOf(key));
+    protected Factory<B> getFactory() {
+        return factory;
     }
 
-    @Override
-    public B getBucketByKey(Number key) {
-        if (bucketsMap == null) {
-            bucketsMap = new LongObjectOpenHashMap<>(buckets.size());
-            for (B bucket : buckets) {
-                bucketsMap.put(bucket.key, bucket);
+    private static class IteratorAndCurrent<B> {
+
+        private final Iterator<B> iterator;
+        private B current;
+
+        IteratorAndCurrent(Iterator<B> iterator) {
+            this.iterator = iterator;
+            current = iterator.next();
+        }
+
+    }
+
+    private List<B> reduceBuckets(ReduceContext reduceContext) {
+        List<InternalAggregation> aggregations = reduceContext.aggregations();
+
+        final PriorityQueue<IteratorAndCurrent<B>> pq = new PriorityQueue<IteratorAndCurrent<B>>(aggregations.size()) {
+            @Override
+            protected boolean lessThan(IteratorAndCurrent<B> a, IteratorAndCurrent<B> b) {
+                return a.current.key < b.current.key;
+            }
+        };
+        for (InternalAggregation aggregation : aggregations) {
+            InternalHistogram<B> histogram = (InternalHistogram) aggregation;
+            if (histogram.buckets.isEmpty() == false) {
+                pq.add(new IteratorAndCurrent<>(histogram.buckets.iterator()));
             }
         }
-        return bucketsMap.get(key.longValue());
+
+        List<B> reducedBuckets = new ArrayList<>();
+        if (pq.size() > 0) {
+            // list of buckets coming from different shards that have the same key
+            List<B> currentBuckets = new ArrayList<>();
+            long key = pq.top().current.key;
+
+            do {
+                final IteratorAndCurrent<B> top = pq.top();
+
+                if (top.current.key != key) {
+                    // the key changes, reduce what we already buffered and reset the buffer for current buckets
+                    final B reduced = currentBuckets.get(0).reduce(currentBuckets, reduceContext);
+                    if (reduced.getDocCount() >= minDocCount) {
+                        reducedBuckets.add(reduced);
+                    }
+                    currentBuckets.clear();
+                    key = top.current.key;
+                }
+
+                currentBuckets.add(top.current);
+
+                if (top.iterator.hasNext()) {
+                    final B next = top.iterator.next();
+                    assert next.key > top.current.key : "shards must return data sorted by key";
+                    top.current = next;
+                    pq.updateTop();
+                } else {
+                    pq.pop();
+                }
+            } while (pq.size() > 0);
+
+            if (currentBuckets.isEmpty() == false) {
+                final B reduced = currentBuckets.get(0).reduce(currentBuckets, reduceContext);
+                if (reduced.getDocCount() >= minDocCount) {
+                    reducedBuckets.add(reduced);
+                }
+            }
+        }
+
+        return reducedBuckets;
     }
 
-    protected Factory<B> getFactory() {
-        return FACTORY;
+    private void addEmptyBuckets(List<B> list) {
+        B lastBucket = null;
+        ExtendedBounds bounds = emptyBucketInfo.bounds;
+        ListIterator<B> iter = list.listIterator();
+
+        // first adding all the empty buckets *before* the actual data (based on th extended_bounds.min the user requested)
+        if (bounds != null) {
+            B firstBucket = iter.hasNext() ? list.get(iter.nextIndex()) : null;
+            if (firstBucket == null) {
+                if (bounds.min != null && bounds.max != null) {
+                    long key = bounds.min;
+                    long max = bounds.max;
+                    while (key <= max) {
+                        iter.add(getFactory().createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
+                        key = emptyBucketInfo.rounding.nextRoundingValue(key);
+                    }
+                }
+            } else {
+                if (bounds.min != null) {
+                    long key = bounds.min;
+                    if (key < firstBucket.key) {
+                        while (key < firstBucket.key) {
+                            iter.add(getFactory().createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
+                            key = emptyBucketInfo.rounding.nextRoundingValue(key);
+                        }
+                    }
+                }
+            }
+        }
+
+        // now adding the empty buckets within the actual data,
+        // e.g. if the data series is [1,2,3,7] there're 3 empty buckets that will be created for 4,5,6
+        while (iter.hasNext()) {
+            B nextBucket = list.get(iter.nextIndex());
+            if (lastBucket != null) {
+                long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
+                while (key < nextBucket.key) {
+                    iter.add(getFactory().createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
+                    key = emptyBucketInfo.rounding.nextRoundingValue(key);
+                }
+                assert key == nextBucket.key;
+            }
+            lastBucket = iter.next();
+        }
+
+        // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
+        if (bounds != null && lastBucket != null && bounds.max != null && bounds.max > lastBucket.key) {
+            long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
+            long max = bounds.max;
+            while (key <= max) {
+                iter.add(getFactory().createBucket(key, 0, emptyBucketInfo.subAggregations, keyed, formatter));
+                key = emptyBucketInfo.rounding.nextRoundingValue(key);
+            }
+        }
     }
 
     @Override
     public InternalAggregation reduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
+        List<B> reducedBuckets = reduceBuckets(reduceContext);
 
-        LongObjectPagedHashMap<List<B>> bucketsByKey = new LongObjectPagedHashMap<>(reduceContext.bigArrays());
-        for (InternalAggregation aggregation : aggregations) {
-            InternalHistogram<B> histogram = (InternalHistogram) aggregation;
-            for (B bucket : histogram.buckets) {
-                List<B> bucketList = bucketsByKey.get(bucket.key);
-                if (bucketList == null) {
-                    bucketList = new ArrayList<>(aggregations.size());
-                    bucketsByKey.put(bucket.key, bucketList);
-                }
-                bucketList.add(bucket);
-            }
-        }
-
-        List<B> reducedBuckets = new ArrayList<>((int) bucketsByKey.size());
-        for (LongObjectPagedHashMap.Cursor<List<B>> cursor : bucketsByKey) {
-            List<B> sameTermBuckets = cursor.value;
-            B bucket = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
-            if (bucket.getDocCount() >= minDocCount) {
-                reducedBuckets.add(bucket);
-            }
-        }
-        bucketsByKey.close();
-
-        // adding empty buckets in needed
+        // adding empty buckets if needed
         if (minDocCount == 0) {
-            CollectionUtil.introSort(reducedBuckets, order.asc ? InternalOrder.KEY_ASC.comparator() : InternalOrder.KEY_DESC.comparator());
-            List<B> list = order.asc ? reducedBuckets : Lists.reverse(reducedBuckets);
-            B lastBucket = null;
-            ExtendedBounds bounds = emptyBucketInfo.bounds;
-            ListIterator<B> iter = list.listIterator();
+            addEmptyBuckets(reducedBuckets);
+        }
 
-            // first adding all the empty buckets *before* the actual data (based on th extended_bounds.min the user requested)
-            if (bounds != null) {
-                B firstBucket = iter.hasNext() ? list.get(iter.nextIndex()) : null;
-                if (firstBucket == null) {
-                    if (bounds.min != null && bounds.max != null) {
-                        long key = bounds.min;
-                        long max = bounds.max;
-                        while (key <= max) {
-                            iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
-                            key = emptyBucketInfo.rounding.nextRoundingValue(key);
-                        }
-                    }
-                } else {
-                    if (bounds.min != null) {
-                        long key = bounds.min;
-                        if (key < firstBucket.key) {
-                            while (key < firstBucket.key) {
-                                iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
-                                key = emptyBucketInfo.rounding.nextRoundingValue(key);
-                            }
-                        }
-                    }
-                }
-            }
-
-            // now adding the empty buckets within the actual data,
-            // e.g. if the data series is [1,2,3,7] there're 3 empty buckets that will be created for 4,5,6
-            while (iter.hasNext()) {
-                B nextBucket = list.get(iter.nextIndex());
-                if (lastBucket != null) {
-                    long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
-                    while (key < nextBucket.key) {
-                        iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
-                        key = emptyBucketInfo.rounding.nextRoundingValue(key);
-                    }
-                    assert key == nextBucket.key;
-                }
-                lastBucket = iter.next();
-            }
-
-            // finally, adding the empty buckets *after* the actual data (based on the extended_bounds.max requested by the user)
-            if (bounds != null && lastBucket != null && bounds.max != null && bounds.max > lastBucket.key) {
-                long key = emptyBucketInfo.rounding.nextRoundingValue(lastBucket.key);
-                long max = bounds.max;
-                while (key <= max) {
-                    iter.add(createBucket(key, 0, emptyBucketInfo.subAggregations, formatter));
-                    key = emptyBucketInfo.rounding.nextRoundingValue(key);
-                }
-            }
-
-            if (order != InternalOrder.KEY_ASC && order != InternalOrder.KEY_DESC) {
-                CollectionUtil.introSort(reducedBuckets, order.comparator());
-            }
-
+        if (order == InternalOrder.KEY_ASC) {
+            // nothing to do, data are already sorted since shards return
+            // sorted buckets and the merge-sort performed by reduceBuckets
+            // maintains order
+        } else if (order == InternalOrder.KEY_DESC) {
+            // we just need to reverse here...
+            reducedBuckets = Lists.reverse(reducedBuckets);
         } else {
+            // sorted by sub-aggregation, need to fall back to a costly n*log(n) sort
             CollectionUtil.introSort(reducedBuckets, order.comparator());
         }
 
-        return getFactory().create(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, formatter, keyed);
-    }
-
-    protected B createBucket(long key, long docCount, InternalAggregations aggregations, @Nullable ValueFormatter formatter) {
-        return (B) new InternalHistogram.Bucket(key, docCount, formatter, aggregations);
+        return getFactory().create(getName(), reducedBuckets, order, minDocCount, emptyBucketInfo, formatter, keyed, getMetaData());
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        name = in.readString();
+    protected void doReadFrom(StreamInput in) throws IOException {
+        this.factory = resolveFactory(in.readString());
         order = InternalOrder.Streams.readOrder(in);
         minDocCount = in.readVLong();
         if (minDocCount == 0) {
@@ -365,15 +448,27 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         int size = in.readVInt();
         List<B> buckets = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            buckets.add(createBucket(in.readLong(), in.readVLong(), InternalAggregations.readAggregations(in), formatter));
+            B bucket = getFactory().createEmptyBucket(keyed, formatter);
+            bucket.readFrom(in);
+            buckets.add(bucket);
         }
         this.buckets = buckets;
-        this.bucketsMap = null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <B extends InternalHistogram.Bucket> Factory<B> resolveFactory(String factoryType) {
+        if (factoryType.equals(InternalDateHistogram.TYPE.name())) {
+            return (Factory<B>) new InternalDateHistogram.Factory();
+        } else if (factoryType.equals(TYPE.name())) {
+            return new Factory<>();
+        } else {
+            throw new ElasticsearchIllegalStateException("Invalid histogram factory type [" + factoryType + "]");
+        }
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(name);
+    protected void doWriteTo(StreamOutput out) throws IOException {
+        out.writeString(factory.type());
         InternalOrder.Streams.writeOrder(order, out);
         out.writeVLong(minDocCount);
         if (minDocCount == 0) {
@@ -383,9 +478,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         out.writeBoolean(keyed);
         out.writeVInt(buckets.size());
         for (B bucket : buckets) {
-            out.writeLong(bucket.key);
-            out.writeVLong(bucket.docCount);
-            bucket.aggregations.writeTo(out);
+            bucket.writeTo(out);
         }
     }
 
@@ -397,7 +490,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             builder.startArray(CommonFields.BUCKETS);
         }
         for (B bucket : buckets) {
-            bucket.toXContent(builder, params, keyed, formatter);
+            bucket.toXContent(builder, params);
         }
         if (keyed) {
             builder.endObject();

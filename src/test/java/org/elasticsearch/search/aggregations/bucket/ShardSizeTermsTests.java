@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import com.google.common.collect.ImmutableMap;
+
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
@@ -54,7 +55,7 @@ public class ShardSizeTermsTests extends ShardSizeTests {
                 .put("2", 5l)
                 .build();
         for (Terms.Bucket bucket : buckets) {
-            assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsText().string())));
+            assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsString())));
         }
     }
     
@@ -79,7 +80,7 @@ public class ShardSizeTermsTests extends ShardSizeTests {
                 .put("2", 4l)
                 .build();
         for (Terms.Bucket bucket : buckets) {
-            assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsText().string())));
+            assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsString())));
         }
     }
 
@@ -105,7 +106,7 @@ public class ShardSizeTermsTests extends ShardSizeTests {
                 .put("2", 5l) // <-- count is now fixed
                 .build();
         for (Terms.Bucket bucket : buckets) {
-            assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsText().string())));
+            assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsString())));
         }
     }
 
@@ -116,7 +117,7 @@ public class ShardSizeTermsTests extends ShardSizeTests {
 
         indexData();
 
-        SearchResponse response = client().prepareSearch("idx").setTypes("type").setRouting("1")
+        SearchResponse response = client().prepareSearch("idx").setTypes("type").setRouting(routing1)
                 .setQuery(matchAllQuery())
                 .addAggregation(terms("keys").field("key").size(3)
                         .collectMode(randomFrom(SubAggCollectionMode.values())).shardSize(5).order(Terms.Order.count(false)))
@@ -156,7 +157,7 @@ public class ShardSizeTermsTests extends ShardSizeTests {
                 .put("3", 8l)
                 .build();
         for (Terms.Bucket bucket : buckets) {
-            assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsText().string())));
+            assertThat(bucket.getDocCount(), equalTo(expected.get(bucket.getKeyAsString())));
         }
     }
 
@@ -245,7 +246,7 @@ public class ShardSizeTermsTests extends ShardSizeTests {
 
         indexData();
 
-        SearchResponse response = client().prepareSearch("idx").setTypes("type").setRouting("1")
+        SearchResponse response = client().prepareSearch("idx").setTypes("type").setRouting(routing1)
                 .setQuery(matchAllQuery())
                 .addAggregation(terms("keys").field("key").size(3)
                         .collectMode(randomFrom(SubAggCollectionMode.values())).shardSize(5).order(Terms.Order.count(false)))
@@ -375,7 +376,7 @@ public class ShardSizeTermsTests extends ShardSizeTests {
 
         indexData();
 
-        SearchResponse response = client().prepareSearch("idx").setTypes("type").setRouting("1")
+        SearchResponse response = client().prepareSearch("idx").setTypes("type").setRouting(routing1)
                 .setQuery(matchAllQuery())
                 .addAggregation(terms("keys").field("key").size(3)
                         .collectMode(randomFrom(SubAggCollectionMode.values())).shardSize(5).order(Terms.Order.count(false)))

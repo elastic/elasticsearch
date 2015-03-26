@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.AtomicReaderContext;
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -52,7 +52,7 @@ public final class DisabledIndexFieldData extends AbstractIndexFieldData<AtomicF
     }
 
     @Override
-    public AtomicFieldData loadDirect(AtomicReaderContext context) throws Exception {
+    public AtomicFieldData loadDirect(LeafReaderContext context) throws Exception {
         throw fail();
     }
 

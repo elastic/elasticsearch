@@ -17,7 +17,7 @@ in the percolate api.
 =====================================
 
 Field referred to in a percolator query must *already* exist in the mapping
-assocated with the index used for percolation.
+associated with the index used for percolation.
 There are two ways to make sure that a field mapping exist:
 
 * Add or update a mapping via the <<indices-create-index,create index>> or
@@ -45,7 +45,7 @@ curl -XPUT 'localhost:9200/my-index' -d '{
       }
     }
   }
-}
+}'
 --------------------------------------------------
 
 Register a query in the percolator:
@@ -65,7 +65,7 @@ Match a document to the registered percolator queries:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'localhost:9200/my-index/message/_percolate' -d '{
+curl -XGET 'localhost:9200/my-index/my-type/_percolate' -d '{
     "doc" : {
         "message" : "A new bonsai tree in the office"
     }
@@ -127,7 +127,7 @@ percolate documents by specific queries.
 }
 --------------------------------------------------
 
-On top of this also a mapping type can be associated with the this query. This allows to control how certain queries
+On top of this also a mapping type can be associated with this query. This allows to control how certain queries
 like range queries, shape filters and other query & filters that rely on mapping settings get constructed. This is
 important since the percolate queries are indexed into the `.percolator` type, and the queries / filters that rely on
 mapping settings would yield unexpected behaviour. Note by default field names do get resolved in a smart manner,
@@ -202,7 +202,7 @@ curl -XGET 'localhost:9200/twitter/tweet/_percolate' -d '{
 --------------------------------------------------
 
 .Additional supported query string options
-* `routing` - In the case the percolate queries are partitioned by a custom routing value, that routing option make sure
+* `routing` - In case the percolate queries are partitioned by a custom routing value, that routing option makes sure
 that the percolate request only gets executed on the shard where the routing value is partitioned to. This means that
 the percolate request only gets executed on one shard instead of all shards. Multiple values can be specified as a
 comma separated string, in that case the request can be be executed on more than one shard.
@@ -220,9 +220,9 @@ occurred for the filter to included the latest percolate queries.
 * `query` - Same as the `filter` option, but also the score is computed. The computed scores can then be used by the
 `track_scores` and `sort` option.
 * `size` - Defines to maximum number of matches (percolate queries) to be returned. Defaults to unlimited.
-* `track_scores` - Whether the `_score` is included for each match. The is based on the query and represents how the query matched
-to the percolate query's metadata and *not* how the document being percolated matched to the query. The `query` option
-is required for this option. Defaults to `false`.
+* `track_scores` - Whether the `_score` is included for each match. The `_score` is based on the query and represents
+how the query matched the *percolate query's metadata*, *not* how the document (that is being percolated) matched
+the query. The `query` option is required for this option. Defaults to `false`.
 * `sort` - Define a sort specification like in the search api. Currently only sorting `_score` reverse (default relevancy)
 is supported. Other sort fields will throw an exception. The `size` and `query` option are required for this setting. Like
 `track_score` the score is based on the query and represents how the query matched to the percolate query's metadata
@@ -238,7 +238,7 @@ documentation on how to define highlights. The `size` option is required for hig
 === Dedicated percolator index
 
 Percolate queries can be added to any index. Instead of adding percolate queries to the index the data resides in,
-these queries can also be added to an dedicated index. The advantage of this is that this dedicated percolator index
+these queries can also be added to a dedicated index. The advantage of this is that this dedicated percolator index
 can have its own index settings (For example the number of primary and replicas shards). If you choose to have a dedicated
 percolate index, you need to make sure that the mappings from the normal index are also available on the percolate index.
 Otherwise percolate queries can be parsed incorrectly.
@@ -342,8 +342,8 @@ The multi percolate api allows to bundle multiple percolate requests into a sing
 search api does to search requests. The request body format is line based. Each percolate request item takes two lines,
 the first line is the header and the second line is the body.
 
-The header can contain any parameter that normally would be set via the request path or query string parameters. T
-here are several percolate actions, because there are multiple types of percolate requests.
+The header can contain any parameter that normally would be set via the request path or query string parameters.
+There are several percolate actions, because there are multiple types of percolate requests.
 
 .Supported actions:
 * `percolate` - Action for defining a regular percolate request.
@@ -376,15 +376,15 @@ requests.txt:
 
 [source,js]
 --------------------------------------------------
-{"percolate" : {"index" : twitter", "type" : "tweet"}}
+{"percolate" : {"index" : "twitter", "type" : "tweet"}}
 {"doc" : {"message" : "some text"}}
-{"percolate" : {"index" : twitter", "type" : "tweet", "id" : "1"}}
+{"percolate" : {"index" : "twitter", "type" : "tweet", "id" : "1"}}
 {}
-{"percolate" : {"index" : users", "type" : "user", "id" : "3", "percolate_index" : "users_2012" }}
+{"percolate" : {"index" : "users", "type" : "user", "id" : "3", "percolate_index" : "users_2012" }}
 {"size" : 10}
-{"count" : {"index" : twitter", "type" : "tweet"}}
+{"count" : {"index" : "twitter", "type" : "tweet"}}
 {"doc" : {"message" : "some other text"}}
-{"count" : {"index" : twitter", "type" : "tweet", "id" : "1"}}
+{"count" : {"index" : "twitter", "type" : "tweet", "id" : "1"}}
 {}
 --------------------------------------------------
 
@@ -442,7 +442,7 @@ Response:
 }
 --------------------------------------------------
 
-Each item represents a percolate response, the order of the items maps to the order in where the percolate requests
+Each item represents a percolate response, the order of the items maps to the order in which the percolate requests
 were specified. In case a percolate request failed, the item response is substituted with an error message.
 
 [float]
@@ -455,7 +455,7 @@ parsed into a Lucene query and is kept in memory until that percolator document 
 At percolate time the document specified in the request gets parsed into a Lucene document and is stored in a in-memory
 Lucene index. This in-memory index can just hold this one document and it is optimized for that. Then all the queries
 that are registered to the index that the percolate request is targeted for are going to be executed on this single document
-in-memory index. This happens on each shard the percolate request need to execute.
+in-memory index. This happens on each shard the percolate request needs to execute.
 
 By using `routing`, `filter` or `query` features the amount of queries that need to be executed can be reduced and thus
 the time the percolate api needs to run can be decreased.
@@ -472,3 +472,14 @@ achieve the same result (with way less memory being used).
 
 The delete-by-query api doesn't work to unregister a query, it only deletes the percolate documents from disk. In order
 to update the registered queries in memory the index needs be closed and opened.
+
+[float]
+=== Forcing unmapped fields to be handled as string
+
+In certain cases it is unknown what kind of percolator queries do get registered and if no field mapping exist for fields
+that are referred by percolator queries then adding a percolator query fails. This means the mapping needs to be updated
+to have the field with the appropriate settings and then the percolator query can be added. But sometimes it is sufficient
+if all unmapped fields are handled as if these were default string fields. In those cases one can configure the
+`index.percolator.map_unmapped_fields_as_string` setting to `true` (default to `false`) and then if a field referred in
+a percolator query does not exist, it will be handled as a default string field, so adding the percolator query doesn't
+fail.

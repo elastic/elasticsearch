@@ -80,7 +80,7 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
         return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger);
     }
 
-    protected TermsEnum filter(Terms terms, AtomicReader reader) throws IOException {
+    protected TermsEnum filter(Terms terms, LeafReader reader) throws IOException {
         TermsEnum iterator = terms.iterator(null);
         if (iterator == null) {
             return null;
@@ -105,7 +105,7 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
             this.maxFreq = maxFreq;
         }
 
-        public static TermsEnum filter(TermsEnum toFilter, Terms terms, AtomicReader reader, Settings settings) throws IOException {
+        public static TermsEnum filter(TermsEnum toFilter, Terms terms, LeafReader reader, Settings settings) throws IOException {
             int docCount = terms.getDocCount();
             if (docCount == -1) {
                 docCount = reader.maxDoc();
@@ -114,8 +114,8 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
             final double maxFrequency = settings.getAsDouble("max", docCount+1d);
             final double minSegmentSize = settings.getAsInt("min_segment_size", 0);
             if (minSegmentSize < docCount) {
-                final int minFreq = minFrequency >= 1.0? (int) minFrequency : (int)(docCount * minFrequency);
-                final int maxFreq = maxFrequency >= 1.0? (int) maxFrequency : (int)(docCount * maxFrequency);
+                final int minFreq = minFrequency > 1.0? (int) minFrequency : (int)(docCount * minFrequency);
+                final int maxFreq = maxFrequency > 1.0? (int) maxFrequency : (int)(docCount * maxFrequency);
                 assert minFreq < maxFreq;
                 return new FrequencyFilter(toFilter, minFreq, maxFreq);
             }
@@ -143,7 +143,7 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
             super(delegate, false);
             this.matcher = matcher;
         }
-        public static TermsEnum filter(TermsEnum iterator, Terms terms, AtomicReader reader, Settings regex) {
+        public static TermsEnum filter(TermsEnum iterator, Terms terms, LeafReader reader, Settings regex) {
             String pattern = regex.get("pattern");
             if (pattern == null) {
                 return iterator;

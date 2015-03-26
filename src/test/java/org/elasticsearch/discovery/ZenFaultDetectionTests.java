@@ -27,12 +27,11 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
 import org.elasticsearch.discovery.zen.fd.NodesFaultDetection;
-import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.cluster.NoopClusterService;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportConnectionListener;
@@ -60,6 +59,7 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
     protected DiscoveryNode nodeB;
     protected MockTransportService serviceB;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -96,6 +96,7 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
         serviceB.removeConnectionListener(waitForConnection);
     }
 
+    @Override
     @After
     public void tearDown() throws Exception {
         super.tearDown();
@@ -132,17 +133,31 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
     public void testNodesFaultDetectionConnectOnDisconnect() throws InterruptedException {
         ImmutableSettings.Builder settings = ImmutableSettings.builder();
         boolean shouldRetry = randomBoolean();
-        // make sure we don't ping
+        // make sure we don't ping again after the initial ping
         settings.put(FaultDetection.SETTING_CONNECT_ON_NETWORK_DISCONNECT, shouldRetry)
                 .put(FaultDetection.SETTING_PING_INTERVAL, "5m");
         ClusterState clusterState = ClusterState.builder(new ClusterName("test")).nodes(buildNodesForA(true)).build();
-        NodesFaultDetection nodesFD = new NodesFaultDetection(settings.build(), threadPool, serviceA, clusterState.getClusterName());
-        nodesFD.setLocalNode(clusterState.nodes().localNode());
-        nodesFD.updateNodesAndPing(clusterState);
+        NodesFaultDetection nodesFDA = new NodesFaultDetection(settings.build(), threadPool, serviceA, clusterState.getClusterName());
+        nodesFDA.setLocalNode(nodeA);
+        NodesFaultDetection nodesFDB = new NodesFaultDetection(settings.build(), threadPool, serviceB, clusterState.getClusterName());
+        nodesFDB.setLocalNode(nodeB);
+        final CountDownLatch pingSent = new CountDownLatch(1);
+        nodesFDB.addListener(new NodesFaultDetection.Listener() {
+            @Override
+            public void onPingReceived(NodesFaultDetection.PingRequest pingRequest) {
+                pingSent.countDown();
+            }
+        });
+        nodesFDA.updateNodesAndPing(clusterState);
+
+        // wait for the first ping to go out, so we will really respond to a disconnect event rather then
+        // the ping failing
+        pingSent.await(30, TimeUnit.SECONDS);
+
         final String[] failureReason = new String[1];
         final DiscoveryNode[] failureNode = new DiscoveryNode[1];
         final CountDownLatch notified = new CountDownLatch(1);
-        nodesFD.addListener(new NodesFaultDetection.Listener() {
+        nodesFDA.addListener(new NodesFaultDetection.Listener() {
             @Override
             public void onNodeFailure(DiscoveryNode node, String reason) {
                 failureNode[0] = node;
@@ -172,21 +187,9 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
         settings.put(FaultDetection.SETTING_CONNECT_ON_NETWORK_DISCONNECT, shouldRetry)
                 .put(FaultDetection.SETTING_PING_INTERVAL, "5m");
         ClusterName clusterName = new ClusterName(randomAsciiOfLengthBetween(3, 20));
-        final DiscoveryNodes nodes = buildNodesForA(false);
-        MasterFaultDetection masterFD = new MasterFaultDetection(settings.build(), threadPool, serviceA,
-                new DiscoveryNodesProvider() {
-                    @Override
-                    public DiscoveryNodes nodes() {
-                        return nodes;
-                    }
-
-                    @Override
-                    public NodeService nodeService() {
-                        return null;
-                    }
-                },
-                clusterName
-        );
+        final ClusterState state = ClusterState.builder(clusterName).nodes(buildNodesForA(false)).build();
+        MasterFaultDetection masterFD = new MasterFaultDetection(settings.build(), threadPool, serviceA, clusterName,
+                new NoopClusterService(state));
         masterFD.start(nodeB, "test");
 
         final String[] failureReason = new String[1];
@@ -199,11 +202,6 @@ public class ZenFaultDetectionTests extends ElasticsearchTestCase {
                 failureNode[0] = masterNode;
                 failureReason[0] = reason;
                 notified.countDown();
-            }
-
-            @Override
-            public void notListedOnMaster() {
-
             }
         });
         // will raise a disconnect on A

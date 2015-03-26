@@ -85,7 +85,7 @@ public class ExistsRequest extends BroadcastOperationRequest<ExistsRequest> {
     /**
      * The minimum score of the documents to include in the count.
      */
-    float minScore() {
+    public float minScore() {
         return minScore;
     }
 
@@ -136,7 +136,7 @@ public class ExistsRequest extends BroadcastOperationRequest<ExistsRequest> {
     /**
      * The source to execute.
      */
-    BytesReference source() {
+    public BytesReference source() {
         return source;
     }
 

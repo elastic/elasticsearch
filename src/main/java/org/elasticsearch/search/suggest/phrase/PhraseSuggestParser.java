@@ -27,8 +27,11 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -44,6 +47,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
         this.suggester = suggester;
     }
 
+    @Override
     public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService) throws IOException {
         PhraseSuggestionContext suggestion = new PhraseSuggestionContext(suggester);
         XContentParser.Token token;
@@ -148,7 +152,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             if (suggestion.getCollateQueryScript() != null) {
                                 throw new ElasticsearchIllegalArgumentException("suggester[phrase][collate] query already set, doesn't support additional [" + fieldName + "]");
                             }
-                            CompiledScript compiledScript = suggester.scriptService().compile("mustache", templateNameOrTemplateContent);
+                            CompiledScript compiledScript = suggester.scriptService().compile(MustacheScriptEngineService.NAME, templateNameOrTemplateContent, ScriptService.ScriptType.INLINE);
                             if ("query".equals(fieldName)) {
                                 suggestion.setCollateQueryScript(compiledScript);
                             } else {
@@ -180,9 +184,17 @@ public final class PhraseSuggestParser implements SuggestContextParser {
         if (suggestion.getField() == null) {
             throw new ElasticsearchIllegalArgumentException("The required field option is missing");
         }
-        
-        if (mapperService.smartNameFieldMapper(suggestion.getField()) == null) {
+
+        FieldMapper fieldMapper = mapperService.smartNameFieldMapper(suggestion.getField());
+        if (fieldMapper == null) {
             throw new ElasticsearchIllegalArgumentException("No mapping found for field [" + suggestion.getField() + "]");
+        } else if (suggestion.getAnalyzer() == null) {
+            // no analyzer name passed in, so try the field's analyzer, or the default analyzer
+            if (fieldMapper.searchAnalyzer() == null) {
+                suggestion.setAnalyzer(mapperService.searchAnalyzer());
+            } else {
+                suggestion.setAnalyzer(fieldMapper.searchAnalyzer());
+            }
         }
         
         if (suggestion.model() == null) {
@@ -190,7 +202,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
         }
         
         if (!gramSizeSet || suggestion.generators().isEmpty()) {
-            final ShingleTokenFilterFactory.Factory shingleFilterFactory = SuggestUtils.getShingleFilterFactory(suggestion.getAnalyzer() == null ? mapperService.fieldSearchAnalyzer(suggestion.getField()) : suggestion.getAnalyzer()); ;
+            final ShingleTokenFilterFactory.Factory shingleFilterFactory = SuggestUtils.getShingleFilterFactory(suggestion.getAnalyzer());
             if (!gramSizeSet) {
                 // try to detect the shingle size
                 if (shingleFilterFactory != null) {

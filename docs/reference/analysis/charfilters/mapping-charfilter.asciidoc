@@ -21,7 +21,7 @@ Here is a sample configuration:
                 "custom_with_char_filter" : {
                     "tokenizer" : "standard",
                     "char_filter" : ["my_mapping"]
-                },
+                }
             }
         }
     }

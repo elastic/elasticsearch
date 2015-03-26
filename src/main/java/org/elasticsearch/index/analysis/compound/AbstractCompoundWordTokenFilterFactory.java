@@ -50,7 +50,7 @@ public abstract class AbstractCompoundWordTokenFilterFactory extends AbstractTok
         minSubwordSize = settings.getAsInt("min_subword_size", CompoundWordTokenFilterBase.DEFAULT_MIN_SUBWORD_SIZE);
         maxSubwordSize = settings.getAsInt("max_subword_size", CompoundWordTokenFilterBase.DEFAULT_MAX_SUBWORD_SIZE);
         onlyLongestMatch = settings.getAsBoolean("only_longest_match", false);
-        wordList = Analysis.getWordSet(env, settings, "word_list", version);
+        wordList = Analysis.getWordSet(env, settings, "word_list");
         if (wordList == null) {
             throw new ElasticsearchIllegalArgumentException("word_list must be provided for [" + name + "], either as a path to a file, or directly");
         }

@@ -46,6 +46,7 @@ abstract class AbstractHash extends AbstractPagedHashMap {
         return ids.set(index, id + 1) - 1;
     }
 
+    @Override
     protected void resize(long capacity) {
         ids = bigArrays.resize(ids, capacity);
     }

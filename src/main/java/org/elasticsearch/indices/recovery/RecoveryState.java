@@ -19,25 +19,27 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.common.xcontent.XContentBuilderString;
-
+import com.google.common.collect.ImmutableList;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RestoreSource;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Keeps track of state related to shard recovery.
@@ -46,10 +48,19 @@ public class RecoveryState implements ToXContent, Streamable {
 
     public static enum Stage {
         INIT((byte) 0),
+
+        /** recovery of lucene files, either reusing local ones are copying new ones */
         INDEX((byte) 1),
+
+        /** starting up the engine, potentially running checks */
         START((byte) 2),
+
+        /** replaying the translog */
         TRANSLOG((byte) 3),
+
+        /** performing final task after all translog ops have been done */
         FINALIZE((byte) 4),
+
         DONE((byte) 5);
 
         private static final Stage[] STAGES = new Stage[Stage.values().length];
@@ -112,40 +123,93 @@ public class RecoveryState implements ToXContent, Streamable {
         }
     }
 
-    private volatile Stage stage = Stage.INIT;
+    private Stage stage;
 
-    private Index index = new Index();
-    private Translog translog = new Translog();
-    private Start start = new Start();
-    private Timer timer = new Timer();
+    private final Index index = new Index();
+    private final Translog translog = new Translog();
+    private final Start start = new Start();
+    private final Timer timer = new Timer();
 
     private Type type;
     private ShardId shardId;
     private RestoreSource restoreSource;
     private DiscoveryNode sourceNode;
     private DiscoveryNode targetNode;
-
-    private boolean detailed = false;
     private boolean primary = false;
 
-    public RecoveryState() { }
+    private RecoveryState() {
+    }
 
-    public RecoveryState(ShardId shardId) {
+    public RecoveryState(ShardId shardId, boolean primary, Type type, DiscoveryNode sourceNode, DiscoveryNode targetNode) {
+        this(shardId, primary, type, sourceNode, null, targetNode);
+    }
+
+    public RecoveryState(ShardId shardId, boolean primary, Type type, RestoreSource restoreSource, DiscoveryNode targetNode) {
+        this(shardId, primary, type, null, restoreSource, targetNode);
+    }
+
+    private RecoveryState(ShardId shardId, boolean primary, Type type, @Nullable DiscoveryNode sourceNode, @Nullable RestoreSource restoreSource, DiscoveryNode targetNode) {
         this.shardId = shardId;
+        this.primary = primary;
+        this.type = type;
+        this.sourceNode = sourceNode;
+        this.restoreSource = restoreSource;
+        this.targetNode = targetNode;
+        stage = Stage.INIT;
+        timer.start();
     }
 
     public ShardId getShardId() {
         return shardId;
     }
 
-    public Stage getStage() {
+    public synchronized Stage getStage() {
         return this.stage;
     }
 
-    public RecoveryState setStage(Stage stage) {
-        this.stage = stage;
-        if (stage == Stage.DONE) {
-            timer.stopTime(System.currentTimeMillis());
+
+    private void validateAndSetStage(Stage expected, Stage next) {
+        if (stage != expected) {
+            throw new ElasticsearchIllegalStateException("can't move recovery to stage [" + next + "]. current stage: ["
+                    + stage + "] (expected [" + expected + "])");
+        }
+        stage = next;
+    }
+
+    // synchronized is strictly speaking not needed (this is called by a single thread), but just to be safe
+    public synchronized RecoveryState setStage(Stage stage) {
+        switch (stage) {
+            case INIT:
+                // reinitializing stop remove all state except for start time
+                this.stage = Stage.INIT;
+                getIndex().reset();
+                getStart().reset();
+                getTranslog().reset();
+                break;
+            case INDEX:
+                validateAndSetStage(Stage.INIT, stage);
+                getIndex().start();
+                break;
+            case START:
+                validateAndSetStage(Stage.INDEX, stage);
+                getIndex().stop();
+                getStart().start();
+                break;
+            case TRANSLOG:
+                validateAndSetStage(Stage.START, stage);
+                getStart().stop();
+                getTranslog().start();
+                break;
+            case FINALIZE:
+                validateAndSetStage(Stage.TRANSLOG, stage);
+                getTranslog().stop();
+                break;
+            case DONE:
+                validateAndSetStage(Stage.FINALIZE, stage);
+                getTimer().stop();
+                break;
+            default:
+                throw new ElasticsearchIllegalArgumentException("unknown RecoveryState.Stage [" + stage + "]");
         }
         return this;
     }
@@ -170,41 +234,16 @@ public class RecoveryState implements ToXContent, Streamable {
         return type;
     }
 
-    public void setType(Type type) {
-        this.type = type;
-    }
-
-    public void setSourceNode(DiscoveryNode sourceNode) {
-        this.sourceNode = sourceNode;
-    }
-
     public DiscoveryNode getSourceNode() {
         return sourceNode;
-    }
-
-    public void setTargetNode(DiscoveryNode targetNode) {
-        this.targetNode = targetNode;
     }
 
     public DiscoveryNode getTargetNode() {
         return targetNode;
     }
 
-    public void setRestoreSource(RestoreSource restoreSource) {
-        this.restoreSource = restoreSource;
-    }
-
     public RestoreSource getRestoreSource() {
         return restoreSource;
-    }
-
-    public void setDetailed(boolean detailed) {
-        this.detailed = detailed;
-        this.index.detailed(detailed);
-    }
-
-    public void setPrimary(boolean primary) {
-        this.primary = primary;
     }
 
     public boolean getPrimary() {
@@ -218,10 +257,8 @@ public class RecoveryState implements ToXContent, Streamable {
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        timer.startTime(in.readVLong());
-        timer.stopTime(in.readVLong());
-        timer.time(in.readVLong());
+    public synchronized void readFrom(StreamInput in) throws IOException {
+        timer.readFrom(in);
         type = Type.fromId(in.readByte());
         stage = Stage.fromId(in.readByte());
         shardId = ShardId.readShardId(in);
@@ -230,18 +267,15 @@ public class RecoveryState implements ToXContent, Streamable {
         if (in.readBoolean()) {
             sourceNode = DiscoveryNode.readNode(in);
         }
-        index = Index.readIndex(in);
-        translog = Translog.readTranslog(in);
-        start = Start.readStart(in);
-        detailed = in.readBoolean();
+        index.readFrom(in);
+        translog.readFrom(in);
+        start.readFrom(in);
         primary = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVLong(timer.startTime());
-        out.writeVLong(timer.stopTime());
-        out.writeVLong(timer.time());
+        timer.writeTo(out);
         out.writeByte(type.id());
         out.writeByte(stage.id());
         shardId.writeTo(out);
@@ -254,7 +288,6 @@ public class RecoveryState implements ToXContent, Streamable {
         index.writeTo(out);
         translog.writeTo(out);
         start.writeTo(out);
-        out.writeBoolean(detailed);
         out.writeBoolean(primary);
     }
 
@@ -265,9 +298,11 @@ public class RecoveryState implements ToXContent, Streamable {
         builder.field(Fields.TYPE, type.toString());
         builder.field(Fields.STAGE, stage.toString());
         builder.field(Fields.PRIMARY, primary);
-        builder.timeValueField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
-        builder.timeValueField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
-        builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, timer.time);
+        builder.dateValueField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
+        if (timer.stopTime > 0) {
+            builder.dateValueField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
+        }
+        builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, timer.time());
 
         if (restoreSource != null) {
             builder.field(Fields.SOURCE);
@@ -291,7 +326,6 @@ public class RecoveryState implements ToXContent, Streamable {
         builder.endObject();
 
         builder.startObject(Fields.INDEX);
-        index.detailed(this.detailed);
         index.toXContent(builder, params);
         builder.endObject();
 
@@ -325,68 +359,94 @@ public class RecoveryState implements ToXContent, Streamable {
         static final XContentBuilderString TARGET = new XContentBuilderString("target");
         static final XContentBuilderString INDEX = new XContentBuilderString("index");
         static final XContentBuilderString TRANSLOG = new XContentBuilderString("translog");
+        static final XContentBuilderString TOTAL_ON_START = new XContentBuilderString("total_on_start");
         static final XContentBuilderString START = new XContentBuilderString("start");
         static final XContentBuilderString RECOVERED = new XContentBuilderString("recovered");
+        static final XContentBuilderString RECOVERED_IN_BYTES = new XContentBuilderString("recovered_in_bytes");
         static final XContentBuilderString CHECK_INDEX_TIME = new XContentBuilderString("check_index_time");
         static final XContentBuilderString CHECK_INDEX_TIME_IN_MILLIS = new XContentBuilderString("check_index_time_in_millis");
         static final XContentBuilderString LENGTH = new XContentBuilderString("length");
+        static final XContentBuilderString LENGTH_IN_BYTES = new XContentBuilderString("length_in_bytes");
         static final XContentBuilderString FILES = new XContentBuilderString("files");
         static final XContentBuilderString TOTAL = new XContentBuilderString("total");
+        static final XContentBuilderString TOTAL_IN_BYTES = new XContentBuilderString("total_in_bytes");
         static final XContentBuilderString REUSED = new XContentBuilderString("reused");
+        static final XContentBuilderString REUSED_IN_BYTES = new XContentBuilderString("reused_in_bytes");
         static final XContentBuilderString PERCENT = new XContentBuilderString("percent");
         static final XContentBuilderString DETAILS = new XContentBuilderString("details");
-        static final XContentBuilderString BYTES = new XContentBuilderString("bytes");
+        static final XContentBuilderString SIZE = new XContentBuilderString("size");
+        static final XContentBuilderString SOURCE_THROTTLE_TIME = new XContentBuilderString("source_throttle_time");
+        static final XContentBuilderString SOURCE_THROTTLE_TIME_IN_MILLIS = new XContentBuilderString("source_throttle_time_in_millis");
+        static final XContentBuilderString TARGET_THROTTLE_TIME = new XContentBuilderString("target_throttle_time");
+        static final XContentBuilderString TARGET_THROTTLE_TIME_IN_MILLIS = new XContentBuilderString("target_throttle_time_in_millis");
     }
 
-    public static class Timer {
-        private long startTime = 0;
-        private long time = 0;
-        private long stopTime = 0;
+    public static class Timer implements Streamable {
+        protected long startTime = 0;
+        protected long time = -1;
+        protected long stopTime = 0;
 
-        public long startTime() {
+        public synchronized void start() {
+            assert startTime == 0 : "already started";
+            startTime = System.currentTimeMillis();
+        }
+
+        public synchronized long startTime() {
             return startTime;
         }
 
-        public void startTime(long startTime) {
-            this.startTime = startTime;
+        public synchronized long time() {
+            if (startTime == 0) {
+                return 0;
+            }
+            if (time >= 0) {
+                return time;
+            }
+            return Math.max(0, System.currentTimeMillis() - startTime);
         }
 
-        public long time() {
-            return time;
-        }
-
-        public void time(long time) {
-            this.time = time;
-        }
-
-        public long stopTime() {
+        public synchronized long stopTime() {
             return stopTime;
         }
 
-        public void stopTime(long stopTime) {
-            this.stopTime = stopTime;
+        public synchronized void stop() {
+            assert stopTime == 0 : "already stopped";
+            stopTime = Math.max(System.currentTimeMillis(), startTime);
+            time = stopTime - startTime;
+            assert time >= 0;
         }
+
+        public synchronized void reset() {
+            startTime = 0;
+            time = -1;
+            stopTime = 0;
+        }
+
+
+        @Override
+        public synchronized void readFrom(StreamInput in) throws IOException {
+            startTime = in.readVLong();
+            stopTime = in.readVLong();
+            time = in.readVLong();
+        }
+
+        @Override
+        public synchronized void writeTo(StreamOutput out) throws IOException {
+            out.writeVLong(startTime);
+            out.writeVLong(stopTime);
+            // write a snapshot of current time, which is not per se the time field
+            out.writeVLong(time());
+        }
+
     }
 
-    public static class Start implements ToXContent, Streamable {
-        private long startTime;
-        private long time;
-        private long checkIndexTime;
+    public static class Start extends Timer implements ToXContent, Streamable {
+        private volatile long checkIndexTime;
 
-        public long startTime() {
-            return this.startTime;
-        }
 
-        public void startTime(long startTime) {
-            this.startTime = startTime;
-        }
-
-        public long time() {
-            return this.time;
-        }
-
-        public void time(long time) {
-            this.time = time;
+        public void reset() {
+            super.reset();
+            checkIndexTime = 0;
         }
 
         public long checkIndexTime() {
@@ -397,109 +457,160 @@ public class RecoveryState implements ToXContent, Streamable {
             this.checkIndexTime = checkIndexTime;
         }
 
-        public static Start readStart(StreamInput in) throws IOException {
-            Start start = new Start();
-            start.readFrom(in);
-            return start;
-        }
-
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            startTime = in.readVLong();
-            time = in.readVLong();
+            super.readFrom(in);
             checkIndexTime = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(startTime);
-            out.writeVLong(time);
+            super.writeTo(out);
             out.writeVLong(checkIndexTime);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.timeValueField(Fields.CHECK_INDEX_TIME_IN_MILLIS, Fields.CHECK_INDEX_TIME, checkIndexTime);
-            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time);
+            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time());
             return builder;
         }
     }
 
-    public static class Translog implements ToXContent, Streamable {
-        private long startTime = 0;
-        private long time;
-        private volatile int currentTranslogOperations = 0;
+    public static class Translog extends Timer implements ToXContent, Streamable {
+        public static final int UNKNOWN = -1;
 
-        public long startTime() {
-            return this.startTime;
+        private int recovered;
+        private int total = UNKNOWN;
+        private int totalOnStart = UNKNOWN;
+
+        public synchronized void reset() {
+            super.reset();
+            recovered = 0;
+            total = UNKNOWN;
+            totalOnStart = UNKNOWN;
         }
 
-        public void startTime(long startTime) {
-            this.startTime = startTime;
+        public synchronized void incrementRecoveredOperations() {
+            recovered++;
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
         }
 
-        public long time() {
-            return this.time;
+        /** returns the total number of translog operations recovered so far */
+        public synchronized int recoveredOperations() {
+            return recovered;
         }
 
-        public void time(long time) {
-            this.time = time;
+        /**
+         * returns the total number of translog operations needed to be recovered at this moment.
+         * Note that this can change as the number of operations grows during recovery.
+         * <p/>
+         * A value of -1 ({@link RecoveryState.Translog#UNKNOWN} is return if this is unknown (typically a gateway recovery)
+         */
+        public synchronized int totalOperations() {
+            return total;
         }
 
-        public void addTranslogOperations(int count) {
-            this.currentTranslogOperations += count;
+        public synchronized void totalOperations(int total) {
+            this.total = total;
+            assert total == UNKNOWN || total >= recovered : "total, if known, should be > recovered. total [" + total + "], recovered [" + recovered + "]";
         }
 
-        public void incrementTranslogOperations() {
-            this.currentTranslogOperations++;
+        /**
+         * returns the total number of translog operations to recovered, on the start of the recovery. Unlike {@link #totalOperations}
+         * this does change during recovery.
+         * <p/>
+         * A value of -1 ({@link RecoveryState.Translog#UNKNOWN} is return if this is unknown (typically a gateway recovery)
+         */
+        public synchronized int totalOperationsOnStart() {
+            return this.totalOnStart;
         }
 
-        public int currentTranslogOperations() {
-            return this.currentTranslogOperations;
+        public synchronized void totalOperationsOnStart(int total) {
+            this.totalOnStart = total;
         }
 
-        public static Translog readTranslog(StreamInput in) throws IOException {
-            Translog translog = new Translog();
-            translog.readFrom(in);
-            return translog;
+        public synchronized float recoveredPercent() {
+            if (total == UNKNOWN) {
+                return -1.f;
+            }
+            if (total == 0) {
+                return 100.f;
+            }
+            return recovered * 100.0f / total;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            startTime = in.readVLong();
-            time = in.readVLong();
-            currentTranslogOperations = in.readVInt();
+            super.readFrom(in);
+            recovered = in.readVInt();
+            total = in.readVInt();
+            totalOnStart = in.readVInt();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(startTime);
-            out.writeVLong(time);
-            out.writeVInt(currentTranslogOperations);
+            super.writeTo(out);
+            out.writeVInt(recovered);
+            out.writeVInt(total);
+            out.writeVInt(totalOnStart);
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field(Fields.RECOVERED, currentTranslogOperations);
-            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time);
+        public synchronized XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field(Fields.RECOVERED, recovered);
+            builder.field(Fields.TOTAL, total);
+            builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredPercent()));
+            builder.field(Fields.TOTAL_ON_START, totalOnStart);
+            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time());
             return builder;
         }
     }
 
     public static class File implements ToXContent, Streamable {
-        String name;
-        long length;
-        long recovered;
+        private String name;
+        private long length;
+        private long recovered;
+        private boolean reused;
 
-        public File() { }
-
-        public File(String name, long length) {
-            this.name = name;
-            this.length = length;
+        public File() {
         }
 
-        public void updateRecovered(long length) {
-            recovered += length;
+        public File(String name, long length, boolean reused) {
+            assert name != null;
+            this.name = name;
+            this.length = length;
+            this.reused = reused;
+        }
+
+        void addRecoveredBytes(long bytes) {
+            assert reused == false : "file is marked as reused, can't update recovered bytes";
+            assert bytes >= 0 : "can't recovered negative bytes. got [" + bytes + "]";
+            recovered += bytes;
+        }
+
+        /** file name * */
+        public String name() {
+            return name;
+        }
+
+        /** file length * */
+        public long length() {
+            return length;
+        }
+
+        /** number of bytes recovered for this file (so far). 0 if the file is reused * */
+        public long recovered() {
+            return recovered;
+        }
+
+        /** returns true if the file is reused from a local copy */
+        public boolean reused() {
+            return reused;
+        }
+
+        boolean fullyRecovered() {
+            return reused == false && length == recovered;
         }
 
         public static File readFile(StreamInput in) throws IOException {
@@ -513,6 +624,7 @@ public class RecoveryState implements ToXContent, Streamable {
             name = in.readString();
             length = in.readVLong();
             recovered = in.readVLong();
+            reused = in.readBoolean();
         }
 
         @Override
@@ -520,292 +632,286 @@ public class RecoveryState implements ToXContent, Streamable {
             out.writeString(name);
             out.writeVLong(length);
             out.writeVLong(recovered);
+            out.writeBoolean(reused);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(Fields.NAME, name);
-            builder.field(Fields.LENGTH, length);
-            builder.field(Fields.RECOVERED, recovered);
+            builder.byteSizeField(Fields.LENGTH_IN_BYTES, Fields.LENGTH, length);
+            builder.field(Fields.REUSED, reused);
+            builder.byteSizeField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, length);
             builder.endObject();
             return builder;
         }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (obj instanceof File) {
+                File other = (File) obj;
+                return name.equals(other.name) && length == other.length() && reused == other.reused() && recovered == other.recovered();
+            }
+            return false;
+        }
+
+        @Override
+        public String toString() {
+            return "file (name [" + name + "], reused [" + reused + "], length [" + length + "], recovered [" + recovered + "])";
+        }
     }
 
-    public static class Index implements ToXContent, Streamable {
+    public static class Index extends Timer implements ToXContent, Streamable {
 
-        private long startTime = 0;
-        private long time = 0;
+        private Map<String, File> fileDetails = new HashMap<>();
 
-        private List<File> fileDetails = new ArrayList<>();
-        private List<File> reusedFileDetails = new ArrayList<>();
+        public final static long UNKNOWN = -1L;
 
-        private long version = -1;
+        private long version = UNKNOWN;
+        private long sourceThrottlingInNanos = UNKNOWN;
+        private long targetThrottleTimeInNanos = UNKNOWN;
 
-        private boolean detailed = false;
-
-        private int totalFileCount = 0;
-        private int reusedFileCount = 0;
-        private AtomicInteger recoveredFileCount = new AtomicInteger();
-
-        private long totalByteCount = 0;
-        private long reusedByteCount = 0;
-        private AtomicLong recoveredByteCount = new AtomicLong();
-
-        public List<File> fileDetails() {
-            return fileDetails;
+        public synchronized List<File> fileDetails() {
+            return ImmutableList.copyOf(fileDetails.values());
         }
 
-        public List<File> reusedFileDetails() {
-            return reusedFileDetails;
+        public synchronized void reset() {
+            super.reset();
+            version = UNKNOWN;
+            fileDetails.clear();
+            sourceThrottlingInNanos = UNKNOWN;
+            targetThrottleTimeInNanos = UNKNOWN;
         }
 
-        public void addFileDetail(String name, long length) {
-            fileDetails.add(new File(name, length));
+        public synchronized void addFileDetail(String name, long length, boolean reused) {
+            File file = new File(name, length, reused);
+            File existing = fileDetails.put(name, file);
+            assert existing == null : "file [" + name + "] is already reported";
         }
 
-        public void addFileDetail(String name, long length, long recovered) {
-            File file = new File(name, length);
-            file.recovered = recovered;
-            fileDetails.add(file);
+        public synchronized void addRecoveredBytesToFile(String name, long bytes) {
+            File file = fileDetails.get(name);
+            file.addRecoveredBytes(bytes);
         }
 
-        public void addFileDetails(List<String> names, List<Long> lengths) {
-            for (int i = 0; i < names.size(); i++) {
-                fileDetails.add(new File(names.get(i), lengths.get(i)));
-            }
-        }
-
-        public void addReusedFileDetail(String name, long length) {
-            reusedFileDetails.add(new File(name, length));
-        }
-
-        public void addReusedFileDetails(List<String> names, List<Long> lengths) {
-            for (int i = 0; i < names.size(); i++) {
-                reusedFileDetails.add(new File(names.get(i), lengths.get(i)));
-            }
-        }
-
-        public File file(String name) {
-            for (File file : fileDetails) {
-                if (file.name.equals(name))
-                    return file;
-            }
-            for (File file : reusedFileDetails) {
-                if (file.name.equals(name)) {
-                    return file;
-                }
-            }
-            return null;
-        }
-
-        public long startTime() {
-            return this.startTime;
-        }
-
-        public void startTime(long startTime) {
-            this.startTime = startTime;
-        }
-
-        public long time() {
-            return this.time;
-        }
-
-        public void time(long time) {
-            this.time = time;
-        }
-
-        public long version() {
+        public synchronized long version() {
             return this.version;
         }
 
-        public int totalFileCount() {
-            return totalFileCount;
+        public synchronized void addSourceThrottling(long timeInNanos) {
+            if (sourceThrottlingInNanos == UNKNOWN) {
+                sourceThrottlingInNanos = timeInNanos;
+            } else {
+                sourceThrottlingInNanos += timeInNanos;
+            }
         }
 
-        public void totalFileCount(int totalFileCount) {
-            this.totalFileCount = totalFileCount;
+        public synchronized void addTargetThrottling(long timeInNanos) {
+            if (targetThrottleTimeInNanos == UNKNOWN) {
+                targetThrottleTimeInNanos = timeInNanos;
+            } else {
+                targetThrottleTimeInNanos += timeInNanos;
+            }
         }
 
-        public int recoveredFileCount() {
-            return recoveredFileCount.get();
+        public synchronized TimeValue sourceThrottling() {
+            return TimeValue.timeValueNanos(sourceThrottlingInNanos);
         }
 
-        public void recoveredFileCount(int recoveredFileCount) {
-            this.recoveredFileCount.set(recoveredFileCount);
+        public synchronized TimeValue targetThrottling() {
+            return TimeValue.timeValueNanos(targetThrottleTimeInNanos);
         }
 
-        public void addRecoveredFileCount(int updatedCount) {
-            this.recoveredFileCount.addAndGet(updatedCount);
+        /** total number of files that are part of this recovery, both re-used and recovered */
+        public synchronized int totalFileCount() {
+            return fileDetails.size();
         }
 
-        public float percentFilesRecovered() {
-            if (totalFileCount == 0) {      // indicates we are still in init phase
+        /** total number of files to be recovered (potentially not yet done) */
+        public synchronized int totalRecoverFiles() {
+            int total = 0;
+            for (File file : fileDetails.values()) {
+                if (file.reused() == false) {
+                    total++;
+                }
+            }
+            return total;
+        }
+
+
+        /** number of file that were recovered (excluding on ongoing files) */
+        public synchronized int recoveredFileCount() {
+            int count = 0;
+            for (File file : fileDetails.values()) {
+                if (file.fullyRecovered()) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        /** percent of recovered (i.e., not reused) files out of the total files to be recovered */
+        public synchronized float recoveredFilesPercent() {
+            int total = 0;
+            int recovered = 0;
+            for (File file : fileDetails.values()) {
+                if (file.reused() == false) {
+                    total++;
+                    if (file.fullyRecovered()) {
+                        recovered++;
+                    }
+                }
+            }
+            if (total == 0 && fileDetails.size() == 0) {      // indicates we are still in init phase
                 return 0.0f;
             }
-            final int filesRecovered = recoveredFileCount.get();
-            if ((totalFileCount - filesRecovered) == 0) {
+            if (total == recovered) {
                 return 100.0f;
             } else {
-                float result = 100.0f * (filesRecovered / (float)totalFileCount);
+                float result = 100.0f * (recovered / (float) total);
                 return result;
             }
         }
 
-        public int numberOfRecoveredFiles() {
-            return totalFileCount - reusedFileCount;
+        /** total number of bytes in th shard */
+        public synchronized long totalBytes() {
+            long total = 0;
+            for (File file : fileDetails.values()) {
+                total += file.length();
+            }
+            return total;
         }
 
-        public long totalByteCount() {
-            return this.totalByteCount;
+        /** total number of bytes recovered so far, including both existing and reused */
+        public synchronized long recoveredBytes() {
+            long recovered = 0;
+            for (File file : fileDetails.values()) {
+                recovered += file.recovered();
+            }
+            return recovered;
         }
 
-        public void totalByteCount(long totalByteCount) {
-            this.totalByteCount = totalByteCount;
+        /** total bytes of files to be recovered (potentially not yet done) */
+        public synchronized long totalRecoverBytes() {
+            long total = 0;
+            for (File file : fileDetails.values()) {
+                if (file.reused() == false) {
+                    total += file.length();
+                }
+            }
+            return total;
         }
 
-        public long recoveredByteCount() {
-            return recoveredByteCount.longValue();
+        public synchronized long totalReuseBytes() {
+            long total = 0;
+            for (File file : fileDetails.values()) {
+                if (file.reused()) {
+                    total += file.length();
+                }
+            }
+            return total;
         }
 
-        public void recoveredByteCount(long recoveredByteCount) {
-            this.recoveredByteCount.set(recoveredByteCount);
-        }
-
-        public void addRecoveredByteCount(long updatedSize) {
-            recoveredByteCount.addAndGet(updatedSize);
-        }
-
-        public long numberOfRecoveredBytes() {
-            return recoveredByteCount.get() - reusedByteCount;
-        }
-
-        public float percentBytesRecovered() {
-            if (totalByteCount == 0) {      // indicates we are still in init phase
+        /** percent of bytes recovered out of total files bytes *to be* recovered */
+        public synchronized float recoveredBytesPercent() {
+            long total = 0;
+            long recovered = 0;
+            for (File file : fileDetails.values()) {
+                if (file.reused() == false) {
+                    total += file.length();
+                    recovered += file.recovered();
+                }
+            }
+            if (total == 0 && fileDetails.size() == 0) {
+                // indicates we are still in init phase
                 return 0.0f;
             }
-            final long recByteCount = recoveredByteCount.get();
-            if ((totalByteCount - recByteCount) == 0) {
+            if (total == recovered) {
                 return 100.0f;
             } else {
-                float result = 100.0f * (recByteCount / (float) totalByteCount);
-                return result;
+                return 100.0f * recovered / total;
             }
         }
 
-        public int reusedFileCount() {
-            return reusedFileCount;
+        public synchronized int reusedFileCount() {
+            int reused = 0;
+            for (File file : fileDetails.values()) {
+                if (file.reused()) {
+                    reused++;
+                }
+            }
+            return reused;
         }
 
-        public void reusedFileCount(int reusedFileCount) {
-            this.reusedFileCount = reusedFileCount;
+        public synchronized long reusedBytes() {
+            long reused = 0;
+            for (File file : fileDetails.values()) {
+                if (file.reused()) {
+                    reused += file.length();
+                }
+            }
+            return reused;
         }
 
-        public long reusedByteCount() {
-            return this.reusedByteCount;
-        }
-
-        public void reusedByteCount(long reusedByteCount) {
-            this.reusedByteCount = reusedByteCount;
-        }
-
-        public long recoveredTotalSize() {
-            return totalByteCount - reusedByteCount;
-        }
-
-        public void updateVersion(long version) {
+        public synchronized void updateVersion(long version) {
             this.version = version;
-        }
-
-        public void detailed(boolean detailed) {
-            this.detailed = detailed;
-        }
-
-        public static Index readIndex(StreamInput in) throws IOException {
-            Index index = new Index();
-            index.readFrom(in);
-            return index;
         }
 
         @Override
         public void readFrom(StreamInput in) throws IOException {
-            startTime = in.readVLong();
-            time = in.readVLong();
-            totalFileCount = in.readVInt();
-            totalByteCount = in.readVLong();
-            reusedFileCount = in.readVInt();
-            reusedByteCount = in.readVLong();
-            recoveredFileCount = new AtomicInteger(in.readVInt());
-            recoveredByteCount = new AtomicLong(in.readVLong());
+            super.readFrom(in);
             int size = in.readVInt();
-            fileDetails = new ArrayList<>(size);
             for (int i = 0; i < size; i++) {
-                fileDetails.add(File.readFile(in));
+                File file = File.readFile(in);
+                fileDetails.put(file.name, file);
             }
-            size = in.readVInt();
-            reusedFileDetails = new ArrayList<>(size);
-            for (int i = 0; i < size; i++) {
-                reusedFileDetails.add(File.readFile(in));
-            }
+            sourceThrottlingInNanos = in.readLong();
+            targetThrottleTimeInNanos = in.readLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeVLong(startTime);
-            out.writeVLong(time);
-            out.writeVInt(totalFileCount);
-            out.writeVLong(totalByteCount);
-            out.writeVInt(reusedFileCount);
-            out.writeVLong(reusedByteCount);
-            out.writeVInt(recoveredFileCount.get());
-            out.writeVLong(recoveredByteCount.get());
-            out.writeVInt(fileDetails.size());
-            for (File file : fileDetails) {
+            super.writeTo(out);
+            final File[] files = fileDetails.values().toArray(new File[0]);
+            out.writeVInt(files.length);
+            for (File file : files) {
                 file.writeTo(out);
             }
-            out.writeVInt(reusedFileDetails.size());
-            for (File file : reusedFileDetails) {
-                file.writeTo(out);
-            }
+            out.writeLong(sourceThrottlingInNanos);
+            out.writeLong(targetThrottleTimeInNanos);
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-
-            int filesRecovered = recoveredFileCount.get();
-            long bytesRecovered = recoveredByteCount.get();
+        public synchronized XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            // stream size first, as it matters more and the files section can be long
+            builder.startObject(Fields.SIZE);
+            builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, totalBytes());
+            builder.byteSizeField(Fields.REUSED_IN_BYTES, Fields.REUSED, totalBytes());
+            builder.byteSizeField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, recoveredBytes());
+            builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredBytesPercent()));
+            builder.endObject();
 
             builder.startObject(Fields.FILES);
-            builder.field(Fields.TOTAL, totalFileCount);
-            builder.field(Fields.REUSED, reusedFileCount);
-            builder.field(Fields.RECOVERED, filesRecovered);
-            builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", percentFilesRecovered()));
-            if (detailed) {
+            builder.field(Fields.TOTAL, totalFileCount());
+            builder.field(Fields.REUSED, reusedFileCount());
+            builder.field(Fields.RECOVERED, recoveredFileCount());
+            builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", recoveredFilesPercent()));
+            if (params.paramAsBoolean("details", false)) {
                 builder.startArray(Fields.DETAILS);
-                for (File file : fileDetails) {
-                    file.toXContent(builder, params);
-                }
-                for (File file : reusedFileDetails) {
+                for (File file : fileDetails.values()) {
                     file.toXContent(builder, params);
                 }
                 builder.endArray();
             }
             builder.endObject();
-
-            builder.startObject(Fields.BYTES);
-            builder.field(Fields.TOTAL, totalByteCount);
-            builder.field(Fields.REUSED, reusedByteCount);
-            builder.field(Fields.RECOVERED, bytesRecovered);
-            builder.field(Fields.PERCENT, String.format(Locale.ROOT, "%1.1f%%", percentBytesRecovered()));
-            builder.endObject();
-            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time);
-
+            builder.timeValueField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, time());
+            builder.timeValueField(Fields.SOURCE_THROTTLE_TIME_IN_MILLIS, Fields.SOURCE_THROTTLE_TIME, sourceThrottling());
+            builder.timeValueField(Fields.TARGET_THROTTLE_TIME_IN_MILLIS, Fields.TARGET_THROTTLE_TIME, targetThrottling());
             return builder;
         }
 
         @Override
-        public String toString() {
+        public synchronized String toString() {
             try {
                 XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
                 builder.startObject();
@@ -816,6 +922,5 @@ public class RecoveryState implements ToXContent, Streamable {
                 return "{ \"error\" : \"" + e.getMessage() + "\"}";
             }
         }
-
     }
 }

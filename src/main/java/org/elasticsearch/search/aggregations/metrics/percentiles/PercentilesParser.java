@@ -28,6 +28,10 @@ import org.elasticsearch.search.internal.SearchContext;
  */
 public class PercentilesParser extends AbstractPercentilesParser {
 
+    public PercentilesParser() {
+        super(true);
+    }
+
     private final static double[] DEFAULT_PERCENTS = new double[] { 1, 5, 25, 50, 75, 95, 99 };
 
     @Override
@@ -35,10 +39,12 @@ public class PercentilesParser extends AbstractPercentilesParser {
         return InternalPercentiles.TYPE.name();
     }
 
+    @Override
     protected String keysFieldName() {
         return "percents";
     }
     
+    @Override
     protected AggregatorFactory buildFactory(SearchContext context, String aggregationName, ValuesSourceConfig<Numeric> valuesSourceConfig, double[] keys, double compression, boolean keyed) {
         if (keys == null) {
             keys = DEFAULT_PERCENTS;

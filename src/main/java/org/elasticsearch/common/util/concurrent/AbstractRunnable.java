@@ -31,6 +31,7 @@ public abstract class AbstractRunnable implements Runnable {
         return false;
     }
 
+    @Override
     public final void run() {
         try {
             doRun();
@@ -39,7 +40,17 @@ public abstract class AbstractRunnable implements Runnable {
             onFailure(ex);
         } catch (Throwable t) {
             onFailure(t);
+        } finally {
+            onAfter();
         }
+    }
+
+    /**
+     * This method is called in a finally block after successful execution
+     * or on a rejection.
+     */
+    public void onAfter() {
+        // nothing by default
     }
 
     /**

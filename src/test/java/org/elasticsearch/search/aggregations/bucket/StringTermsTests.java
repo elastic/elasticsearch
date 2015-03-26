@@ -19,6 +19,7 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import com.google.common.base.Strings;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -36,18 +37,32 @@ import org.elasticsearch.search.aggregations.metrics.stats.extended.ExtendedStat
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.text.NumberFormat;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.count;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.extendedStats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -58,15 +73,12 @@ import static org.hamcrest.core.IsNull.nullValue;
  *
  */
 @ElasticsearchIntegrationTest.SuiteScopeTest
-public class StringTermsTests extends ElasticsearchIntegrationTest {
+@TestLogging("org.elasticsearch.action.search:TRACE,org.elasticsearch.search:TRACE")
+public class StringTermsTests extends AbstractTermsTests {
 
     private static final String SINGLE_VALUED_FIELD_NAME = "s_value";
     private static final String MULTI_VALUED_FIELD_NAME = "s_values";
     private static Map<String, Map<String, Object>> expectedMultiSortBuckets;
-
-    public static String randomExecutionHint() {
-        return randomBoolean() ? null : randomFrom(ExecutionMode.values()).toString();
-    }
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
@@ -215,7 +227,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
     }
 
     private String key(Terms.Bucket bucket) {
-        return randomBoolean() ? bucket.getKey() : bucket.getKeyAsText().string();
+        return bucket.getKeyAsString();
     }
 
     @Test
@@ -248,18 +260,22 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
-        assertSearchResponse(response);System.out.println(response);
+        assertSearchResponse(response);
 
         Terms terms = response.getAggregations().get("terms");
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
         assertThat(terms.getBuckets().size(), equalTo(5));
+        Object[] propertiesKeys = (Object[]) terms.getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) terms.getProperty("_count");
 
         for (int i = 0; i < 5; i++) {
             Terms.Bucket bucket = terms.getBucketByKey("val" + i);
             assertThat(bucket, notNullValue());
             assertThat(key(bucket), equalTo("val" + i));
             assertThat(bucket.getDocCount(), equalTo(1l));
+            assertThat((String) propertiesKeys[i], equalTo("val" + i));
+            assertThat((long) propertiesDocCounts[i], equalTo(1l));
         }
     }
 
@@ -635,6 +651,9 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
         assertThat(terms, notNullValue());
         assertThat(terms.getName(), equalTo("terms"));
         assertThat(terms.getBuckets().size(), equalTo(5));
+        Object[] propertiesKeys = (Object[]) terms.getProperty("_key");
+        Object[] propertiesDocCounts = (Object[]) terms.getProperty("_count");
+        Object[] propertiesCounts = (Object[]) terms.getProperty("count.value");
 
         for (int i = 0; i < 5; i++) {
             Terms.Bucket bucket = terms.getBucketByKey("val" + i);
@@ -644,6 +663,9 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
             ValueCount valueCount = bucket.getAggregations().get("count");
             assertThat(valueCount, notNullValue());
             assertThat(valueCount.getValue(), equalTo(2l));
+            assertThat((String) propertiesKeys[i], equalTo("val" + i));
+            assertThat((long) propertiesDocCounts[i], equalTo(1l));
+            assertThat((double) propertiesCounts[i], equalTo(2.0));
         }
     }
 
@@ -729,6 +751,34 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                 .addAggregation(terms("terms")
                         .executionHint(randomExecutionHint())
                         .field(MULTI_VALUED_FIELD_NAME)
+                        .collectMode(randomFrom(SubAggCollectionMode.values())))
+                .execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(6));
+
+        for (int i = 0; i < 6; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("val" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("val" + i));
+            if (i == 0 || i == 5) {
+                assertThat(bucket.getDocCount(), equalTo(1l));
+            } else {
+                assertThat(bucket.getDocCount(), equalTo(2l));
+            }
+        }
+    }
+
+    @Test
+    public void multiValuedScript() throws Exception {
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHint())
+                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "']")
                         .collectMode(randomFrom(SubAggCollectionMode.values())))
                 .execute().actionGet();
 
@@ -916,7 +966,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .executionHint(randomExecutionHint())
-                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values"))
+                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "']"))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -944,7 +994,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
                 .addAggregation(terms("terms")
                         .collectMode(randomFrom(SubAggCollectionMode.values()))
                         .executionHint(randomExecutionHint())
-                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "'].values")
+                        .script("doc['" + MULTI_VALUED_FIELD_NAME + "']")
                         .subAggregation(count("count")))
                 .execute().actionGet();
 
@@ -1051,7 +1101,7 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(2l));
         Histogram histo = searchResponse.getAggregations().get("histo");
         assertThat(histo, Matchers.notNullValue());
-        Histogram.Bucket bucket = histo.getBucketByKey(1l);
+        Histogram.Bucket bucket = histo.getBuckets().get(1);
         assertThat(bucket, Matchers.notNullValue());
 
         Terms terms = bucket.getAggregations().get("terms");
@@ -1314,81 +1364,86 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void singleValuedField_OrderedByMissingSubAggregation() throws Exception {
-        try {
+        for (String index : Arrays.asList("idx", "idx_unmapped")) {
+            try {
+                client().prepareSearch(index).setTypes("type")
+                        .addAggregation(terms("terms")
+                                .executionHint(randomExecutionHint())
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .order(Terms.Order.aggregation("avg_i", true))
+                        ).execute().actionGet();
 
-            client().prepareSearch("idx").setTypes("type")
-                    .addAggregation(terms("terms")
-                            .executionHint(randomExecutionHint())
-                            .field(SINGLE_VALUED_FIELD_NAME)
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .order(Terms.Order.aggregation("avg_i", true))
-                    ).execute().actionGet();
+                fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation that doesn't exist");
 
-            fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation that doesn't exist");
-
-        } catch (ElasticsearchException e) {
-            // expected
+            } catch (ElasticsearchException e) {
+                // expected
+            }
         }
     }
 
     @Test
     public void singleValuedField_OrderedByNonMetricsOrMultiBucketSubAggregation() throws Exception {
-        try {
+        for (String index : Arrays.asList("idx", "idx_unmapped")) {
+            try {
+                client().prepareSearch(index).setTypes("type")
+                        .addAggregation(terms("terms")
+                                .executionHint(randomExecutionHint())
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .order(Terms.Order.aggregation("values", true))
+                                .subAggregation(terms("values").field("i")
+                                        .collectMode(randomFrom(SubAggCollectionMode.values())))
+                        ).execute().actionGet();
 
-            client().prepareSearch("idx").setTypes("type")
-                    .addAggregation(terms("terms")
-                            .executionHint(randomExecutionHint())
-                            .field(SINGLE_VALUED_FIELD_NAME)
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .order(Terms.Order.aggregation("values", true))
-                            .subAggregation(terms("values").field("i")
-                                    .collectMode(randomFrom(SubAggCollectionMode.values())))
-                    ).execute().actionGet();
+                fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation which is not of a metrics or single-bucket type");
 
-            fail("Expected search to fail when trying to sort terms aggregation by sug-aggregation which is not of a metrics or single-bucket type");
-
-        } catch (ElasticsearchException e) {
-            // expected
+            } catch (ElasticsearchException e) {
+                // expected
+            }
         }
     }
 
     @Test
     public void singleValuedField_OrderedByMultiValuedSubAggregation_WithUknownMetric() throws Exception {
-        try {
-            SearchResponse response = client().prepareSearch("idx").setTypes("type")
-                    .addAggregation(terms("terms")
-                            .executionHint(randomExecutionHint())
-                            .field(SINGLE_VALUED_FIELD_NAME)
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .order(Terms.Order.aggregation("stats.foo", true))
-                            .subAggregation(stats("stats").field("i"))
-                    ).execute().actionGet();
-            fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
-                    "with an unknown specified metric to order by. response had " + response.getFailedShards() + " failed shards.");
-
-        } catch (ElasticsearchException e) {
-            // expected
+        for (String index : Arrays.asList("idx", "idx_unmapped")) {
+            try {
+                SearchResponse response = client().prepareSearch(index).setTypes("type")
+                        .addAggregation(terms("terms")
+                                .executionHint(randomExecutionHint())
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .order(Terms.Order.aggregation("stats.foo", true))
+                                .subAggregation(stats("stats").field("i"))
+                        ).execute().actionGet();
+                fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
+                        "with an unknown specified metric to order by. response had " + response.getFailedShards() + " failed shards.");
+    
+            } catch (ElasticsearchException e) {
+                // expected
+            }
         }
     }
 
     @Test
     public void singleValuedField_OrderedByMultiValuedSubAggregation_WithoutMetric() throws Exception {
-        try {
-
-            client().prepareSearch("idx").setTypes("type")
-                    .addAggregation(terms("terms")
-                            .executionHint(randomExecutionHint())
-                            .field(SINGLE_VALUED_FIELD_NAME)
-                            .collectMode(randomFrom(SubAggCollectionMode.values()))
-                            .order(Terms.Order.aggregation("stats", true))
-                            .subAggregation(stats("stats").field("i"))
-                    ).execute().actionGet();
-
-            fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
-                    "where the metric name is not specified");
-
-        } catch (ElasticsearchException e) {
-            // expected
+        for (String index : Arrays.asList("idx", "idx_unmapped")) {
+            try {
+                client().prepareSearch(index).setTypes("type")
+                        .addAggregation(terms("terms")
+                                .executionHint(randomExecutionHint())
+                                .field(SINGLE_VALUED_FIELD_NAME)
+                                .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                .order(Terms.Order.aggregation("stats", true))
+                                .subAggregation(stats("stats").field("i"))
+                        ).execute().actionGet();
+    
+                fail("Expected search to fail when trying to sort terms aggregation by multi-valued sug-aggregation " +
+                        "where the metric name is not specified");
+    
+            } catch (ElasticsearchException e) {
+                // expected
+            }
         }
     }
 
@@ -1677,5 +1732,10 @@ public class StringTermsTests extends ElasticsearchIntegrationTest {
         assertSearchResponse(response);
         terms = response.getAggregations().get("terms");
         assertEquals(5L, terms.getBucketByKey("i").getDocCount());
+    }
+
+    @Test
+    public void otherDocCount() {
+        testOtherDocCount(SINGLE_VALUED_FIELD_NAME, MULTI_VALUED_FIELD_NAME);
     }
 }

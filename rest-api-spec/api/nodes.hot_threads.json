@@ -1,6 +1,6 @@
 {
   "nodes.hot_threads": {
-    "documentation": "http://www.elasticsearch.org/guide/en/elasticsearch/reference/master/cluster-nodes-hot-threads.html",
+    "documentation": "http://www.elastic.co/guide/en/elasticsearch/reference/master/cluster-nodes-hot-threads.html",
     "methods": ["GET"],
     "url": {
       "path": "/_nodes/hot_threads",
@@ -23,6 +23,10 @@
         "threads": {
           "type" : "number",
           "description" : "Specify the number of threads to provide information for (default: 3)"
+        },
+	"ignore_idle_threads": {
+          "type" : "boolean",
+          "description" : "Don't show threads that are in known-idle places, such as waiting on a socket select or pulling from an empty task queue (default: true)"
         },
         "type": {
           "type" : "enum",

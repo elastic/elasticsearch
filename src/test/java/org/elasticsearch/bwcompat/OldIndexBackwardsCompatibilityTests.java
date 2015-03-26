@@ -116,7 +116,9 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         assertBasicSearchWorks();
         assertRealtimeGetWorks();
         assertNewReplicasWork();
-        assertUpgradeWorks(isLatestLuceneVersion(index));
+        Version version = extractVersion(index);
+        assertUpgradeWorks(isLatestLuceneVersion(version));
+        assertDeleteByQueryWorked(version);
         unloadIndex();
     }
     
@@ -124,8 +126,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         return Version.fromString(index.substring(index.indexOf('-') + 1, index.lastIndexOf('.')));
     }
     
-    boolean isLatestLuceneVersion(String index) {
-        Version version = extractVersion(index);
+    boolean isLatestLuceneVersion(Version version) {
         return version.luceneVersion.major == Version.CURRENT.luceneVersion.major &&
                version.luceneVersion.minor == Version.CURRENT.luceneVersion.minor;
     }
@@ -185,6 +186,16 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
             .put("number_of_replicas", 0))
             .execute().actionGet());
         waitNoPendingTasksOnAll(); // make sure the replicas are removed before going on
+    }
+
+    // #10067: create-bwc-index.py deleted any doc with long_sort:[10-20]
+    void assertDeleteByQueryWorked(Version version) throws Exception {
+        if (version.onOrBefore(Version.V_1_0_0_Beta2)) {
+            // TODO: remove this once #10262 is fixed
+            return;
+        }
+        SearchRequestBuilder searchReq = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("long_sort:[10 TO 20]"));
+        assertEquals(0, searchReq.get().getHits().getTotalHits());
     }
     
     void assertUpgradeWorks(boolean alreadyLatest) throws Exception {

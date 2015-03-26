@@ -69,6 +69,34 @@ def index_documents(es, index_name, type, num_docs):
   logging.info('Flushing index')
   es.indices.flush(index=index_name)
 
+def delete_by_query(es, version, index_name, doc_type):
+
+  logging.info('Deleting long_sort:[10..20] docs')
+
+  query = {'query':
+           {'range':
+            {'long_sort':
+             {'gte': 10,
+              'lte': 20}}}}
+
+  if version.startswith('0.90.') or version in ('1.0.0.Beta1', '1.0.0.Beta2'):
+    # TODO #10262: we can't write DBQ into the translog for these old versions until we fix this back-compat bug:
+
+    # #4074: these versions don't expect to see the top-level 'query' to count/delete_by_query:
+    query = query['query']
+    return
+
+  deleted_count = es.count(index=index_name, doc_type=doc_type, body=query)['count']
+    
+  result = es.delete_by_query(index=index_name,
+                              doc_type=doc_type,
+                              body=query)
+
+  # make sure no shards failed:
+  assert result['_indices'][index_name]['_shards']['failed'] == 0, 'delete by query failed: %s' % result
+
+  logging.info('Deleted %d docs' % deleted_count)
+
 def run_basic_asserts(es, index_name, type, num_docs):
   count = es.count(index=index_name)['count']
   assert count == num_docs, 'Expected %r but got %r documents' % (num_docs, count)
@@ -150,7 +178,7 @@ def generate_index(client, version):
       }
     }
     # completion type was added in 0.90.3
-    if not version in ['0.90.0.Beta1', '0.90.0.RC1', '0.90.0.RC2', '0.90.0', '0.90.1', '0.90.2']:
+    if version not in ['0.90.0.Beta1', '0.90.0.RC1', '0.90.0.RC2', '0.90.0', '0.90.1', '0.90.2']:
       mappings['analyzer_type1']['properties']['completion_with_index_analyzer'] = {
         'type': 'completion',
         'index_analyzer': 'standard'
@@ -312,6 +340,12 @@ def main():
     generate_index(client, cfg.version)
     if cfg.snapshot_supported:
       snapshot_index(client, cfg)
+
+    # 10067: get a delete-by-query into the translog on upgrade.  We must do
+    # this after the snapshot, because it calls flush.  Otherwise the index
+    # will already have the deletions applied on upgrade.
+    delete_by_query(client, cfg.version, 'test', 'doc')
+    
   finally:
     if 'node' in vars():
       logging.info('Shutting down node with pid %d', node.pid)

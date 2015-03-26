@@ -16,20 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.rest.RestStatus;
+package org.elasticsearch.script;
+
+import java.util.Locale;
 
 /**
+ * Operation/api that uses a script as part of its execution.
+ * Note that the suggest api is considered part of search for simplicity, as well as the percolate api.
  */
-public class StrictDynamicMappingException extends MapperParsingException {
-
-    public StrictDynamicMappingException(String path, String fieldName, boolean mappingsModified) {
-        super("mapping set to strict, dynamic introduction of [" + fieldName + "] within [" + path + "] is not allowed", mappingsModified);
-    }
+public enum ScriptContext {
+    MAPPING,
+    UPDATE,
+    SEARCH,
+    AGGS;
 
     @Override
-    public RestStatus status() {
-        return RestStatus.BAD_REQUEST;
+    public String toString() {
+        return name().toLowerCase(Locale.ROOT);
     }
 }

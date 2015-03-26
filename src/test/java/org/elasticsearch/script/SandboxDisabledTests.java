@@ -19,13 +19,14 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Test that a system where the sandbox is disabled while dynamic scripting is
@@ -38,8 +39,7 @@ public class SandboxDisabledTests extends ElasticsearchIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, false)
-                .put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, true)
-                .build();
+                .put("script.inline", false).build();
     }
 
     @Test
@@ -51,8 +51,7 @@ public class SandboxDisabledTests extends ElasticsearchIntegrationTest {
                             "\"sort\":{\"_script\": {\"script\": \"doc['foo'].value + 2\", \"type\": \"number\", \"lang\": \"groovy\"}}}").get();
             fail("shards should fail because the sandbox and dynamic scripting are disabled");
         } catch (Exception e) {
-            assertThat(e.getMessage().contains("dynamic scripting for [groovy] disabled"), equalTo(true));
+            assertThat(ExceptionsHelper.detailedMessage(e), containsString("scripts of type [inline], operation [search] and lang [groovy] are disabled"));
         }
     }
-
 }

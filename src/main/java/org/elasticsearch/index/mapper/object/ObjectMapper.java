@@ -499,7 +499,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         if (token.isValue() && !allowValue()) {
             // if we are parsing an object but it is just a value, its only allowed on root level parsers with there
             // is a field name with the same name as the type
-            throw new MapperParsingException("object mapping for [" + name + "] tried to parse field [" + currentFieldName + "] as object, but found a concrete value");
+            throw new MapperParsingException("object mapping for [" + name + "] tried to parse field [" + currentFieldName + "] as object, but found a concrete value", context.mappingsModified());
         }
 
         if (nested.isNested()) {
@@ -543,7 +543,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 serializeNullValue(context, currentFieldName);
             } else if (token == null) {
-                throw new MapperParsingException("object mapping for [" + name + "] tried to parse field [" + currentFieldName + "] as object, but got EOF, has a concrete value been provided to it?");
+                throw new MapperParsingException("object mapping for [" + name + "] tried to parse field [" + currentFieldName + "] as object, but got EOF, has a concrete value been provided to it?", context.mappingsModified());
             } else if (token.isValue()) {
                 serializeValue(context, currentFieldName, token);
             }
@@ -585,18 +585,18 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
         if (mapper != null) {
             if (mapper instanceof FieldMapper) {
                 if (!((FieldMapper) mapper).supportsNullValue()) {
-                    throw new MapperParsingException("no object mapping found for null value in [" + lastFieldName + "]");
+                    throw new MapperParsingException("no object mapping found for null value in [" + lastFieldName + "]", context.mappingsModified());
                 }
             }
             mapper.parse(context);
         } else if (dynamic == Dynamic.STRICT) {
-            throw new StrictDynamicMappingException(fullPath, lastFieldName);
+            throw new StrictDynamicMappingException(fullPath, lastFieldName, context.mappingsModified());
         }
     }
 
     private void serializeObject(final ParseContext context, String currentFieldName) throws IOException {
         if (currentFieldName == null) {
-            throw new MapperParsingException("object mapping [" + name + "] trying to serialize an object with no field associated with it, current value [" + context.parser().textOrNull() + "]");
+            throw new MapperParsingException("object mapping [" + name + "] trying to serialize an object with no field associated with it, current value [" + context.parser().textOrNull() + "]", context.mappingsModified());
         }
         context.path().add(currentFieldName);
 
@@ -609,7 +609,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 dynamic = context.root().dynamic();
             }
             if (dynamic == Dynamic.STRICT) {
-                throw new StrictDynamicMappingException(fullPath, currentFieldName);
+                throw new StrictDynamicMappingException(fullPath, currentFieldName, context.mappingsModified());
             } else if (dynamic == Dynamic.TRUE) {
                 // we sync here just so we won't add it twice. Its not the end of the world
                 // to sync here since next operations will get it before
@@ -661,7 +661,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
                 dynamic = context.root().dynamic();
             }
             if (dynamic == Dynamic.STRICT) {
-                throw new StrictDynamicMappingException(fullPath, arrayFieldName);
+                throw new StrictDynamicMappingException(fullPath, arrayFieldName, context.mappingsModified());
             } else if (dynamic == Dynamic.TRUE) {
                 // we sync here just so we won't add it twice. Its not the end of the world
                 // to sync here since next operations will get it before
@@ -741,7 +741,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 serializeNullValue(context, lastFieldName);
             } else if (token == null) {
-                throw new MapperParsingException("object mapping for [" + name + "] with array for [" + arrayFieldName + "] tried to parse as array, but got EOF, is there a mismatch in types for the same field?");
+                throw new MapperParsingException("object mapping for [" + name + "] with array for [" + arrayFieldName + "] tried to parse as array, but got EOF, is there a mismatch in types for the same field?", context.mappingsModified());
             } else {
                 serializeValue(context, lastFieldName, token);
             }
@@ -750,7 +750,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
 
     private void serializeValue(final ParseContext context, String currentFieldName, XContentParser.Token token) throws IOException {
         if (currentFieldName == null) {
-            throw new MapperParsingException("object mapping [" + name + "] trying to serialize a value with no field associated with it, current value [" + context.parser().textOrNull() + "]");
+            throw new MapperParsingException("object mapping [" + name + "] trying to serialize a value with no field associated with it, current value [" + context.parser().textOrNull() + "]", context.mappingsModified());
         }
         Mapper mapper = mappers.get(currentFieldName);
         if (mapper != null) {
@@ -766,7 +766,7 @@ public class ObjectMapper implements Mapper, AllFieldMapper.IncludeInAll {
             dynamic = context.root().dynamic();
         }
         if (dynamic == Dynamic.STRICT) {
-            throw new StrictDynamicMappingException(fullPath, currentFieldName);
+            throw new StrictDynamicMappingException(fullPath, currentFieldName, context.mappingsModified());
         }
         if (dynamic == Dynamic.FALSE) {
             return;

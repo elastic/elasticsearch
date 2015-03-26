@@ -135,7 +135,6 @@ def start_node(version, release_dir, data_dir, tcp_port, http_port):
     '-Des.cluster.name=bwc_index_' + version,  
     '-Des.network.host=localhost', 
     '-Des.discovery.zen.ping.multicast.enabled=false',
-    '-Des.script.disable_dynamic=true',
     '-Des.transport.tcp.port=%s' % tcp_port,
     '-Des.http.port=%s' % http_port
   ]

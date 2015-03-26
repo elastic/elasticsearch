@@ -185,54 +185,6 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testDisableDynamicDeprecatedSetting() throws IOException {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder();
-        ScriptService.DynamicScriptDisabling dynamicScriptDisabling = randomFrom(ScriptService.DynamicScriptDisabling.values());
-        switch(dynamicScriptDisabling) {
-            case EVERYTHING_ALLOWED:
-                builder.put("script.disable_dynamic", randomFrom("false", "none"));
-                break;
-            case ONLY_DISK_ALLOWED:
-                builder.put("script.disable_dynamic", randomFrom("true", "all"));
-                break;
-            case SANDBOXED_ONLY:
-                builder.put("script.disable_dynamic", randomFrom("sandbox", "sandboxed"));
-                break;
-        }
-
-        buildScriptService(builder.build());
-        createFileScripts("groovy", "expression", "mustache", "test");
-
-        for (ScriptContext scriptContext : ScriptContext.values()) {
-            for (ScriptEngineService scriptEngineService : scriptEngineServices) {
-                for (String lang : scriptEngineService.types()) {
-                    assertCompileAccepted(lang, "file_script", ScriptType.FILE, scriptContext);
-
-                    switch (dynamicScriptDisabling) {
-                        case EVERYTHING_ALLOWED:
-                            assertCompileAccepted(lang, "script", ScriptType.INDEXED, scriptContext);
-                            assertCompileAccepted(lang, "script", ScriptType.INLINE, scriptContext);
-                            break;
-                        case ONLY_DISK_ALLOWED:
-                            assertCompileRejected(lang, "script", ScriptType.INDEXED, scriptContext);
-                            assertCompileRejected(lang, "script", ScriptType.INLINE, scriptContext);
-                            break;
-                        case SANDBOXED_ONLY:
-                            if (scriptEngineService.sandboxed()) {
-                                assertCompileAccepted(lang, "script", ScriptType.INDEXED, scriptContext);
-                                assertCompileAccepted(lang, "script", ScriptType.INLINE, scriptContext);
-                            } else {
-                                assertCompileRejected(lang, "script", ScriptType.INDEXED, scriptContext);
-                                assertCompileRejected(lang, "script", ScriptType.INLINE, scriptContext);
-                            }
-                            break;
-                    }
-                }
-            }
-        }
-    }
-
-    @Test
     public void testFineGrainedSettings() throws IOException {
         //collect the fine-grained settings to set for this run
         int numScriptSettings = randomIntBetween(0, ScriptType.values().length);
@@ -324,7 +276,6 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                 for (ScriptContext scriptContext : ScriptContext.values()) {
                     //fallback mechanism: 1) engine specific settings 2) op based settings 3) source based settings
                     ScriptMode scriptMode = engineSettings.get(scriptEngineService.types()[0] + "." + scriptType + "." + scriptContext);
-                    ;
                     if (scriptMode == null) {
                         scriptMode = scriptContextSettings.get(scriptContext);
                     }

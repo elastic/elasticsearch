@@ -82,7 +82,6 @@ import java.util.concurrent.TimeUnit;
 public class ScriptService extends AbstractComponent implements Closeable {
 
     public static final String DEFAULT_SCRIPTING_LANGUAGE_SETTING = "script.default_lang";
-    public static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
     public static final String SCRIPT_CACHE_SIZE_SETTING = "script.cache.max_size";
     public static final String SCRIPT_CACHE_EXPIRE_SETTING = "script.cache.expire";
     public static final String SCRIPT_INDEX = ".scripts";
@@ -104,37 +103,6 @@ public class ScriptService extends AbstractComponent implements Closeable {
     private final ScriptModes scriptModes;
 
     private Client client = null;
-
-    /**
-     * Enum defining the different dynamic settings for scripting, either
-     * ONLY_DISK_ALLOWED (scripts must be placed on disk), EVERYTHING_ALLOWED
-     * (all dynamic scripting is enabled), or SANDBOXED_ONLY (only sandboxed
-     * scripting languages are allowed)
-     */
-    enum DynamicScriptDisabling {
-        EVERYTHING_ALLOWED,
-        ONLY_DISK_ALLOWED,
-        SANDBOXED_ONLY;
-
-        static DynamicScriptDisabling parse(String s) {
-            switch (s.toLowerCase(Locale.ROOT)) {
-                // true for "disable_dynamic" means only on-disk scripts are enabled
-                case "true":
-                case "all":
-                    return ONLY_DISK_ALLOWED;
-                // false for "disable_dynamic" means all scripts are enabled
-                case "false":
-                case "none":
-                    return EVERYTHING_ALLOWED;
-                // only sandboxed scripting is enabled
-                case "sandbox":
-                case "sandboxed":
-                    return SANDBOXED_ONLY;
-                default:
-                    throw new ElasticsearchIllegalArgumentException("Unrecognized script allowance setting: [" + s + "]");
-            }
-        }
-    }
 
     public static final ParseField SCRIPT_LANG = new ParseField("lang","script_lang");
     public static final ParseField SCRIPT_FILE = new ParseField("script_file");
@@ -175,7 +143,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         this.scriptEnginesByLang = enginesByLangBuilder.build();
         this.scriptEnginesByExt = enginesByExtBuilder.build();
 
-        this.scriptModes = new ScriptModes(this.scriptEnginesByLang, settings, logger);
+        this.scriptModes = new ScriptModes(this.scriptEnginesByLang, settings);
 
         // add file watcher for static scripts
         scriptsDirectory = env.configFile().resolve("scripts");

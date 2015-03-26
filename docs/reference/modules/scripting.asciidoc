@@ -246,8 +246,6 @@ application inbetween. If you *do* intend to expose Elasticsearch directly to
 your users, then you have to decide whether you trust them enough to run scripts
 on your box or not.
 
-deprecated[1.6.0, the `script.disable_dynamic` setting is deprecated in favour of fine-grained settings described as follows]
-
 It is possible to enable scripts based on their source, for
 every script engine, through the following settings that need to be added to the
 `config/elasticsearch.yml` file on every node.

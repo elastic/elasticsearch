@@ -409,7 +409,39 @@
         </testResources>
 
         <plugins>
-            <plugin>
+          <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>1.4.0</version>
+            <executions>
+              <execution>
+                <phase>exec</phase>
+                <goals>
+                  <goal>exec</goal>
+                </goals>
+              </execution>
+            </executions>
+            <configuration>
+              <executable>java</executable>
+              <arguments>
+                <argument>-classpath</argument>
+                <classpath/>
+                <argument>org.elasticsearch.bootstrap.Bootstrap</argument>
+                <argument>-Xms256m</argument>
+                <argument>-Xmx1g</argument>
+                <argument>-Djava.awt.headless=true</argument>
+                <argument>-XX:+UseParNewGC</argument>
+                <argument>-XX:+UseConcMarkSweepGC</argument>
+                <argument>-XX:CMSInitiatingOccupancyFraction=75</argument>
+                <argument>-XX:+UseCMSInitiatingOccupancyOnly</argument>
+                <argument>-XX:+HeapDumpOnOutOfMemoryError</argument>
+                <argument>-XX:+DisableExplicitGC</argument>
+                <argument>-Dfile.encoding=UTF-8</argument>
+                <argument>-Delasticsearch</argument>
+              </arguments>
+            </configuration>
+          </plugin>
+          <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-enforcer-plugin</artifactId>
                 <version>1.3.1</version>

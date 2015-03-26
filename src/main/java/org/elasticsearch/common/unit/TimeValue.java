@@ -268,6 +268,9 @@ public class TimeValue implements Serializable, Streamable {
         return timeValue;
     }
 
+    /**
+     * serialization converts TimeValue internally to NANOSECONDS
+     */
     @Override
     public void readFrom(StreamInput in) throws IOException {
         duration = in.readLong();
@@ -285,17 +288,12 @@ public class TimeValue implements Serializable, Streamable {
         if (o == null || getClass() != o.getClass()) return false;
 
         TimeValue timeValue = (TimeValue) o;
-
-        if (duration != timeValue.duration) return false;
-        if (timeUnit != timeValue.timeUnit) return false;
-
-        return true;
+        return timeUnit.toNanos(duration) == timeValue.timeUnit.toNanos(timeValue.duration);
     }
 
     @Override
     public int hashCode() {
-        int result = (int) (duration ^ (duration >>> 32));
-        result = 31 * result + (timeUnit != null ? timeUnit.hashCode() : 0);
-        return result;
+        long normalized = timeUnit.toNanos(duration);
+        return (int) (normalized ^ (normalized >>> 32));
     }
 }

@@ -40,6 +40,7 @@ public class AggregatorFactories {
 
     public static final AggregatorFactories EMPTY = new Empty();
 
+    private AggregatorFactory parent;
     private AggregatorFactory[] factories;
     private List<ReducerFactory> reducerFactories;
 
@@ -101,6 +102,7 @@ public class AggregatorFactories {
     }
 
     void setParent(AggregatorFactory parent) {
+        this.parent = parent;
         for (AggregatorFactory factory : factories) {
             factory.parent = parent;
         }
@@ -111,7 +113,7 @@ public class AggregatorFactories {
             factory.validate();
         }
         for (ReducerFactory factory : reducerFactories) {
-            factory.validate();
+            factory.validate(parent, factories, reducerFactories);
         }
     }
 

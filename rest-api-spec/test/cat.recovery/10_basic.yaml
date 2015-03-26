@@ -42,6 +42,9 @@
                 \d+\.\d+%   \s+                                 # bytes_percent
                 \d+         \s+                                 # total_files
                 \d+         \s+                                 # total_bytes
+                \d+         \s+                                 # translog
+                -?\d+\.\d+% \s+                                 # translog_percent
+                -?\d+       \s+                                 # total_translog
                 \n
               )+
               $/

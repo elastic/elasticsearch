@@ -36,7 +36,7 @@ import java.util.Map;
 /**
  *
  */
-public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucket> {
+public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucket, InternalGeoDistance> {
 
     public static final Type TYPE = new Type("geo_distance", "gdist");
 
@@ -101,7 +101,7 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
     }
 
-    private static class Factory extends InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> {
+    public static class Factory extends InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> {
 
         @Override
         public String type() {
@@ -115,8 +115,20 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
         }
 
         @Override
+        public InternalGeoDistance create(List<Bucket> ranges, InternalGeoDistance prototype) {
+            return new InternalGeoDistance(prototype.name, ranges, prototype.formatter, prototype.keyed, prototype.reducers(),
+                    prototype.metaData);
+        }
+
+        @Override
         public Bucket createBucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed, @Nullable ValueFormatter formatter) {
             return new Bucket(key, from, to, docCount, aggregations, keyed, formatter);
+        }
+
+        @Override
+        public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
+            return new Bucket(prototype.getKey(), ((Number) prototype.getFrom()).doubleValue(), ((Number) prototype.getTo()).doubleValue(),
+                    prototype.getDocCount(), aggregations, prototype.getKeyed(), prototype.getFormatter());
         }
     }
 
@@ -133,7 +145,7 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
     }
 
     @Override
-    protected InternalRange.Factory<Bucket, ?> getFactory() {
+    public InternalRange.Factory<Bucket, InternalGeoDistance> getFactory() {
         return FACTORY;
     }
 }

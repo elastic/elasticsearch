@@ -380,7 +380,11 @@ public class Node implements Releasable {
         }
 
         stopWatch.stop().start("script");
-        injector.getInstance(ScriptService.class).close();
+        try {
+            injector.getInstance(ScriptService.class).close();
+        } catch(IOException e) {
+            logger.warn("ScriptService close failed", e);
+        }
 
         stopWatch.stop().start("thread_pool");
         // TODO this should really use ThreadPool.terminate()

@@ -343,19 +343,33 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
 
         // we don't need to test the time aspect, it's done in the timer test
         translog.start();
-        assertThat(translog.currentTranslogOperations(), equalTo(0));
+        assertThat(translog.recoveredOperations(), equalTo(0));
+        assertThat(translog.totalOperations(), equalTo(Translog.UNKNOWN));
+        assertThat(translog.totalOperationsOnStart(), equalTo(Translog.UNKNOWN));
         streamer.start();
         // force one
         streamer.serializeDeserialize();
         int ops = 0;
+        int totalOps = 0;
+        int totalOpsOnStart = randomIntBetween(10, 200);
+        translog.totalOperationsOnStart(totalOpsOnStart);
         for (int i = scaledRandomIntBetween(10, 200); i > 0; i--) {
-            for (int j = randomIntBetween(1, 10); j > 0; j--) {
+            final int iterationOps = randomIntBetween(1, 10);
+            totalOps += iterationOps;
+            translog.totalOperations(totalOps);
+            assertThat((double) translog.recoveredPercent(), closeTo(100.0 * ops / totalOps, 0.1));
+            for (int j = iterationOps; j > 0; j--) {
                 ops++;
-                translog.incrementTranslogOperations();
+                translog.incrementRecoveredOperations();
             }
-            assertThat(translog.currentTranslogOperations(), equalTo(ops));
-            assertThat(streamer.lastRead().currentTranslogOperations(), greaterThanOrEqualTo(0));
-            assertThat(streamer.lastRead().currentTranslogOperations(), lessThanOrEqualTo(ops));
+            assertThat(translog.recoveredOperations(), equalTo(ops));
+            assertThat(translog.totalOperations(), equalTo(totalOps));
+            assertThat(translog.recoveredPercent(), equalTo(100.f));
+            assertThat(streamer.lastRead().recoveredOperations(), greaterThanOrEqualTo(0));
+            assertThat(streamer.lastRead().recoveredOperations(), lessThanOrEqualTo(ops));
+            assertThat(streamer.lastRead().totalOperations(), lessThanOrEqualTo(totalOps));
+            assertThat(streamer.lastRead().totalOperationsOnStart(), lessThanOrEqualTo(totalOpsOnStart));
+            assertThat(streamer.lastRead().recoveredPercent(), either(greaterThanOrEqualTo(0.f)).or(equalTo(-1.f)));
         }
 
         boolean stopped = false;
@@ -367,13 +381,19 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
         if (randomBoolean()) {
             translog.reset();
             ops = 0;
-            assertThat(translog.currentTranslogOperations(), equalTo(0));
+            totalOps = Translog.UNKNOWN;
+            totalOpsOnStart = Translog.UNKNOWN;
+            assertThat(translog.recoveredOperations(), equalTo(0));
+            assertThat(translog.totalOperationsOnStart(), equalTo(Translog.UNKNOWN));
+            assertThat(translog.totalOperations(), equalTo(Translog.UNKNOWN));
         }
 
         stop.set(true);
         streamer.join();
         final Translog lastRead = streamer.lastRead();
-        assertThat(lastRead.currentTranslogOperations(), equalTo(ops));
+        assertThat(lastRead.recoveredOperations(), equalTo(ops));
+        assertThat(lastRead.totalOperations(), equalTo(totalOps));
+        assertThat(lastRead.totalOperationsOnStart(), equalTo(totalOpsOnStart));
         assertThat(lastRead.startTime(), equalTo(translog.startTime()));
         assertThat(lastRead.stopTime(), equalTo(translog.stopTime()));
 

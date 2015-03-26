@@ -19,6 +19,7 @@
 
 package org.elasticsearch.discovery.zen;
 
+import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -29,7 +30,7 @@ import java.util.LinkedList;
 import java.util.Queue;
 
 import static org.elasticsearch.discovery.zen.ZenDiscovery.ProcessClusterState;
-import static org.elasticsearch.discovery.zen.ZenDiscovery.shouldIgnoreNewClusterState;
+import static org.elasticsearch.discovery.zen.ZenDiscovery.shouldIgnoreOrRejectNewClusterState;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsNull.nullValue;
 
@@ -52,13 +53,13 @@ public class ZenDiscoveryUnitTest extends ElasticsearchTestCase {
 
         currentState.version(2);
         newState.version(1);
-        assertTrue("should ignore, because new state's version is lower to current state's version", shouldIgnoreNewClusterState(logger, currentState.build(), newState.build()));
+        assertTrue("should ignore, because new state's version is lower to current state's version", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
         currentState.version(1);
         newState.version(1);
-        assertFalse("should not ignore, because new state's version is equal to current state's version", shouldIgnoreNewClusterState(logger, currentState.build(), newState.build()));
+        assertFalse("should not ignore, because new state's version is equal to current state's version", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
         currentState.version(1);
         newState.version(2);
-        assertFalse("should not ignore, because new state's version is higher to current state's version", shouldIgnoreNewClusterState(logger, currentState.build(), newState.build()));
+        assertFalse("should not ignore, because new state's version is higher to current state's version", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
 
         currentNodes = DiscoveryNodes.builder();
         currentNodes.masterNodeId("b");
@@ -71,7 +72,12 @@ public class ZenDiscoveryUnitTest extends ElasticsearchTestCase {
             newState.version(2);
         }
         currentState.nodes(currentNodes);
-        assertTrue("should ignore, because current state's master is not equal to new state's master", shouldIgnoreNewClusterState(logger, currentState.build(), newState.build()));
+        try {
+            shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build());
+            fail("should ignore, because current state's master is not equal to new state's master");
+        } catch (ElasticsearchIllegalStateException e) {
+            assertThat(e.getMessage(), containsString("cluster state from a different master then the current one, rejecting"));
+        }
 
         currentNodes = DiscoveryNodes.builder();
         currentNodes.masterNodeId(null);
@@ -84,7 +90,7 @@ public class ZenDiscoveryUnitTest extends ElasticsearchTestCase {
             currentState.version(1);
             newState.version(2);
         }
-        assertFalse("should not ignore, because current state doesn't have a master", shouldIgnoreNewClusterState(logger, currentState.build(), newState.build()));
+        assertFalse("should not ignore, because current state doesn't have a master", shouldIgnoreOrRejectNewClusterState(logger, currentState.build(), newState.build()));
     }
 
     public void testSelectNextStateToProcess_empty() {

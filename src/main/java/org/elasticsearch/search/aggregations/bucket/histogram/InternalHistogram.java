@@ -52,7 +52,8 @@ import java.util.Map;
 /**
  * TODO should be renamed to InternalNumericHistogram (see comment on {@link Histogram})?
  */
-public class InternalHistogram<B extends InternalHistogram.Bucket> extends InternalMultiBucketAggregation implements Histogram {
+public class InternalHistogram<B extends InternalHistogram.Bucket> extends InternalMultiBucketAggregation<InternalHistogram, B> implements
+        Histogram {
 
     final static Type TYPE = new Type("histogram", "histo");
 
@@ -233,7 +234,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     }
 
-    public static class Factory<B extends InternalHistogram.Bucket> {
+    public static class Factory<B extends InternalHistogram.Bucket> extends InternalMultiBucketAggregation.Factory<InternalHistogram<B>, B> {
 
         protected Factory() {
         }
@@ -248,9 +249,15 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
             return new InternalHistogram<>(name, buckets, order, minDocCount, emptyBucketInfo, formatter, keyed, this, reducers, metaData);
         }
 
-        public InternalHistogram<B> create(String name, List<B> buckets, InternalHistogram prototype) {
-            return new InternalHistogram<>(name, buckets, prototype.order, prototype.minDocCount, prototype.emptyBucketInfo,
+        @Override
+        public InternalHistogram<B> create(List<B> buckets, InternalHistogram<B> prototype) {
+            return new InternalHistogram<>(prototype.name, buckets, prototype.order, prototype.minDocCount, prototype.emptyBucketInfo,
                     prototype.formatter, prototype.keyed, this, prototype.reducers(), prototype.metaData);
+        }
+
+        @Override
+        public B createBucket(InternalAggregations aggregations, B prototype) {
+            return (B) new Bucket(prototype.key, prototype.docCount, prototype.getKeyed(), prototype.formatter, this, aggregations);
         }
 
         public B createBucket(Object key, long docCount, InternalAggregations aggregations, boolean keyed,
@@ -304,6 +311,16 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     public Factory<B> getFactory() {
         return factory;
+    }
+
+    @Override
+    public InternalHistogram<B> create(List<B> buckets) {
+        return getFactory().create(buckets, this);
+    }
+
+    @Override
+    public B createBucket(InternalAggregations aggregations, B prototype) {
+        return getFactory().createBucket(aggregations, prototype);
     }
 
     private static class IteratorAndCurrent<B> {

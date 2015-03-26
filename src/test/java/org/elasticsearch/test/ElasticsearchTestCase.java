@@ -241,7 +241,7 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
         Requests.INDEX_CONTENT_TYPE = randomXContentType();
     }
 
-    private static XContentType randomXContentType() {
+    public static XContentType randomXContentType() {
         return randomFrom(XContentType.values());
     }
 

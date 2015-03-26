@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket.significant;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -41,7 +42,7 @@ import java.util.Map;
 /**
  *
  */
-public class SignificantLongTerms extends InternalSignificantTerms {
+public class SignificantLongTerms extends InternalSignificantTerms<SignificantLongTerms, SignificantLongTerms.Bucket> {
 
     public static final Type TYPE = new Type("significant_terms", "siglterms");
 
@@ -97,6 +98,11 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             this.term = term;
         }
 
+        public Bucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize, long term, InternalAggregations aggregations, double score) {
+            this(subsetDf, subsetSize, supersetDf, supersetSize, term, aggregations, null);
+            this.score = score;
+        }
+
         @Override
         public Object getKey() {
             return term;
@@ -127,7 +133,9 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             subsetDf = in.readVLong();
             supersetDf = in.readVLong();
             term = in.readLong();
+            score = in.readDouble();
             aggregations = InternalAggregations.readAggregations(in);
+
         }
 
         @Override
@@ -135,6 +143,7 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             out.writeVLong(subsetDf);
             out.writeVLong(supersetDf);
             out.writeLong(term);
+            out.writeDouble(getSignificanceScore());
             aggregations.writeTo(out);
         }
 
@@ -153,15 +162,13 @@ public class SignificantLongTerms extends InternalSignificantTerms {
             return builder;
         }
     }
-
     private ValueFormatter formatter;
 
     SignificantLongTerms() {
     } // for serialization
 
-    public SignificantLongTerms(long subsetSize, long supersetSize, String name, @Nullable ValueFormatter formatter,
- int requiredSize,
-            long minDocCount, SignificanceHeuristic significanceHeuristic, List<InternalSignificantTerms.Bucket> buckets,
+    public SignificantLongTerms(long subsetSize, long supersetSize, String name, @Nullable ValueFormatter formatter, int requiredSize,
+            long minDocCount, SignificanceHeuristic significanceHeuristic, List<? extends InternalSignificantTerms.Bucket> buckets,
             List<Reducer> reducers, Map<String, Object> metaData) {
 
         super(subsetSize, supersetSize, name, requiredSize, minDocCount, significanceHeuristic, buckets, reducers, metaData);
@@ -174,10 +181,24 @@ public class SignificantLongTerms extends InternalSignificantTerms {
     }
 
     @Override
-    InternalSignificantTerms newAggregation(long subsetSize, long supersetSize,
-            List<InternalSignificantTerms.Bucket> buckets) {
-        return new SignificantLongTerms(subsetSize, supersetSize, getName(), formatter, requiredSize, minDocCount, significanceHeuristic,
-                buckets, reducers(), getMetaData());
+    public SignificantLongTerms create(List<SignificantLongTerms.Bucket> buckets) {
+        return new SignificantLongTerms(this.subsetSize, this.supersetSize, this.name, this.formatter, this.requiredSize, this.minDocCount,
+                this.significanceHeuristic, buckets, this.reducers(), this.metaData);
+    }
+
+    @Override
+    public Bucket createBucket(InternalAggregations aggregations, SignificantLongTerms.Bucket prototype) {
+        return new Bucket(prototype.subsetDf, prototype.subsetSize, prototype.supersetDf, prototype.supersetSize, prototype.term,
+                aggregations, prototype.formatter);
+    }
+
+    @Override
+    protected SignificantLongTerms create(long subsetSize, long supersetSize,
+            List<org.elasticsearch.search.aggregations.bucket.significant.InternalSignificantTerms.Bucket> buckets,
+            InternalSignificantTerms prototype) {
+        return new SignificantLongTerms(subsetSize, supersetSize, prototype.getName(), ((SignificantLongTerms) prototype).formatter,
+                prototype.requiredSize, prototype.minDocCount, prototype.significanceHeuristic, buckets, prototype.reducers(),
+                prototype.getMetaData());
     }
 
     @Override
@@ -194,8 +215,8 @@ public class SignificantLongTerms extends InternalSignificantTerms {
         for (int i = 0; i < size; i++) {
             Bucket bucket = new Bucket(subsetSize, supersetSize, formatter);
             bucket.readFrom(in);
-            bucket.updateScore(significanceHeuristic);
             buckets.add(bucket);
+
         }
         this.buckets = buckets;
         this.bucketMap = null;
@@ -211,6 +232,7 @@ public class SignificantLongTerms extends InternalSignificantTerms {
         significanceHeuristic.writeTo(out);
         out.writeVInt(buckets.size());
         for (InternalSignificantTerms.Bucket bucket : buckets) {
+
             bucket.writeTo(out);
         }
     }

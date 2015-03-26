@@ -40,6 +40,7 @@ import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 
 /**
  */
@@ -62,14 +63,14 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
         transportService.registerHandler(ACTION_NAME, new AllocateDangledRequestHandler());
     }
 
-    public void allocateDangled(IndexMetaData[] indices, final Listener listener) {
+    public void allocateDangled(Collection<IndexMetaData> indices, final Listener listener) {
         ClusterState clusterState = clusterService.state();
         DiscoveryNode masterNode = clusterState.nodes().masterNode();
         if (masterNode == null) {
             listener.onFailure(new MasterNotDiscoveredException("no master to send allocate dangled request"));
             return;
         }
-        AllocateDangledRequest request = new AllocateDangledRequest(clusterService.localNode(), indices);
+        AllocateDangledRequest request = new AllocateDangledRequest(clusterService.localNode(), indices.toArray(new IndexMetaData[indices.size()]));
         transportService.sendRequest(masterNode, ACTION_NAME, request, new TransportResponseHandler<AllocateDangledResponse>() {
             @Override
             public AllocateDangledResponse newInstance() {

@@ -37,6 +37,7 @@ public class TransportSignificantTermsHeuristicModule extends AbstractModule {
         registerStream(MutualInformation.STREAM);
         registerStream(GND.STREAM);
         registerStream(ChiSquare.STREAM);
+        registerStream(ScriptHeuristic.STREAM);
     }
 
     public void registerStream(SignificanceHeuristicStreams.Stream stream) {

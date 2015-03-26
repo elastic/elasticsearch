@@ -128,10 +128,11 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
             ImmutableSettings.Builder sb = ImmutableSettings.builder().put(entry.getValue());
             sb.put("node.name", settings.get("name") + "/" + entry.getKey());
             sb.put(TRIBE_NAME, entry.getKey());
+            sb.put("config.ignore_system_properties", true);
             if (sb.get("http.enabled") == null) {
                 sb.put("http.enabled", false);
             }
-            nodes.add(NodeBuilder.nodeBuilder().settings(sb).client(true).build());
+            nodes.add(NodeBuilder.nodeBuilder().settings(sb).client(true).loadConfigSettings(false).build());
         }
 
         String[] blockIndicesWrite = Strings.EMPTY_ARRAY;

@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -73,6 +72,7 @@ import org.elasticsearch.indices.IndicesWarmer.WarmerContext;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -85,7 +85,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -629,7 +628,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         final ExecutableScript executable;
         if (hasLength(request.templateName())) {
-            executable = this.scriptService.executable("mustache", request.templateName(), request.templateType(), request.templateParams());
+            executable = this.scriptService.executable(MustacheScriptEngineService.NAME, request.templateName(), request.templateType(), request.templateParams());
         } else {
             if (!hasLength(request.templateSource())) {
                 return;
@@ -641,7 +640,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 parser = XContentFactory.xContent(request.templateSource()).createParser(request.templateSource());
                 templateContext = TemplateQueryParser.parse(parser, "params", "template");
 
-                if (templateContext.scriptType().equals(ScriptService.ScriptType.INLINE)) {
+                if (templateContext.scriptType() == ScriptService.ScriptType.INLINE) {
                     //Try to double parse for nested template id/file
                     parser = null;
                     try {
@@ -666,10 +665,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 Releasables.closeWhileHandlingException(parser);
             }
 
-            if (templateContext == null || !hasLength(templateContext.template())) {
+            if (!hasLength(templateContext.template())) {
                 throw new ElasticsearchParseException("Template must have [template] field configured");
             }
-            executable = this.scriptService.executable("mustache", templateContext.template(), templateContext.scriptType(), templateContext.params());
+            executable = this.scriptService.executable(MustacheScriptEngineService.NAME, templateContext.template(), templateContext.scriptType(), templateContext.params());
         }
 
         BytesReference processedQuery = (BytesReference) executable.run();
@@ -811,8 +810,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 @Override
                 public void run() {
                     try {
-                        for (Iterator<ObjectCursor<String>> it = warmUp.iterator(); it.hasNext(); ) {
-                            final String indexName = it.next().value;
+                        for (ObjectCursor<String> stringObjectCursor : warmUp) {
+                            final String indexName = stringObjectCursor.value;
                             final long start = System.nanoTime();
                             for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
                                 final NumericDocValues values = ctx.reader().getNormValues(indexName);

@@ -125,7 +125,7 @@ public abstract class TimeZoneRounding extends Rounding {
             long timeLocal = utcMillis;
             timeLocal = timeZone.convertUTCToLocal(utcMillis);
             long rounded = field.roundFloor(timeLocal);
-            return timeZone.convertLocalToUTC(rounded, true, utcMillis);
+            return timeZone.convertLocalToUTC(rounded, false, utcMillis);
         }
 
         @Override
@@ -139,7 +139,7 @@ public abstract class TimeZoneRounding extends Rounding {
             long timeLocal = time;
             timeLocal = timeZone.convertUTCToLocal(time);
             long nextInLocalTime = durationField.add(timeLocal, 1);
-            return timeZone.convertLocalToUTC(nextInLocalTime, true);
+            return timeZone.convertLocalToUTC(nextInLocalTime, false);
         }
 
         @Override
@@ -184,7 +184,7 @@ public abstract class TimeZoneRounding extends Rounding {
             long timeLocal = utcMillis;
             timeLocal = timeZone.convertUTCToLocal(utcMillis);
             long rounded = Rounding.Interval.roundValue(Rounding.Interval.roundKey(timeLocal, interval), interval);
-            return timeZone.convertLocalToUTC(rounded, true);
+            return timeZone.convertLocalToUTC(rounded, false);
         }
 
         @Override
@@ -198,7 +198,7 @@ public abstract class TimeZoneRounding extends Rounding {
             long timeLocal = time;
             timeLocal = timeZone.convertUTCToLocal(time);
             long next = timeLocal + interval;
-            return timeZone.convertLocalToUTC(next, true);
+            return timeZone.convertLocalToUTC(next, false);
         }
 
         @Override

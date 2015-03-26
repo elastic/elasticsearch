@@ -24,7 +24,6 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.*;
@@ -747,8 +746,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 return true;
             }
             for (DiscoveryNode node : event.nodesDelta().removedNodes()) {
-                for (ImmutableMap.Entry<ShardId, ShardSnapshotStatus> shardEntry : snapshot.shards().entrySet()) {
-                    ShardSnapshotStatus shardStatus = shardEntry.getValue();
+                for (ShardSnapshotStatus shardStatus : snapshot.shards().values()) {
                     if (!shardStatus.state().completed() && node.getId().equals(shardStatus.nodeId())) {
                         // At least one shard was running on the removed node - we need to fail it
                         return true;
@@ -1121,9 +1119,25 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                         shards = snapshot.shards();
                         endSnapshot(snapshot);
                     } else {
-                        // snapshot is being finalized - wait for it
-                        logger.trace("trying to delete completed snapshot - save to delete");
-                        return currentState;
+                        boolean hasUncompletedShards = false;
+                        // Cleanup in case a node gone missing and snapshot wasn't updated for some reason
+                        for (ShardSnapshotStatus shardStatus : snapshot.shards().values()) {
+                            // Check if we still have shard running on existing nodes
+                            if (shardStatus.state().completed() == false && shardStatus.nodeId() != null && currentState.nodes().get(shardStatus.nodeId()) != null) {
+                                hasUncompletedShards = true;
+                                break;
+                            }
+                        }
+                        if (hasUncompletedShards) {
+                            // snapshot is being finalized - wait for shards to complete finalization process
+                            logger.debug("trying to delete completed snapshot - should wait for shards to finalize on all nodes");
+                            return currentState;
+                        } else {
+                            // no shards to wait for - finish the snapshot
+                            logger.debug("trying to delete completed snapshot with no finalizing shards - can delete immediately");
+                            shards = snapshot.shards();
+                            endSnapshot(snapshot);
+                        }
                     }
                     SnapshotMetaData.Entry newSnapshot = new SnapshotMetaData.Entry(snapshot, State.ABORTED, shards);
                     snapshots = new SnapshotMetaData(newSnapshot);

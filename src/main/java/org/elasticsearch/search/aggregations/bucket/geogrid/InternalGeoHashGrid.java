@@ -46,7 +46,8 @@ import java.util.Map;
  * All geohashes in a grid are of the same precision and held internally as a single long
  * for efficiency's sake.
  */
-public class InternalGeoHashGrid extends InternalMultiBucketAggregation implements GeoHashGrid {
+public class InternalGeoHashGrid extends InternalMultiBucketAggregation<InternalGeoHashGrid, InternalGeoHashGrid.Bucket> implements
+        GeoHashGrid {
 
     public static final Type TYPE = new Type("geohash_grid", "ghcells");
 
@@ -163,7 +164,6 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation implemen
             return builder;
         }
     }
-
     private int requiredSize;
     private Collection<Bucket> buckets;
     protected Map<String, Bucket> bucketMap;
@@ -181,6 +181,16 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation implemen
     @Override
     public Type type() {
         return TYPE;
+    }
+
+    @Override
+    public InternalGeoHashGrid create(List<Bucket> buckets) {
+        return new InternalGeoHashGrid(this.name, this.requiredSize, buckets, this.reducers(), this.metaData);
+    }
+
+    @Override
+    public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
+        return new Bucket(prototype.geohashAsLong, prototype.docCount, aggregations);
     }
 
     @Override

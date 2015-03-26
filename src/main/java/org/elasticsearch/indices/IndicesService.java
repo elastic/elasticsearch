@@ -118,7 +118,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     private final PluginsService pluginsService;
     private final NodeEnvironment nodeEnv;
-    private final ClusterService clusterService;
 
     private volatile Map<String, Tuple<IndexService, Injector>> indices = ImmutableMap.of();
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
@@ -126,10 +125,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final OldShardsStats oldShardsStats = new OldShardsStats();
 
     @Inject
-    public IndicesService(Settings settings, IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, Injector injector, NodeEnvironment nodeEnv, ClusterService clusterService) {
+    public IndicesService(Settings settings, IndicesLifecycle indicesLifecycle, IndicesAnalysisService indicesAnalysisService, Injector injector, NodeEnvironment nodeEnv) {
         super(settings);
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
-        this.clusterService = clusterService;
         this.indicesAnalysisService = indicesAnalysisService;
         this.injector = injector;
         this.pluginsService = injector.getInstance(PluginsService.class);
@@ -447,16 +445,15 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         removeIndex(index, reason, true);
     }
 
-    public void deleteClosedIndex(String reason, IndexMetaData metaData) {
+    public void deleteClosedIndex(String reason, IndexMetaData metaData, ClusterState clusterState) {
         if (nodeEnv.hasNodeFile()) {
             String indexName = metaData.getIndex();
             try {
-                ClusterState clusterState = clusterService.state();
                 if (clusterState.metaData().hasIndex(indexName)) {
                     final IndexMetaData index = clusterState.metaData().index(indexName);
                     throw new ElasticsearchIllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getUUID() + "] [" + metaData.getUUID() + "]");
                 }
-                deleteIndexStore(reason, metaData);
+                deleteIndexStore(reason, metaData, clusterState);
             } catch (IOException e) {
                 logger.warn("[{}] failed to delete closed index", e, metaData.index());
             }
@@ -467,16 +464,17 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * Deletes the index store trying to acquire all shards locks for this index.
      * This method will delete the metadata for the index even if the actual shards can't be locked.
      */
-    public void deleteIndexStore(String reason, IndexMetaData metaData) throws IOException {
+    public void deleteIndexStore(String reason, IndexMetaData metaData, ClusterState clusterState) throws IOException {
         if (nodeEnv.hasNodeFile()) {
             synchronized (this) {
                 String indexName = metaData.index();
-                if (indices.containsKey(metaData.index())) {
-                    String localUUid = indices.get(metaData.index()).v1().indexUUID();
-                    throw new ElasticsearchIllegalStateException("Can't delete index store for [" + metaData.getIndex() + "] - it's still part of the indices service [" + localUUid+ "] [" + metaData.getUUID() + "]");
+                if (indices.containsKey(indexName)) {
+                    String localUUid = indices.get(indexName).v1().indexUUID();
+                    throw new ElasticsearchIllegalStateException("Can't delete index store for [" + indexName + "] - it's still part of the indices service [" + localUUid+ "] [" + metaData.getUUID() + "]");
                 }
-                ClusterState clusterState = clusterService.state();
-                if (clusterState.metaData().hasIndex(indexName)) {
+                if (clusterState.metaData().hasIndex(indexName) && (clusterState.nodes().localNode().masterNode() == true)) {
+                    // we do not delete the store if it is a master eligible node and the index is still in the cluster state
+                    // because we want to keep the meta data for indices around even if no shards are left here
                     final IndexMetaData index = clusterState.metaData().index(indexName);
                     throw new ElasticsearchIllegalStateException("Can't delete closed index store for [" + indexName + "] - it's still part of the cluster state [" + index.getUUID() + "] [" + metaData.getUUID() + "]");
                 }

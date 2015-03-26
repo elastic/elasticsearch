@@ -43,7 +43,8 @@ import java.util.Map;
 /**
  *
  */
-public abstract class InternalTerms extends InternalMultiBucketAggregation implements Terms, ToXContent, Streamable {
+public abstract class InternalTerms<A extends InternalTerms, B extends InternalTerms.Bucket> extends InternalMultiBucketAggregation<A, B>
+        implements Terms, ToXContent, Streamable {
 
     protected static final String DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME = "doc_count_error_upper_bound";
     protected static final String SUM_OF_OTHER_DOC_COUNTS = "sum_other_doc_count";
@@ -115,7 +116,7 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
     protected int requiredSize;
     protected int shardSize;
     protected long minDocCount;
-    protected List<Bucket> buckets;
+    protected List<? extends Bucket> buckets;
     protected Map<String, Bucket> bucketMap;
     protected long docCountError;
     protected boolean showTermDocCountError;
@@ -123,8 +124,9 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
 
     protected InternalTerms() {} // for serialization
 
-    protected InternalTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount, List<Bucket> buckets,
-            boolean showTermDocCountError, long docCountError, long otherDocCount, List<Reducer> reducers, Map<String, Object> metaData) {
+    protected InternalTerms(String name, Terms.Order order, int requiredSize, int shardSize, long minDocCount,
+            List<? extends Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount, List<Reducer> reducers,
+            Map<String, Object> metaData) {
         super(name, reducers, metaData);
         this.order = order;
         this.requiredSize = requiredSize;
@@ -171,7 +173,7 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
         long sumDocCountError = 0;
         long otherDocCount = 0;
         for (InternalAggregation aggregation : aggregations) {
-            InternalTerms terms = (InternalTerms) aggregation;
+            InternalTerms<A, B> terms = (InternalTerms<A, B>) aggregation;
             otherDocCount += terms.getSumOfOtherDocCounts();
             final long thisAggDocCountError;
             if (terms.buckets.size() < this.shardSize || this.order == InternalOrder.TERM_ASC || this.order == InternalOrder.TERM_DESC) {
@@ -224,10 +226,10 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
         } else {
             docCountError = aggregations.size() == 1 ? 0 : sumDocCountError;
         }
-        return newAggregation(name, Arrays.asList(list), showTermDocCountError, docCountError, otherDocCount, reducers(), getMetaData());
+        return create(name, Arrays.asList(list), docCountError, otherDocCount, this);
     }
 
-    protected abstract InternalTerms newAggregation(String name, List<Bucket> buckets, boolean showTermDocCountError, long docCountError,
-            long otherDocCount, List<Reducer> reducers, Map<String, Object> metaData);
+    protected abstract A create(String name, List<InternalTerms.Bucket> buckets, long docCountError, long otherDocCount,
+            InternalTerms prototype);
 
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -58,7 +59,7 @@ public class RestShardsAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
         clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
-        clusterStateRequest.clear().nodes(true).routingTable(true).indices(indices);
+        clusterStateRequest.clear().nodes(true).metaData(true).routingTable(true).indices(indices);
         client.admin().cluster().state(clusterStateRequest, new RestActionListener<ClusterStateResponse>(channel) {
             @Override
             public void processResponse(final ClusterStateResponse clusterStateResponse) {
@@ -165,7 +166,21 @@ public class RestShardsAction extends AbstractCatAction {
 
             table.addCell(shard.index());
             table.addCell(shard.id());
-            table.addCell(shard.primary() ? "p" : "r");
+
+            IndexMetaData indexMeta = state.getState().getMetaData().index(shard.index());
+            boolean usesShadowReplicas = false;
+            if (indexMeta != null) {
+                usesShadowReplicas = IndexMetaData.isIndexUsingShadowReplicas(indexMeta.settings());
+            }
+            if (shard.primary()) {
+                table.addCell("p");
+            } else {
+                if (usesShadowReplicas) {
+                    table.addCell("s");
+                } else {
+                    table.addCell("r");
+                }
+            }
             table.addCell(shard.state());
             table.addCell(shardStats == null ? null : shardStats.getDocs().getCount());
             table.addCell(shardStats == null ? null : shardStats.getStore().getSize());

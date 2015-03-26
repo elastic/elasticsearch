@@ -296,6 +296,9 @@ public class RecoveryFromGatewayTests extends ElasticsearchIntegrationTest {
                 if (numNodes == 1) {
                     logger.info("--> one node is closed - start indexing data into the second one");
                     client.prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject().field("field", "value3").endObject()).execute().actionGet();
+                    // TODO: remove once refresh doesn't fail immediately if there a master block:
+                    // https://github.com/elasticsearch/elasticsearch/issues/9997
+                    client.admin().cluster().prepareHealth("test").setWaitForYellowStatus().get();
                     client.admin().indices().prepareRefresh().execute().actionGet();
 
                     for (int i = 0; i < 10; i++) {

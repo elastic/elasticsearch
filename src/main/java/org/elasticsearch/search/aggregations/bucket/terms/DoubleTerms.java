@@ -40,7 +40,7 @@ import java.util.Map;
 /**
  *
  */
-public class DoubleTerms extends InternalTerms {
+public class DoubleTerms extends InternalTerms<DoubleTerms, DoubleTerms.Bucket> {
 
     public static final Type TYPE = new Type("terms", "dterms");
 
@@ -85,7 +85,8 @@ public class DoubleTerms extends InternalTerms {
             super(formatter, showDocCountError);
         }
 
-        public Bucket(double term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError, @Nullable ValueFormatter formatter) {
+        public Bucket(double term, long docCount, InternalAggregations aggregations, boolean showDocCountError, long docCountError,
+                @Nullable ValueFormatter formatter) {
             super(docCount, aggregations, showDocCountError, docCountError, formatter);
             this.term = term;
         }
@@ -153,13 +154,15 @@ public class DoubleTerms extends InternalTerms {
         }
     }
 
-    private @Nullable ValueFormatter formatter;
+    private @Nullable
+    ValueFormatter formatter;
 
-    DoubleTerms() {} // for serialization
+    DoubleTerms() {
+    } // for serialization
 
     public DoubleTerms(String name, Terms.Order order, @Nullable ValueFormatter formatter, int requiredSize, int shardSize,
-            long minDocCount, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError, long otherDocCount,
-            List<Reducer> reducers, Map<String, Object> metaData) {
+            long minDocCount, List<? extends InternalTerms.Bucket> buckets, boolean showTermDocCountError, long docCountError,
+            long otherDocCount, List<Reducer> reducers, Map<String, Object> metaData) {
         super(name, order, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError, otherDocCount, reducers,
                 metaData);
         this.formatter = formatter;
@@ -171,10 +174,23 @@ public class DoubleTerms extends InternalTerms {
     }
 
     @Override
-    protected InternalTerms newAggregation(String name, List<InternalTerms.Bucket> buckets, boolean showTermDocCountError,
-            long docCountError, long otherDocCount, List<Reducer> reducers, Map<String, Object> metaData) {
-        return new DoubleTerms(name, order, formatter, requiredSize, shardSize, minDocCount, buckets, showTermDocCountError, docCountError,
-                otherDocCount, reducers, metaData);
+    public DoubleTerms create(List<Bucket> buckets) {
+        return new DoubleTerms(this.name, this.order, this.formatter, this.requiredSize, this.shardSize, this.minDocCount, buckets,
+                this.showTermDocCountError, this.docCountError, this.otherDocCount, this.reducers(), this.metaData);
+    }
+
+    @Override
+    public Bucket createBucket(InternalAggregations aggregations, Bucket prototype) {
+        return new Bucket(prototype.term, prototype.docCount, aggregations, prototype.showDocCountError, prototype.docCountError,
+                prototype.formatter);
+    }
+
+    @Override
+    protected DoubleTerms create(String name, List<org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.Bucket> buckets,
+            long docCountError, long otherDocCount, InternalTerms prototype) {
+        return new DoubleTerms(name, prototype.order, ((DoubleTerms) prototype).formatter, prototype.requiredSize, prototype.shardSize,
+                prototype.minDocCount, buckets, prototype.showTermDocCountError, docCountError, otherDocCount, prototype.reducers(),
+                prototype.getMetaData());
     }
 
     @Override

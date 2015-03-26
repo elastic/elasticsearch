@@ -16,9 +16,9 @@
     </parent>
 
     <properties>
-        <elasticsearch.version>1.4.0</elasticsearch.version>
-        <lucene.maven.version>4.10.2</lucene.maven.version>
-        <lucene.version>4.10.2</lucene.version>
+        <elasticsearch.version>1.5.0</elasticsearch.version>
+        <lucene.maven.version>4.10.4</lucene.maven.version>
+        <lucene.version>4.10.4</lucene.version>
 
         <tests.jvms>auto</tests.jvms>
         <tests.shuffle>true</tests.shuffle>

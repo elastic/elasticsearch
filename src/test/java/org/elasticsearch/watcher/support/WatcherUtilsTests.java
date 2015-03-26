@@ -45,7 +45,8 @@ public class WatcherUtilsTests extends ElasticsearchTestCase {
                 .put("d", now)
                 .build();
 
-        Map<String, String> result = flattenModel(map);
+        @SuppressWarnings("unchecked")
+        Map<String, String> result = (Map) flattenModel(map);
         assertThat(result.size(), is(9));
         assertThat(result, hasEntry("a.a1.0", "0"));
         assertThat(result, hasEntry("a.a1.1", "1"));
@@ -99,7 +100,7 @@ public class WatcherUtilsTests extends ElasticsearchTestCase {
             expectedRequest.templateName(randomAsciiOfLengthBetween(1, 5));
             expectedRequest.templateType(randomFrom(ScriptService.ScriptType.values()));
             if (randomBoolean()) {
-                Map<String, String> params = new HashMap<>();
+                Map<String, Object> params = new HashMap<>();
                 int maxParams = randomIntBetween(1, 10);
                 for (int i = 0; i < maxParams; i++) {
                     params.put(randomAsciiOfLengthBetween(1, 5), randomAsciiOfLengthBetween(1, 5));

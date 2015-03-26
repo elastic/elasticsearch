@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.condition.script;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.watcher.watch.WatchExecutionContext;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.support.Script;
@@ -47,13 +48,16 @@ public class ScriptConditionSearchTests extends AbstractWatcherSingleNodeTests {
     private ScriptServiceProxy scriptService;
 
     @Before
-    public void init() {
+    public void init() throws Exception {
         tp = new ThreadPool(ThreadPool.Names.SAME);
-        Settings settings = ImmutableSettings.settingsBuilder().build();
+        Settings settings = ImmutableSettings.settingsBuilder()
+                .put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, "none")
+                .build();
         GroovyScriptEngineService groovyScriptEngineService = new GroovyScriptEngineService(settings);
         Set<ScriptEngineService> engineServiceSet = new HashSet<>();
         engineServiceSet.add(groovyScriptEngineService);
-        scriptService = ScriptServiceProxy.of(new ScriptService(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp)));
+        NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
+        scriptService = ScriptServiceProxy.of(new ScriptService(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp), nodeSettingsService));
     }
 
     @After

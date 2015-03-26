@@ -10,26 +10,6 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.WatcherPlugin;
-import org.elasticsearch.watcher.watch.WatchService;
-import org.elasticsearch.watcher.actions.email.service.Authentication;
-import org.elasticsearch.watcher.actions.email.service.Email;
-import org.elasticsearch.watcher.actions.email.service.EmailService;
-import org.elasticsearch.watcher.actions.email.service.Profile;
-import org.elasticsearch.watcher.actions.webhook.HttpClient;
-import org.elasticsearch.watcher.client.WatcherClient;
-import org.elasticsearch.watcher.history.WatchRecord;
-import org.elasticsearch.watcher.history.HistoryStore;
-import org.elasticsearch.watcher.scheduler.Scheduler;
-import org.elasticsearch.watcher.scheduler.SchedulerMock;
-import org.elasticsearch.watcher.scheduler.schedule.Schedule;
-import org.elasticsearch.watcher.scheduler.schedule.Schedules;
-import org.elasticsearch.watcher.support.WatcherUtils;
-import org.elasticsearch.watcher.support.clock.ClockMock;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
-import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
@@ -48,6 +28,26 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.watcher.WatcherPlugin;
+import org.elasticsearch.watcher.actions.email.service.Authentication;
+import org.elasticsearch.watcher.actions.email.service.Email;
+import org.elasticsearch.watcher.actions.email.service.EmailService;
+import org.elasticsearch.watcher.actions.email.service.Profile;
+import org.elasticsearch.watcher.actions.webhook.HttpClient;
+import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.watcher.history.HistoryStore;
+import org.elasticsearch.watcher.history.WatchRecord;
+import org.elasticsearch.watcher.scheduler.Scheduler;
+import org.elasticsearch.watcher.scheduler.SchedulerMock;
+import org.elasticsearch.watcher.scheduler.schedule.Schedule;
+import org.elasticsearch.watcher.scheduler.schedule.Schedules;
+import org.elasticsearch.watcher.support.WatcherUtils;
+import org.elasticsearch.watcher.support.clock.ClockMock;
+import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
+import org.elasticsearch.watcher.watch.Watch;
+import org.elasticsearch.watcher.watch.WatchService;
 import org.junit.After;
 import org.junit.Before;
 
@@ -352,6 +352,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         return (InternalTestCluster) ((WatcherWrappingCluster) cluster()).testCluster;
     }
 
+    // We need this custom impl, because we have custom wipe logic. We don't want the watcher index templates to get deleted between tests
     private final class WatcherWrappingCluster extends TestCluster {
 
         private final TestCluster testCluster;
@@ -412,56 +413,12 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         }
 
         @Override
-        public int numBenchNodes() {
-            return testCluster.numBenchNodes();
-        }
-
-        @Override
         public InetSocketAddress[] httpAddresses() {
             return testCluster.httpAddresses();
         }
 
         @Override
         public void close() throws IOException {
-            InternalTestCluster _testCluster = (InternalTestCluster) testCluster;
-            Set<String> nodes = new HashSet<>(Arrays.asList(_testCluster.getNodeNames()));
-            String masterNode = _testCluster.getMasterName();
-            nodes.remove(masterNode);
-
-            // First manually stop watcher on non elected master node, this will prevent that watcher becomes active
-            // on these nodes
-            for (String node : nodes) {
-                WatchService watchService = _testCluster.getInstance(WatchService.class, node);
-                assertThat(watchService.state(), equalTo(WatchService.State.STOPPED));
-                watchService.stop(); // Prevents these nodes from starting watcher when new elected master node is picked.
-            }
-
-            // Then stop watcher on elected master node and wait until watcher has stopped on it.
-            final WatchService watchService = _testCluster.getInstance(WatchService.class, masterNode);
-            try {
-                assertBusy(new Runnable() {
-                    @Override
-                    public void run() {
-                        assertThat(watchService.state(), not(equalTo(WatchService.State.STARTING)));
-                    }
-                });
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-            watchService.stop();
-            try {
-                assertBusy(new Runnable() {
-                    @Override
-                    public void run() {
-                        assertThat(watchService.state(), equalTo(WatchService.State.STOPPED));
-                    }
-                });
-            } catch (Exception e) {
-                throw new RuntimeException(e);
-            }
-
-            // Now when can close nodes, without watcher trying to become active while nodes briefly become master
-            // during cluster shutdown.
             testCluster.close();
         }
 

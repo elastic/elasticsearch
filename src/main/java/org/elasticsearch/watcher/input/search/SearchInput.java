@@ -125,7 +125,7 @@ public class SearchInput extends Input<SearchInput.Result> {
             ExecutableScript script = scriptService.executable("mustache", requestSource, ScriptService.ScriptType.INLINE, templateParams);
             request.source((BytesReference) script.unwrap(script.run()), false);
         } else if (requestPrototype.templateName() != null) {
-            MapBuilder<String, String> templateParams = MapBuilder.newMapBuilder(requestPrototype.templateParams())
+            MapBuilder<String, Object> templateParams = MapBuilder.newMapBuilder(requestPrototype.templateParams())
                     .put(Variables.SCHEDULED_FIRE_TIME, formatDate(scheduledFireTime))
                     .put(Variables.FIRE_TIME, formatDate(fireTime))
                     .put(Variables.EXECUTION_TIME, formatDate(executionTime));

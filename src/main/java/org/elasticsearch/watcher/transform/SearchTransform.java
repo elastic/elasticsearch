@@ -98,7 +98,7 @@ public class SearchTransform extends Transform<SearchTransform.Result> {
             ExecutableScript script = scriptService.executable("mustache", requestSource, ScriptService.ScriptType.INLINE, createCtxModel(ctx, payload));
             request.source((BytesReference) script.unwrap(script.run()), false);
         } else if (requestPrototype.templateName() != null) {
-            MapBuilder<String, String> templateParams = MapBuilder.newMapBuilder(requestPrototype.templateParams())
+            MapBuilder<String, Object> templateParams = MapBuilder.newMapBuilder(requestPrototype.templateParams())
                     .putAll(flattenModel(createCtxModel(ctx, payload)));
             request.templateParams(templateParams.map());
             request.templateName(requestPrototype.templateName());

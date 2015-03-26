@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.condition.script;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.watch.WatchExecutionContext;
 import org.elasticsearch.watcher.watch.Payload;
@@ -147,12 +148,15 @@ public class ScriptConditionTests extends ElasticsearchTestCase {
         fail("expected a condition exception trying to parse an invalid condition XContent");
     }
 
-    private static ScriptServiceProxy getScriptServiceProxy(ThreadPool tp) {
-        Settings settings = ImmutableSettings.settingsBuilder().build();
+    private static ScriptServiceProxy getScriptServiceProxy(ThreadPool tp) throws IOException {
+        Settings settings = ImmutableSettings.settingsBuilder()
+                .put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, "none")
+                .build();
         GroovyScriptEngineService groovyScriptEngineService = new GroovyScriptEngineService(settings);
         Set<ScriptEngineService> engineServiceSet = new HashSet<>();
         engineServiceSet.add(groovyScriptEngineService);
-        return ScriptServiceProxy.of(new ScriptService(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp)));
+        NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
+        return ScriptServiceProxy.of(new ScriptService(settings, new Environment(), engineServiceSet, new ResourceWatcherService(settings, tp), nodeSettingsService));
     }
 
     private static XContentBuilder createConditionContent(String script, String scriptLang, ScriptService.ScriptType scriptType) throws IOException {

@@ -229,13 +229,13 @@ public final class WatcherUtils {
         return builder.endObject();
     }
 
-    public static Map<String, String> flattenModel(Map<String, Object> map) {
-        Map<String, String> result = new HashMap<>();
+    public static Map<String, Object> flattenModel(Map<String, Object> map) {
+        Map<String, Object> result = new HashMap<>();
         flattenModel("", map, result);
         return result;
     }
 
-    private static void flattenModel(String key, Object value, Map<String, String> result) {
+    private static void flattenModel(String key, Object value, Map<String, Object> result) {
         if (value instanceof Map) {
             for (Map.Entry<String, Object> entry : ((Map<String, Object>) value).entrySet()) {
                 if ("".equals(key)) {

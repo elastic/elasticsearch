@@ -597,7 +597,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
      */
     @Test
     public void concreteIndicesAllPatternRandom() {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 10; i++) {
             String[] allIndices = null;
             switch (randomIntBetween(0, 2)) {
             case 0:
@@ -622,7 +622,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
                 try {
                     metadata.concreteIndices(indicesOptions, allIndices);
                     fail("calling concreteIndices for _all indices with allowNoIndices=false should throw exception");
-                } catch (IndexMissingException e) {
+                } catch (ElasticsearchIllegalArgumentException | IndexMissingException e) {
                     // expected exception
                 }
             }
@@ -637,16 +637,18 @@ public class MetaDataTests extends ElasticsearchTestCase {
                 String[] concreteIndices = metadata.concreteIndices(indicesOptions, allIndices);
                 assertThat(concreteIndices, notNullValue());
                 int expectedNumberOfIndices = 0;
-                if (indicesOptions.expandWildcardsOpen())
+                if (indicesOptions.expandWildcardsOpen()) {
                     expectedNumberOfIndices += 2;
-                if (indicesOptions.expandWildcardsClosed())
+                }
+                if (indicesOptions.expandWildcardsClosed()) {
                     expectedNumberOfIndices += 1;
+                }
                 assertThat(concreteIndices.length, equalTo(expectedNumberOfIndices));
             } else {
                 try {
                     metadata.concreteIndices(indicesOptions, allIndices);
                     fail("calling concreteIndices for _all, with no wildcard expansion and allowNoIndices=false should throw exception");
-                } catch (IndexMissingException e) {
+                } catch (ElasticsearchIllegalArgumentException | IndexMissingException e) {
                     // expected exception
                 }
             }
@@ -658,7 +660,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
      */
     @Test
     public void concreteIndicesWildcardEmptyRandom() {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < 10; i++) {
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
             MetaData metadata = MetaData.builder().build();
 

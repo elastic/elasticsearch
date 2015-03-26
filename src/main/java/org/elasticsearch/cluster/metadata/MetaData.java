@@ -676,9 +676,9 @@ public class MetaData implements Iterable<IndexMetaData> {
             aliasesOrIndices = convertFromWildcards(aliasesOrIndices, indicesOptions);
         }
 
-        if (isAllIndices(aliasesOrIndices)) {
+        if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
             if (!indicesOptions.allowNoIndices()) {
-                throw new IndexMissingException(new Index("_all"));
+                throw new ElasticsearchIllegalArgumentException("Index or alias list is " + aliasesOrIndices + " and IndicesOptions don't allow no indices.");
             } else {
                 return Strings.EMPTY_ARRAY;
             }

@@ -18,14 +18,12 @@
  */
 package org.elasticsearch.search.functionscore;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.junit.Test;
 
@@ -104,21 +102,9 @@ public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwa
     }
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        //enable scripting on the internal nodes
-        return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal)).put("script.inline", "on").build();
-    }
-
-    @Override
-    protected Settings externalNodeSettings(int nodeOrdinal) {
-        //enable scripting on the external nodes using the proper setting depending on the bwc version
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(super.externalNodeSettings(nodeOrdinal));
-        if (compatibilityVersion().before(Version.V_1_6_0)) {
-            builder.put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, false);
-        } else {
-            builder.put("script.inline", "on");
-        }
-        return builder.build();
+    protected Settings commonNodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder().put(super.commonNodeSettings(nodeOrdinal))
+                .put("script.inline", "on").build();
     }
 
     private void checkFunctionScoreStillWorks(String... ids) throws ExecutionException, InterruptedException, IOException {

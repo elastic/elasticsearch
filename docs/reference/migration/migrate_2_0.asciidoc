@@ -286,7 +286,27 @@ setting. Please however note that using a non-default codec is discouraged as
 it could prevent future versions of Elasticsearch from being able to read the
 index.
 
-=== Scripts
+=== Scripting settings
+
+Removed support for `script.disable_dynamic` node setting, replaced by
+fine-grained script settings described in the <<enable-dynamic-scripting,scripting docs>>.
+The following setting previously used to enable dynamic scripts:
+
+[source,yaml]
+---------------
+script.disable_dynamic: false
+---------------
+
+can be replaced with the following two settings in `elasticsearch.yml` that
+achieve the same result:
+
+[source,yaml]
+---------------
+script.inline: on
+script.indexed: on
+---------------
+
+=== Script parameters
 
 Deprecated script parameters `id`, `file`, and `scriptField` have been removed
 from all scriptable APIs. `script_id`, `script_file` and `script` should be used

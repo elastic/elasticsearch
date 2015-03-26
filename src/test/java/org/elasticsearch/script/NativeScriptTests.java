@@ -86,21 +86,6 @@ public class NativeScriptTests extends ElasticsearchTestCase {
         }
     }
 
-    @Test
-    public void testDisableDynamicDoesntAffectNativeScripts() throws IOException {
-        Settings settings = ImmutableSettings.settingsBuilder().put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, randomFrom("true", "false", "sandbox")).build();
-        Environment environment = new Environment(settings);
-        ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, null);
-        Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();
-        nativeScriptFactoryMap.put("my", new MyNativeScriptFactory());
-        Set<ScriptEngineService> scriptEngineServices = ImmutableSet.<ScriptEngineService>of(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
-        ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, new NodeSettingsService(settings));
-
-        for (ScriptContext scriptContext : ScriptContext.values()) {
-            assertThat(scriptService.compile(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, scriptContext), notNullValue());
-        }
-    }
-
     static class MyNativeScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {

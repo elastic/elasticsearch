@@ -20,7 +20,6 @@
 package org.elasticsearch.indices.store;
 
 import org.apache.lucene.store.StoreRateLimiting;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -359,20 +358,20 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        sendResultOrLogError(shardActive(request));
+                        sendResult(shardActive(request));
                     }
 
                     @Override
                     public void onClusterServiceClose() {
-                        sendResultOrLogError(false);
+                        sendResult(false);
                     }
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        sendResultOrLogError(shardActive(request));
+                        sendResult(shardActive(request));
                     }
 
-                    public void sendResultOrLogError(boolean shardActive) {
+                    public void sendResult(boolean shardActive) {
                         try {
                             channel.sendResponse(new ShardActiveResponse(shardActive, clusterService.localNode()));
                         } catch (IOException e) {

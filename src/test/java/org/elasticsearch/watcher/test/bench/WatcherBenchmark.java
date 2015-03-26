@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.alerts.test.bench;
+package org.elasticsearch.watcher.test.bench;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.collect.ImmutableList;
@@ -33,19 +33,19 @@ import static org.elasticsearch.watcher.scheduler.schedule.Schedules.interval;
 
 /**
  */
-public class AlertsBenchmark {
+public class WatcherBenchmark {
 
     public static void main(String[] args) throws Exception {
         Settings settings = ImmutableSettings.builder()
                 .put("plugins.load_classpath_plugins", false)
-                .put("plugin.types", BenchmarkAlertPlugin.class.getName())
-                .put("cluster.name", AlertsBenchmark.class.getSimpleName())
+                .put("plugin.types", WatcherBenchmarkPlugin.class.getName())
+                .put("cluster.name", WatcherBenchmark.class.getSimpleName())
                 .put("http.cors.enabled", true)
                 .build();
         InternalNode node = (InternalNode) NodeBuilder.nodeBuilder().settings(settings).data(false).node();
         node.client().admin().cluster().prepareHealth().setWaitForGreenStatus().get();
         Thread.sleep(5000);
-        WatcherClient alertsClient = node.injector().getInstance(WatcherClient.class);
+        WatcherClient watcherClient = node.injector().getInstance(WatcherClient.class);
 
         int numAlerts = 1000;
         for (int i = 0; i < numAlerts; i++) {
@@ -58,16 +58,16 @@ public class AlertsBenchmark {
                             .condition(scriptCondition("1 == 1"))
                             .addAction(indexAction("index", "type")));
             putAlertRequest.setName(name);
-            alertsClient.putWatch(putAlertRequest).actionGet();
+            watcherClient.putWatch(putAlertRequest).actionGet();
         }
 
         int numThreads = 50;
-        int alertsPerThread = numAlerts / numThreads;
+        int watchersPerThread = numAlerts / numThreads;
         final SchedulerMock scheduler = (SchedulerMock) node.injector().getInstance(Scheduler.class);
         Thread[] threads = new Thread[numThreads];
         for (int i = 0; i < numThreads; i++) {
-            final int begin = i * alertsPerThread;
-            final int end = (i + 1) * alertsPerThread;
+            final int begin = i * watchersPerThread;
+            final int end = (i + 1) * watchersPerThread;
             Runnable r = new Runnable() {
                 @Override
                 public void run() {
@@ -88,11 +88,11 @@ public class AlertsBenchmark {
         }
     }
 
-    public static final class BenchmarkAlertPlugin extends WatcherPlugin {
+    public static final class WatcherBenchmarkPlugin extends WatcherPlugin {
 
-        public BenchmarkAlertPlugin(Settings settings) {
+        public WatcherBenchmarkPlugin(Settings settings) {
             super(settings);
-            Loggers.getLogger(BenchmarkAlertPlugin.class, settings).info("using benchmark alerts plugin");
+            Loggers.getLogger(WatcherBenchmarkPlugin.class, settings).info("using watcher benchmark plugin");
         }
 
         @Override

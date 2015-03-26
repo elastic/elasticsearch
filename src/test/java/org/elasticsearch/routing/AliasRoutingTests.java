@@ -102,24 +102,6 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
             assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
             assertThat(client().prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(true));
         }
-
-        logger.info("--> deleting_by_query with 1 as routing, should not delete anything");
-        client().prepareDeleteByQuery().setQuery(matchAllQuery()).setRouting("1").execute().actionGet();
-        refresh();
-        for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
-            assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
-            assertThat(client().prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(true));
-        }
-
-        logger.info("--> deleting_by_query with alias0, should delete");
-        client().prepareDeleteByQuery("alias0").setQuery(matchAllQuery()).execute().actionGet();
-        refresh();
-        for (int i = 0; i < 5; i++) {
-            assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(false));
-            assertThat(client().prepareGet("test", "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(false));
-            assertThat(client().prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(false));
-        }
     }
 
     @Test

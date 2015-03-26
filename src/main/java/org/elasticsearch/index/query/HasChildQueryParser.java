@@ -42,8 +42,6 @@ import org.elasticsearch.search.internal.SubSearchContext;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.QueryParserUtils.ensureNotDeleteByQuery;
-
 /**
  *
  */
@@ -65,7 +63,6 @@ public class HasChildQueryParser implements QueryParser {
 
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        ensureNotDeleteByQuery(NAME, parseContext);
         XContentParser parser = parseContext.parser();
 
         boolean queryFound = false;

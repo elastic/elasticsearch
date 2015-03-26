@@ -29,9 +29,6 @@ import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.exists.ExistsRequest;
 import org.elasticsearch.action.exists.ExistsRequestBuilder;
 import org.elasticsearch.action.exists.ExistsResponse;
@@ -219,29 +216,6 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
      * Executes a bulk of index / delete operations.
      */
     BulkRequestBuilder prepareBulk();
-
-    /**
-     * Deletes all documents from one or more indices based on a query.
-     *
-     * @param request The delete by query request
-     * @return The result future
-     * @see Requests#deleteByQueryRequest(String...)
-     */
-    ActionFuture<DeleteByQueryResponse> deleteByQuery(DeleteByQueryRequest request);
-
-    /**
-     * Deletes all documents from one or more indices based on a query.
-     *
-     * @param request  The delete by query request
-     * @param listener A listener to be notified with a result
-     * @see Requests#deleteByQueryRequest(String...)
-     */
-    void deleteByQuery(DeleteByQueryRequest request, ActionListener<DeleteByQueryResponse> listener);
-
-    /**
-     * Deletes all documents from one or more indices based on a query.
-     */
-    DeleteByQueryRequestBuilder prepareDeleteByQuery(String... indices);
 
     /**
      * Gets the document that was indexed from an index with a type and id.

@@ -35,8 +35,6 @@ import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.query.QueryParserUtils.ensureNotDeleteByQuery;
-
 /**
  *
  */
@@ -55,7 +53,6 @@ public class TopChildrenQueryParser implements QueryParser {
 
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
-        ensureNotDeleteByQuery(NAME, parseContext);
         XContentParser parser = parseContext.parser();
 
         boolean queryFound = false;

@@ -39,7 +39,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.warmer.get.GetWarmersRequestBuilder;
 import org.elasticsearch.action.count.CountRequestBuilder;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
 import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateRequestBuilder;
 import org.elasticsearch.action.percolate.PercolateSourceBuilder;
@@ -85,7 +84,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(validateQuery("test1", "test2"), true);
         verify(aliasExists("test1", "test2"), true);
         verify(typesExists("test1", "test2"), true);
-        verify(deleteByQuery("test1", "test2"), true);
         verify(percolate("test1", "test2"), true);
         verify(mpercolate(null, "test1", "test2"), false);
         verify(suggest("test1", "test2"), true);
@@ -108,7 +106,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(validateQuery("test1", "test2").setIndicesOptions(options), true);
         verify(aliasExists("test1", "test2").setIndicesOptions(options), true);
         verify(typesExists("test1", "test2").setIndicesOptions(options), true);
-        verify(deleteByQuery("test1", "test2").setIndicesOptions(options), true);
         verify(percolate("test1", "test2").setIndicesOptions(options), true);
         verify(mpercolate(options, "test1", "test2").setIndicesOptions(options), false);
         verify(suggest("test1", "test2").setIndicesOptions(options), true);
@@ -131,7 +128,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(validateQuery("test1", "test2").setIndicesOptions(options), false);
         verify(aliasExists("test1", "test2").setIndicesOptions(options), false);
         verify(typesExists("test1", "test2").setIndicesOptions(options), false);
-        verify(deleteByQuery("test1", "test2").setIndicesOptions(options), false);
         verify(percolate("test1", "test2").setIndicesOptions(options), false);
         verify(mpercolate(options, "test1", "test2").setIndicesOptions(options), false);
         verify(suggest("test1", "test2").setIndicesOptions(options), false);
@@ -156,7 +152,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(validateQuery("test1", "test2").setIndicesOptions(options), false);
         verify(aliasExists("test1", "test2").setIndicesOptions(options), false);
         verify(typesExists("test1", "test2").setIndicesOptions(options), false);
-        verify(deleteByQuery("test1", "test2").setIndicesOptions(options), false);
         verify(percolate("test1", "test2").setIndicesOptions(options), false);
         verify(mpercolate(options, "test1", "test2").setIndicesOptions(options), false);
         verify(suggest("test1", "test2").setIndicesOptions(options), false);
@@ -190,7 +185,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(validateQuery("test1").setIndicesOptions(options), true);
         verify(aliasExists("test1").setIndicesOptions(options), true);
         verify(typesExists("test1").setIndicesOptions(options), true);
-        verify(deleteByQuery("test1").setIndicesOptions(options), true);
         verify(percolate("test1").setIndicesOptions(options), true);
         verify(mpercolate(options, "test1").setIndicesOptions(options), true);
         verify(suggest("test1").setIndicesOptions(options), true);
@@ -213,7 +207,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(validateQuery("test1").setIndicesOptions(options), false);
         verify(aliasExists("test1").setIndicesOptions(options), false);
         verify(typesExists("test1").setIndicesOptions(options), false);
-        verify(deleteByQuery("test1").setIndicesOptions(options), false);
         verify(percolate("test1").setIndicesOptions(options), false);
         verify(mpercolate(options, "test1").setIndicesOptions(options), false);
         verify(suggest("test1").setIndicesOptions(options), false);
@@ -239,7 +232,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(validateQuery("test1").setIndicesOptions(options), false);
         verify(aliasExists("test1").setIndicesOptions(options), false);
         verify(typesExists("test1").setIndicesOptions(options), false);
-        verify(deleteByQuery("test1").setIndicesOptions(options), false);
         verify(percolate("test1").setIndicesOptions(options), false);
         verify(mpercolate(options, "test1").setIndicesOptions(options), false);
         verify(suggest("test1").setIndicesOptions(options), false);
@@ -265,7 +257,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(validateQuery("test1").setIndicesOptions(options), true);
         verify(aliasExists("test1").setIndicesOptions(options), true);
         verify(typesExists("test1").setIndicesOptions(options), true);
-        verify(deleteByQuery("test1").setIndicesOptions(options), true);
         verify(percolate("test1").setIndicesOptions(options), true);
         verify(suggest("test1").setIndicesOptions(options), true);
         verify(getAliases("test1").setIndicesOptions(options), true);
@@ -287,7 +278,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(validateQuery("test1").setIndicesOptions(options), false);
         verify(aliasExists("test1").setIndicesOptions(options), false);
         verify(typesExists("test1").setIndicesOptions(options), false);
-        verify(deleteByQuery("test1").setIndicesOptions(options), false);
         verify(percolate("test1").setIndicesOptions(options), false);
         verify(suggest("test1").setIndicesOptions(options), false);
         verify(getAliases("test1").setIndicesOptions(options), false);
@@ -312,7 +302,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(validateQuery("test1").setIndicesOptions(options), false);
         verify(aliasExists("test1").setIndicesOptions(options), false);
         verify(typesExists("test1").setIndicesOptions(options), false);
-        verify(deleteByQuery("test1").setIndicesOptions(options), false);
         verify(percolate("test1").setIndicesOptions(options), false);
         verify(suggest("test1").setIndicesOptions(options), false);
         verify(getAliases("test1").setIndicesOptions(options), false);
@@ -369,7 +358,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(validateQuery(indices), true);
         verify(aliasExists(indices), false);
         verify(typesExists(indices), false);
-        verify(deleteByQuery(indices), true);
         verify(percolate(indices), false);
         verify(mpercolate(null, indices), false);
         verify(suggest(indices), false);
@@ -393,7 +381,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(validateQuery(indices).setIndicesOptions(options), false);
         verify(aliasExists(indices).setIndicesOptions(options), false);
         verify(typesExists(indices).setIndicesOptions(options), false);
-        verify(deleteByQuery(indices).setIndicesOptions(options), false);
         verify(percolate(indices).setIndicesOptions(options), false);
         verify(mpercolate(options, indices), false);
         verify(suggest(indices).setIndicesOptions(options), false);
@@ -420,7 +407,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(validateQuery(indices), false);
         verify(aliasExists(indices), false);
         verify(typesExists(indices), false);
-        verify(deleteByQuery(indices), false);
         verify(percolate(indices), false);
         verify(mpercolate(null, indices), false);
         verify(suggest(indices), false);
@@ -444,7 +430,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(validateQuery(indices), true);
         verify(aliasExists(indices), false);
         verify(typesExists(indices), false);
-        verify(deleteByQuery(indices), true);
         verify(percolate(indices), false);
         verify(mpercolate(null, indices), false);
         verify(suggest(indices), false);
@@ -468,7 +453,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
         verify(validateQuery(indices).setIndicesOptions(options), false);
         verify(aliasExists(indices).setIndicesOptions(options), false);
         verify(typesExists(indices).setIndicesOptions(options), false);
-        verify(deleteByQuery(indices).setIndicesOptions(options), false);
         verify(percolate(indices).setIndicesOptions(options), false);
         verify(mpercolate(options, indices), false);
         verify(suggest(indices).setIndicesOptions(options), false);
@@ -865,10 +849,6 @@ public class IndicesOptionsIntegrationTests extends ElasticsearchIntegrationTest
 
     private static TypesExistsRequestBuilder typesExists(String... indices) {
         return client().admin().indices().prepareTypesExists(indices).setTypes("dummy");
-    }
-
-    private static DeleteByQueryRequestBuilder deleteByQuery(String... indices) {
-        return client().prepareDeleteByQuery(indices).setQuery(boolQuery().mustNot(matchAllQuery()));
     }
 
     private static PercolateRequestBuilder percolate(String... indices) {

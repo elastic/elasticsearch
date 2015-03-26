@@ -110,40 +110,6 @@ public class DestructiveOperationsIntegrationTests extends ElasticsearchIntegrat
 
         // end close index:
         client().admin().indices().prepareDelete("_all").get();
-        // delete_by_query:
-        settings = ImmutableSettings.builder()
-                .put(DestructiveOperations.REQUIRES_NAME, true)
-                .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
-
-        assertAcked(client().admin().indices().prepareCreate("index1").get());
-        assertAcked(client().admin().indices().prepareCreate("1index").get());
-
-        // Should succeed, since no wildcards
-        client().prepareDeleteByQuery("1index").setQuery(QueryBuilders.matchAllQuery()).get();
-
-        try {
-            client().prepareDeleteByQuery("_all").setQuery(QueryBuilders.matchAllQuery()).get();
-            fail();
-        } catch (ElasticsearchIllegalArgumentException e) {}
-
-        try {
-            client().prepareDeleteByQuery().setQuery(QueryBuilders.matchAllQuery()).get();
-            fail();
-        } catch (ElasticsearchIllegalArgumentException e) {}
-
-        settings = ImmutableSettings.builder()
-                .put(DestructiveOperations.REQUIRES_NAME, false)
-                .build();
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
-
-        client().prepareDeleteByQuery().setQuery(QueryBuilders.matchAllQuery()).get();
-        client().prepareDeleteByQuery("_all").setQuery(QueryBuilders.matchAllQuery()).get();
-
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings));
-        client().prepareDeleteByQuery().setQuery(QueryBuilders.matchAllQuery()).get();
-        // end delete_by_query:
-        client().admin().indices().prepareDelete("_all").get();
     }
 
 }

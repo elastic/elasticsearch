@@ -53,7 +53,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.count.CountRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
 import org.elasticsearch.action.exists.ExistsRequest;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -111,18 +110,6 @@ public class Requests {
      */
     public static BulkRequest bulkRequest() {
         return new BulkRequest();
-    }
-
-    /**
-     * Creates a delete by query request. Note, the query itself must be set either by setting the JSON source
-     * of the query, or by using a {@link org.elasticsearch.index.query.QueryBuilder} (using {@link org.elasticsearch.index.query.QueryBuilders}).
-     *
-     * @param indices The indices the delete by query against. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
-     * @return The delete by query request
-     * @see org.elasticsearch.client.Client#deleteByQuery(org.elasticsearch.action.deletebyquery.DeleteByQueryRequest)
-     */
-    public static DeleteByQueryRequest deleteByQueryRequest(String... indices) {
-        return new DeleteByQueryRequest(indices);
     }
 
     /**

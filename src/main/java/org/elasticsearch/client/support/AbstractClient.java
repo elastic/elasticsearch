@@ -32,10 +32,6 @@ import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryAction;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.exists.ExistsAction;
 import org.elasticsearch.action.exists.ExistsRequest;
 import org.elasticsearch.action.exists.ExistsRequestBuilder;
@@ -166,21 +162,6 @@ public abstract class AbstractClient implements Client {
     @Override
     public BulkRequestBuilder prepareBulk() {
         return new BulkRequestBuilder(this);
-    }
-
-    @Override
-    public ActionFuture<DeleteByQueryResponse> deleteByQuery(final DeleteByQueryRequest request) {
-        return execute(DeleteByQueryAction.INSTANCE, request);
-    }
-
-    @Override
-    public void deleteByQuery(final DeleteByQueryRequest request, final ActionListener<DeleteByQueryResponse> listener) {
-        execute(DeleteByQueryAction.INSTANCE, request, listener);
-    }
-
-    @Override
-    public DeleteByQueryRequestBuilder prepareDeleteByQuery(String... indices) {
-        return new DeleteByQueryRequestBuilder(this).setIndices(indices);
     }
 
     @Override

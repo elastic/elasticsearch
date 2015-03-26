@@ -652,6 +652,8 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
         }
     }
 
+    /** @deprecated Delete-by-query is removed in 2.0, but we keep this so translog can replay on upgrade. */
+    @Deprecated
     static class DeleteByQuery implements Operation {
 
         public static final int SERIALIZATION_FORMAT = 2;

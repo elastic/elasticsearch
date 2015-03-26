@@ -96,12 +96,4 @@ public abstract class IndexingOperationListener {
     public void postDelete(Engine.Delete delete) {
 
     }
-
-    public Engine.DeleteByQuery preDeleteByQuery(Engine.DeleteByQuery deleteByQuery) {
-        return deleteByQuery;
-    }
-
-    public void postDeleteByQuery(Engine.DeleteByQuery deleteByQuery) {
-
-    }
 }

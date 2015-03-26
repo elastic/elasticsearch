@@ -344,15 +344,5 @@ public class PercolatorQueriesRegistry extends AbstractIndexShardComponent imple
                 removePercolateQuery(delete.id());
             }
         }
-
-        // Updating the live percolate queries for a delete by query is tricky with the current way delete by queries
-        // are handled. It is only possible if we put a big lock around the post delete by query hook...
-
-        // If we implement delete by query, that just runs a query and generates delete operations in a bulk, then
-        // updating the live percolator is automatically supported for delete by query.
-//        @Override
-//        public void postDeleteByQuery(Engine.DeleteByQuery deleteByQuery) {
-//        }
     }
-
 }

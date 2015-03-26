@@ -502,6 +502,8 @@ public class InternalEngine extends Engine {
         }
     }
 
+    /** @deprecated This was removed, but we keep this API so translog can replay any DBQs on upgrade. */
+    @Deprecated
     @Override
     public void delete(DeleteByQuery delete) throws EngineException {
         try (ReleasableLock lock = readLock.acquire()) {

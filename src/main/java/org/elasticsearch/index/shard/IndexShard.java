@@ -529,7 +529,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         indexingService.postDelete(delete);
     }
 
-    public Engine.DeleteByQuery prepareDeleteByQuery(BytesReference source, @Nullable String[] filteringAliases, Engine.Operation.Origin origin, String... types) throws ElasticsearchException {
+    // NOTE: only used to replay translog on upgrade
+    private Engine.DeleteByQuery prepareDeleteByQuery(BytesReference source, @Nullable String[] filteringAliases, Engine.Operation.Origin origin, String... types) throws ElasticsearchException {
         long startTime = System.nanoTime();
         if (types == null) {
             types = Strings.EMPTY_ARRAY;
@@ -540,17 +541,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         Filter aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
         BitDocIdSetFilter parentFilter = mapperService.hasNested() ? indexCache.bitsetFilterCache().getBitDocIdSetFilter(NonNestedDocsFilter.INSTANCE) : null;
         return new Engine.DeleteByQuery(query, source, filteringAliases, aliasFilter, parentFilter, origin, startTime, types);
-    }
-
-    public void deleteByQuery(Engine.DeleteByQuery deleteByQuery) throws ElasticsearchException {
-        writeAllowed(deleteByQuery.origin());
-        if (logger.isTraceEnabled()) {
-            logger.trace("delete_by_query [{}]", deleteByQuery.query());
-        }
-        deleteByQuery = indexingService.preDeleteByQuery(deleteByQuery);
-        engine().delete(deleteByQuery);
-        deleteByQuery.endTime(System.nanoTime());
-        indexingService.postDeleteByQuery(deleteByQuery);
     }
 
     public Engine.GetResult get(Engine.Get get) throws ElasticsearchException {

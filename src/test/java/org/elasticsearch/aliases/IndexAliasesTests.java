@@ -403,26 +403,6 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> checking counts before delete");
         assertThat(client().prepareCount("bars").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(1L));
-
-        logger.info("--> delete by query from a single alias");
-        client().prepareDeleteByQuery("bars").setQuery(QueryBuilders.termQuery("name", "test")).get();
-
-        logger.info("--> verify that only one record was deleted");
-        assertThat(client().prepareCount("test1").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(3L));
-
-        logger.info("--> delete by query from an aliases pointing to two indices");
-        client().prepareDeleteByQuery("foos").setQuery(QueryBuilders.matchAllQuery()).get();
-
-        logger.info("--> verify that proper records were deleted");
-        SearchResponse searchResponse = client().prepareSearch("aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get();
-        assertHits(searchResponse.getHits(), "3", "4", "6", "7", "8");
-
-        logger.info("--> delete by query from an aliases and an index");
-        client().prepareDeleteByQuery("tests", "test2").setQuery(QueryBuilders.matchAllQuery()).get();
-
-        logger.info("--> verify that proper records were deleted");
-        searchResponse = client().prepareSearch("aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get();
-        assertHits(searchResponse.getHits(), "4");
     }
 
     

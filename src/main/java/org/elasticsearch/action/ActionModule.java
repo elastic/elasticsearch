@@ -126,10 +126,6 @@ import org.elasticsearch.action.count.CountAction;
 import org.elasticsearch.action.count.TransportCountAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryAction;
-import org.elasticsearch.action.deletebyquery.TransportDeleteByQueryAction;
-import org.elasticsearch.action.deletebyquery.TransportIndexDeleteByQueryAction;
-import org.elasticsearch.action.deletebyquery.TransportShardDeleteByQueryAction;
 import org.elasticsearch.action.exists.ExistsAction;
 import org.elasticsearch.action.exists.TransportExistsAction;
 import org.elasticsearch.action.explain.ExplainAction;
@@ -285,8 +281,6 @@ public class ActionModule extends AbstractModule {
                 TransportShardMultiGetAction.class);
         registerAction(BulkAction.INSTANCE, TransportBulkAction.class,
                 TransportShardBulkAction.class);
-        registerAction(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class,
-                TransportIndexDeleteByQueryAction.class, TransportShardDeleteByQueryAction.class);
         registerAction(SearchAction.INSTANCE, TransportSearchAction.class,
                 TransportSearchDfsQueryThenFetchAction.class,
                 TransportSearchQueryThenFetchAction.class,

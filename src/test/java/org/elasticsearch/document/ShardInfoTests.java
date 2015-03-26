@@ -26,7 +26,6 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
-import org.elasticsearch.action.deletebyquery.IndexDeleteByQueryResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -99,17 +98,6 @@ public class ShardInfoTests extends ElasticsearchIntegrationTest {
             assertShardInfo(item.getResponse());
         }
     }
-
-    @Test
-    public void testDeleteByQuery() throws Exception {
-        int numPrimaryShards = randomIntBetween(1, 2);
-        prepareIndex(numPrimaryShards);
-        IndexDeleteByQueryResponse indexDeleteByQueryResponse = client().prepareDeleteByQuery("idx")
-                .setQuery(QueryBuilders.matchAllQuery())
-                .get().getIndex("idx");
-        assertShardInfo(indexDeleteByQueryResponse, numCopies * numPrimaryShards, numNodes * numPrimaryShards);
-    }
-
 
     private void prepareIndex(int numberOfPrimaryShards) throws Exception {
         prepareIndex(numberOfPrimaryShards, false);

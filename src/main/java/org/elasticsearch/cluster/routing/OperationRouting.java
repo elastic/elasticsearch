@@ -77,25 +77,6 @@ public class OperationRouting extends AbstractComponent {
         return indexRoutingTable(clusterState, index).groupByShardsIt();
     }
 
-    public GroupShardsIterator deleteByQueryShards(ClusterState clusterState, String index, @Nullable Set<String> routing) throws IndexMissingException {
-        if (routing == null || routing.isEmpty()) {
-            return indexRoutingTable(clusterState, index).groupByShardsIt();
-        }
-
-        // we use set here and not identity set since we might get duplicates
-        HashSet<ShardIterator> set = new HashSet<>();
-        IndexRoutingTable indexRouting = indexRoutingTable(clusterState, index);
-        for (String r : routing) {
-            int shardId = shardId(clusterState, index, null, null, r);
-            IndexShardRoutingTable indexShard = indexRouting.shard(shardId);
-            if (indexShard == null) {
-                throw new IndexShardMissingException(new ShardId(index, shardId));
-            }
-            set.add(indexShard.shardsRandomIt());
-        }
-        return new GroupShardsIterator(Lists.newArrayList(set));
-    }
-
     public int searchShardsCount(ClusterState clusterState, String[] indices, String[] concreteIndices, @Nullable Map<String, Set<String>> routing, @Nullable String preference) throws IndexMissingException {
         final Set<IndexShardRoutingTable> shards = computeTargetedShards(clusterState, concreteIndices, routing);
         return shards.size();

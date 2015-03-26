@@ -33,20 +33,21 @@ import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.*;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.*;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData.Entry;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData.ShardSnapshotStatus;
 import org.elasticsearch.cluster.metadata.SnapshotMetaData.State;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.service.PendingClusterTask;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -56,6 +57,7 @@ import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.nio.channels.SeekableByteChannel;
@@ -1819,5 +1821,179 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
                 return client().admin().cluster().prepareHealth(index).execute().actionGet().getRelocatingShards() > 0;
             }
         }, timeout.millis(), TimeUnit.MILLISECONDS);
+    }
+
+    @Test
+    @TestLogging("cluster:DEBUG")
+    public void batchingShardUpdateTaskTest() throws Exception {
+
+        final Client client = client();
+
+        logger.info("-->  creating repository");
+        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                        .put("location", createTempDir())
+                        .put("compress", randomBoolean())
+                        .put("chunk_size", randomIntBetween(100, 1000))));
+
+        createIndex("test-idx");
+        ensureGreen();
+
+        logger.info("--> indexing some data");
+        final int numdocs = randomIntBetween(10, 100);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test-idx", "type1", Integer.toString(i)).setSource("field1", "bar " + i);
+        }
+        indexRandom(true, builders);
+        flushAndRefresh();
+
+        final int numberOfShards = getNumShards("test-idx").numPrimaries;
+        logger.info("number of shards: {}", numberOfShards);
+
+        final ClusterService clusterService = internalCluster().clusterService(internalCluster().getMasterName());
+        BlockingClusterStateListener snapshotListener = new BlockingClusterStateListener(clusterService, "update_snapshot [", "update snapshot state");
+        try {
+            clusterService.addFirst(snapshotListener);
+            logger.info("--> snapshot");
+            ListenableActionFuture<CreateSnapshotResponse> snapshotFuture = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx").execute();
+
+            // Await until shard updates are in pending state.
+            assertTrue(waitForPendingTasks("update snapshot state", numberOfShards));
+            snapshotListener.unblock();
+
+            // Check that the snapshot was successful
+            CreateSnapshotResponse createSnapshotResponse = snapshotFuture.actionGet();
+            assertEquals(SnapshotState.SUCCESS, createSnapshotResponse.getSnapshotInfo().state());
+            assertEquals(numberOfShards, createSnapshotResponse.getSnapshotInfo().totalShards());
+            assertEquals(numberOfShards, createSnapshotResponse.getSnapshotInfo().successfulShards());
+
+        } finally {
+            clusterService.remove(snapshotListener);
+        }
+
+        // Check that we didn't timeout
+        assertFalse(snapshotListener.timedOut());
+        // Check that cluster state update task was called only once
+        assertEquals(1, snapshotListener.count());
+
+        logger.info("--> close indices");
+        client.admin().indices().prepareClose("test-idx").get();
+
+        BlockingClusterStateListener restoreListener = new BlockingClusterStateListener(clusterService, "restore_snapshot[", "update snapshot state");
+
+        try {
+            clusterService.addFirst(restoreListener);
+            logger.info("--> restore snapshot");
+            ListenableActionFuture<RestoreSnapshotResponse> futureRestore = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute();
+
+            // Await until shard updates are in pending state.
+            assertTrue(waitForPendingTasks("update snapshot state", numberOfShards));
+            restoreListener.unblock();
+
+            RestoreSnapshotResponse restoreSnapshotResponse = futureRestore.actionGet();
+            assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), equalTo(numberOfShards));
+
+        } finally {
+            clusterService.remove(restoreListener);
+        }
+
+        // Check that we didn't timeout
+        assertFalse(restoreListener.timedOut());
+        // Check that cluster state update task was called only once
+        assertEquals(1, restoreListener.count());
+    }
+
+    private boolean waitForPendingTasks(final String taskPrefix, final int expectedCount) throws InterruptedException {
+        return awaitBusy(new Predicate<Object>() {
+            @Override
+            public boolean apply(Object o) {
+                PendingClusterTasksResponse tasks = client().admin().cluster().preparePendingClusterTasks().get();
+                int count = 0;
+                for(PendingClusterTask task : tasks) {
+                    if (task.getSource().toString().startsWith(taskPrefix)) {
+                        count++;
+                    }
+                }
+                return expectedCount == count;
+            }
+        });
+    }
+
+    public static class BlockingClusterStateListener implements ClusterStateListener {
+
+        private Predicate<ClusterChangedEvent> blockOn;
+
+        private Predicate<ClusterChangedEvent> countOn;
+
+        private ClusterService clusterService;
+
+        private CountDownLatch latch;
+
+        private int count;
+
+        private boolean timedOut;
+
+        private TimeValue timeout;
+
+        public BlockingClusterStateListener(ClusterService clusterService, String blockOn, String countOn) {
+            this(clusterService, blockOn, countOn, TimeValue.timeValueSeconds(10));
+        }
+
+        public BlockingClusterStateListener(ClusterService clusterService, final String blockOn, final String countOn, TimeValue timeout) {
+            this.clusterService = clusterService;
+            this.blockOn = new Predicate<ClusterChangedEvent>() {
+                @Override
+                public boolean apply(ClusterChangedEvent clusterChangedEvent) {
+                    return clusterChangedEvent.source().startsWith(blockOn);
+                }
+            };
+            this.countOn = new Predicate<ClusterChangedEvent>() {
+                @Override
+                public boolean apply(ClusterChangedEvent clusterChangedEvent) {
+                    return clusterChangedEvent.source().startsWith(countOn);
+                }
+            };
+            this.latch = new CountDownLatch(1);
+            this.timeout = timeout;
+        }
+
+        public void unblock() {
+            latch.countDown();
+        }
+
+        @Override
+        public void clusterChanged(ClusterChangedEvent event) {
+            if (blockOn.apply(event)) {
+                // We should block after this task - add blocking cluster state update task
+                clusterService.submitStateUpdateTask("test_block", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) throws Exception {
+                        try {
+                            timedOut = latch.await(timeout.millis(), TimeUnit.MILLISECONDS) == false;
+                        } catch (InterruptedException ex) {
+                            Thread.currentThread().interrupt();
+                        }
+                        return currentState;
+                    }
+
+                    @Override
+                    public void onFailure(String source, Throwable t) {
+                        // ignore
+                    }
+                });
+            }
+            if (countOn.apply(event)) {
+                count++;
+            }
+        }
+
+        public int count() {
+            return count;
+        }
+
+        public boolean timedOut() {
+            return timedOut;
+        }
     }
 }

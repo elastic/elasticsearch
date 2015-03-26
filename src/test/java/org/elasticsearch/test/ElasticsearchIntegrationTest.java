@@ -1620,6 +1620,8 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 // from failing on nodes without enough disk space
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "1b")
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "1b")
+                // wait short time for other active shards before actually deleting, default 30s not needed in tests
+                .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(1, TimeUnit.SECONDS))
                 .build();
     }
 

@@ -62,6 +62,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
     public static final String INDICES_STORE_THROTTLE_TYPE = "indices.store.throttle.type";
     public static final String INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC = "indices.store.throttle.max_bytes_per_sec";
+    public static final String INDICES_STORE_DELETE_SHARD_TIMEOUT = "indices.store.delete.shard.timeout";
 
     public static final String ACTION_SHARD_EXISTS = "internal:index/shard/exists";
 
@@ -103,6 +104,8 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
     private final ApplySettings applySettings = new ApplySettings();
 
+    private TimeValue deleteShardTimeout;
+
     @Inject
     public IndicesStore(Settings settings, NodeEnvironment nodeEnv, NodeSettingsService nodeSettingsService, IndicesService indicesService,
                         ClusterService clusterService, TransportService transportService) {
@@ -119,6 +122,8 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
         rateLimiting.setType(rateLimitingType);
         this.rateLimitingThrottle = settings.getAsBytesSize("indices.store.throttle.max_bytes_per_sec", new ByteSizeValue(10240, ByteSizeUnit.MB));
         rateLimiting.setMaxRate(rateLimitingThrottle);
+
+        this.deleteShardTimeout = settings.getAsTime(INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(30, TimeUnit.SECONDS));
 
         logger.debug("using indices.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimitingType, rateLimitingThrottle);
 
@@ -216,11 +221,11 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             DiscoveryNode currentNode = state.nodes().get(shardRouting.currentNodeId());
             assert currentNode != null;
 
-            requests.add(new Tuple<>(currentNode, new ShardActiveRequest(clusterName, indexUUID, shardRouting.shardId(), new TimeValue(1, TimeUnit.SECONDS))));
+            requests.add(new Tuple<>(currentNode, new ShardActiveRequest(clusterName, indexUUID, shardRouting.shardId(), deleteShardTimeout)));
             if (shardRouting.relocatingNodeId() != null) {
                 DiscoveryNode relocatingNode = state.nodes().get(shardRouting.relocatingNodeId());
                 assert relocatingNode != null;
-                requests.add(new Tuple<>(relocatingNode, new ShardActiveRequest(clusterName, indexUUID, shardRouting.shardId(), new TimeValue(1, TimeUnit.SECONDS))));
+                requests.add(new Tuple<>(relocatingNode, new ShardActiveRequest(clusterName, indexUUID, shardRouting.shardId(), deleteShardTimeout)));
             }
         }
 
@@ -411,8 +416,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
     }
 
     private static class ShardActiveRequest extends TransportRequest {
-        public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.SECONDS);
-        protected TimeValue timeout = DEFAULT_TIMEOUT;
+        protected TimeValue timeout = null;
         private ClusterName clusterName;
         private String indexUUID;
         private ShardId shardId;

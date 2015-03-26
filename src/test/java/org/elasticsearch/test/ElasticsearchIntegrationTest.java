@@ -110,7 +110,6 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
@@ -135,6 +134,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.script.ScriptService.SCRIPT_CACHE_EXPIRE_SETTING;
+import static org.elasticsearch.script.ScriptService.SCRIPT_CACHE_SIZE_SETTING;
 import static org.elasticsearch.test.InternalTestCluster.clusterName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -483,10 +484,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     private static ImmutableSettings.Builder setRandomScriptingSettings(Random random, ImmutableSettings.Builder builder) {
         if (random.nextBoolean()) {
-            builder.put(ScriptService.SCRIPT_CACHE_SIZE_SETTING, RandomInts.randomIntBetween(random, -100, 2000));
+            builder.put(SCRIPT_CACHE_SIZE_SETTING, RandomInts.randomIntBetween(random, -100, 2000));
         }
         if (random.nextBoolean()) {
-            builder.put(ScriptService.SCRIPT_CACHE_EXPIRE_SETTING, TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 750, 10000000)));
+            builder.put(SCRIPT_CACHE_EXPIRE_SETTING, TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 750, 10000000)));
         }
         return builder;
     }
@@ -1574,15 +1575,15 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         assertThat(clearResponse.isSucceeded(), equalTo(true));
     }
 
-    private static ClusterScope getAnnotation(Class<?> clazz) {
+    protected static <A extends Annotation> A getAnnotation(Class<?> clazz, Class<A> annotationClass) {
         if (clazz == Object.class || clazz == ElasticsearchIntegrationTest.class) {
             return null;
         }
-        ClusterScope annotation = clazz.getAnnotation(ClusterScope.class);
+        A annotation = clazz.getAnnotation(annotationClass);
         if (annotation != null) {
             return annotation;
         }
-        return getAnnotation(clazz.getSuperclass());
+        return getAnnotation(clazz.getSuperclass(), annotationClass);
     }
 
     private Scope getCurrentClusterScope() {
@@ -1590,33 +1591,33 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     private static Scope getCurrentClusterScope(Class<?> clazz) {
-        ClusterScope annotation = getAnnotation(clazz);
+        ClusterScope annotation = getAnnotation(clazz, ClusterScope.class);
         // if we are not annotated assume suite!
         return annotation == null ? Scope.SUITE : annotation.scope();
     }
 
     private int getNumDataNodes() {
-        ClusterScope annotation = getAnnotation(this.getClass());
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null ? -1 : annotation.numDataNodes();
     }
 
     private int getMinNumDataNodes() {
-        ClusterScope annotation = getAnnotation(this.getClass());
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null ? InternalTestCluster.DEFAULT_MIN_NUM_DATA_NODES : annotation.minNumDataNodes();
     }
 
     private int getMaxNumDataNodes() {
-        ClusterScope annotation = getAnnotation(this.getClass());
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null ? InternalTestCluster.DEFAULT_MAX_NUM_DATA_NODES : annotation.maxNumDataNodes();
     }
 
     private int getNumClientNodes() {
-        ClusterScope annotation = getAnnotation(this.getClass());
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null ? InternalTestCluster.DEFAULT_NUM_CLIENT_NODES : annotation.numClientNodes();
     }
 
     private boolean randomDynamicTemplates() {
-        ClusterScope annotation = getAnnotation(this.getClass());
+        ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         return annotation == null || annotation.randomDynamicTemplates();
     }
 
@@ -1632,10 +1633,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 // Default the watermarks to absurdly low to prevent the tests
                 // from failing on nodes without enough disk space
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "1b")
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "1b")
-                .put("script.indexed", "on")
-                .put("script.inline", "on")
-                .build();
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "1b").build();
     }
 
     /**
@@ -1686,11 +1684,12 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             default:
                 throw new ElasticsearchException("Scope not supported: " + scope);
         }
+
         SettingsSource settingsSource = new SettingsSource() {
             @Override
             public Settings node(int nodeOrdinal) {
-                return ImmutableSettings.builder().put(InternalNode.HTTP_ENABLED, false).
-                        put(nodeSettings(nodeOrdinal)).build();
+                return ImmutableSettings.builder().put(InternalNode.HTTP_ENABLED, false)
+                        .put(nodeSettings(nodeOrdinal)).build();
             }
             
             @Override
@@ -1711,7 +1710,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
         return new InternalTestCluster(seed, minNumDataNodes, maxNumDataNodes,
                 clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), seed), settingsSource, getNumClientNodes(),
-                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, CHILD_JVM_ID, nodePrefix);
+                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, CHILD_JVM_ID, nodePrefix, getAnnotation(getClass(), RequiresScripts.class));
     }
 
     /**
@@ -1731,7 +1730,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * return a random ratio in the interval <tt>[0..1]</tt>
      */
     protected double getPerTestTransportClientRatio() {
-        final ClusterScope annotation = getAnnotation(this.getClass());
+        final ClusterScope annotation = getAnnotation(this.getClass(), ClusterScope.class);
         double perTestRatio = -1;
         if (annotation != null) {
             perTestRatio = annotation.transportClientRatio();

@@ -22,9 +22,11 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.RequiresScripts;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -32,12 +34,12 @@ import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.script.ScriptService.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-//Use Suite scope so that paths get set correctly
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
+@RequiresScripts(type = ScriptType.FILE, context = ScriptContext.SEARCH, lang = {GroovyScriptEngineService.NAME, MustacheScriptEngineService.NAME})
 public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -45,10 +47,10 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
         //Set path so ScriptService will pick up the test scripts
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put("path.conf", this.getResource("config").getPath())
+                //turn off the scripting features that need to be off (@RequiresScript allows to turn them on only)
                 .put("script.engine.expression.file.aggs", "off")
                 .put("script.engine.mustache.file.aggs", "off")
                 .put("script.engine.mustache.file.search", "off")
-                .put("script.engine.mustache.file.mapping", "off")
                 .put("script.engine.mustache.file.update", "off").build();
     }
 
@@ -171,7 +173,7 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
             assertThat(ExceptionsHelper.detailedMessage(e), containsString("scripts of type [file], operation [search] and lang [mustache] are disabled"));
         }
         try {
-            client().prepareUpdate("test", "scriptTest", "1").setScript("script1", ScriptService.ScriptType.FILE).setScriptLang(MustacheScriptEngineService.NAME).get();
+            client().prepareUpdate("test", "scriptTest", "1").setScript("script1", ScriptType.FILE).setScriptLang(MustacheScriptEngineService.NAME).get();
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));

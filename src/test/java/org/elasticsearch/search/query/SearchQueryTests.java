@@ -37,10 +37,12 @@ import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.CommonTermsQueryBuilder.Operator;
 import org.elasticsearch.index.query.MatchQueryBuilder.Type;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.RequiresScripts;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
@@ -62,7 +64,7 @@ import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-
+@RequiresScripts(context = ScriptContext.SEARCH)
 public class SearchQueryTests extends ElasticsearchIntegrationTest {
 
     @Override

@@ -30,8 +30,12 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.internal.InternalNode;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.groovy.GroovyScriptEngineService;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
+import org.elasticsearch.test.RequiresScripts;
 import org.elasticsearch.test.rest.client.RestException;
 import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParser;
@@ -51,6 +55,8 @@ import java.nio.file.PathMatcher;
 import java.nio.file.Paths;
 import java.util.*;
 
+import static org.elasticsearch.script.ScriptService.ScriptType;
+
 /**
  * Runs the clients test suite against an elasticsearch cluster.
  */
@@ -59,6 +65,8 @@ import java.util.*;
 //@ReplicateOnEachVm
 @AbstractRandomizedTest.Rest
 @ClusterScope(randomDynamicTemplates = false)
+@RequiresScripts(lang = {GroovyScriptEngineService.NAME, MustacheScriptEngineService.NAME}, type = {ScriptType.INDEXED, ScriptType.INLINE},
+        context = {ScriptContext.AGGS, ScriptContext.MAPPING, ScriptContext.SEARCH, ScriptContext.UPDATE} )
 public class ElasticsearchRestTests extends ElasticsearchIntegrationTest {
 
     /**

@@ -36,8 +36,8 @@ import java.util.*;
  */
 public class ScriptModes {
 
-    static final String SCRIPT_SETTINGS_PREFIX = "script.";
-    static final String ENGINE_SETTINGS_PREFIX = "script.engine";
+    public static final String SCRIPT_SETTINGS_PREFIX = "script.";
+    public static final String ENGINE_SETTINGS_PREFIX = "script.engine";
 
     final ImmutableMap<String, ScriptMode> scriptModes;
 

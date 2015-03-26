@@ -19,8 +19,10 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
+import org.elasticsearch.test.RequiresScripts;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -29,9 +31,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.max;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-/**
- *
- */
+@RequiresScripts(context = ScriptContext.AGGS)
 public class MaxTests extends AbstractNumericTests {
 
     @Test

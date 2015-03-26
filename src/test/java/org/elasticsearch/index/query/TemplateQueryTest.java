@@ -29,9 +29,11 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.RequiresScripts;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -50,7 +52,7 @@ import static org.hamcrest.Matchers.is;
 /**
  * Full integration test of the template query plugin.
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
+@RequiresScripts(lang = MustacheScriptEngineService.NAME, context = ScriptContext.SEARCH)
 public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
     @Before

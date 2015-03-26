@@ -26,6 +26,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.RequiresScripts;
 import org.junit.Test;
 
 import java.util.List;
@@ -41,6 +42,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Various tests for Groovy scripting
  */
+@RequiresScripts(context = ScriptContext.SEARCH)
 public class GroovyScriptTests extends ElasticsearchIntegrationTest {
 
     @Test

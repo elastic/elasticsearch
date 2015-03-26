@@ -32,14 +32,14 @@ import static org.hamcrest.Matchers.containsString;
  * Test that a system where the sandbox is disabled while dynamic scripting is
  * also disabled does not allow a script to be sent
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope=ElasticsearchIntegrationTest.Scope.SUITE)
 public class SandboxDisabledTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                .put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, false)
-                .put("script.inline", false).build();
+            .put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, false)
+            //override randomized script settings, we need groovy inline search off for this test
+            .put("script.engine.groovy.inline.search", false).build();
     }
 
     @Test

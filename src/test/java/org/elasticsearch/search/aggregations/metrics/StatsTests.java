@@ -20,8 +20,10 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
+import org.elasticsearch.test.RequiresScripts;
 import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -29,9 +31,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
+@RequiresScripts(context = ScriptContext.AGGS)
 public class StatsTests extends AbstractNumericTests {
 
     @Test

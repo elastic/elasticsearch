@@ -30,6 +30,7 @@ import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.RequiresScripts;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -37,17 +38,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.script.ScriptService.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
+@RequiresScripts(type = ScriptType.INDEXED, context = {ScriptContext.SEARCH, ScriptContext.AGGS})
 public class IndexedScriptTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         ImmutableSettings.Builder builder = ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal));
+        //turn off the scripting features that need to be off (@RequiresScript allows to turn them on only)
         builder.put("script.engine.groovy.indexed.update", "off");
-        builder.put("script.engine.groovy.indexed.search", "on");
-        builder.put("script.engine.groovy.indexed.aggs", "on");
         builder.put("script.engine.groovy.inline.aggs", "off");
         builder.put("script.engine.expression.indexed.update", "off");
         builder.put("script.engine.expression.indexed.search", "off");
@@ -59,11 +61,11 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
     @Test
     public void testFieldIndexedScript()  throws ExecutionException, InterruptedException {
         List<IndexRequestBuilder> builders = new ArrayList<>();
-        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "groovy", "script1").setSource("{" +
+        builders.add(client().prepareIndex(SCRIPT_INDEX, "groovy", "script1").setSource("{" +
                 "\"script\":\"2\""+
         "}").setTimeout(TimeValue.timeValueSeconds(randomIntBetween(2,10))));
 
-        builders.add(client().prepareIndex(ScriptService.SCRIPT_INDEX, "groovy", "script2").setSource("{" +
+        builders.add(client().prepareIndex(SCRIPT_INDEX, "groovy", "script2").setSource("{" +
                 "\"script\":\"factor*2\""+
                 "}"));
 
@@ -92,11 +94,11 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
         if (randomBoolean()) {
             client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "script1", "{\"script\":\"2\"}").get();
         } else {
-            client().prepareIndex(ScriptService.SCRIPT_INDEX, GroovyScriptEngineService.NAME, "script1").setSource("{\"script\":\"2\"}").get();
+            client().prepareIndex(SCRIPT_INDEX, GroovyScriptEngineService.NAME, "script1").setSource("{\"script\":\"2\"}").get();
         }
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {
-            client().prepareUpdate("test", "scriptTest", "1").setScript("script1", ScriptService.ScriptType.INDEXED).setScriptLang(GroovyScriptEngineService.NAME).get();
+            client().prepareUpdate("test", "scriptTest", "1").setScript("script1", ScriptType.INDEXED).setScriptLang(GroovyScriptEngineService.NAME).get();
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
@@ -110,7 +112,7 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
         if (randomBoolean()) {
             client().preparePutIndexedScript(GroovyScriptEngineService.NAME, "script1", "{\"script\":\"2\"}").get();
         } else {
-            client().prepareIndex(ScriptService.SCRIPT_INDEX, GroovyScriptEngineService.NAME, "script1").setSource("{\"script\":\"2\"}").get();
+            client().prepareIndex(SCRIPT_INDEX, GroovyScriptEngineService.NAME, "script1").setSource("{\"script\":\"2\"}").get();
         }
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         refresh();
@@ -125,11 +127,11 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
         if (randomBoolean()) {
             client().preparePutIndexedScript(ExpressionScriptEngineService.NAME, "script1", "{\"script\":\"2\"}").get();
         } else {
-            client().prepareIndex(ScriptService.SCRIPT_INDEX, ExpressionScriptEngineService.NAME, "script1").setSource("{\"script\":\"2\"}").get();
+            client().prepareIndex(SCRIPT_INDEX, ExpressionScriptEngineService.NAME, "script1").setSource("{\"script\":\"2\"}").get();
         }
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {
-            client().prepareUpdate("test", "scriptTest", "1").setScript("script1", ScriptService.ScriptType.INDEXED).setScriptLang(ExpressionScriptEngineService.NAME).get();
+            client().prepareUpdate("test", "scriptTest", "1").setScript("script1", ScriptType.INDEXED).setScriptLang(ExpressionScriptEngineService.NAME).get();
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));

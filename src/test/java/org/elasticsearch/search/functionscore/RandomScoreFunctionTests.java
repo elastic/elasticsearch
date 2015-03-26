@@ -21,8 +21,10 @@ package org.elasticsearch.search.functionscore;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.functionscore.random.RandomScoreFunctionBuilder;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.RequiresScripts;
 import org.hamcrest.CoreMatchers;
 import org.junit.Ignore;
 
@@ -37,7 +39,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
-
+@RequiresScripts(context = ScriptContext.SEARCH)
 public class RandomScoreFunctionTests extends ElasticsearchIntegrationTest {
 
     public void testConsistentHitsWithSameSeed() throws Exception {

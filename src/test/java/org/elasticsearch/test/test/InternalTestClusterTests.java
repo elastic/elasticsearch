@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.SettingsSource;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -47,15 +46,13 @@ public class InternalTestClusterTests extends ElasticsearchTestCase {
         int minNumDataNodes = randomIntBetween(0, 9);
         int maxNumDataNodes = randomIntBetween(minNumDataNodes, 10);
         String clusterName = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
-        SettingsSource settingsSource = SettingsSource.EMPTY;
         int numClientNodes = randomIntBetween(0, 10);
-        boolean enableRandomBenchNodes = randomBoolean();
         boolean enableHttpPipelining = randomBoolean();
         int jvmOrdinal = randomIntBetween(0, 10);
         String nodePrefix = randomRealisticUnicodeOfCodepointLengthBetween(1, 10);
 
-        InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, settingsSource, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
-        InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, settingsSource, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
+        InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
+        InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
         assertClusters(cluster0, cluster1, true);
 
     }
@@ -91,15 +88,13 @@ public class InternalTestClusterTests extends ElasticsearchTestCase {
         while (clusterName.equals(clusterName1)) {
             clusterName1 = clusterName("shared", Integer.toString(CHILD_JVM_ID), clusterSeed);   // spin until the time changes
         }
-        SettingsSource settingsSource = SettingsSource.EMPTY;
         int numClientNodes = randomIntBetween(0, 2);
-        boolean enableRandomBenchNodes = randomBoolean();
         boolean enableHttpPipelining = randomBoolean();
         int jvmOrdinal = randomIntBetween(0, 10);
         String nodePrefix = "foobar";
 
-        InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, settingsSource, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
-        InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName1, settingsSource, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
+        InternalTestCluster cluster0 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
+        InternalTestCluster cluster1 = new InternalTestCluster(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName1, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
 
         assertClusters(cluster0, cluster1, false);
         long seed = randomLong();

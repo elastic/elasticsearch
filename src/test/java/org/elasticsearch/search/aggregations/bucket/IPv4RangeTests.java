@@ -21,11 +21,13 @@ package org.elasticsearch.search.aggregations.bucket;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.ipv4.IPv4Range;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.RequiresScripts;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -42,10 +44,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
-/**
- *
- */
 @ElasticsearchIntegrationTest.SuiteScopeTest
+@RequiresScripts(context = ScriptContext.AGGS)
 public class IPv4RangeTests extends ElasticsearchIntegrationTest {
 
     @Override

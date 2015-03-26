@@ -199,12 +199,12 @@ public final class InternalTestCluster extends TestCluster {
 
     public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes,
                                boolean enableHttpPipelining, int jvmOrdinal, String nodePrefix) {
-        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
+        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix, null);
     }
 
     public InternalTestCluster(long clusterSeed,
                                int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes,
-                                boolean enableHttpPipelining, int jvmOrdinal, String nodePrefix) {
+                                boolean enableHttpPipelining, int jvmOrdinal, String nodePrefix, RequiresScripts requiresScripts) {
         super(clusterSeed);
         this.clusterName = clusterName;
 
@@ -292,6 +292,7 @@ public final class InternalTestCluster extends TestCluster {
         }
         // always reduce this - it can make tests really slow
         builder.put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC, TimeValue.timeValueMillis(RandomInts.randomIntBetween(random, 20, 50)));
+        ScriptSettingsHelper.addScriptSettings(builder, random, requiresScripts);
         defaultSettings = builder.build();
         executor = EsExecutors.newCached(0, TimeUnit.SECONDS, EsExecutors.daemonThreadFactory("test_" + clusterName));
         this.hasFilterCache = random.nextBoolean();

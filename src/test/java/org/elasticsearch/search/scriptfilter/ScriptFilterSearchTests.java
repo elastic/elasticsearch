@@ -22,10 +22,10 @@ package org.elasticsearch.search.scriptfilter;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.RequiresScripts;
 import org.junit.Test;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -36,16 +36,8 @@ import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- *
- */
-@ElasticsearchIntegrationTest.ClusterScope(scope=ElasticsearchIntegrationTest.Scope.SUITE)
+@RequiresScripts(context = ScriptContext.SEARCH)
 public class ScriptFilterSearchTests extends ElasticsearchIntegrationTest {
-
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put(GroovyScriptEngineService.GROOVY_SCRIPT_SANDBOX_ENABLED, false).build();
-    }
 
     @Test
     public void testCustomScriptBoost() throws Exception {

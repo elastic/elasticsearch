@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.transport.Transport;
@@ -40,6 +42,7 @@ import org.junit.Ignore;
 import java.io.File;
 import java.io.IOException;
 import java.util.Map;
+import java.util.Random;
 
 import static org.hamcrest.Matchers.is;
 
@@ -121,10 +124,11 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
 
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         TestCluster cluster = super.buildTestCluster(scope, seed);
+        final Settings scriptSettings = scriptSettings(seed);
         ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new SettingsSource() {
             @Override
             public Settings node(int nodeOrdinal) {
-                return externalNodeSettings(nodeOrdinal);
+                return ImmutableSettings.builder().put(scriptSettings).put(externalNodeSettings(nodeOrdinal)).build();
             }
 
             @Override
@@ -135,17 +139,30 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), externalNode);
     }
 
-    private Settings addLoggerSettings(Settings externalNodesSettings) {
+    private Settings scriptSettings(long seed) {
+        Random random = new Random(seed);
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        RequiresScripts requiresScripts = getAnnotation(this.getClass(), RequiresScripts.class);
+        if (compatibilityVersion().before(Version.V_1_6_0)) {
+            if (requiresScripts == null) {
+                builder.put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, RandomPicks.randomFrom(random, new String[]{"true", "false", "sandbox"}));
+            } else {
+                builder.put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, "false");
+            }
+        } else {
+            ScriptSettingsHelper.addScriptSettings(builder, random, requiresScripts);
+        }
+        return builder.build();
+    }
+
+    private void addLoggerSettings(ImmutableSettings.Builder builder) {
         TestLogging logging = getClass().getAnnotation(TestLogging.class);
         Map<String, String> loggingLevels = LoggingListener.getLoggersAndLevelsFromAnnotation(logging);
-        ImmutableSettings.Builder finalSettings = ImmutableSettings.settingsBuilder();
         if (loggingLevels != null) {
             for (Map.Entry<String, String> level : loggingLevels.entrySet()) {
-                finalSettings.put("logger." + level.getKey(), level.getValue());
+                builder.put("logger." + level.getKey(), level.getValue());
             }
         }
-        finalSettings.put(externalNodesSettings);
-        return finalSettings.build();
     }
 
     protected int minExternalNodes() { return 1; }
@@ -202,6 +219,9 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
     }
 
     protected Settings externalNodeSettings(int nodeOrdinal) {
-        return addLoggerSettings(commonNodeSettings(nodeOrdinal));
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        addLoggerSettings(builder);
+        builder.put(commonNodeSettings(nodeOrdinal));
+        return builder.build();
     }
 }

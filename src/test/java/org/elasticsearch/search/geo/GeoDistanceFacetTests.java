@@ -23,8 +23,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.facet.geodistance.GeoDistanceFacet;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.RequiresScripts;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -33,9 +35,7 @@ import static org.elasticsearch.search.facet.FacetBuilders.geoDistanceFacet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
+@RequiresScripts(context = ScriptContext.AGGS)
 public class GeoDistanceFacetTests extends ElasticsearchIntegrationTest {
 
     @Test

@@ -31,8 +31,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
@@ -47,6 +47,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.RequiresScripts;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -56,17 +57,12 @@ import java.util.concurrent.ExecutionException;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
+import static org.elasticsearch.script.ScriptService.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
+@RequiresScripts(type = {ScriptType.INDEXED, ScriptType.INLINE}, context = ScriptContext.AGGS)
 public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegrationTest {
 
     static final String INDEX_NAME = "testidx";
@@ -552,7 +548,7 @@ public class SignificantTermsSignificanceScoreTests extends ElasticsearchIntegra
                 } else {
                     script = "return param*(_subset_freq + _subset_size + _superset_freq + _superset_size)/param";
                 }
-                client().prepareIndex().setIndex(ScriptService.SCRIPT_INDEX).setType(ScriptService.DEFAULT_LANG).setId("my_script")
+                client().prepareIndex().setIndex(SCRIPT_INDEX).setType(DEFAULT_LANG).setId("my_script")
                         .setSource(XContentFactory.jsonBuilder().startObject()
                                 .field("script", script)
                                 .endObject()).get();

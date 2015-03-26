@@ -21,11 +21,13 @@ package org.elasticsearch.search.aggregations.metrics;
 import com.google.common.collect.Lists;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Order;
 import org.elasticsearch.search.aggregations.metrics.percentiles.Percentile;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksBuilder;
+import org.elasticsearch.test.RequiresScripts;
 import org.junit.Test;
 
 import java.util.Arrays;
@@ -36,9 +38,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.histogra
 import static org.elasticsearch.search.aggregations.AggregationBuilders.percentileRanks;
 import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
+@RequiresScripts(context = ScriptContext.AGGS)
 public class PercentileRanksTests extends AbstractNumericTests {
 
     private static double[] randomPercents(long minValue, long maxValue) {

@@ -26,19 +26,19 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.RequiresScripts;
 import org.junit.Test;
 
 import static org.elasticsearch.cluster.metadata.AliasAction.newAddAliasAction;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.script.ScriptService.ScriptType;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
-/**
- *
- */
+@RequiresScripts(context = ScriptContext.UPDATE)
 public class AliasRoutingTests extends ElasticsearchIntegrationTest {
 
     @Override
@@ -71,7 +71,7 @@ public class AliasRoutingTests extends ElasticsearchIntegrationTest {
         logger.info("--> updating with id [1] and routing through alias");
         client().prepareUpdate("alias0", "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
-                .setScript("ctx._source.field = 'value2'", ScriptService.ScriptType.INLINE)
+                .setScript("ctx._source.field = 'value2'", ScriptType.INLINE)
                 .execute().actionGet();
         for (int i = 0; i < 5; i++) {
             assertThat(client().prepareGet("alias0", "type1", "1").execute().actionGet().isExists(), equalTo(true));

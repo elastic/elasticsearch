@@ -27,12 +27,14 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.RequiresScripts;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 
 import java.util.HashMap;
@@ -41,6 +43,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
+@RequiresScripts(lang = ExpressionScriptEngineService.NAME, context = ScriptContext.SEARCH)
 public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
 
     private SearchRequestBuilder buildRequest(String script, Object... params) {

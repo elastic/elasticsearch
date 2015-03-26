@@ -126,17 +126,17 @@ public abstract class ElasticsearchSingleNodeTest extends ElasticsearchTestCase 
 
     private static Node newNode(boolean localGateway) {
         Node build = NodeBuilder.nodeBuilder().local(true).data(true).settings(ImmutableSettings.builder()
-                .put(ClusterName.SETTING, clusterName())
+            .put(ClusterName.SETTING, clusterName())
             .put("node.name", nodeName())
-                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                .put("script.inline", "on")
-                .put("script.indexed", "on")
-                .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
+            .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(EsExecutors.PROCESSORS, 1) // limit the number of threads created
             .put("http.enabled", false)
-                .put("index.store.type", "ram")
+            .put("index.store.type", "ram")
             .put("config.ignore_system_properties", true) // make sure we get what we set :)
-            .put("gateway.type", localGateway ? "local" : "none")).build();
+            .put("gateway.type", localGateway ? "local" : "none")
+            //@RequiresScript is not supported here, inline scripts are always on
+            .put("script.inline", "on")).build();
         build.start();
         assertThat(DiscoveryNode.localNode(build.settings()), is(true));
         return build;

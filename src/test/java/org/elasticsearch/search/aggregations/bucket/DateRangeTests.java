@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRange;
 import org.elasticsearch.search.aggregations.bucket.range.date.DateRangeBuilder;
@@ -27,6 +28,7 @@ import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.min.Min;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.RequiresScripts;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
@@ -46,10 +48,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
-/**
- *
- */
 @ElasticsearchIntegrationTest.SuiteScopeTest
+@RequiresScripts(context = ScriptContext.AGGS)
 public class DateRangeTests extends ElasticsearchIntegrationTest {
 
     private static IndexRequestBuilder indexDoc(int month, int day, int value) throws Exception {
@@ -66,6 +66,7 @@ public class DateRangeTests extends ElasticsearchIntegrationTest {
     }
 
     private static int numDocs;
+
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");

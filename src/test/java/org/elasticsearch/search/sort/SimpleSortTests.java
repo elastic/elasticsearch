@@ -43,9 +43,11 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.RequiresScripts;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 import org.junit.Test;
@@ -63,9 +65,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 
-/**
- *
- */
+@RequiresScripts(context = ScriptContext.SEARCH)
 public class SimpleSortTests extends ElasticsearchIntegrationTest {
 
     @TestLogging("action.search.type:TRACE")

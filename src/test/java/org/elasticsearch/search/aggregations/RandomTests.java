@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.RangeFilterBuilder;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
@@ -38,6 +39,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.RequiresScripts;
 
 import java.util.List;
 
@@ -52,6 +54,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
  * the growth of dynamic arrays is tested.
  */
 @Slow
+@RequiresScripts(context = ScriptContext.AGGS)
 public class RandomTests extends ElasticsearchIntegrationTest {
 
     // Make sure that unordered, reversed, disjoint and/or overlapping ranges are supported

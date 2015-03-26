@@ -102,8 +102,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.RequiresScripts;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 import org.junit.After;
@@ -118,6 +120,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
+@RequiresScripts(context = ScriptContext.UPDATE)
 @ClusterScope(scope = Scope.SUITE, numClientNodes = 1)
 public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 

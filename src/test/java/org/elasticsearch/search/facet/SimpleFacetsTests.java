@@ -30,6 +30,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.facet.datehistogram.DateHistogramFacet;
 import org.elasticsearch.search.facet.filter.FilterFacet;
 import org.elasticsearch.search.facet.histogram.HistogramFacet;
@@ -42,6 +43,7 @@ import org.elasticsearch.search.facet.terms.doubles.InternalDoubleTermsFacet;
 import org.elasticsearch.search.facet.terms.longs.InternalLongTermsFacet;
 import org.elasticsearch.search.facet.termsstats.TermsStatsFacet;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.RequiresScripts;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormatter;
 import org.joda.time.format.ISODateTimeFormat;
@@ -60,10 +62,7 @@ import static org.elasticsearch.search.facet.FacetBuilders.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
-
+@RequiresScripts(context = ScriptContext.AGGS)
 public class SimpleFacetsTests extends ElasticsearchIntegrationTest {
     private int numRuns = -1;
 

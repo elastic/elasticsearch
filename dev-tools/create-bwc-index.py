@@ -69,6 +69,34 @@ def index_documents(es, index_name, type, num_docs):
   logging.info('Flushing index')
   es.indices.flush(index=index_name)
 
+def delete_by_query(es, version, index_name, doc_type):
+
+  logging.info('Deleting long_sort:[10..20] docs')
+
+  query = {'query':
+           {'range':
+            {'long_sort':
+             {'gte': 10,
+              'lte': 20}}}}
+
+  if version.startswith('0.90.') or version in ('1.0.0.Beta1', '1.0.0.Beta2'):
+    # TODO #10262: we can't write DBQ into the translog for these old versions until we fix this back-compat bug:
+
+    # #4074: these versions don't expect to see the top-level 'query' to count/delete_by_query:
+    query = query['query']
+    return
+
+  deleted_count = es.count(index=index_name, doc_type=doc_type, body=query)['count']
+    
+  result = es.delete_by_query(index=index_name,
+                              doc_type=doc_type,
+                              body=query)
+
+  # make sure no shards failed:
+  assert result['_indices'][index_name]['_shards']['failed'] == 0, 'delete by query failed: %s' % result
+
+  logging.info('Deleted %d docs' % deleted_count)
+
 def run_basic_asserts(es, index_name, type, num_docs):
   count = es.count(index=index_name)['count']
   assert count == num_docs, 'Expected %r but got %r documents' % (num_docs, count)
@@ -128,7 +156,7 @@ def create_client(http_port, timeout=30):
     time.sleep(1)
   assert False, 'Timed out waiting for node for %s seconds' % timeout
 
-def generate_index(client):
+def generate_index(client, version):
   client.indices.delete(index='test', ignore=404)
   num_shards = random.randint(1, 10)
   num_replicas = random.randint(0, 1)
@@ -149,7 +177,7 @@ def generate_index(client):
       }
     }
     # completion type was added in 0.90.3
-    if not version.startswith('0.20') and not version in ['0.90.0.Beta1', '0.90.0.RC1', '0.90.0.RC2', '0.90.0', '0.90.1', '0.90.2']:
+    if not version.startswith('0.20') and version not in ['0.90.0.Beta1', '0.90.0.RC1', '0.90.0.RC2', '0.90.0', '0.90.1', '0.90.2']:
       mappings['analyzer_type1']['properties']['completion_with_index_analyzer'] = {
         'type': 'completion',
         'index_analyzer': 'standard'
@@ -270,9 +298,15 @@ def main():
   try:
     node = start_node(cfg.version, cfg.release_dir, cfg.data_dir, cfg.tcp_port, cfg.http_port)
     client = create_client(cfg.http_port)
-    generate_index(client)
+    generate_index(client, cfg.version)
     if cfg.snapshot_supported:
       snapshot_index(client, cfg)
+
+    # 10067: get a delete-by-query into the translog on upgrade.  We must do
+    # this after the snapshot, because it calls flush.  Otherwise the index
+    # will already have the deletions applied on upgrade.
+    delete_by_query(client, cfg.version, 'test', 'doc')
+    
   finally:
     if 'node' in vars():
       logging.info('Shutting down node with pid %d', node.pid)

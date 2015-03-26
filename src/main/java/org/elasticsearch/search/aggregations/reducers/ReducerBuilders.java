@@ -31,7 +31,7 @@ public final class ReducerBuilders {
         return new DerivativeBuilder(name);
     }
 
-    public static final SmoothBuilder movavg(String name) {
+    public static final SmoothBuilder smooth(String name) {
         return new SmoothBuilder(name);
     }
 }

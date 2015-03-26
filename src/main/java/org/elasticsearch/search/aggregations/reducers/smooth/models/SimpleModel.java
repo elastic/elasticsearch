@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -72,5 +73,13 @@ public class SimpleModel extends SmoothingModel {
         public SmoothingModel parse(@Nullable Map<String, Object> settings) {
             return new SimpleModel();
         }
+    }
+
+    public static String type() {
+        return NAME_FIELD.getPreferredName();
+    }
+
+    public static @Nullable Map<String, Object> settings() {
+        return null;
     }
 }

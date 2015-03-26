@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -42,7 +43,7 @@ public class SingleExpModel extends SmoothingModel {
      */
     private double alpha;
 
-    SingleExpModel(double alpha) {
+    public SingleExpModel(double alpha) {
         this.alpha = alpha;
     }
 
@@ -98,6 +99,16 @@ public class SingleExpModel extends SmoothingModel {
 
             return new SingleExpModel(alpha);
         }
+    }
+
+    public static String type() {
+        return NAME_FIELD.getPreferredName();
+    }
+
+    public static @Nullable Map<String, Object> settings(double alpha) {
+        Map<String, Object> settings = new HashMap<>(1);
+        settings.put("alpha", alpha);
+        return settings;
     }
 }
 

@@ -26,6 +26,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
+import org.elasticsearch.search.aggregations.reducers.smooth.models.DoubleExpModel;
+import org.elasticsearch.search.aggregations.reducers.smooth.models.LinearModel;
+import org.elasticsearch.search.aggregations.reducers.smooth.models.SimpleModel;
+import org.elasticsearch.search.aggregations.reducers.smooth.models.SingleExpModel;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -34,7 +38,7 @@ import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.*;
-import static org.elasticsearch.search.aggregations.reducers.ReducerBuilders.movavg;
+import static org.elasticsearch.search.aggregations.reducers.ReducerBuilders.smooth;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsNull.notNullValue;
@@ -314,14 +318,16 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
                                 .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
                                 .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
-                                .subAggregation(movavg("movavg")
+                                .subAggregation(smooth("smooth")
                                         .window(windowSize)
-                                        .weighting("simple")
+                                        .weighting(SimpleModel.type())
+                                        .settings(SimpleModel.settings())
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
-                                .subAggregation(movavg("movavg_values")
+                                .subAggregation(smooth("movavg_values")
                                         .window(windowSize)
-                                        .weighting("simple")
+                                        .weighting(SimpleModel.type())
+                                        .settings(SimpleModel.settings())
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("the_sum"))
                 ).execute().actionGet();
@@ -337,7 +343,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, docCounts[i]);
-            SimpleValue docCountMovAvg = bucket.getAggregations().get("movavg");
+            SimpleValue docCountMovAvg = bucket.getAggregations().get("smooth");
             assertThat(docCountMovAvg, notNullValue());
             assertThat(docCountMovAvg.value(), equalTo(simpleMovAvgCounts[i]));
 
@@ -359,14 +365,16 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
                                 .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
                                 .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
-                                .subAggregation(movavg("movavg")
+                                .subAggregation(smooth("smooth")
                                         .window(windowSize)
-                                        .weighting("linear")
+                                        .weighting(LinearModel.type())
+                                        .settings(LinearModel.settings())
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
-                                .subAggregation(movavg("movavg_values")
+                                .subAggregation(smooth("movavg_values")
                                         .window(windowSize)
-                                        .weighting("linear")
+                                        .weighting(LinearModel.type())
+                                        .settings(LinearModel.settings())
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("the_sum"))
                 ).execute().actionGet();
@@ -382,7 +390,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, docCounts[i]);
-            SimpleValue docCountMovAvg = bucket.getAggregations().get("movavg");
+            SimpleValue docCountMovAvg = bucket.getAggregations().get("smooth");
             assertThat(docCountMovAvg, notNullValue());
             assertThat(docCountMovAvg.value(), equalTo(linearMovAvgCounts[i]));
 
@@ -404,14 +412,16 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
                                 .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
                                 .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
-                                .subAggregation(movavg("movavg")
+                                .subAggregation(smooth("smooth")
                                         .window(windowSize)
-                                        .weighting("single_exp")
+                                        .weighting(SingleExpModel.type())
+                                        .settings(SingleExpModel.settings(0.5))
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
-                                .subAggregation(movavg("movavg_values")
+                                .subAggregation(smooth("movavg_values")
                                         .window(windowSize)
-                                        .weighting("single_exp")
+                                        .weighting(SingleExpModel.type())
+                                        .settings(SingleExpModel.settings(0.5))
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("the_sum"))
                 ).execute().actionGet();
@@ -427,7 +437,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, docCounts[i]);
-            SimpleValue docCountMovAvg = bucket.getAggregations().get("movavg");
+            SimpleValue docCountMovAvg = bucket.getAggregations().get("smooth");
             assertThat(docCountMovAvg, notNullValue());
             assertThat(docCountMovAvg.value(), equalTo(singleExpMovAvgCounts[i]));
 
@@ -449,14 +459,16 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
                         histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).minDocCount(0)
                                 .extendedBounds(0L, (long) (interval * (numValueBuckets - 1)))
                                 .subAggregation(sum("the_sum").field(SINGLE_VALUED_VALUE_FIELD_NAME))
-                                .subAggregation(movavg("movavg")
+                                .subAggregation(smooth("smooth")
                                         .window(windowSize)
-                                        .weighting("double_exp")
+                                        .weighting(DoubleExpModel.type())
+                                        .settings(DoubleExpModel.settings(0.5, 0.5))
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("_count"))
-                                .subAggregation(movavg("movavg_values")
+                                .subAggregation(smooth("movavg_values")
                                         .window(windowSize)
-                                        .weighting("double_exp")
+                                        .weighting(DoubleExpModel.type())
+                                        .settings(DoubleExpModel.settings(0.5, 0.5))
                                         .gapPolicy(gapPolicy)
                                         .setBucketsPaths("the_sum"))
                 ).execute().actionGet();
@@ -472,7 +484,7 @@ public class MovAvgTests extends ElasticsearchIntegrationTest {
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             checkBucketKeyAndDocCount("Bucket " + i, bucket, i * interval, docCounts[i]);
-            SimpleValue docCountMovAvg = bucket.getAggregations().get("movavg");
+            SimpleValue docCountMovAvg = bucket.getAggregations().get("smooth");
             assertThat(docCountMovAvg, notNullValue());
             assertThat(docCountMovAvg.value(), equalTo(doubleExpMovAvgCounts[i]));
 

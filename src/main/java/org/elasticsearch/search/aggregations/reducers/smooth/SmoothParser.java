@@ -46,6 +46,7 @@ public class SmoothParser implements Reducer.Parser {
     public static final ParseField WEIGHTING = new ParseField("weighting");
     public static final ParseField WINDOW = new ParseField("window");
     public static final ParseField SETTINGS = new ParseField("settings");
+    public static final ParseField MODEL = new ParseField("model");
 
     private final SmoothingModelParserMapper smoothingModelParserMapper;
 
@@ -89,6 +90,8 @@ public class SmoothParser implements Reducer.Parser {
                     gapPolicy = GapPolicy.parse(context, parser.text());
                 } else if (WEIGHTING.match(currentFieldName)) {
                     weighting = parser.text();
+                } else if (MODEL.match(currentFieldName)) {
+                    SmoothingModel model = (SmoothingModel) parser.objectBytes();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
                             + currentFieldName + "].");

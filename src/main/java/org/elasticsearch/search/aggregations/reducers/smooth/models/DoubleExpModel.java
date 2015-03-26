@@ -25,10 +25,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Calculate a doubly exponential weighted moving average
@@ -49,7 +46,7 @@ public class DoubleExpModel extends SmoothingModel {
      */
     private double beta;
 
-    DoubleExpModel(double alpha, double beta) {
+    public DoubleExpModel(double alpha, double beta) {
         this.alpha = alpha;
         this.beta = beta;
     }
@@ -148,6 +145,17 @@ public class DoubleExpModel extends SmoothingModel {
 
             return new DoubleExpModel(alpha, beta);
         }
+    }
+
+    public static String type() {
+        return NAME_FIELD.getPreferredName();
+    }
+
+    public static @Nullable Map<String, Object> settings(double alpha, double beta) {
+        Map<String, Object> settings = new HashMap<>(2);
+        settings.put("alpha", alpha);
+        settings.put("beta", beta);
+        return settings;
     }
 }
 

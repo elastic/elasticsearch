@@ -380,15 +380,9 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                             logger.error("failed send response for shard active while trying to delete shard {} - shard will probably not be removed", e, request.shardId);
                         }
                     }
-                }, new ClusterStateObserver.ChangePredicate() {
+                }, new ClusterStateObserver.ValidationPredicate() {
                     @Override
-                    public boolean apply(ClusterState previousState, ClusterState.ClusterStateStatus previousStatus,
-                                         ClusterState newState, ClusterState.ClusterStateStatus newStatus) {
-                        return shardActive(request);
-                    }
-
-                    @Override
-                    public boolean apply(ClusterChangedEvent event) {
+                    protected boolean validate(ClusterState newState) {
                         return shardActive(request);
                     }
                 });

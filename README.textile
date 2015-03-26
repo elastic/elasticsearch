@@ -2,7 +2,7 @@ h1. Example of Native Script Plugin for Elasticsearch
 
 h2. Introduction
 
-p. This plugin contains several examples of "native script":http://www.elasticsearch.org/guide/reference/modules/scripting.html for Elasticsearch.
+p. This plugin contains several examples of "native script":http://www.elastic.co/guide/en/elasticsearch/reference/current/modules-scripting.html for Elasticsearch.
 
 h2. Creating Elasticsearch Plugin
 
@@ -61,7 +61,7 @@ p. Now that the plugin infrastructure is complete, it's possible to add a native
 
 h3. Is Prime Native Script
 
-p. One of the example scripts in this project is the "is_prime" script that can be used to check if a field contains a possible prime number. The script accepts two parameters @field@ and @certainty@. The @field@ parameter contains the name of the field that needs to be checked and the @certainty@ parameter specifies a measure of the uncertainty that the caller is willing to tolerate. The script returns @true@ if the field contains a probable prime number and @false@ otherwise. The probability that the number for which the script returned @true@ is prime exceeds (1 - 0.5^certainty). The script can be used in "Script Filter":http://www.elasticsearch.org/guide/reference/query-dsl/script-filter.html as well as a "Script Field":http://www.elasticsearch.org/guide/reference/api/search/script-fields.html. The implementation of the "is_prime" native script and it's factory can be found in the "IsPrimeSearchScript":https://github.com/imotov/elasticsearch-native-script-example/blob/master/src/main/java/org/elasticsearch/examples/nativescript/script/IsPrimeSearchScript.java class.
+p. One of the example scripts in this project is the "is_prime" script that can be used to check if a field contains a possible prime number. The script accepts two parameters @field@ and @certainty@. The @field@ parameter contains the name of the field that needs to be checked and the @certainty@ parameter specifies a measure of the uncertainty that the caller is willing to tolerate. The script returns @true@ if the field contains a probable prime number and @false@ otherwise. The probability that the number for which the script returned @true@ is prime exceeds (1 - 0.5^certainty). The script can be used in "Script Filter":http://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-script-filter.html as well as a "Script Field":http://www.elastic.co/guide/en/elasticsearch/reference/current/search-request-script-fields.html. The implementation of the "is_prime" native script and it's factory can be found in the "IsPrimeSearchScript":https://github.com/imotov/elasticsearch-native-script-example/blob/master/src/main/java/org/elasticsearch/examples/nativescript/script/IsPrimeSearchScript.java class.
 
 p. In order to enable native script creation the plugin has to contain and register a class that implements "NativeScriptFactory":https://github.com/elasticsearch/elasticsearch/blob/master/src/main/java/org/elasticsearch/script/NativeScriptFactory.java. The NativeScriptFactory interface has only one method @newScript(Map<String, Object> params)@. This method accepts a list of parameters that are passed during script creation and returns an ExecutableScript object with an instance of the script. The factory has to be registered in the @onModule(ScriptModule module)@ method of the Plugin.
 

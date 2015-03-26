@@ -149,7 +149,7 @@ not.
 
 ===== Boost factor
 
-deprecated[1.4.0.Beta1]
+`boost_factor` deprecated[1.4.0.Beta1]
 
 Same as `weight`. Use `weight` instead.
 

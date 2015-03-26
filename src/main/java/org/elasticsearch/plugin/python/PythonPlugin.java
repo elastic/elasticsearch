@@ -35,7 +35,7 @@ public class PythonPlugin extends AbstractPlugin {
 
     @Override
     public String description() {
-        return "Python plugin allowing to add javascript scripting support";
+        return "Adds support for writing scripts in Python";
     }
 
     public void onModule(ScriptModule module) {

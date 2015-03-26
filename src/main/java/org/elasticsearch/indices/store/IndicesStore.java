@@ -337,28 +337,23 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
         @Override
         public void messageReceived(final ShardActiveRequest request, final TransportChannel channel) throws Exception {
-            // make sure shard is really there before register cluster state obsever
-            ShardId shardId = request.shardId;
-            IndexService indexService = indicesService.indexService(shardId.index().getName());
-            if (indexService != null && indexService.indexUUID().equals(request.indexUUID)) {
-                if (indexService.hasShard(shardId.id()) == false) {
-                    channel.sendResponse(new ShardActiveResponse(false, clusterService.localNode()));
-                }
-            } else {
+            IndexShard indexShard = getShard(request);
+            // make sure shard is really there before register cluster state observer
+            if (indexShard == null) {
                 channel.sendResponse(new ShardActiveResponse(false, clusterService.localNode()));
             }
             // create observer just in case
             ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout, logger);
             // check if shard is active. if so, all is good
-            boolean shardActive = shardActive(request);
+            boolean shardActive = shardActive(indexShard);
             if (shardActive) {
-                channel.sendResponse(new ShardActiveResponse(shardActive(request), clusterService.localNode()));
+                channel.sendResponse(new ShardActiveResponse(true, clusterService.localNode()));
             } else {
                 // shard is not active, might be POST_RECOVERY so check if cluster state changed inbetween or wait for next change
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        sendResult(shardActive(request));
+                        sendResult(shardActive(getShard(request)));
                     }
 
                     @Override
@@ -368,7 +363,7 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
 
                     @Override
                     public void onTimeout(TimeValue timeout) {
-                        sendResult(shardActive(request));
+                        sendResult(shardActive(getShard(request)));
                     }
 
                     public void sendResult(boolean shardActive) {
@@ -383,28 +378,35 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 }, new ClusterStateObserver.ValidationPredicate() {
                     @Override
                     protected boolean validate(ClusterState newState) {
-                        return shardActive(request);
+                        // the shard is not there in which case we want to send back a false, so the cluster state listener must be notified
+                        // or the shard is active in which case we want to send back that the shard is active
+                        IndexShard indexShard = getShard(request);
+                        return indexShard == null || shardActive(indexShard);
                     }
                 });
             }
         }
 
-        private boolean shardActive(ShardActiveRequest request) {
+        private boolean shardActive(IndexShard indexShard) {
+            if (indexShard != null) {
+                return ACTIVE_STATES.contains(indexShard.state());
+            }
+            return false;
+        }
+
+        private IndexShard getShard(ShardActiveRequest request) {
             ClusterName thisClusterName = clusterService.state().getClusterName();
             if (!thisClusterName.equals(request.clusterName)) {
                 logger.trace("shard exists request meant for cluster[{}], but this is cluster[{}], ignoring request", request.clusterName, thisClusterName);
-                return false;
+                return null;
             }
 
             ShardId shardId = request.shardId;
             IndexService indexService = indicesService.indexService(shardId.index().getName());
             if (indexService != null && indexService.indexUUID().equals(request.indexUUID)) {
-                IndexShard indexShard = indexService.shard(shardId.getId());
-                if (indexShard != null) {
-                    return ACTIVE_STATES.contains(indexShard.state());
-                }
+                return indexService.shard(shardId.id());
             }
-            return false;
+            return null;
         }
     }
 

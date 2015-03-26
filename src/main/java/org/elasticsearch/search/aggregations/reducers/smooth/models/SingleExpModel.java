@@ -23,6 +23,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.reducers.smooth.SmoothParser;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -101,14 +103,22 @@ public class SingleExpModel extends SmoothingModel {
         }
     }
 
-    public static String type() {
-        return NAME_FIELD.getPreferredName();
-    }
+    public static class SingleExpModelBuilder implements SmoothingModelBuilder {
 
-    public static @Nullable Map<String, Object> settings(double alpha) {
-        Map<String, Object> settings = new HashMap<>(1);
-        settings.put("alpha", alpha);
-        return settings;
+        private double alpha = 0.5;
+
+        public SingleExpModelBuilder alpha(double alpha) {
+            this.alpha = alpha;
+            return this;
+        }
+
+        @Override
+        public void toXContent(XContentBuilder builder) throws IOException {
+            builder.field(SmoothParser.WEIGHTING.getPreferredName(), NAME_FIELD.getPreferredName());
+            builder.startObject(SmoothParser.SETTINGS.getPreferredName());
+                builder.field("alpha", alpha);
+            builder.endObject();
+        }
     }
 }
 

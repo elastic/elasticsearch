@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.reducers.smooth;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
+import org.elasticsearch.search.aggregations.reducers.smooth.models.SmoothingModelBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -31,9 +32,8 @@ public class SmoothBuilder extends ReducerBuilder<SmoothBuilder> {
 
     private String format;
     private GapPolicy gapPolicy;
-    private String weighting;
+    private SmoothingModelBuilder modelBuilder;
     private Integer window;
-    private Map<String, Object> settings;
 
     public SmoothBuilder(String name) {
         super(name, SmoothReducer.TYPE.name());
@@ -49,8 +49,8 @@ public class SmoothBuilder extends ReducerBuilder<SmoothBuilder> {
         return this;
     }
 
-    public SmoothBuilder weighting(String weighting) {
-        this.weighting = weighting;
+    public SmoothBuilder modelBuilder(SmoothingModelBuilder modelBuilder) {
+        this.modelBuilder = modelBuilder;
         return this;
     }
 
@@ -59,10 +59,6 @@ public class SmoothBuilder extends ReducerBuilder<SmoothBuilder> {
         return this;
     }
 
-    public SmoothBuilder settings(Map<String, Object> settings) {
-        this.settings = settings;
-        return this;
-    }
 
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
@@ -72,14 +68,11 @@ public class SmoothBuilder extends ReducerBuilder<SmoothBuilder> {
         if (gapPolicy != null) {
             builder.field(SmoothParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
         }
-        if (weighting != null) {
-            builder.field(SmoothParser.WEIGHTING.getPreferredName(), weighting);
+        if (modelBuilder != null) {
+            modelBuilder.toXContent(builder);
         }
         if (window != null) {
             builder.field(SmoothParser.WINDOW.getPreferredName(), window);
-        }
-        if (settings != null) {
-            builder.field(SmoothParser.SETTINGS.getPreferredName(), settings);
         }
         return builder;
     }

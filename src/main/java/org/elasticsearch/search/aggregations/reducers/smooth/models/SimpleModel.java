@@ -23,6 +23,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.reducers.smooth.SmoothParser;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -75,11 +77,10 @@ public class SimpleModel extends SmoothingModel {
         }
     }
 
-    public static String type() {
-        return NAME_FIELD.getPreferredName();
-    }
-
-    public static @Nullable Map<String, Object> settings() {
-        return null;
+    public static class SimpleModelBuilder implements SmoothingModelBuilder {
+        @Override
+        public void toXContent(XContentBuilder builder) throws IOException {
+            builder.field(SmoothParser.WEIGHTING.getPreferredName(), NAME_FIELD.getPreferredName());
+        }
     }
 }

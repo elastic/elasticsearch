@@ -21,6 +21,7 @@ package org.elasticsearch.indices.analysis;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
+import com.google.common.util.concurrent.UncheckedExecutionException;
 import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -105,7 +106,7 @@ public class HunspellService extends AbstractComponent {
      *
      * @param locale The name of the locale
      */
-    public Dictionary getDictionary(String locale)  {
+    public Dictionary getDictionary(String locale) {
         return dictionaries.getUnchecked(locale);
     }
 
@@ -125,7 +126,13 @@ public class HunspellService extends AbstractComponent {
             for (File file : hunspellDir.listFiles()) {
                 if (file.isDirectory()) {
                     if (file.list(DIC_FILE_FILTER).length > 0) { // just making sure it's indeed a dictionary dir
-                        dictionaries.getUnchecked(file.getName());
+                        try {
+                            dictionaries.getUnchecked(file.getName());
+                        } catch (UncheckedExecutionException e) {
+                            // The cache loader throws unchecked exception (see #loadDictionary()),
+                            // here we simply report the exception and continue loading the dictionaries
+                            logger.error("exception while loading dictionary {}", file.getName(), e);
+                        }
                     }
                 }
             }

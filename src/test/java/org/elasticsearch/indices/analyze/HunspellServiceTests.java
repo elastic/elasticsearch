@@ -28,7 +28,6 @@ import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import org.hamcrest.Matchers;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
@@ -91,7 +90,6 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Ignore("https://github.com/elasticsearch/elasticsearch/issues/9849")
     public void testDicWithNoAff() throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("path.conf", getResource("/indices/analyze/no_aff_conf_dir"))
@@ -111,7 +109,6 @@ public class HunspellServiceTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    @Ignore("https://github.com/elasticsearch/elasticsearch/issues/9849")
     public void testDicWithTwoAffs() throws Exception {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("path.conf", getResource("/indices/analyze/two_aff_conf_dir"))

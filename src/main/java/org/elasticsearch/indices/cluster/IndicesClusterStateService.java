@@ -312,11 +312,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 try {
                     indicesService.createIndex(indexMetaData.index(), indexMetaData.settings(), event.state().nodes().localNode().id());
                 } catch (Throwable e) {
-                    logger.warn("[{}] failed to create index for shard {}", e, indexMetaData.index(), shard.shardId());
-                    failedShards.put(shard.shardId(), new FailedShard(shard.version()));
-                    shardStateAction.shardFailed(shard, indexMetaData.getUUID(),
-                            "failed to create index for newly allocated shard " + shard.shardId() + ", failure " + ExceptionsHelper.detailedMessage(e),
-                            event.state().nodes().masterNode());
+                    sendFailShard(shard, indexMetaData.getUUID(), "failed to create index", e);
                 }
             }
         }
@@ -404,17 +400,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // so this failure typically means wrong node level configuration or something similar
                 for (IndexShard indexShard : indexService) {
                     ShardRouting shardRouting = indexShard.routingEntry();
-                    logger.warn("[{}][{}] failed to updated mappings", t, shardRouting.index(), shardRouting.id());
-                    try {
-                        indexService.removeShard(indexShard.shardId().id(), "failed to update mappings [" + ExceptionsHelper.detailedMessage(t) + "]");
-                    } catch (IndexShardMissingException e1) {
-                        // ignore
-                    } catch (Throwable e1) {
-                        logger.warn("[{}][{}] failed to remove shard after failed creation", e1, shardRouting.index(), shardRouting.id());
-                    }
-                    failedShards.put(shardRouting.shardId(), new FailedShard(shardRouting.version()));
-                    shardStateAction.shardFailed(shardRouting, indexMetaData.getUUID(), "failed to process mappings, message [" + detailedMessage(t) + "]",
-                            event.state().nodes().masterNode());
+                    failAndRemoveShard(shardRouting, indexService, true, "failed to update mappings", t);
                 }
             }
         }
@@ -569,14 +555,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     }
                 } else {
                     // the master thinks we are started, but we don't have this shard at all, mark it as failed
-                    logger.warn("[{}][{}] master [{}] marked shard as started, but shard has not been created, mark shard as failed", shardRouting.index(), shardId, nodes.masterNode());
-                    failedShards.put(shardRouting.shardId(), new FailedShard(shardRouting.version()));
-                    if (nodes.masterNode() != null) {
-                        shardStateAction.shardFailed(shardRouting, indexMetaData.getUUID(),
-                                "master " + nodes.masterNode() + " marked shard as started, but shard has not been created, mark shard as failed",
-                                nodes.masterNode()
-                        );
-                    }
+                    sendFailShard(shardRouting, indexMetaData.getUUID(), "master [" + nodes.masterNode() + "] marked shard as started, but shard has not been created, mark shard as failed", null);
                 }
                 continue;
             }
@@ -730,22 +709,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             } catch (IndexShardAlreadyExistsException e) {
                 // ignore this, the method call can happen several times
             } catch (Throwable e) {
-                logger.warn("[{}][{}] failed to create shard", e, shardRouting.index(), shardRouting.id());
-                try {
-                    indexService.removeShard(shardId, "failed to create [" + ExceptionsHelper.detailedMessage(e) + "]");
-                } catch (IndexShardMissingException e1) {
-                    // ignore
-                } catch (Throwable e1) {
-                    logger.warn("[{}][{}] failed to remove shard after failed creation", e1, shardRouting.index(), shardRouting.id());
-                }
-                failedShards.put(shardRouting.shardId(), new FailedShard(shardRouting.version()));
-                if (nodes.masterNode() != null) {
-                    shardStateAction.shardFailed(shardRouting, indexMetaData.getUUID(), "Failed to create shard, message [" + detailedMessage(e) + "]",
-                            nodes.masterNode()
-                    );
-                } else {
-                    logger.debug("can't send shard failed for {} as there is no current master", shardRouting.shardId());
-                }
+                failAndRemoveShard(shardRouting, indexService, true, "failed to create shard", e);
                 return;
             }
         }
@@ -771,7 +735,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 recoveryTarget.startRecovery(indexShard, type, sourceNode, new PeerRecoveryListener(shardRouting, indexService, indexMetaData));
             } catch (Throwable e) {
                 indexShard.failShard("corrupted preexisting index", e);
-                handleRecoveryFailure(indexService, indexMetaData, shardRouting, true, e);
+                handleRecoveryFailure(indexService, shardRouting, true, e);
             }
         } else {
             final IndexShardRoutingTable indexShardRouting = routingTable.index(shardRouting.index()).shard(shardRouting.id());
@@ -791,7 +755,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
                 @Override
                 public void onRecoveryFailed(IndexShardGatewayRecoveryException e) {
-                    handleRecoveryFailure(indexService, indexMetaData, shardRouting, true, e);
+                    handleRecoveryFailure(indexService, shardRouting, true, e);
                 }
             });
         }
@@ -855,31 +819,13 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
         @Override
         public void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure) {
-            handleRecoveryFailure(indexService, indexMetaData, shardRouting, sendShardFailure, e);
+            handleRecoveryFailure(indexService, shardRouting, sendShardFailure, e);
         }
     }
 
-    private void handleRecoveryFailure(IndexService indexService, IndexMetaData indexMetaData, ShardRouting shardRouting, boolean sendShardFailure, Throwable failure) {
+    private void handleRecoveryFailure(IndexService indexService, ShardRouting shardRouting, boolean sendShardFailure, Throwable failure) {
         synchronized (mutex) {
-            if (indexService.hasShard(shardRouting.shardId().id())) {
-                try {
-                    logger.debug("[{}][{}] removing shard on failed recovery [{}]", shardRouting.index(), shardRouting.shardId().id(), failure.getMessage());
-                    indexService.removeShard(shardRouting.shardId().id(), "recovery failure [" + ExceptionsHelper.detailedMessage(failure) + "]");
-                } catch (IndexShardMissingException e) {
-                    // the node got closed on us, ignore it
-                } catch (Throwable e1) {
-                    logger.warn("[{}][{}] failed to delete shard after recovery failure", e1, indexService.index().name(), shardRouting.shardId().id());
-                }
-            }
-            if (sendShardFailure) {
-                logger.warn("[{}][{}] sending failed shard after recovery failure", failure, indexService.index().name(), shardRouting.shardId().id());
-                try {
-                    failedShards.put(shardRouting.shardId(), new FailedShard(shardRouting.version()));
-                    shardStateAction.shardFailed(shardRouting, indexMetaData.getUUID(), "Failed to start shard, message [" + detailedMessage(failure) + "]");
-                } catch (Throwable e1) {
-                    logger.warn("[{}][{}] failed to mark shard as failed after a failed start", e1, indexService.index().name(), shardRouting.id());
-                }
-            }
+            failAndRemoveShard(shardRouting, indexService, sendShardFailure, "failed recovery", failure);
         }
     }
 
@@ -913,6 +859,31 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     }
 
+    private void failAndRemoveShard(ShardRouting shardRouting, IndexService indexService, boolean sendShardFailure, String message, @Nullable Throwable failure) {
+        if (indexService.hasShard(shardRouting.getId())) {
+            try {
+                indexService.removeShard(shardRouting.getId(), message);
+            } catch (IndexShardMissingException e) {
+                // the node got closed on us, ignore it
+            } catch (Throwable e1) {
+                logger.warn("[{}][{}] failed to remove shard after failure ([{}])", e1, shardRouting.getIndex(), shardRouting.getId(), message);
+            }
+        }
+        if (sendShardFailure) {
+            sendFailShard(shardRouting, indexService.indexUUID(), message, failure);
+        }
+    }
+
+    private void sendFailShard(ShardRouting shardRouting, String indexUUID, String message, @Nullable Throwable failure) {
+        try {
+            logger.warn("[{}] marking and sending shard failed due to [{}]", failure, shardRouting.shardId(), message);
+            failedShards.put(shardRouting.shardId(), new FailedShard(shardRouting.version()));
+            shardStateAction.shardFailed(shardRouting, indexUUID, "shard failure [" + message + "]" + (failure == null ? "" : "[" + detailedMessage(failure) + "]"));
+        } catch (Throwable e1) {
+            logger.warn("[{}][{}] failed to mark shard as failed (because of [{}])", e1, shardRouting.getIndex(), shardRouting.getId(), message);
+        }
+    }
+
     private class FailedEngineHandler implements Engine.FailedEngineListener {
         @Override
         public void onFailedEngine(final ShardId shardId, final String reason, final @Nullable Throwable failure) {
@@ -925,34 +896,16 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
             }
             if (shardRouting == null) {
-                logger.warn("[{}][{}] engine failed, but can't find index shard. failure reason: [{}]",
+                logger.warn("[{}][{}] engine failed, but can't find index shard. failure reason: [{}]", failure,
                         shardId.index().name(), shardId.id(), reason);
                 return;
             }
             final ShardRouting fShardRouting = shardRouting;
-            final String indexUUID = indexService.indexUUID(); // we know indexService is not null here.
-            final String failureMessage = "engine failure, message [" + reason + "]" +
-                    (failure == null ? "" : "[" + detailedMessage(failure) + "]");
             threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
                     synchronized (mutex) {
-                        if (indexService.hasShard(shardId.id())) {
-                            try {
-
-                                indexService.removeShard(shardId.id(), failureMessage);
-                            } catch (IndexShardMissingException e) {
-                                // the node got closed on us, ignore it
-                            } catch (Throwable e1) {
-                                logger.warn("[{}][{}] failed to delete shard after failed engine ([{}])", e1, indexService.index().name(), shardId.id(), reason);
-                            }
-                        }
-                        try {
-                            failedShards.put(fShardRouting.shardId(), new FailedShard(fShardRouting.version()));
-                            shardStateAction.shardFailed(fShardRouting, indexUUID, failureMessage);
-                        } catch (Throwable e1) {
-                            logger.warn("[{}][{}] failed to mark shard as failed after a failed engine ([{}])", e1, indexService.index().name(), shardId.id(), reason);
-                        }
+                        failAndRemoveShard(fShardRouting, indexService, true, "engine failure, reason [" + reason + "]", failure);
                     }
                 }
             });

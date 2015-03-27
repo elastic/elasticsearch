@@ -805,10 +805,6 @@ public class MapperService extends AbstractIndexComponent  {
         return null;
     }
 
-    public Set<FieldMapper<?>> copyOfAllFields() {
-        return new HashSet<>(fieldMappers);
-    }
-
     /**
      * @return Whether a field is a metadata field.
      */

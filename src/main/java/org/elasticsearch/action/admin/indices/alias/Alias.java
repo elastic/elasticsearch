@@ -167,12 +167,7 @@ public class Alias implements Streamable {
     }
 
     public Alias includeFields(String... fields) {
-        this.fieldsFiltering = new AliasFieldsFiltering(fields, null);
-        return this;
-    }
-
-    public Alias excludeFields(String... fields) {
-        this.fieldsFiltering = new AliasFieldsFiltering(null, fields);
+        this.fieldsFiltering = new AliasFieldsFiltering(fields);
         return this;
     }
 

@@ -154,14 +154,6 @@ public class AliasValidator extends AbstractComponent {
                 }
             }
         }
-        if (fieldsFiltering.getExcludes() != null) {
-            for (String field : fieldsFiltering.getExcludes()) {
-                FieldMappers fieldMappers = mapperService.fullName(field);
-                if (fieldMappers.isEmpty()) {
-                    throw new ElasticsearchIllegalArgumentException("field [" + field + "] doesn't exist");
-                }
-            }
-        }
     }
 
     private void validateAliasFilter(XContentParser parser, IndexQueryParserService indexQueryParserService) throws IOException {

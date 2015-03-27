@@ -38,14 +38,12 @@ import java.util.List;
 public class AliasFieldsFiltering implements Streamable, ToXContent {
 
     private String[] includes;
-    private String[] excludes;
 
     public AliasFieldsFiltering() {
     }
 
-    public AliasFieldsFiltering(String[] includes, String[] excludes) {
+    public AliasFieldsFiltering(String[] includes) {
         this.includes = includes;
-        this.excludes = excludes;
     }
 
     public String[] getIncludes() {
@@ -56,14 +54,6 @@ public class AliasFieldsFiltering implements Streamable, ToXContent {
         this.includes = includes;
     }
 
-    public String[] getExcludes() {
-        return excludes;
-    }
-
-    public void setExcludes(String[] excludes) {
-        this.excludes = excludes;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -71,7 +61,6 @@ public class AliasFieldsFiltering implements Streamable, ToXContent {
 
         AliasFieldsFiltering that = (AliasFieldsFiltering) o;
 
-        if (!Arrays.equals(excludes, that.excludes)) return false;
         if (!Arrays.equals(includes, that.includes)) return false;
 
         return true;
@@ -80,20 +69,17 @@ public class AliasFieldsFiltering implements Streamable, ToXContent {
     @Override
     public int hashCode() {
         int result = includes != null ? Arrays.hashCode(includes) : 0;
-        result = 31 * result + (excludes != null ? Arrays.hashCode(excludes) : 0);
         return result;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         includes = in.readStringArray();
-        excludes = in.readStringArray();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArrayNullable(includes);
-        out.writeStringArrayNullable(excludes);
     }
 
     @Override
@@ -102,13 +88,6 @@ public class AliasFieldsFiltering implements Streamable, ToXContent {
         if (includes != null) {
             builder.startArray(Fields.INCLUDES);
             for (String field : includes) {
-                builder.value(field);
-            }
-            builder.endArray();
-        }
-        if (excludes != null) {
-            builder.startArray(Fields.EXCLUDES);
-            for (String field : excludes) {
                 builder.value(field);
             }
             builder.endArray();
@@ -122,7 +101,6 @@ public class AliasFieldsFiltering implements Streamable, ToXContent {
             throw new ElasticsearchParseException("Illegal start");
         }
         String[] includes = null;
-        String[] excludes = null;
         String fieldName = null;
         for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -130,8 +108,6 @@ public class AliasFieldsFiltering implements Streamable, ToXContent {
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if ("includes".equals(fieldName)) {
                     includes = readArray(parser);
-                } else if ("excludes".equals(fieldName)) {
-                    excludes = readArray(parser);
                 } else {
                     throw new ElasticsearchParseException("Unknown field [" + fieldName + "]");
                 }
@@ -139,7 +115,7 @@ public class AliasFieldsFiltering implements Streamable, ToXContent {
                 throw new ElasticsearchParseException("Unknown token [" + token + "]");
             }
         }
-        return new AliasFieldsFiltering(includes, excludes);
+        return new AliasFieldsFiltering(includes);
     }
 
     private static String[] readArray(XContentParser parser) throws IOException {
@@ -158,7 +134,6 @@ public class AliasFieldsFiltering implements Streamable, ToXContent {
 
         static final XContentBuilderString FIELDS = new XContentBuilderString("fields");
         static final XContentBuilderString INCLUDES = new XContentBuilderString("includes");
-        static final XContentBuilderString EXCLUDES = new XContentBuilderString("excludes");
 
     }
 }

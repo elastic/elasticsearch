@@ -140,27 +140,17 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
             if (fieldsFiltering == null) {
                 return null;
             } else {
-                final Set<FieldMapper<?>> fields;
                 if (fieldsFiltering.getIncludes() != null) {
-                    fields = new HashSet<>();
+                    Set<FieldMapper<?>> fields = new HashSet<>();
                     for (String include : fieldsFiltering.getIncludes()) {
                         FieldMapper fieldMapper = mapperService.smartNameFieldMapper(include);
                         assert fieldMapper != null : "this must be not null, because we validate if a field exists before we create or modify the alias";
                         fields.add(fieldMapper);
                     }
+                    return fields;
                 } else {
-                    fields = mapperService.copyOfAllFields();
+                    return null;
                 }
-
-                if (fieldsFiltering.getExcludes() != null) {
-                    for (String exclude : fieldsFiltering.getExcludes()) {
-                        FieldMapper fieldMapper = mapperService.smartNameFieldMapper(exclude);
-                        assert fieldMapper != null : "this must be not null, because we validate if a field exists before we create or modify the alias";
-                        fields.remove(fieldMapper);
-                    }
-                }
-
-                return fields;
             }
         } else {
             Set<FieldMapper<?>> fields = null;
@@ -182,28 +172,6 @@ public class IndexAliasesService extends AbstractIndexComponent implements Itera
                         FieldMapper fieldMapper = mapperService.smartNameFieldMapper(include);
                         assert fieldMapper != null : "this must be not null, because we validate if a field exists before we create or modify the alias";
                         fields.add(fieldMapper);
-                    }
-                }
-            }
-
-            for (String alias : aliases) {
-                IndexAlias indexAlias = alias(alias);
-                if (indexAlias == null) {
-                    // This shouldn't happen unless alias disappeared after filteringAliases was called.
-                    throw new InvalidAliasNameException(index, aliases[0], "Unknown alias name was passed to alias view");
-                }
-                AliasFieldsFiltering fieldsFiltering = indexAlias.fieldFiltering();
-                if (fieldsFiltering == null) {
-                    continue;
-                }
-                if (fieldsFiltering.getExcludes() != null) {
-                    if (fields == null) {
-                        fields = mapperService.copyOfAllFields();
-                    }
-                    for (String exclude : fieldsFiltering.getExcludes()) {
-                        FieldMapper fieldMapper = mapperService.smartNameFieldMapper(exclude);
-                        assert fieldMapper != null : "this must be not null, because we validate if a field exists before we create or modify the alias";
-                        fields.remove(fieldMapper);
                     }
                 }
             }

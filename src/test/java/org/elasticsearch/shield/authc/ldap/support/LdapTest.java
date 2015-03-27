@@ -11,6 +11,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
+import org.elasticsearch.shield.authc.support.DnRoleMapper;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.AfterClass;
@@ -65,12 +66,12 @@ public abstract class LdapTest extends ElasticsearchTestCase {
                 .put(HOSTNAME_VERIFICATION_SETTING, hostnameVerification).build();
     }
 
-    protected LdapRoleMapper buildGroupAsRoleMapper(ResourceWatcherService resourceWatcherService) {
+    protected DnRoleMapper buildGroupAsRoleMapper(ResourceWatcherService resourceWatcherService) {
         Settings settings = ImmutableSettings.builder()
-                .put(LdapRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
+                .put(DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
                 .build();
         RealmConfig config = new RealmConfig("ldap1", settings);
 
-        return new LdapRoleMapper(LdapRealm.TYPE, config, resourceWatcherService, null);
+        return new DnRoleMapper(LdapRealm.TYPE, config, resourceWatcherService, null);
     }
 }

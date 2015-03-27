@@ -17,6 +17,7 @@ import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.signature.InternalSignatureService;
 import org.elasticsearch.shield.test.ShieldTestUtils;
+import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 
@@ -218,7 +219,7 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
         ImmutableSettings.Builder builder = settingsBuilder()
                 .put("shield.transport.ssl", sslTransportEnabled)
-                .put("shield.http.ssl", false);
+                .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, false);
 
         if (sslTransportEnabled) {
             builder.put("shield.ssl.keystore.path", store.getPath())

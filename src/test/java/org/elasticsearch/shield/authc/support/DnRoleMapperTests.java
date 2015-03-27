@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authc.ldap.support;
+package org.elasticsearch.shield.authc.support;
 
 import com.unboundid.ldap.sdk.DN;
 import org.elasticsearch.common.base.Charsets;
@@ -16,7 +16,6 @@ import org.elasticsearch.shield.audit.logfile.CapturingLogger;
 import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.shield.authc.activedirectory.ActiveDirectoryRealm;
 import org.elasticsearch.shield.authc.ldap.LdapRealm;
-import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -40,7 +39,7 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-public class LdapRoleMapperTests extends ElasticsearchTestCase {
+public class DnRoleMapperTests extends ElasticsearchTestCase {
 
     private static final String[] STARK_GROUP_DNS = new String[] {
             //groups can be named by different attributes, depending on the directory,
@@ -78,20 +77,20 @@ public class LdapRoleMapperTests extends ElasticsearchTestCase {
         Files.write(file, ImmutableList.of("aldlfkjldjdflkjd"), Charsets.UTF_16);
 
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
-        LdapRoleMapper mapper = createMapper(file, watcherService);
+        DnRoleMapper mapper = createMapper(file, watcherService);
         assertThat(mapper.mappingsCount(), is(0));
     }
 
     @Test
     public void testMapper_AutoReload() throws Exception {
-        Path roleMappingFile = Paths.get(LdapRoleMapperTests.class.getResource("role_mapping.yml").toURI());
+        Path roleMappingFile = Paths.get(DnRoleMapperTests.class.getResource("role_mapping.yml").toURI());
         Path file = Files.createTempFile(null, ".yml");
         Files.copy(roleMappingFile, file, StandardCopyOption.REPLACE_EXISTING);
 
         final CountDownLatch latch = new CountDownLatch(1);
 
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
-        LdapRoleMapper mapper = createMapper(file, watcherService);
+        DnRoleMapper mapper = createMapper(file, watcherService);
         mapper.addListener(new RefreshListener() {
             @Override
             public void onRefresh() {
@@ -124,14 +123,14 @@ public class LdapRoleMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testMapper_AutoReload_WithParseFailures() throws Exception {
-        Path roleMappingFile = Paths.get(LdapRoleMapperTests.class.getResource("role_mapping.yml").toURI());
+        Path roleMappingFile = Paths.get(DnRoleMapperTests.class.getResource("role_mapping.yml").toURI());
         Path file = Files.createTempFile(null, ".yml");
         Files.copy(roleMappingFile, file, StandardCopyOption.REPLACE_EXISTING);
 
         final CountDownLatch latch = new CountDownLatch(1);
 
         ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool);
-        LdapRoleMapper mapper = createMapper(file, watcherService);
+        DnRoleMapper mapper = createMapper(file, watcherService);
         mapper.addListener(new RefreshListener() {
             @Override
             public void onRefresh() {
@@ -158,9 +157,9 @@ public class LdapRoleMapperTests extends ElasticsearchTestCase {
 
     @Test
     public void testParseFile() throws Exception {
-        Path file = Paths.get(LdapRoleMapperTests.class.getResource("role_mapping.yml").toURI());
+        Path file = Paths.get(DnRoleMapperTests.class.getResource("role_mapping.yml").toURI());
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
-        ImmutableMap<DN, Set<String>> mappings = LdapRoleMapper.parseFile(file, logger, "_type", "_name");
+        ImmutableMap<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.size(), is(3));
 
@@ -190,7 +189,7 @@ public class LdapRoleMapperTests extends ElasticsearchTestCase {
     public void testParseFile_Empty() throws Exception {
         Path file = newTempFile().toPath();
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
-        ImmutableMap<DN, Set<String>> mappings = LdapRoleMapper.parseFile(file, logger, "_type", "_name");
+        ImmutableMap<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
         List<CapturingLogger.Msg> msgs = logger.output(CapturingLogger.Level.WARN);
@@ -202,7 +201,7 @@ public class LdapRoleMapperTests extends ElasticsearchTestCase {
     public void testParseFile_WhenFileDoesNotExist() throws Exception {
         Path file = new File(randomAsciiOfLength(10)).toPath();
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
-        ImmutableMap<DN, Set<String>> mappings = LdapRoleMapper.parseFile(file, logger, "_type", "_name");
+        ImmutableMap<DN, Set<String>> mappings = DnRoleMapper.parseFile(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
     }
@@ -214,7 +213,7 @@ public class LdapRoleMapperTests extends ElasticsearchTestCase {
         Files.write(file, ImmutableList.of("aldlfkjldjdflkjd"), Charsets.UTF_16);
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
         try {
-            LdapRoleMapper.parseFile(file, logger, "_type", "_name");
+            DnRoleMapper.parseFile(file, logger, "_type", "_name");
             fail("expected a parse failure");
         } catch (Exception e) {
             this.logger.info("expected", e);
@@ -227,7 +226,7 @@ public class LdapRoleMapperTests extends ElasticsearchTestCase {
         // writing in utf_16 should cause a parsing error as we try to read the file in utf_8
         Files.write(file, ImmutableList.of("aldlfkjldjdflkjd"), Charsets.UTF_16);
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
-        ImmutableMap<DN, Set<String>> mappings = LdapRoleMapper.parseFileLenient(file, logger, "_type", "_name");
+        ImmutableMap<DN, Set<String>> mappings = DnRoleMapper.parseFileLenient(file, logger, "_type", "_name");
         assertThat(mappings, notNullValue());
         assertThat(mappings.isEmpty(), is(true));
         List<CapturingLogger.Msg> msgs = logger.output(CapturingLogger.Level.ERROR);
@@ -239,11 +238,11 @@ public class LdapRoleMapperTests extends ElasticsearchTestCase {
     public void testYaml() throws IOException {
         File file = this.getResource("role_mapping.yml");
         Settings ldapSettings = ImmutableSettings.settingsBuilder()
-                .put(LdapRoleMapper.ROLE_MAPPING_FILE_SETTING, file.getCanonicalPath())
+                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, file.getCanonicalPath())
                 .build();
         RealmConfig config = new RealmConfig("ldap1", ldapSettings);
 
-        LdapRoleMapper mapper = new LdapRoleMapper(LdapRealm.TYPE, config, new ResourceWatcherService(settings, threadPool), null);
+        DnRoleMapper mapper = new DnRoleMapper(LdapRealm.TYPE, config, new ResourceWatcherService(settings, threadPool), null);
 
         Set<String> roles = mapper.resolveRoles("", Arrays.asList(STARK_GROUP_DNS));
 
@@ -254,11 +253,11 @@ public class LdapRoleMapperTests extends ElasticsearchTestCase {
     @Test
     public void testRelativeDN() {
         Settings ldapSettings = ImmutableSettings.builder()
-                .put(LdapRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
+                .put(DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
                 .build();
         RealmConfig config = new RealmConfig("ldap1", ldapSettings);
 
-        LdapRoleMapper mapper = new LdapRoleMapper(LdapRealm.TYPE, config, new ResourceWatcherService(settings, threadPool), null);
+        DnRoleMapper mapper = new DnRoleMapper(LdapRealm.TYPE, config, new ResourceWatcherService(settings, threadPool), null);
 
         Set<String> roles = mapper.resolveRoles("", Arrays.asList(STARK_GROUP_DNS));
         assertThat(roles, hasItems("genius", "billionaire", "playboy", "philanthropist", "shield", "avengers"));
@@ -268,22 +267,22 @@ public class LdapRoleMapperTests extends ElasticsearchTestCase {
     public void testUserDNMapping() throws Exception {
         File file = this.getResource("role_mapping.yml");
         Settings ldapSettings = ImmutableSettings.builder()
-                .put(LdapRoleMapper.ROLE_MAPPING_FILE_SETTING, file.getCanonicalPath())
-                .put(LdapRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, false)
+                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, file.getCanonicalPath())
+                .put(DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, false)
                 .build();
         RealmConfig config = new RealmConfig("ldap-userdn-role", ldapSettings);
 
-        LdapRoleMapper mapper = new LdapRoleMapper(LdapRealm.TYPE, config, new ResourceWatcherService(settings, threadPool), null);
+        DnRoleMapper mapper = new DnRoleMapper(LdapRealm.TYPE, config, new ResourceWatcherService(settings, threadPool), null);
 
         Set<String> roles = mapper.resolveRoles("cn=Horatio Hornblower,ou=people,o=sevenSeas", Collections.<String>emptyList());
         assertThat(roles, hasItem("avenger"));
     }
 
-    protected LdapRoleMapper createMapper(Path file, ResourceWatcherService watcherService) {
+    protected DnRoleMapper createMapper(Path file, ResourceWatcherService watcherService) {
         Settings realmSettings = ImmutableSettings.builder()
                 .put("files.role_mapping", file.toAbsolutePath())
                 .build();
         RealmConfig config = new RealmConfig("ad-group-mapper-test", realmSettings, settings, env);
-        return new LdapRoleMapper(randomBoolean() ? ActiveDirectoryRealm.TYPE : LdapRealm.TYPE, config, watcherService, null);
+        return new DnRoleMapper(randomBoolean() ? ActiveDirectoryRealm.TYPE : LdapRealm.TYPE, config, watcherService, null);
     }
 }

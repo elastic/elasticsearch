@@ -17,6 +17,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.signature.InternalSignatureService;
+import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.elasticsearch.test.ShieldSettingsSource;
@@ -127,7 +128,7 @@ public class TribeTests extends ShieldIntegrationTest {
                         return true;
                     }
                     //forward ssl settings to the tribe clients, same certificates will be used
-                    if (settingKey.startsWith("shield.ssl") || settingKey.equals("shield.transport.ssl") || settingKey.equals("shield.http.ssl")) {
+                    if (settingKey.startsWith("shield.ssl") || settingKey.equals("shield.transport.ssl") || settingKey.equals(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING)) {
                         return true;
                     }
                     //forward the credentials to the tribe clients

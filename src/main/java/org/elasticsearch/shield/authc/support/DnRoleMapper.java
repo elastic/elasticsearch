@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.shield.authc.ldap.support;
+package org.elasticsearch.shield.authc.support;
 
 import com.unboundid.ldap.sdk.DN;
 import com.unboundid.ldap.sdk.LDAPException;
@@ -16,7 +16,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.ShieldSettingsException;
 import org.elasticsearch.shield.authc.RealmConfig;
-import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -34,9 +33,9 @@ import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.dn;
 import static org.elasticsearch.shield.authc.ldap.support.LdapUtils.relativeName;
 
 /**
- * This class loads and monitors the file defining the mappings of LDAP DNs to internal ES Roles.
+ * This class loads and monitors the file defining the mappings of DNs to internal ES Roles.
  */
-public class LdapRoleMapper {
+public class DnRoleMapper {
 
     public static final String DEFAULT_FILE_NAME = "role_mapping.yml";
     public static final String ROLE_MAPPING_FILE_SETTING = "files.role_mapping";
@@ -52,7 +51,7 @@ public class LdapRoleMapper {
 
     private CopyOnWriteArrayList<RefreshListener> listeners;
 
-    public LdapRoleMapper(String realmType, RealmConfig config, ResourceWatcherService watcherService, @Nullable RefreshListener listener) {
+    public DnRoleMapper(String realmType, RealmConfig config, ResourceWatcherService watcherService, @Nullable RefreshListener listener) {
         this.realmType = realmType;
         this.config = config;
         this.logger = config.logger(getClass());
@@ -111,9 +110,9 @@ public class LdapRoleMapper {
             Map<DN, Set<String>> dnToRoles = new HashMap<>();
             Set<String> roles = settings.names();
             for (String role : roles) {
-                for (String ldapDN : settings.getAsArray(role)) {
+                for (String providedDn : settings.getAsArray(role)) {
                     try {
-                        DN dn = new DN(ldapDN);
+                        DN dn = new DN(providedDn);
                         Set<String> dnRoles = dnToRoles.get(dn);
                         if (dnRoles == null) {
                             dnRoles = new HashSet<>();
@@ -121,7 +120,7 @@ public class LdapRoleMapper {
                         }
                         dnRoles.add(role);
                     } catch (LDAPException e) {
-                        logger.error("invalid DN [{}] found in [{}] role mappings [{}] for realm [{}/{}]. skipping... ", e, ldapDN, realmType, path.toAbsolutePath(), realmType, realmName);
+                        logger.error("invalid DN [{}] found in [{}] role mappings [{}] for realm [{}/{}]. skipping... ", e, providedDn, realmType, path.toAbsolutePath(), realmType, realmName);
                     }
                 }
 
@@ -147,12 +146,12 @@ public class LdapRoleMapper {
      */
     public Set<String> resolveRoles(String userDnString, List<String> groupDns) {
         Set<String> roles = new HashSet<>();
-        for (String groupDn : groupDns) {
-            DN groupLdapName = dn(groupDn);
-            if (dnRoles.containsKey(groupLdapName)) {
-                roles.addAll(dnRoles.get(groupLdapName));
+        for (String groupDnString : groupDns) {
+            DN groupDn = dn(groupDnString);
+            if (dnRoles.containsKey(groupDn)) {
+                roles.addAll(dnRoles.get(groupDn));
             } else if (useUnmappedGroupsAsRoles) {
-                roles.add(relativeName(groupLdapName));
+                roles.add(relativeName(groupDn));
             }
         }
         if (logger.isDebugEnabled()) {
@@ -189,7 +188,7 @@ public class LdapRoleMapper {
 
         @Override
         public void onFileChanged(File file) {
-            if (file.equals(LdapRoleMapper.this.file.toFile())) {
+            if (file.equals(DnRoleMapper.this.file.toFile())) {
                 logger.info("role mappings file [{}] changed for realm [{}/{}]. updating mappings...", file.getAbsolutePath(), realmType, config.name());
                 dnRoles = parseFileLenient(file.toPath(), logger, realmType, config.name());
                 notifyRefresh();

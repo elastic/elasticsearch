@@ -20,6 +20,7 @@ import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty.NettyTransport;
+import org.elasticsearch.transport.netty.ShieldMessageChannelHandler;
 
 import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
@@ -32,6 +33,12 @@ public class ShieldNettyTransport extends NettyTransport {
 
     public static final String HOSTNAME_VERIFICATION_SETTING = "shield.ssl.hostname_verification";
     public static final String HOSTNAME_VERIFICATION_RESOLVE_NAME_SETTING = "shield.ssl.hostname_verification.resolve_name";
+    public static final String TRANSPORT_SSL_SETTING = "shield.transport.ssl";
+    public static final boolean TRANSPORT_SSL_DEFAULT = false;
+    public static final String TRANSPORT_CLIENT_AUTH_SETTING = "shield.transport.ssl.client.auth";
+    public static final boolean TRANSPORT_CLIENT_AUTH_DEFAULT = true;
+    public static final String TRANSPORT_PROFILE_SSL_SETTING = "shield.ssl";
+    public static final String TRANSPORT_PROFILE_CLIENT_AUTH_SETTING = "shield.ssl.client.auth";
 
     private final ServerSSLService serverSslService;
     private final ClientSSLService clientSSLService;
@@ -45,7 +52,7 @@ public class ShieldNettyTransport extends NettyTransport {
                                 ShieldSettingsFilter settingsFilter) {
         super(settings, threadPool, networkService, bigArrays, version);
         this.authenticator = authenticator;
-        this.ssl = settings.getAsBoolean("shield.transport.ssl", false);
+        this.ssl = settings.getAsBoolean(TRANSPORT_SSL_SETTING, TRANSPORT_SSL_DEFAULT);
         this.serverSslService = serverSSLService;
         this.clientSSLService = clientSSLService;
         this.settingsFilter = settingsFilter;
@@ -74,7 +81,8 @@ public class ShieldNettyTransport extends NettyTransport {
         @Override
         public ChannelPipeline getPipeline() throws Exception {
             ChannelPipeline pipeline = super.getPipeline();
-            boolean profileSsl = profileSettings.getAsBoolean("shield.ssl", ssl);
+            final boolean profileSsl = profileSettings.getAsBoolean(TRANSPORT_PROFILE_SSL_SETTING, ssl);
+            final boolean needClientAuth = profileSettings.getAsBoolean(TRANSPORT_PROFILE_CLIENT_AUTH_SETTING, settings.getAsBoolean(TRANSPORT_CLIENT_AUTH_SETTING, TRANSPORT_CLIENT_AUTH_DEFAULT));
             if (profileSsl) {
                 SSLEngine serverEngine;
                 if (profileSettings.get("shield.truststore.path") != null) {
@@ -83,13 +91,15 @@ public class ShieldNettyTransport extends NettyTransport {
                     serverEngine = serverSslService.createSSLEngine();
                 }
                 serverEngine.setUseClientMode(false);
-                serverEngine.setNeedClientAuth(profileSettings.getAsBoolean("shield.ssl.client.auth", settings.getAsBoolean("shield.transport.ssl.client.auth", true)));
+                serverEngine.setNeedClientAuth(needClientAuth);
 
                 pipeline.addFirst("ssl", new SslHandler(serverEngine));
             }
             if (authenticator != null) {
                 pipeline.addFirst("ipfilter", new IPFilterNettyUpstreamHandler(authenticator, name));
             }
+            boolean extractClientCert = profileSsl && needClientAuth;
+            pipeline.replace("dispatcher", "dispatcher", new ShieldMessageChannelHandler(ShieldNettyTransport.this, logger, name, extractClientCert));
             return pipeline;
         }
     }

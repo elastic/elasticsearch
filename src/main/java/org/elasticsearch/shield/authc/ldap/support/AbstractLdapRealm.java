@@ -8,10 +8,7 @@ package org.elasticsearch.shield.authc.ldap.support;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.RealmConfig;
-import org.elasticsearch.shield.authc.support.CachingUsernamePasswordRealm;
-import org.elasticsearch.shield.authc.support.RefreshListener;
-import org.elasticsearch.shield.authc.support.UsernamePasswordRealm;
-import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
+import org.elasticsearch.shield.authc.support.*;
 
 import java.util.List;
 import java.util.Set;
@@ -22,10 +19,10 @@ import java.util.Set;
 public abstract class AbstractLdapRealm extends CachingUsernamePasswordRealm {
 
     protected final SessionFactory sessionFactory;
-    protected final LdapRoleMapper roleMapper;
+    protected final DnRoleMapper roleMapper;
 
     protected AbstractLdapRealm(String type, RealmConfig config,
-                                SessionFactory sessionFactory, LdapRoleMapper roleMapper) {
+                                SessionFactory sessionFactory, DnRoleMapper roleMapper) {
         super(type, config);
         this.sessionFactory = sessionFactory;
         this.roleMapper = roleMapper;

@@ -21,6 +21,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
+import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.elasticsearch.transport.Transport;
 import org.junit.Test;
@@ -56,7 +57,7 @@ public class SslIntegrationTests extends ShieldIntegrationTest {
     protected Settings nodeSettings(int nodeOrdinal) {
         return ImmutableSettings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(InternalNode.HTTP_ENABLED, true)
-                .put("shield.http.ssl", true).build();
+                .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true).build();
     }
 
     @Override

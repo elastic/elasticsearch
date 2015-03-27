@@ -15,7 +15,7 @@ import org.elasticsearch.shield.authc.ldap.support.SessionFactory;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
-import org.elasticsearch.shield.authc.ldap.support.LdapRoleMapper;
+import org.elasticsearch.shield.authc.support.DnRoleMapper;
 import org.elasticsearch.shield.authc.ldap.support.LdapTest;
 import org.elasticsearch.shield.authc.ldap.support.LdapSearchScope;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -121,7 +121,7 @@ public class LdapRealmTests extends LdapTest {
         RealmConfig config = new RealmConfig("test-ldap-realm", settings);
 
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
-        LdapRoleMapper roleMapper = buildGroupAsRoleMapper(resourceWatcherService);
+        DnRoleMapper roleMapper = buildGroupAsRoleMapper(resourceWatcherService);
         ldapFactory = spy(ldapFactory);
         LdapRealm ldap = new LdapRealm(config, ldapFactory, roleMapper);
         ldap.authenticate( new UsernamePasswordToken(VALID_USERNAME, SecuredStringTests.build(PASSWORD)));
@@ -220,12 +220,12 @@ public class LdapRealmTests extends LdapTest {
         String userTemplate = VALID_USER_TEMPLATE;
         Settings settings = ImmutableSettings.builder()
                 .put(buildLdapSettings(ldapUrl(), userTemplate, groupSearchBase, LdapSearchScope.SUB_TREE))
-                .put(LdapRoleMapper.ROLE_MAPPING_FILE_SETTING, getResource("support/role_mapping.yml").getCanonicalPath())
+                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, getResource("/org/elasticsearch/shield/authc/support/role_mapping.yml").getCanonicalPath())
                 .build();
         RealmConfig config = new RealmConfig("test-ldap-realm-userdn", settings);
 
         LdapSessionFactory ldapFactory = new LdapSessionFactory(config, null);
-        LdapRealm ldap = new LdapRealm(config, ldapFactory, new LdapRoleMapper(LdapRealm.TYPE, config, resourceWatcherService, null));
+        LdapRealm ldap = new LdapRealm(config, ldapFactory, new DnRoleMapper(LdapRealm.TYPE, config, resourceWatcherService, null));
 
         User user = ldap.authenticate(new UsernamePasswordToken("Horatio Hornblower", SecuredStringTests.build(PASSWORD)));
         assertThat(user, notNullValue());

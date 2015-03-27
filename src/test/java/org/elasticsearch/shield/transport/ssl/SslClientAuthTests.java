@@ -16,6 +16,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.shield.ssl.ClientSSLService;
+import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.test.ShieldIntegrationTest;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
@@ -40,8 +41,8 @@ public class SslClientAuthTests extends ShieldIntegrationTest {
                 .put(super.nodeSettings(nodeOrdinal))
                 // invert the require auth settings
                 .put("shield.transport.ssl", true)
-                .put("shield.http.ssl", true)
-                .put("shield.http.ssl.client.auth", true)
+                .put(ShieldNettyHttpServerTransport.HTTP_SSL_SETTING, true)
+                .put(ShieldNettyHttpServerTransport.HTTP_CLIENT_AUTH_SETTING, true)
                 .put("transport.profiles.default.shield.ssl.client.auth", false)
                 .put(InternalNode.HTTP_ENABLED, true)
                 .build();

@@ -26,6 +26,11 @@ import javax.net.ssl.SSLEngine;
  */
 public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
 
+    public static final String HTTP_SSL_SETTING = "shield.http.ssl";
+    public static final boolean HTTP_SSL_DEFAULT = false;
+    public static final String HTTP_CLIENT_AUTH_SETTING = "shield.http.ssl.client.auth";
+    public static final boolean HTTP_CLIENT_AUTH_DEFAULT = false;
+
     private final IPFilter ipFilter;
     private final ServerSSLService sslService;
     private final boolean ssl;
@@ -35,7 +40,7 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
                                           IPFilter ipFilter, ServerSSLService sslService) {
         super(settings, networkService, bigArrays);
         this.ipFilter = ipFilter;
-        this.ssl = settings.getAsBoolean("shield.http.ssl", false);
+        this.ssl = settings.getAsBoolean(HTTP_SSL_SETTING, HTTP_SSL_DEFAULT);
         this.sslService =  sslService;
     }
 
@@ -60,8 +65,11 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
 
     private class HttpSslChannelPipelineFactory extends HttpChannelPipelineFactory {
 
+        private final boolean useClientAuth;
+
         public HttpSslChannelPipelineFactory(NettyHttpServerTransport transport) {
             super(transport, detailedErrorsEnabled);
+            useClientAuth = settings.getAsBoolean(HTTP_CLIENT_AUTH_SETTING, HTTP_CLIENT_AUTH_DEFAULT);
         }
 
         @Override
@@ -70,7 +78,7 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
             if (ssl) {
                 SSLEngine engine = sslService.createSSLEngine();
                 engine.setUseClientMode(false);
-                engine.setNeedClientAuth(settings.getAsBoolean("shield.http.ssl.client.auth", false));
+                engine.setNeedClientAuth(useClientAuth);
 
                 pipeline.addFirst("ssl", new SslHandler(engine));
             }

@@ -9,7 +9,6 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -23,7 +22,6 @@ import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -69,6 +67,13 @@ public class SettingsFilterTests extends ShieldIntegrationTest {
                 .put("shield.authc.realms.ad1.enabled", "false")
                 .put("shield.authc.realms.ad1.url", "ldap://host.domain")
                 .put("shield.authc.realms.ad1.hostname_verification", randomAsciiOfLength(5))
+
+                // pki filtering
+                .put("shield.authc.realms.pki1.type", "pki")
+                .put("shield.authc.realms.pki1.order", "0")
+                .put("shield.authc.realms.pki1.truststore.path", getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/truststore-testnode-only.jks"))
+                .put("shield.authc.realms.pki1.truststore.password", "truststore-testnode-only")
+                .put("shield.authc.realms.pki1.truststore.algorithm", "SunX509")
 
                 .put("shield.ssl.keystore.path", "/path/to/keystore")
                 .put("shield.ssl.ciphers", "_ciphers")
@@ -117,6 +122,11 @@ public class SettingsFilterTests extends ShieldIntegrationTest {
 
             assertThat(settings.get("shield.authc.realms.ad1.hostname_verification"), nullValue());
             assertThat(settings.get("shield.authc.realms.ad1.url"), is("ldap://host.domain"));
+
+            assertThat(settings.get("shield.authc.realms.pki1.truststore.path"), nullValue());
+            assertThat(settings.get("shield.authc.realms.pki1.truststore.password"), nullValue());
+            assertThat(settings.get("shield.authc.realms.pki1.truststore.algorithm"), nullValue());
+            assertThat(settings.get("shield.authc.realms.pki1.type"), is("pki"));
 
             assertThat(settings.get("shield.ssl.keystore.path"), nullValue());
             assertThat(settings.get("shield.ssl.ciphers"), nullValue());

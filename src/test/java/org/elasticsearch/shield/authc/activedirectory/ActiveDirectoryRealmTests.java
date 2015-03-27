@@ -13,10 +13,9 @@ import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.schema.Schema;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.RealmConfig;
-import org.elasticsearch.shield.authc.ldap.support.LdapRoleMapper;
+import org.elasticsearch.shield.authc.support.DnRoleMapper;
 import org.elasticsearch.shield.authc.support.CachingUsernamePasswordRealm;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.SecuredStringTests;
@@ -95,7 +94,7 @@ public class ActiveDirectoryRealmTests extends ElasticsearchTestCase {
         Settings settings = settings();
         RealmConfig config = new RealmConfig("testAuthenticateUserPrincipleName", settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, null);
-        LdapRoleMapper roleMapper = new LdapRoleMapper(ActiveDirectoryRealm.TYPE, config, resourceWatcherService, null);
+        DnRoleMapper roleMapper = new DnRoleMapper(ActiveDirectoryRealm.TYPE, config, resourceWatcherService, null);
         ActiveDirectoryRealm realm = new ActiveDirectoryRealm(config, sessionFactory, roleMapper);
 
         User user = realm.authenticate(new UsernamePasswordToken("CN=ironman", SecuredStringTests.build(PASSWORD)));
@@ -108,7 +107,7 @@ public class ActiveDirectoryRealmTests extends ElasticsearchTestCase {
         Settings settings = settings();
         RealmConfig config = new RealmConfig("testAuthenticateSAMAccountName", settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, null);
-        LdapRoleMapper roleMapper = new LdapRoleMapper(ActiveDirectoryRealm.TYPE, config, resourceWatcherService, null);
+        DnRoleMapper roleMapper = new DnRoleMapper(ActiveDirectoryRealm.TYPE, config, resourceWatcherService, null);
         ActiveDirectoryRealm realm = new ActiveDirectoryRealm(config, sessionFactory, roleMapper);
 
         // Thor does not have a UPN of form CN=Thor@ad.test.elasticsearch.com
@@ -127,7 +126,7 @@ public class ActiveDirectoryRealmTests extends ElasticsearchTestCase {
         Settings settings = settings();
         RealmConfig config = new RealmConfig("testAuthenticateCachesSuccesfulAuthentications", settings);
         ActiveDirectorySessionFactory sessionFactory = spy(new ActiveDirectorySessionFactory(config, null));
-        LdapRoleMapper roleMapper = new LdapRoleMapper(ActiveDirectoryRealm.TYPE, config, resourceWatcherService, null);
+        DnRoleMapper roleMapper = new DnRoleMapper(ActiveDirectoryRealm.TYPE, config, resourceWatcherService, null);
         ActiveDirectoryRealm realm = new ActiveDirectoryRealm(config, sessionFactory, roleMapper);
 
         int count = randomIntBetween(2, 10);
@@ -144,7 +143,7 @@ public class ActiveDirectoryRealmTests extends ElasticsearchTestCase {
         Settings settings = settings(ImmutableSettings.builder().put(CachingUsernamePasswordRealm.CACHE_TTL_SETTING, -1).build());
         RealmConfig config = new RealmConfig("testAuthenticateCachingCanBeDisabled", settings);
         ActiveDirectorySessionFactory sessionFactory = spy(new ActiveDirectorySessionFactory(config, null));
-        LdapRoleMapper roleMapper = new LdapRoleMapper(ActiveDirectoryRealm.TYPE, config, resourceWatcherService, null);
+        DnRoleMapper roleMapper = new DnRoleMapper(ActiveDirectoryRealm.TYPE, config, resourceWatcherService, null);
         ActiveDirectoryRealm realm = new ActiveDirectoryRealm(config, sessionFactory, roleMapper);
 
         int count = randomIntBetween(2, 10);
@@ -161,7 +160,7 @@ public class ActiveDirectoryRealmTests extends ElasticsearchTestCase {
         Settings settings = settings();
         RealmConfig config = new RealmConfig("testAuthenticateCachingClearsCacheOnRoleMapperRefresh", settings);
         ActiveDirectorySessionFactory sessionFactory = spy(new ActiveDirectorySessionFactory(config, null));
-        LdapRoleMapper roleMapper = new LdapRoleMapper(ActiveDirectoryRealm.TYPE, config, resourceWatcherService, null);
+        DnRoleMapper roleMapper = new DnRoleMapper(ActiveDirectoryRealm.TYPE, config, resourceWatcherService, null);
         ActiveDirectoryRealm realm = new ActiveDirectoryRealm(config, sessionFactory, roleMapper);
 
         int count = randomIntBetween(2, 10);
@@ -185,11 +184,11 @@ public class ActiveDirectoryRealmTests extends ElasticsearchTestCase {
     @Test
     public void testRealmMapsGroupsToRoles() throws Exception {
         Settings settings = settings(ImmutableSettings.builder()
-                .put(LdapRoleMapper.ROLE_MAPPING_FILE_SETTING, getResource("role_mapping.yml").getCanonicalPath())
+                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, getResource("role_mapping.yml").getCanonicalPath())
                 .build());
         RealmConfig config = new RealmConfig("testRealmMapsGroupsToRoles", settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, null);
-        LdapRoleMapper roleMapper = new LdapRoleMapper(ActiveDirectoryRealm.TYPE, config, resourceWatcherService, null);
+        DnRoleMapper roleMapper = new DnRoleMapper(ActiveDirectoryRealm.TYPE, config, resourceWatcherService, null);
         ActiveDirectoryRealm realm = new ActiveDirectoryRealm(config, sessionFactory, roleMapper);
 
         User user = realm.authenticate(new UsernamePasswordToken("CN=ironman", SecuredStringTests.build(PASSWORD)));
@@ -200,11 +199,11 @@ public class ActiveDirectoryRealmTests extends ElasticsearchTestCase {
     @Test
     public void testRealmMapsUsersToRoles() throws Exception {
         Settings settings = settings(ImmutableSettings.builder()
-                .put(LdapRoleMapper.ROLE_MAPPING_FILE_SETTING, getResource("role_mapping.yml").getCanonicalPath())
+                .put(DnRoleMapper.ROLE_MAPPING_FILE_SETTING, getResource("role_mapping.yml").getCanonicalPath())
                 .build());
         RealmConfig config = new RealmConfig("testRealmMapsGroupsToRoles", settings);
         ActiveDirectorySessionFactory sessionFactory = new ActiveDirectorySessionFactory(config, null);
-        LdapRoleMapper roleMapper = new LdapRoleMapper(ActiveDirectoryRealm.TYPE, config, resourceWatcherService, null);
+        DnRoleMapper roleMapper = new DnRoleMapper(ActiveDirectoryRealm.TYPE, config, resourceWatcherService, null);
         ActiveDirectoryRealm realm = new ActiveDirectoryRealm(config, sessionFactory, roleMapper);
 
         User user = realm.authenticate(new UsernamePasswordToken("CN=Thor", SecuredStringTests.build(PASSWORD)));
@@ -220,7 +219,7 @@ public class ActiveDirectoryRealmTests extends ElasticsearchTestCase {
         return ImmutableSettings.builder()
                 .putArray(URLS_SETTING, ldapUrl())
                 .put(ActiveDirectorySessionFactory.AD_DOMAIN_NAME_SETTING, "ad.test.elasticsearch.com")
-                .put(LdapRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
+                .put(DnRoleMapper.USE_UNMAPPED_GROUPS_AS_ROLES_SETTING, true)
                 .put(HOSTNAME_VERIFICATION_SETTING, false)
                 .put(extraSettings)
                 .build();

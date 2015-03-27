@@ -55,9 +55,9 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 @TimeoutSuite(millis = 40 * TimeUnits.MINUTE)
 public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardCompatibilityTest {
-    
+
     static List<String> indexes;
-    
+
     @BeforeClass
     public static void initIndexes() throws Exception {
         indexes = new ArrayList<>();
@@ -70,19 +70,20 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         }
         Collections.sort(indexes);
     }
-    
+
     public void testAllVersionsTested() throws Exception {
         SortedSet<String> expectedVersions = new TreeSet<>();
         for (java.lang.reflect.Field field : Version.class.getDeclaredFields()) {
             if (Modifier.isStatic(field.getModifiers()) && field.getType() == Version.class) {
                 Version v = (Version)field.get(Version.class);
-                if (v.snapshot()) continue;
-                if (v.before(Version.V_0_20_0_RC1)) continue;
+                if (v.snapshot()) continue;  // snapshots are unreleased, so there is no backcompat yet
+                if (v.onOrBefore(Version.V_0_20_0_RC1)) continue; // we can only test back one major lucene version
+                if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
 
                 expectedVersions.add("index-" + v.toString() + ".zip");
             }
         }
-        
+
         for (String index : indexes) {
             if (expectedVersions.remove(index) == false) {
                 logger.warn("Old indexes tests contain extra index: " + index);
@@ -128,11 +129,11 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         assertDeleteByQueryWorked(version);
         unloadIndex();
     }
-    
+
     Version extractVersion(String index) {
         return Version.fromString(index.substring(index.indexOf('-') + 1, index.lastIndexOf('.')));
     }
-    
+
     boolean isLatestLuceneVersion(Version version) {
         return version.luceneVersion.major == Version.CURRENT.luceneVersion.major &&
                version.luceneVersion.minor == Version.CURRENT.luceneVersion.minor;
@@ -144,7 +145,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         ElasticsearchAssertions.assertNoFailures(searchRsp);
         long numDocs = searchRsp.getHits().getTotalHits();
         logger.info("Found " + numDocs + " in old index");
-        
+
         searchReq.addSort("long_sort", SortOrder.ASC);
         ElasticsearchAssertions.assertNoFailures(searchReq.get());
 
@@ -203,7 +204,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         SearchRequestBuilder searchReq = client().prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("long_sort:[10 TO 20]"));
         assertEquals(0, searchReq.get().getHits().getTotalHits());
     }
-    
+
     void assertUpgradeWorks(boolean alreadyLatest) throws Exception {
         HttpRequestBuilder httpClient = httpClient();
 

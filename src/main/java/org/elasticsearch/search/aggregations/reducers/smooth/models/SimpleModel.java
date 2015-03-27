@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.reducers.smooth.SmoothParser;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -80,7 +79,7 @@ public class SimpleModel extends SmoothingModel {
     public static class SimpleModelBuilder implements SmoothingModelBuilder {
         @Override
         public void toXContent(XContentBuilder builder) throws IOException {
-            builder.field(SmoothParser.WEIGHTING.getPreferredName(), NAME_FIELD.getPreferredName());
+            builder.field(SmoothParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
         }
     }
 }

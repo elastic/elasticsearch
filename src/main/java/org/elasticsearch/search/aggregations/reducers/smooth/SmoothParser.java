@@ -43,10 +43,9 @@ public class SmoothParser implements Reducer.Parser {
 
     public static final ParseField FORMAT = new ParseField("format");
     public static final ParseField GAP_POLICY = new ParseField("gap_policy");
-    public static final ParseField WEIGHTING = new ParseField("weighting");
+    public static final ParseField MODEL = new ParseField("model");
     public static final ParseField WINDOW = new ParseField("window");
     public static final ParseField SETTINGS = new ParseField("settings");
-    public static final ParseField MODEL = new ParseField("model");
 
     private final SmoothingModelParserMapper smoothingModelParserMapper;
 
@@ -69,7 +68,7 @@ public class SmoothParser implements Reducer.Parser {
         GapPolicy gapPolicy = GapPolicy.IGNORE;
         int window = 5;
         Map<String, Object> settings = null;
-        String weighting = "simple";
+        String model = "simple";
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -88,10 +87,8 @@ public class SmoothParser implements Reducer.Parser {
                     bucketsPaths = new String[] { parser.text() };
                 } else if (GAP_POLICY.match(currentFieldName)) {
                     gapPolicy = GapPolicy.parse(context, parser.text());
-                } else if (WEIGHTING.match(currentFieldName)) {
-                    weighting = parser.text();
                 } else if (MODEL.match(currentFieldName)) {
-                    SmoothingModel model = (SmoothingModel) parser.objectBytes();
+                    model = parser.text();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
                             + currentFieldName + "].");
@@ -130,15 +127,15 @@ public class SmoothParser implements Reducer.Parser {
             formatter = ValueFormat.Patternable.Number.format(format).formatter();
         }
 
-        SmoothingModelParser modelParser = smoothingModelParserMapper.get(weighting);
+        SmoothingModelParser modelParser = smoothingModelParserMapper.get(model);
         if (modelParser == null) {
-            throw new SearchParseException(context, "Unknown weighting [" + weighting
+            throw new SearchParseException(context, "Unknown model [" + model
                     + "] specified.  Valid options are:" + smoothingModelParserMapper.getAllNames().toString());
         }
-        SmoothingModel model = modelParser.parse(settings);
+        SmoothingModel smoothingModel = modelParser.parse(settings);
 
 
-        return new SmoothReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy, window, model);
+        return new SmoothReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy, window, smoothingModel);
     }
 
 

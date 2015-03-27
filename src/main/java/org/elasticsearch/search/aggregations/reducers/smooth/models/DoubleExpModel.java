@@ -166,7 +166,7 @@ public class DoubleExpModel extends SmoothingModel {
 
         @Override
         public void toXContent(XContentBuilder builder) throws IOException {
-            builder.field(SmoothParser.WEIGHTING.getPreferredName(), NAME_FIELD.getPreferredName());
+            builder.field(SmoothParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
             builder.startObject(SmoothParser.SETTINGS.getPreferredName());
                 builder.field("alpha", alpha);
                 builder.field("beta", beta);

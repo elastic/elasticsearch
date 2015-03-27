@@ -72,7 +72,7 @@ public enum SimpleQueryStringFlag {
                         magic |= flag.value();
                 }
             } catch (IllegalArgumentException iae) {
-                throw new ElasticsearchIllegalArgumentException("Unknown " + SimpleQueryStringParser.NAME + " flag [" + s + "]");
+                throw new ElasticsearchIllegalArgumentException("Unknown " + SimpleQueryStringBuilder.NAME + " flag [" + s + "]");
             }
         }
         return magic;

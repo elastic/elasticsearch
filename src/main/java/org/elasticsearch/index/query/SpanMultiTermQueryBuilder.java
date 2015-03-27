@@ -18,7 +18,14 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 
@@ -28,6 +35,13 @@ import java.io.IOException;
 public class SpanMultiTermQueryBuilder extends BaseQueryBuilder implements SpanQueryBuilder {
 
     private MultiTermQueryBuilder multiTermQueryBuilder;
+    
+    public static final String NAME = "span_multi";
+    public static final String MATCH_NAME = "match";
+
+    @Inject
+    public SpanMultiTermQueryBuilder() {
+    }
 
     public SpanMultiTermQueryBuilder(MultiTermQueryBuilder multiTermQueryBuilder) {
         this.multiTermQueryBuilder = multiTermQueryBuilder;
@@ -36,10 +50,40 @@ public class SpanMultiTermQueryBuilder extends BaseQueryBuilder implements SpanQ
     @Override
     protected void doXContent(XContentBuilder builder, Params params)
             throws IOException {
-        builder.startObject(SpanMultiTermQueryParser.NAME);
-        builder.field(SpanMultiTermQueryParser.MATCH_NAME);
+        builder.startObject(SpanMultiTermQueryBuilder.NAME);
+        builder.field(SpanMultiTermQueryBuilder.MATCH_NAME);
         multiTermQueryBuilder.toXContent(builder, params);
         builder.endObject();
+    }
+    
+    
+
+    @Override
+    public String[] names() {
+        return new String[]{NAME, Strings.toCamelCase(NAME)};
+    }
+
+    @Override
+    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        XContentParser parser = parseContext.parser();
+
+        Token token = parser.nextToken();
+        if (!MATCH_NAME.equals(parser.currentName()) || token != XContentParser.Token.FIELD_NAME) {
+            throw new QueryParsingException(parseContext.index(), "spanMultiTerm must have [" + MATCH_NAME + "] multi term query clause");
+        }
+
+        token = parser.nextToken();
+        if (token != XContentParser.Token.START_OBJECT) {
+            throw new QueryParsingException(parseContext.index(), "spanMultiTerm must have [" + MATCH_NAME + "] multi term query clause");
+        }
+
+        Query subQuery = parseContext.parseInnerQuery();
+        if (!(subQuery instanceof MultiTermQuery)) {
+            throw new QueryParsingException(parseContext.index(), "spanMultiTerm [" + MATCH_NAME + "] must be of type multi term query");
+        }
+
+        parser.nextToken();
+        return new SpanMultiTermQueryWrapper<>((MultiTermQuery) subQuery);
     }
 
 }

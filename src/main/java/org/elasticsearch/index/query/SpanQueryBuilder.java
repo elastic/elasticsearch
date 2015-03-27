@@ -22,6 +22,6 @@ package org.elasticsearch.index.query;
 /**
  *
  */
-public interface SpanQueryBuilder extends QueryBuilder {
+public interface SpanQueryBuilder extends QueryParser, QueryBuilder {
 
 }

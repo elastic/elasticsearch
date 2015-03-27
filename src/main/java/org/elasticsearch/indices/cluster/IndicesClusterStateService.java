@@ -404,7 +404,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // so this failure typically means wrong node level configuration or something similar
                 for (IndexShard indexShard : indexService) {
                     ShardRouting shardRouting = indexShard.routingEntry();
-                    logger.warn("[{}][{}] failed to create shard", t, shardRouting.index(), shardRouting.id());
+                    logger.warn("[{}][{}] failed to updated mappings", t, shardRouting.index(), shardRouting.id());
                     try {
                         indexService.removeShard(indexShard.shardId().id(), "failed to update mappings [" + ExceptionsHelper.detailedMessage(t) + "]");
                     } catch (IndexShardMissingException e1) {

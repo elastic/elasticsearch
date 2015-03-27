@@ -114,7 +114,7 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
         context.reset(templateSourceParser);
 
-        TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
+        TemplateQueryBuilder parser = injector.getInstance(TemplateQueryBuilder.class);
         Query query = parser.parse(context);
         assertTrue("Parsing template query failed.", query instanceof ConstantScoreQuery);
     }
@@ -126,7 +126,7 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
         XContentParser templateSourceParser = XContentFactory.xContent(templateString).createParser(templateString);
         context.reset(templateSourceParser);
 
-        TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
+        TemplateQueryBuilder parser = injector.getInstance(TemplateQueryBuilder.class);
         Query query = parser.parse(context);
         assertTrue("Parsing template query failed.", query instanceof ConstantScoreQuery);
     }

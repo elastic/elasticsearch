@@ -37,7 +37,7 @@ public abstract class ScoreFunctionBuilder implements ToXContent {
 
     protected void buildWeight(XContentBuilder builder) throws IOException {
         if (weight != null) {
-            builder.field(FunctionScoreQueryParser.WEIGHT_FIELD.getPreferredName(), weight);
+            builder.field(FunctionScoreQueryBuilder.WEIGHT_FIELD.getPreferredName(), weight);
         }
     }
 

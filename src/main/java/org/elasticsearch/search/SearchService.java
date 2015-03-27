@@ -24,6 +24,7 @@ import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.google.common.base.Charsets;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -60,7 +61,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper.Loading;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.TemplateQueryParser;
+import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
@@ -634,11 +635,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 return;
             }
             XContentParser parser = null;
-            TemplateQueryParser.TemplateContext templateContext = null;
+            TemplateQueryBuilder.TemplateContext templateContext = null;
 
             try {
                 parser = XContentFactory.xContent(request.templateSource()).createParser(request.templateSource());
-                templateContext = TemplateQueryParser.parse(parser, "params", "template");
+                templateContext = TemplateQueryBuilder.parse(parser, "params", "template");
 
                 if (templateContext.scriptType() == ScriptService.ScriptType.INLINE) {
                     //Try to double parse for nested template id/file
@@ -649,13 +650,13 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     } catch (ElasticsearchParseException epe) {
                         //This was an non-nested template, the parse failure was due to this, it is safe to assume this refers to a file
                         //for backwards compatibility and keep going
-                        templateContext = new TemplateQueryParser.TemplateContext(ScriptService.ScriptType.FILE, templateContext.template(), templateContext.params());
+                        templateContext = new TemplateQueryBuilder.TemplateContext(ScriptService.ScriptType.FILE, templateContext.template(), templateContext.params());
                     }
                     if (parser != null) {
-                        TemplateQueryParser.TemplateContext innerContext = TemplateQueryParser.parse(parser, "params");
+                        TemplateQueryBuilder.TemplateContext innerContext = TemplateQueryBuilder.parse(parser, "params");
                         if (hasLength(innerContext.template()) && !innerContext.scriptType().equals(ScriptService.ScriptType.INLINE)) {
                             //An inner template referring to a filename or id
-                            templateContext = new TemplateQueryParser.TemplateContext(innerContext.scriptType(), innerContext.template(), templateContext.params());
+                            templateContext = new TemplateQueryBuilder.TemplateContext(innerContext.scriptType(), innerContext.template(), templateContext.params());
                         }
                     }
                 }

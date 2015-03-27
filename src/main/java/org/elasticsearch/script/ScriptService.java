@@ -57,7 +57,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.query.TemplateQueryParser;
+import org.elasticsearch.index.query.TemplateQueryBuilder;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
@@ -320,7 +320,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     private void validate(BytesReference scriptBytes, String scriptLang) {
         try {
             XContentParser parser = XContentFactory.xContent(scriptBytes).createParser(scriptBytes);
-            TemplateQueryParser.TemplateContext context = TemplateQueryParser.parse(parser, "params", "script", "template");
+            TemplateQueryBuilder.TemplateContext context = TemplateQueryBuilder.parse(parser, "params", "script", "template");
             if (Strings.hasLength(context.template())){
                 //Just try and compile it
                 //This will have the benefit of also adding the script to the cache if it compiles

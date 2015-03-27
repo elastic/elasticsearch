@@ -18,14 +18,30 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.join.BitDocIdSetFilter;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.query.support.XContentStructure;
+import org.elasticsearch.index.search.child.CustomQueryWrappingFilter;
+import org.elasticsearch.index.search.child.ScoreType;
+import org.elasticsearch.index.search.child.TopChildrenQuery;
+import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 
 import java.io.IOException;
+
+import static org.elasticsearch.index.query.QueryParserUtils.ensureNotDeleteByQuery;
 
 /**
  *
  */
-public class TopChildrenQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<TopChildrenQueryBuilder> {
+public class TopChildrenQueryBuilder extends BaseQueryBuilder implements QueryParser, BoostableQueryBuilder<TopChildrenQueryBuilder> {
 
     private final QueryBuilder queryBuilder;
 
@@ -40,6 +56,13 @@ public class TopChildrenQueryBuilder extends BaseQueryBuilder implements Boostab
     private int incrementalFactor = -1;
 
     private String queryName;
+    
+    public static final String NAME = "top_children";
+
+    @Inject
+    public TopChildrenQueryBuilder() {
+        this(null, null);
+    }
 
     public TopChildrenQueryBuilder(String type, QueryBuilder queryBuilder) {
         this.childType = type;
@@ -89,10 +112,15 @@ public class TopChildrenQueryBuilder extends BaseQueryBuilder implements Boostab
         this.queryName = queryName;
         return this;
     }
+    
+    @Override
+    public String[] names() {
+        return new String[]{NAME, Strings.toCamelCase(NAME)};
+    }
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(TopChildrenQueryParser.NAME);
+        builder.startObject(TopChildrenQueryBuilder.NAME);
         builder.field("query");
         queryBuilder.toXContent(builder, params);
         builder.field("type", childType);
@@ -112,5 +140,94 @@ public class TopChildrenQueryBuilder extends BaseQueryBuilder implements Boostab
             builder.field("_name", queryName);
         }
         builder.endObject();
+    }
+
+    @Override
+    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        ensureNotDeleteByQuery(NAME, parseContext);
+        XContentParser parser = parseContext.parser();
+
+        boolean queryFound = false;
+        float boost = 1.0f;
+        String childType = null;
+        ScoreType scoreType = ScoreType.MAX;
+        int factor = 5;
+        int incrementalFactor = 2;
+        String queryName = null;
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+        XContentStructure.InnerQuery iq = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                // Usually, the query would be parsed here, but the child
+                // type may not have been extracted yet, so use the
+                // XContentStructure.<type> facade to parse if available,
+                // or delay parsing if not.
+                if ("query".equals(currentFieldName)) {
+                    iq = new XContentStructure.InnerQuery(parseContext, childType == null ? null : new String[] {childType});
+                    queryFound = true;
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[top_children] query does not support [" + currentFieldName + "]");
+                }
+            } else if (token.isValue()) {
+                if ("type".equals(currentFieldName)) {
+                    childType = parser.text();
+                } else if ("score".equals(currentFieldName)) {
+                    scoreType = ScoreType.fromString(parser.text());
+                } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
+                    scoreType = ScoreType.fromString(parser.text());
+                } else if ("boost".equals(currentFieldName)) {
+                    boost = parser.floatValue();
+                } else if ("factor".equals(currentFieldName)) {
+                    factor = parser.intValue();
+                } else if ("incremental_factor".equals(currentFieldName) || "incrementalFactor".equals(currentFieldName)) {
+                    incrementalFactor = parser.intValue();
+                } else if ("_name".equals(currentFieldName)) {
+                    queryName = parser.text();
+                } else {
+                    throw new QueryParsingException(parseContext.index(), "[top_children] query does not support [" + currentFieldName + "]");
+                }
+            }
+        }
+        if (!queryFound) {
+            throw new QueryParsingException(parseContext.index(), "[top_children] requires 'query' field");
+        }
+        if (childType == null) {
+            throw new QueryParsingException(parseContext.index(), "[top_children] requires 'type' field");
+        }
+
+        Query innerQuery = iq.asQuery(childType);
+
+        if (innerQuery == null) {
+            return null;
+        }
+
+        DocumentMapper childDocMapper = parseContext.mapperService().documentMapper(childType);
+        if (childDocMapper == null) {
+            throw new QueryParsingException(parseContext.index(), "No mapping for for type [" + childType + "]");
+        }
+        ParentFieldMapper parentFieldMapper = childDocMapper.parentFieldMapper();
+        if (!parentFieldMapper.active()) {
+            throw new QueryParsingException(parseContext.index(), "Type [" + childType + "] does not have parent mapping");
+        }
+        String parentType = childDocMapper.parentFieldMapper().type();
+
+        BitDocIdSetFilter nonNestedDocsFilter = null;
+        if (childDocMapper.hasNestedObjects()) {
+            nonNestedDocsFilter = parseContext.bitsetFilter(NonNestedDocsFilter.INSTANCE);
+        }
+
+        innerQuery.setBoost(boost);
+        // wrap the query with type query
+        innerQuery = new FilteredQuery(innerQuery, parseContext.cacheFilter(childDocMapper.typeFilter(), null, parseContext.autoFilterCachePolicy()));
+        ParentChildIndexFieldData parentChildIndexFieldData = parseContext.getForField(parentFieldMapper);
+        TopChildrenQuery query = new TopChildrenQuery(parentChildIndexFieldData, innerQuery, childType, parentType, scoreType, factor, incrementalFactor, nonNestedDocsFilter);
+        if (queryName != null) {
+            parseContext.addNamedFilter(queryName, new CustomQueryWrappingFilter(query));
+        }
+        return query;
     }
 }

@@ -24,7 +24,7 @@ import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.index.query.*;
-import org.elasticsearch.index.query.functionscore.FunctionScoreQueryParser;
+import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 
 import java.util.Set;
 
@@ -71,20 +71,20 @@ public class IndicesQueriesModule extends AbstractModule {
         qpBinders.addBinding().to(NestedQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(HasChildQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(HasParentQueryBuilder.class).asEagerSingleton();
-        qpBinders.addBinding().to(TopChildrenQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(TopChildrenQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(DisMaxQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(IdsQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(MatchAllQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(QueryStringQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(BoostingQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(BoolQueryBuilder.class).asEagerSingleton();
-        qpBinders.addBinding().to(TermQueryParser.class).asEagerSingleton();
-        qpBinders.addBinding().to(TermsQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(TermQueryBuilder.class).asEagerSingleton();
+        qpBinders.addBinding().to(TermsQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(FuzzyQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(RegexpQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(RangeQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(PrefixQueryBuilder.class).asEagerSingleton();
-        qpBinders.addBinding().to(WildcardQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(WildcardQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(FilteredQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(ConstantScoreQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanTermQueryBuilder.class).asEagerSingleton();
@@ -96,13 +96,13 @@ public class IndicesQueriesModule extends AbstractModule {
         qpBinders.addBinding().to(MoreLikeThisQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(FuzzyLikeThisQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(FuzzyLikeThisFieldQueryBuilder.class).asEagerSingleton();
-        qpBinders.addBinding().to(WrapperQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(WrapperQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(IndicesQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(CommonTermsQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(SpanMultiTermQueryBuilder.class).asEagerSingleton();
-        qpBinders.addBinding().to(FunctionScoreQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(FunctionScoreQueryBuilder.class).asEagerSingleton();
         qpBinders.addBinding().to(SimpleQueryStringBuilder.class).asEagerSingleton();
-        qpBinders.addBinding().to(TemplateQueryParser.class).asEagerSingleton();
+        qpBinders.addBinding().to(TemplateQueryBuilder.class).asEagerSingleton();
 
         if (ShapesAvailability.JTS_AVAILABLE) {
             qpBinders.addBinding().to(GeoShapeQueryBuilder.class).asEagerSingleton();

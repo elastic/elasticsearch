@@ -26,7 +26,12 @@ package org.elasticsearch.index.query;
  */
 
 import com.google.common.base.Charsets;
+
+import org.apache.lucene.search.Query;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -44,11 +49,18 @@ import java.io.IOException;
  * }
  * </pre>
  */
-public class WrapperQueryBuilder extends BaseQueryBuilder {
+public class WrapperQueryBuilder extends BaseQueryBuilder implements QueryParser {
 
     private final byte[] source;
     private final int offset;
     private final int length;
+    
+    public static final String NAME = "wrapper";
+
+    @Inject
+    public WrapperQueryBuilder() {
+        this("");
+    }
 
     /**
      * Builds a JSONQueryBuilder using the provided JSON query string.
@@ -67,8 +79,38 @@ public class WrapperQueryBuilder extends BaseQueryBuilder {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(WrapperQueryParser.NAME);
+        builder.startObject(WrapperQueryBuilder.NAME);
         builder.field("query", source, offset, length);
         builder.endObject();
+    }
+    
+    @Override
+    public String[] names() {
+        return new String[]{NAME};
+    }
+
+    @Override
+    public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        XContentParser parser = parseContext.parser();
+
+        XContentParser.Token token = parser.nextToken();
+        if (token != XContentParser.Token.FIELD_NAME) {
+            throw new QueryParsingException(parseContext.index(), "[wrapper] query malformed");
+        }
+        String fieldName = parser.currentName();
+        if (!fieldName.equals("query")) {
+            throw new QueryParsingException(parseContext.index(), "[wrapper] query malformed");
+        }
+        parser.nextToken();
+
+        byte[] querySource = parser.binaryValue();
+        try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
+            final QueryParseContext context = new QueryParseContext(parseContext.index(), parseContext.indexQueryParserService());
+            context.reset(qSourceParser);
+            Query result = context.parseInnerQuery();
+            parser.nextToken();
+            parseContext.combineNamedFilters(context);
+            return result;
+        }
     }
 }

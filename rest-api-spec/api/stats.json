@@ -1,0 +1,20 @@
+{
+  "watcher_stats": {
+    "documentation": "http://elastic.co/alertsdocs",
+    "methods": ["GET"],
+    "url": {
+      "path": "/_watcher/stats",
+      "paths": ["/_watcher/stats"],
+      "parts": {
+      },
+      "params": {
+        "pretty": {
+          "type": "boolean",
+          "description": "Pretty the output",
+          "default": false
+        }
+      }
+    },
+    "body": null
+  }
+}

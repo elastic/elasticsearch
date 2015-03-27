@@ -267,7 +267,7 @@ public class GeoJSONShapeParserTests extends ElasticsearchTestCase {
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(multiPolygonGeoJson);
         parser.nextToken();
-        ElasticsearchGeoAssertions.assertValidException(parser, ElasticsearchParseException.class);
+        ElasticsearchGeoAssertions.assertValidException(parser, InvalidShapeException.class);
     }
 
     public void testParse_OGCPolygonWithoutHoles() throws IOException {

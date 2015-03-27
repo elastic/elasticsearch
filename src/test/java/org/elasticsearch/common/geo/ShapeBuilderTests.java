@@ -28,6 +28,7 @@ import com.spatial4j.core.shape.impl.PointImpl;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.Polygon;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -39,14 +40,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.*;
  */
 public class ShapeBuilderTests extends ElasticsearchTestCase {
 
-    @Test
     public void testNewPoint() {
         Point point = ShapeBuilder.newPoint(-100, 45).build();
         assertEquals(-100D, point.getX(), 0.0d);
         assertEquals(45D, point.getY(), 0.0d);
     }
 
-    @Test
     public void testNewRectangle() {
         Rectangle rectangle = ShapeBuilder.newEnvelope().topLeft(-45, 30).bottomRight(45, -30).build();
         assertEquals(-45D, rectangle.getMinX(), 0.0d);
@@ -55,7 +54,6 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
         assertEquals(30D, rectangle.getMaxY(), 0.0d);
     }
 
-    @Test
     public void testNewPolygon() {
         Polygon polygon = ShapeBuilder.newPolygon()
                 .point(-45, 30)
@@ -71,7 +69,6 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
         assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
     }
 
-    @Test
     public void testNewPolygon_coordinate() {
         Polygon polygon = ShapeBuilder.newPolygon()
                 .point(new Coordinate(-45, 30))
@@ -87,7 +84,6 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
         assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
     }
 
-    @Test
     public void testNewPolygon_coordinates() {
         Polygon polygon = ShapeBuilder.newPolygon()
                 .points(new Coordinate(-45, 30), new Coordinate(45, 30), new Coordinate(45, -30), new Coordinate(-45, -30), new Coordinate(-45, 30)).toPolygon();
@@ -98,8 +94,7 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
         assertEquals(exterior.getCoordinateN(2), new Coordinate(45, -30));
         assertEquals(exterior.getCoordinateN(3), new Coordinate(-45, -30));
     }
-    
-    @Test
+
     public void testLineStringBuilder() {
         // Building a simple LineString
         ShapeBuilder.newLineString()
@@ -141,7 +136,6 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
         .build();
     }
 
-    @Test
     public void testMultiLineString() {
         ShapeBuilder.newMultiLinestring()
             .linestring()
@@ -175,7 +169,7 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
                 .end()
             .build();
     }
-    
+
     @Test(expected = InvalidShapeException.class)
     public void testPolygonSelfIntersection() {
         ShapeBuilder.newPolygon()
@@ -186,7 +180,6 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
                 .close().build();
     }
 
-    @Test
     public void testGeoCircle() {
         double earthCircumference = 40075016.69;
         Circle circle = ShapeBuilder.newCircleBuilder().center(0, 0).radius("100m").build();
@@ -211,8 +204,7 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
         assertEquals((360 * randomRadius) / earthCircumference, circle.getRadius(), 0.00000001);
         assertEquals(new PointImpl(randomLon, randomLat, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
     }
-    
-    @Test
+
     public void testPolygonWrapping() {
         Shape shape = ShapeBuilder.newPolygon()
             .point(-150.0, 65.0)
@@ -224,7 +216,6 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
         assertMultiPolygon(shape);
     }
 
-    @Test
     public void testLineStringWrapping() {
         Shape shape = ShapeBuilder.newLineString()
             .point(-150.0, 65.0)
@@ -232,11 +223,9 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
             .point(-250.0, -65.0)
             .point(-150.0, -65.0)
             .build();
-        
         assertMultiLineString(shape);
     }
 
-    @Test
     public void testDatelineOGC() {
         // tests that the following shape (defined in counterclockwise OGC order)
         // https://gist.github.com/anonymous/7f1bb6d7e9cd72f5977c crosses the dateline
@@ -275,11 +264,9 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
             .point(-179,1);
 
         Shape shape = builder.close().build();
-
         assertMultiPolygon(shape);
     }
 
-    @Test
     public void testDateline() {
         // tests that the following shape (defined in clockwise non-OGC order)
         // https://gist.github.com/anonymous/7f1bb6d7e9cd72f5977c crosses the dateline
@@ -318,11 +305,9 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
                 .point(-179,1);
 
         Shape shape = builder.close().build();
-
         assertMultiPolygon(shape);
     }
-    
-    @Test
+
     public void testComplexShapeWithHole() {
         PolygonBuilder builder = ShapeBuilder.newPolygon()
             .point(-85.0018514,37.1311314)
@@ -393,11 +378,9 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
             .point(-85.0000002,37.1317672);
 
         Shape shape = builder.close().build();
-
-         assertPolygon(shape);
+        assertPolygon(shape);
      }
 
-    @Test
     public void testShapeWithHoleAtEdgeEndPoints() {
         PolygonBuilder builder = ShapeBuilder.newPolygon()
                 .point(-4, 2)
@@ -416,11 +399,9 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
             .point(4, 1);
 
         Shape shape = builder.close().build();
-
-         assertPolygon(shape);
+        assertPolygon(shape);
      }
 
-    @Test
     public void testShapeWithPointOnDateline() {
         PolygonBuilder builder = ShapeBuilder.newPolygon()
                 .point(180, 0)
@@ -429,11 +410,9 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
                 .point(180, 0);
 
         Shape shape = builder.close().build();
-
-         assertPolygon(shape);
+        assertPolygon(shape);
      }
 
-    @Test
     public void testShapeWithEdgeAlongDateline() {
         // test case 1: test the positive side of the dateline
         PolygonBuilder builder = ShapeBuilder.newPolygon()
@@ -456,7 +435,6 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
         assertPolygon(shape);
      }
 
-    @Test
     public void testShapeWithBoundaryHoles() {
         // test case 1: test the positive side of the dateline
         PolygonBuilder builder = ShapeBuilder.newPolygon()
@@ -481,7 +459,7 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
                 .point(179, 10)
                 .point(179, -10)
                 .point(-176, -15)
-                .point(-172,0);
+                .point(-172, 0);
         builder.hole()
                 .point(-176, 10)
                 .point(-176, -10)
@@ -489,6 +467,89 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
                 .point(-180, 5)
                 .point(-176, 10);
         shape = builder.close().build();
+        assertMultiPolygon(shape);
+    }
+
+    public void testShapeWithTangentialHole() {
+        // test a shape with one tangential (shared) vertex (should pass)
+        PolygonBuilder builder = ShapeBuilder.newPolygon()
+                .point(179, 10)
+                .point(168, 15)
+                .point(164, 0)
+                .point(166, -15)
+                .point(179, -10)
+                .point(179, 10);
+        builder.hole()
+                .point(-177, 10)
+                .point(-178, -10)
+                .point(-180, -5)
+                .point(-180, 5)
+                .point(-177, 10);
+        Shape shape = builder.close().build();
+        assertMultiPolygon(shape);
+    }
+
+    @Test(expected = InvalidShapeException.class)
+    public void testShapeWithInvalidTangentialHole() {
+        // test a shape with one invalid tangential (shared) vertex (should throw exception)
+        PolygonBuilder builder = ShapeBuilder.newPolygon()
+                .point(179, 10)
+                .point(168, 15)
+                .point(164, 0)
+                .point(166, -15)
+                .point(179, -10)
+                .point(179, 10);
+        builder.hole()
+                .point(164, 0)
+                .point(175, 10)
+                .point(175, 5)
+                .point(179, -10)
+                .point(164, 0);
+        Shape shape = builder.close().build();
+        assertMultiPolygon(shape);
+    }
+
+    public void testBoundaryShapeWithTangentialHole() {
+        // test a shape with one tangential (shared) vertex for each hole (should pass)
+        PolygonBuilder builder = ShapeBuilder.newPolygon()
+                .point(-177, 10)
+                .point(176, 15)
+                .point(172, 0)
+                .point(176, -15)
+                .point(-177, -10)
+                .point(-177, 10);
+        builder.hole()
+                .point(-177, 10)
+                .point(-178, -10)
+                .point(-180, -5)
+                .point(-180, 5)
+                .point(-177, 10);
+        builder.hole()
+                .point(172, 0)
+                .point(176, 10)
+                .point(176, -5)
+                .point(172, 0);
+        Shape shape = builder.close().build();
+        assertMultiPolygon(shape);
+    }
+
+    @Test(expected = InvalidShapeException.class)
+    public void testBoundaryShapeWithInvalidTangentialHole() {
+        // test shape with two tangential (shared) vertices (should throw exception)
+        PolygonBuilder builder = ShapeBuilder.newPolygon()
+                .point(-177, 10)
+                .point(176, 15)
+                .point(172, 0)
+                .point(176, -15)
+                .point(-177, -10)
+                .point(-177, 10);
+        builder.hole()
+                .point(-177, 10)
+                .point(172, 0)
+                .point(180, -5)
+                .point(176, -10)
+                .point(-177, 10);
+        Shape shape = builder.close().build();
         assertMultiPolygon(shape);
     }
 
@@ -510,7 +571,7 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
 
     @Test
     public void testShapeWithAlternateOrientation() {
-        // ccw: should produce a single polygon spanning hemispheres
+        // cw: should produce a multi polygon spanning hemispheres
         PolygonBuilder builder = ShapeBuilder.newPolygon()
                 .point(180, 0)
                 .point(176, 4)
@@ -531,4 +592,16 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
 
         assertMultiPolygon(shape);
      }
+
+    @Test(expected = InvalidShapeException.class)
+    public void testInvalidShapeWithConsecutiveDuplicatePoints() {
+        PolygonBuilder builder = ShapeBuilder.newPolygon()
+                .point(180, 0)
+                .point(176, 4)
+                .point(176, 4)
+                .point(-176, 4)
+                .point(180, 0);
+        Shape shape = builder.close().build();
+        assertPolygon(shape);
+    }
 }

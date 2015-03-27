@@ -224,12 +224,6 @@
             <version>2.7</version>
             <scope>compile</scope>
         </dependency>
-        <dependency>
-            <groupId>org.joda</groupId>
-            <artifactId>joda-convert</artifactId>
-            <version>1.2</version>
-            <scope>compile</scope>
-        </dependency>
 
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.update;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.client.Client;
@@ -204,6 +205,7 @@ public class UpdateMappingOnClusterTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/10297")
     public void testTimestampMergingConflicts() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject(TYPE)
                 .startObject("_timestamp").field("enabled", true)

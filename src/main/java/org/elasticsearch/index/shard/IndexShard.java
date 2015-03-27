@@ -20,7 +20,6 @@
 package org.elasticsearch.index.shard;
 
 import com.google.common.base.Charsets;
-
 import com.google.common.base.Preconditions;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
@@ -54,6 +53,7 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaDataStateFormat;
@@ -69,14 +69,7 @@ import org.elasticsearch.index.cache.query.ShardQueryCache;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
-import org.elasticsearch.index.engine.CommitStats;
-import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineClosedException;
-import org.elasticsearch.index.engine.EngineConfig;
-import org.elasticsearch.index.engine.EngineException;
-import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.RefreshFailedEngineException;
-import org.elasticsearch.index.engine.SegmentsStats;
+import org.elasticsearch.index.engine.*;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.fielddata.ShardFieldData;
@@ -85,12 +78,7 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperAnalyzer;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
@@ -113,6 +101,7 @@ import org.elasticsearch.index.suggest.stats.SuggestStats;
 import org.elasticsearch.index.termvectors.ShardTermVectorsService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
+import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesLifecycle;
@@ -145,7 +134,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final InternalIndicesLifecycle indicesLifecycle;
     private final Store store;
     private final MergeSchedulerProvider mergeScheduler;
-    private final Translog translog;
     private final IndexAliasesService indexAliasesService;
     private final ShardIndexingService indexingService;
     private final ShardSearchService searchService;
@@ -171,6 +159,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final SnapshotDeletionPolicy deletionPolicy;
     private final SimilarityService similarityService;
     private final MergePolicyProvider mergePolicyProvider;
+    private final BigArrays bigArrays;
     private final EngineConfig engineConfig;
 
     private TimeValue refreshInterval;
@@ -205,27 +194,26 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final ShardPath path;
 
     @Inject
-    public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler, Translog translog,
+    public IndexShard(ShardId shardId, IndexSettingsService indexSettingsService, IndicesLifecycle indicesLifecycle, Store store, MergeSchedulerProvider mergeScheduler,
                       ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndexAliasesService indexAliasesService, ShardIndexingService indexingService, ShardGetService getService, ShardSearchService searchService, ShardIndexWarmerService shardWarmerService,
                       ShardFilterCache shardFilterCache, ShardFieldData shardFieldData, PercolatorQueriesRegistry percolatorQueriesRegistry, ShardPercolateService shardPercolateService, CodecService codecService,
                       ShardTermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, IndexService indexService, ShardSuggestService shardSuggestService, ShardQueryCache shardQueryCache, ShardBitsetFilterCache shardBitsetFilterCache,
                       @Nullable IndicesWarmer warmer, SnapshotDeletionPolicy deletionPolicy, SimilarityService similarityService, MergePolicyProvider mergePolicyProvider, EngineFactory factory,
-                      ClusterService clusterService, NodeEnvironment nodeEnv,  ShardPath path) {
+                      ClusterService clusterService, NodeEnvironment nodeEnv, ShardPath path, BigArrays bigArrays) {
         super(shardId, indexSettingsService.getSettings());
         this.codecService = codecService;
         this.warmer = warmer;
         this.deletionPolicy = deletionPolicy;
         this.similarityService = similarityService;
         this.mergePolicyProvider = mergePolicyProvider;
+        this.bigArrays = bigArrays;
         Preconditions.checkNotNull(store, "Store must be provided to the index shard");
         Preconditions.checkNotNull(deletionPolicy, "Snapshot deletion policy must be provided to the index shard");
-        Preconditions.checkNotNull(translog, "Translog must be provided to the index shard");
         this.engineFactory = factory;
         this.indicesLifecycle = (InternalIndicesLifecycle) indicesLifecycle;
         this.indexSettingsService = indexSettingsService;
         this.store = store;
         this.mergeScheduler = mergeScheduler;
-        this.translog = translog;
         this.threadPool = threadPool;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
@@ -266,8 +254,13 @@ public class IndexShard extends AbstractIndexShardComponent {
         return this.store;
     }
 
+    /** returns true if this shard supports indexing (i.e., write) operations. */
+    public boolean canIndex() {
+        return true;
+    }
+
     public Translog translog() {
-        return translog;
+        return engine().translog();
     }
 
     public ShardIndexingService indexingService() {
@@ -662,7 +655,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public TranslogStats translogStats() {
-        return translog.stats();
+        return engine().translog().stats();
     }
 
     public SuggestStats suggestStats() {
@@ -703,22 +696,17 @@ public class IndexShard extends AbstractIndexShardComponent {
             logger.trace("optimize with {}", optimize);
         }
         engine().forceMerge(optimize.flush(), optimize.maxNumSegments(), optimize.onlyExpungeDeletes(),
-                            optimize.upgrade(), optimize.upgradeOnlyAncientSegments());
+                optimize.upgrade(), optimize.upgradeOnlyAncientSegments());
     }
 
-    public SnapshotIndexCommit snapshotIndex() throws EngineException {
+    public SnapshotIndexCommit snapshotIndex(boolean flushFirst) throws EngineException {
         IndexShardState state = this.state; // one time volatile read
         // we allow snapshot on closed index shard, since we want to do one after we close the shard and before we close the engine
         if (state == IndexShardState.STARTED || state == IndexShardState.RELOCATED || state == IndexShardState.CLOSED) {
-            return engine().snapshotIndex();
+            return engine().snapshotIndex(flushFirst);
         } else {
             throw new IllegalIndexShardStateException(shardId, state, "snapshot is not allowed");
         }
-    }
-
-    public void recover(Engine.RecoveryHandler recoveryHandler) throws EngineException {
-        verifyStarted();
-        engine().recover(recoveryHandler);
     }
 
     public void failShard(String reason, Throwable e) {
@@ -817,7 +805,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         if (Booleans.parseBoolean(checkIndexOnStartup, false)) {
             checkIndex();
         }
-
         recoveryState.setStage(RecoveryState.Stage.TRANSLOG);
         // we disable deletes since we allow for operations to be executed against the shard while recovering
         // but we need to make sure we don't loose deletes until we are done recovering
@@ -832,10 +819,10 @@ public class IndexShard extends AbstractIndexShardComponent {
      * a remote peer.
      */
     public void skipTranslogRecovery() {
-       assert engineUnsafe() == null : "engine was already created";
-       Map<String, Mapping> recoveredTypes = internalPerformTranslogRecovery(true);
-       assert recoveredTypes.isEmpty();
-       assert recoveryState.getTranslog().recoveredOperations() == 0;
+        assert engineUnsafe() == null : "engine was already created";
+        Map<String, Mapping> recoveredTypes = internalPerformTranslogRecovery(true);
+        assert recoveredTypes.isEmpty();
+        assert recoveryState.getTranslog().recoveredOperations() == 0;
     }
 
     /** called if recovery has to be restarted after network error / delay ** */
@@ -869,8 +856,6 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public void finalizeRecovery() {
         recoveryState().setStage(RecoveryState.Stage.FINALIZE);
-        // clear unreferenced files
-        translog.clearUnreferenced();
         engine().refresh("recovery_finalization");
         startScheduledTasksIfNeeded();
         engineConfig.setEnableGcDeletes(true);
@@ -977,7 +962,10 @@ public class IndexShard extends AbstractIndexShardComponent {
                 logger.debug("updating index_buffer_size from [{}] to [{}]", preValue, shardIndexingBufferSize);
             }
         }
-        translog().updateBuffer(shardTranslogBufferSize);
+        Engine engine = engineUnsafe();
+        if (engine != null) {
+            engine.translog().updateBuffer(shardTranslogBufferSize);
+        }
     }
 
     public void markAsInactive() {
@@ -999,6 +987,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
         MetaDataStateFormat.deleteMetaState(shardPath().getDataPath());
     }
+
     public ShardPath shardPath() {
         return path;
     }
@@ -1229,9 +1218,22 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     protected Engine newEngine(boolean skipTranslogRecovery, EngineConfig config) {
-        return engineFactory.newReadWriteEngine(config, skipTranslogRecovery);
+        final FsTranslog translog;
+        try {
+            translog = new FsTranslog(shardId, indexSettingsService, bigArrays, path, threadPool);
+        } catch (IOException e) {
+            throw new EngineCreationFailureException(shardId, "failed to create translog", e);
+        }
+        Engine engine = null;
+        try {
+            engine = engineFactory.newReadWriteEngine(config, translog, skipTranslogRecovery);
+        } finally {
+            if (engine == null) {
+                IOUtils.closeWhileHandlingException(translog);
+            }
+        }
+        return engine;
     }
-
 
     /**
      * Returns <code>true</code> iff this shard allows primary promotion, otherwise <code>false</code>
@@ -1290,7 +1292,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
         };
         return new EngineConfig(shardId,
-                threadPool, indexingService, indexSettingsService, warmer, store, deletionPolicy, translog, mergePolicyProvider, mergeScheduler,
+                threadPool, indexingService, indexSettingsService, warmer, store, deletionPolicy, mergePolicyProvider, mergeScheduler,
                 mapperAnalyzer, similarityService.similarity(), codecService, failedEngineListener, translogRecoveryPerformer);
     }
 }

@@ -22,7 +22,6 @@ package org.elasticsearch.index.translog;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
-import java.io.File;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
@@ -48,6 +47,11 @@ public interface TranslogStream {
      * file channel
      */
     public int writeHeader(FileChannel channel) throws IOException;
+
+    /**
+     * returns the site of the header in bytes
+     */
+    public int headerLength();
 
     /**
      * Seek past the header, if any header is present

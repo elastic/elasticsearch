@@ -42,7 +42,10 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.indices.IndexMissingException;
@@ -203,8 +206,6 @@ public class RecoveryTarget extends AbstractComponent {
                 sb.append("         : recovered [").append(recoveryResponse.phase2Operations).append("]").append(" transaction log operations")
                         .append(", took [").append(timeValueMillis(recoveryResponse.phase2Time)).append("]")
                         .append("\n");
-                sb.append("   phase3: recovered [").append(recoveryResponse.phase3Operations).append("]").append(" transaction log operations")
-                        .append(", took [").append(timeValueMillis(recoveryResponse.phase3Time)).append("]");
                 logger.trace(sb.toString());
             } else {
                 logger.debug("{} recovery done from [{}], took [{}]", request.shardId(), recoveryStatus.sourceNode(), recoveryTime);
@@ -230,7 +231,7 @@ public class RecoveryTarget extends AbstractComponent {
 
             // here, we would add checks against exception that need to be retried (and not removeAndClean in this case)
 
-            if (cause instanceof IndexShardNotStartedException || cause instanceof IndexMissingException || cause instanceof IndexShardMissingException) {
+            if (cause instanceof IllegalIndexShardStateException || cause instanceof IndexMissingException || cause instanceof IndexShardMissingException) {
                 // if the target is not ready yet, retry
                 retryRecovery(recoveryStatus, "remote shard not ready", recoverySettings.retryDelayStateSync(), request);
                 return;

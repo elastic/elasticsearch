@@ -23,9 +23,6 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -41,6 +38,10 @@ public class LegacyTranslogStream implements TranslogStream {
 
     @Override
     public Translog.Operation read(StreamInput in) throws IOException {
+        // read the opsize before an operation.
+        // Note that this was written & read out side of the stream when this class was used, but it makes things more consistent
+        // to read this here
+        in.readInt();
         Translog.Operation.Type type = Translog.Operation.Type.fromId(in.readByte());
         Translog.Operation operation = TranslogStreams.newOperationFromType(type);
         operation.readFrom(in);
@@ -49,13 +50,17 @@ public class LegacyTranslogStream implements TranslogStream {
 
     @Override
     public void write(StreamOutput out, Translog.Operation op) throws IOException {
-        out.writeByte(op.opType().id());
-        op.writeTo(out);
+        throw new UnsupportedOperationException("LegacyTranslogStream is depracated. Use TranslogStreams.LATEST");
     }
 
     @Override
     public int writeHeader(FileChannel channel) {
         // nothing, there is no header for version 0 translog files
+        return 0;
+    }
+
+    @Override
+    public int headerLength() {
         return 0;
     }
 

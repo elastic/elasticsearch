@@ -37,7 +37,6 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -67,13 +66,13 @@ public final class EngineConfig {
     private final IndicesWarmer warmer;
     private final Store store;
     private final SnapshotDeletionPolicy deletionPolicy;
-    private final Translog translog;
     private final MergePolicyProvider mergePolicyProvider;
     private final MergeSchedulerProvider mergeScheduler;
     private final Analyzer analyzer;
     private final Similarity similarity;
     private final CodecService codecService;
     private final Engine.FailedEngineListener failedEngineListener;
+    private final boolean ignoreUnknownTranslog;
 
     /**
      * Index setting for index concurrency / number of threadstates in the indexwriter.
@@ -117,6 +116,11 @@ public final class EngineConfig {
      */
     public static final String INDEX_VERSION_MAP_SIZE = "index.version_map_size";
 
+
+    /** if set to true the engine will start even if the translog id in the commit point can not be found */
+    public static final String INDEX_IGNORE_UNKNOWN_TRANSLOG = "index.engine.ignore_unknown_translog";
+
+
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
     public static final ByteSizeValue DEFAUTL_INDEX_BUFFER_SIZE = new ByteSizeValue(64, ByteSizeUnit.MB);
@@ -130,7 +134,7 @@ public final class EngineConfig {
     /**
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
-    public EngineConfig(ShardId shardId, ThreadPool threadPool, ShardIndexingService indexingService, IndexSettingsService indexSettingsService, IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy, Translog translog, MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler, Analyzer analyzer, Similarity similarity, CodecService codecService, Engine.FailedEngineListener failedEngineListener, TranslogRecoveryPerformer translogRecoveryPerformer) {
+    public EngineConfig(ShardId shardId, ThreadPool threadPool, ShardIndexingService indexingService, IndexSettingsService indexSettingsService, IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy, MergePolicyProvider mergePolicyProvider, MergeSchedulerProvider mergeScheduler, Analyzer analyzer, Similarity similarity, CodecService codecService, Engine.FailedEngineListener failedEngineListener, TranslogRecoveryPerformer translogRecoveryPerformer) {
         this.shardId = shardId;
         this.threadPool = threadPool;
         this.indexingService = indexingService;
@@ -138,7 +142,6 @@ public final class EngineConfig {
         this.warmer = warmer;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
-        this.translog = translog;
         this.mergePolicyProvider = mergePolicyProvider;
         this.mergeScheduler = mergeScheduler;
         this.analyzer = analyzer;
@@ -155,6 +158,7 @@ public final class EngineConfig {
         versionMapSizeSetting = indexSettings.get(INDEX_VERSION_MAP_SIZE, DEFAULT_VERSION_MAP_SIZE);
         updateVersionMapSize();
         this.translogRecoveryPerformer = translogRecoveryPerformer;
+        this.ignoreUnknownTranslog = indexSettings.getAsBoolean(INDEX_IGNORE_UNKNOWN_TRANSLOG, false);
     }
 
     /** updates {@link #versionMapSize} based on current setting and {@link #indexingBufferSize} */
@@ -182,6 +186,10 @@ public final class EngineConfig {
         return versionMapSizeSetting;
     }
 
+    /** if true the engine will start even if the translog id in the commit point can not be found */
+    public boolean getIgnoreUnknownTranslog() {
+        return ignoreUnknownTranslog;
+    }
 
     /**
      * returns the size of the version map that should trigger a refresh
@@ -316,13 +324,6 @@ public final class EngineConfig {
      */
     public SnapshotDeletionPolicy getDeletionPolicy() {
         return deletionPolicy;
-    }
-
-    /**
-     * Returns a {@link Translog instance}
-     */
-    public Translog getTranslog() {
-        return translog;
     }
 
     /**

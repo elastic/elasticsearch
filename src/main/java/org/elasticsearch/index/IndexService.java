@@ -65,8 +65,6 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreModule;
 import org.elasticsearch.index.suggest.SuggestShardModule;
 import org.elasticsearch.index.termvectors.ShardTermVectorsModule;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogModule;
 import org.elasticsearch.index.translog.TranslogService;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
@@ -187,6 +185,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         }
         return null;
     }
+
     /**
      * Return the shard with the provided id, or throw an exception if it doesn't exist.
      */
@@ -320,7 +319,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             modules.add(new ShardQueryCacheModule());
             modules.add(new ShardBitsetFilterCacheModule());
             modules.add(new ShardFieldDataModule());
-            modules.add(new TranslogModule(indexSettings));
             modules.add(new IndexShardGatewayModule());
             modules.add(new PercolatorShardModule());
             modules.add(new ShardTermVectorsModule());
@@ -386,7 +384,8 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     }
                 }
                 // now we can close the translog service, we need to close it before the we close the shard
-                closeInjectorResource(sId, shardInjector, TranslogService.class);
+                // note the that the translog service is not there for shadow replicas
+                closeInjectorOptionalResource(sId, shardInjector, TranslogService.class);
                 // this logic is tricky, we want to close the engine so we rollback the changes done to it
                 // and close the shard so no operations are allowed to it
                 if (indexShard != null) {
@@ -402,7 +401,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                         MergeSchedulerProvider.class,
                         MergePolicyProvider.class,
                         IndexShardGatewayService.class,
-                        Translog.class,
                         PercolatorQueriesRegistry.class);
 
                 // call this before we close the store, so we can release resources for it
@@ -423,17 +421,29 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
      */
     private void closeInjectorResource(ShardId shardId, Injector shardInjector, Class<? extends Closeable>... toClose) {
         for (Class<? extends Closeable> closeable : toClose) {
-            try {
-                final Closeable instance = shardInjector.getInstance(closeable);
-                if (instance == null) {
-                    throw new NullPointerException("No instance available for " + closeable.getName());
-                }
-                IOUtils.close(instance);
-            } catch (Throwable t) {
-                logger.debug("{} failed to close {}", t, shardId, Strings.toUnderscoreCase(closeable.getSimpleName()));
+            if (closeInjectorOptionalResource(shardId, shardInjector, closeable) == false) {
+                logger.warn("[{}] no instance available for [{}], ignoring... ", shardId, closeable.getSimpleName());
             }
         }
     }
+
+    /**
+     * Closes an optional resource. Returns true if the resource was found;
+     * NOTE: this method swallows all exceptions thrown from the close method of the injector and logs them as debug log
+     */
+    private boolean closeInjectorOptionalResource(ShardId shardId, Injector shardInjector, Class<? extends Closeable> toClose) {
+        try {
+            final Closeable instance = shardInjector.getInstance(toClose);
+            if (instance == null) {
+                return false;
+            }
+            IOUtils.close(instance);
+        } catch (Throwable t) {
+            logger.debug("{} failed to close {}", t, shardId, Strings.toUnderscoreCase(toClose.getSimpleName()));
+        }
+        return true;
+    }
+
 
     private void onShardClose(ShardLock lock, boolean ownsShard) {
         if (deleted.get()) { // we remove that shards content if this index has been deleted
@@ -464,7 +474,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
         @Override
         public void handle(ShardLock lock) {
-            assert lock.getShardId().equals(shardId) : "shard Id mismatch, expected: "  + shardId + " but got: " + lock.getShardId();
+            assert lock.getShardId().equals(shardId) : "shard id mismatch, expected: " + shardId + " but got: " + lock.getShardId();
             onShardClose(lock, ownsShard);
         }
     }

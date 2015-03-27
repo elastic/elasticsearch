@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.engine;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import com.google.common.collect.ImmutableMap;
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
@@ -51,13 +49,13 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
-import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
@@ -81,10 +79,10 @@ import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogSizeMatcher;
 import org.elasticsearch.index.translog.fs.FsTranslog;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
 import org.junit.After;
@@ -92,6 +90,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -113,15 +112,14 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     private Store store;
     private Store storeReplica;
 
-    protected Translog translog;
-    protected Translog replicaTranslog;
-
     protected InternalEngine engine;
     protected InternalEngine replicaEngine;
 
     private Settings defaultSettings;
     private int indexConcurrency;
     private String codecName;
+    private Path primaryTranslogDir;
+    private Path replicaTranslogDir;
 
     @Override
     @Before
@@ -149,8 +147,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         storeReplica = createStore();
         Lucene.cleanLuceneIndex(store.directory());
         Lucene.cleanLuceneIndex(storeReplica.directory());
-        translog = createTranslog();
-        engine = createEngine(store, translog);
+        primaryTranslogDir = createTempDir("translog-primary");
+        engine = createEngine(store, createTranslog());
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
@@ -158,8 +156,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         if (randomBoolean()) {
             engine.config().setEnableGcDeletes(false);
         }
-        replicaTranslog = createTranslogReplica();
-        replicaEngine = createEngine(storeReplica, replicaTranslog);
+        replicaTranslogDir = createTempDir("translog-replica");
+        replicaEngine = createEngine(storeReplica, createTranslogReplica());
         currentIndexWriterConfig = replicaEngine.getCurrentIndexWriterConfig();
 
         assertEquals(replicaEngine.config().getCodec().getName(), codecService.codec(codecName).getName());
@@ -173,12 +171,44 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     @After
     public void tearDown() throws Exception {
         super.tearDown();
-        IOUtils.close(
-                replicaEngine, storeReplica, replicaTranslog,
-                engine, store, translog);
-
-        terminate(threadPool);
+        try {
+            assertTranslogNotLeaking((FsTranslog) engine.translog());
+            assertTranslogNotLeaking((FsTranslog) replicaEngine.translog());
+        } finally {
+            IOUtils.close(
+                    replicaEngine, storeReplica,
+                    engine, store);
+            terminate(threadPool);
+        }
+        assertTranslogFilesClosed();
     }
+
+    protected void assertTranslogNotLeaking(final FsTranslog translog) throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    assertThat(translog.getUnreferenced(), emptyArray());
+                } catch (IOException e) {
+                    throw new ElasticsearchException("error while checking for unreferenced files in translog", e);
+                }
+            }
+        });
+    }
+
+    protected void assertTranslogFilesClosed() throws Exception {
+        try {
+            assertBusy(new Runnable() {
+                @Override
+                public void run() {
+                    FsTranslog.assertAllClosed();
+                }
+            });
+        } finally {
+            FsTranslog.assertForceCloseAllReferences();
+        }
+    }
+
 
     private Document testDocumentWithTextField() {
         Document document = testDocument();
@@ -218,12 +248,16 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         return new Store(shardId, EMPTY_SETTINGS, directoryService, new DummyShardLock(shardId));
     }
 
-    protected Translog createTranslog() throws IOException {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, createTempDir("translog-primary"));
+    protected FsTranslog createTranslog() throws IOException {
+        return createTranslog(primaryTranslogDir);
     }
 
-    protected Translog createTranslogReplica() throws IOException {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, createTempDir("translog-replica"));
+    protected FsTranslog createTranslog(Path translogPath) throws IOException {
+        return new FsTranslog(shardId, EMPTY_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, translogPath);
+    }
+
+    protected FsTranslog createTranslogReplica() throws IOException {
+        return createTranslog(replicaTranslogDir);
     }
 
     protected IndexDeletionPolicy createIndexDeletionPolicy() {
@@ -242,27 +276,25 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         return new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, indexSettingsService);
     }
 
-    protected InternalEngine createEngine(Store store, Translog translog) {
+    protected InternalEngine createEngine(Store store, FsTranslog translog) {
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         return createEngine(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService));
     }
 
-    protected InternalEngine createEngine(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider mergeSchedulerProvider) {
-        return new InternalEngine(config(indexSettingsService, store, translog, mergeSchedulerProvider), false);
+    protected InternalEngine createEngine(IndexSettingsService indexSettingsService, Store store, FsTranslog translog, MergeSchedulerProvider mergeSchedulerProvider) {
+        return new InternalEngine(config(indexSettingsService, store, mergeSchedulerProvider), translog, false);
     }
 
-    public EngineConfig config(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider mergeSchedulerProvider) {
+    public EngineConfig config(IndexSettingsService indexSettingsService, Store store, MergeSchedulerProvider mergeSchedulerProvider) {
         IndexWriterConfig iwc = newIndexWriterConfig();
         EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), indexSettingsService
-                , null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), mergeSchedulerProvider,
+                , null, store, createSnapshotDeletionPolicy(), createMergePolicy(), mergeSchedulerProvider,
                 iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(shardId.index()), new Engine.FailedEngineListener() {
             @Override
             public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
             }
         }, new TranslogHandler(shardId.index().getName()));
-
-
         return config;
     }
 
@@ -313,7 +345,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         assertThat(segments.get(0).getDeletedDocs(), equalTo(0));
         assertThat(segments.get(0).isCompound(), equalTo(defaultCompound));
 
-        ((InternalEngine) engine).config().setCompoundOnFlush(false);
+        engine.config().setCompoundOnFlush(false);
 
         ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
         engine.create(new Engine.Create(null, newUid("3"), doc3));
@@ -361,7 +393,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         assertThat(segments.get(1).getDeletedDocs(), equalTo(0));
         assertThat(segments.get(1).isCompound(), equalTo(false));
 
-        ((InternalEngine) engine).config().setCompoundOnFlush(true);
+        engine.config().setCompoundOnFlush(true);
         ParsedDocument doc4 = testParsedDocument("4", "4", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
         engine.create(new Engine.Create(null, newUid("4"), doc4));
         engine.refresh("test");
@@ -422,8 +454,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         ConcurrentMergeSchedulerProvider mergeSchedulerProvider = new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, new IndexSettingsService(shardId.index(), EMPTY_SETTINGS));
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         try (Store store = createStore();
-             Translog translog = createTranslog();
-             Engine engine = createEngine(indexSettingsService, store, translog, mergeSchedulerProvider)) {
+             Engine engine = createEngine(indexSettingsService, store, createTranslog(createTempDir()), mergeSchedulerProvider)) {
 
             ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
             Engine.Index index = new Engine.Index(null, newUid("1"), doc);
@@ -647,8 +678,6 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 0));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test1")), 1));
         searchResult.close();
-
-        engine.close();
     }
 
     @Test
@@ -687,198 +716,6 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
         MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
         searchResult.close();
-    }
-
-    @Test
-    public void testFailEngineOnCorruption() {
-        ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
-        engine.flush();
-        final int failInPhase = randomIntBetween(1, 3);
-        try {
-            engine.recover(new Engine.RecoveryHandler() {
-                @Override
-                public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
-                    if (failInPhase == 1) {
-                        throw new RuntimeException("bar", new CorruptIndexException("Foo", "fake file description"));
-                    }
-                }
-
-                @Override
-                public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                    if (failInPhase == 2) {
-                        throw new RuntimeException("bar", new CorruptIndexException("Foo", "fake file description"));
-                    }
-                }
-
-                @Override
-                public void phase3(Translog.Snapshot snapshot) throws EngineException {
-                    if (failInPhase == 3) {
-                        throw new RuntimeException("bar", new CorruptIndexException("Foo", "fake file description"));
-                    }
-                }
-            });
-            fail("exception expected");
-        } catch (RuntimeException ex) {
-
-        }
-        try {
-            Engine.Searcher searchResult = engine.acquireSearcher("test");
-            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(1));
-            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 1));
-            searchResult.close();
-
-            ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
-            engine.create(new Engine.Create(null, newUid("2"), doc2));
-            engine.refresh("foo");
-
-            searchResult = engine.acquireSearcher("test");
-            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(new TermQuery(new Term("value", "test")), 2));
-            MatcherAssert.assertThat(searchResult, EngineSearcherTotalHitsMatcher.engineSearcherTotalHits(2));
-            searchResult.close();
-            fail("engine should have failed");
-        } catch (EngineClosedException ex) {
-            // expected
-        }
-    }
-
-
-    @Test
-    public void testSimpleRecover() throws Exception {
-        final ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(null, newUid("1"), doc));
-        engine.flush();
-
-        engine.recover(new Engine.RecoveryHandler() {
-            @Override
-            public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
-                try {
-                    engine.flush();
-                    assertThat("flush is not allowed in phase 1", false, equalTo(true));
-                } catch (FlushNotAllowedEngineException e) {
-                    // all is well
-                }
-            }
-
-            @Override
-            public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
-                try {
-                    engine.flush();
-                    assertThat("flush is not allowed in phase 2", false, equalTo(true));
-                } catch (FlushNotAllowedEngineException e) {
-                    // all is well
-                }
-
-                // but we can index
-                engine.index(new Engine.Index(null, newUid("1"), doc));
-            }
-
-            @Override
-            public void phase3(Translog.Snapshot snapshot) throws EngineException {
-                MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
-                try {
-                    // we can do this here since we are on the same thread
-                    engine.flush();
-                    assertThat("flush is not allowed in phase 3", false, equalTo(true));
-                } catch (FlushNotAllowedEngineException e) {
-                    // all is well
-                }
-            }
-        });
-        // post recovery should flush the translog
-        try (Translog.Snapshot snapshot = translog.snapshot()) {
-            MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
-        }
-        // and we should not leak files
-        assertThat("there are unreferenced translog files left", translog.clearUnreferenced(), equalTo(0));
-
-        engine.flush();
-
-        assertThat("there are unreferenced translog files left, post flush", translog.clearUnreferenced(), equalTo(0));
-
-        engine.close();
-    }
-
-    @Test
-    public void testRecoverWithOperationsBetweenPhase1AndPhase2() throws Exception {
-        ParsedDocument doc1 = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(null, newUid("1"), doc1));
-        engine.flush();
-        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
-        engine.create(new Engine.Create(null, newUid("2"), doc2));
-
-        engine.recover(new Engine.RecoveryHandler() {
-            @Override
-            public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
-            }
-
-            @Override
-            public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                try {
-                    Translog.Create create = (Translog.Create) snapshot.next();
-                    assertThat("translog snapshot should not read null", create != null, equalTo(true));
-                    assertThat(create.source().toBytesArray(), equalTo(B_2));
-                    assertThat(snapshot.next(), equalTo(null));
-                } catch (IOException ex) {
-                    throw new ElasticsearchException("failed", ex);
-                }
-            }
-
-            @Override
-            public void phase3(Translog.Snapshot snapshot) throws EngineException {
-                MatcherAssert.assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
-            }
-        });
-
-        engine.flush();
-        engine.close();
-    }
-
-    @Test
-    public void testRecoverWithOperationsBetweenPhase1AndPhase2AndPhase3() throws Exception {
-        ParsedDocument doc1 = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
-        engine.create(new Engine.Create(null, newUid("1"), doc1));
-        engine.flush();
-        ParsedDocument doc2 = testParsedDocument("2", "2", "test", null, -1, -1, testDocumentWithTextField(), B_2, null);
-        engine.create(new Engine.Create(null, newUid("2"), doc2));
-
-        engine.recover(new Engine.RecoveryHandler() {
-            @Override
-            public void phase1(SnapshotIndexCommit snapshot) throws EngineException {
-            }
-
-            @Override
-            public void phase2(Translog.Snapshot snapshot) throws EngineException {
-                try {
-                    Translog.Create create = (Translog.Create) snapshot.next();
-                    assertThat(create != null, equalTo(true));
-                    assertThat(snapshot.next(), equalTo(null));
-                    assertThat(create.source().toBytesArray(), equalTo(B_2));
-
-                    // add for phase3
-                    ParsedDocument doc3 = testParsedDocument("3", "3", "test", null, -1, -1, testDocumentWithTextField(), B_3, null);
-                    engine.create(new Engine.Create(null, newUid("3"), doc3));
-                } catch (IOException ex) {
-                    throw new ElasticsearchException("failed", ex);
-                }
-            }
-
-            @Override
-            public void phase3(Translog.Snapshot snapshot) throws EngineException {
-                try {
-                    Translog.Create create = (Translog.Create) snapshot.next();
-                    assertThat(create != null, equalTo(true));
-                    assertThat(snapshot.next(), equalTo(null));
-                    assertThat(create.source().toBytesArray(), equalTo(B_3));
-                } catch (IOException ex) {
-                    throw new ElasticsearchException("failed", ex);
-                }
-            }
-        });
-
-        engine.flush();
-        engine.close();
     }
 
     @Test
@@ -1072,8 +909,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         int numIters = randomIntBetween(2, 10);
         for (int j = 0; j < numIters; j++) {
             try (Store store = createStore()) {
-                final Translog translog = createTranslog();
-                final InternalEngine engine = createEngine(store, translog);
+                final InternalEngine engine = createEngine(store, createTranslog(createTempDir()));
                 final CountDownLatch startGun = new CountDownLatch(1);
                 final CountDownLatch indexed = new CountDownLatch(1);
 
@@ -1116,7 +952,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                     engine.forceMerge(randomBoolean(), 1, false, randomBoolean(), randomBoolean());
                 }
                 indexed.await();
-                IOUtils.close(engine, translog);
+                IOUtils.close(engine);
             }
         }
 
@@ -1452,7 +1288,6 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             assertNotNull(iwIFDLogger);
         }
 
-        Level savedLevel = iwIFDLogger.getLevel();
         iwIFDLogger.addAppender(mockAppender);
         iwIFDLogger.setLevel(Level.DEBUG);
 
@@ -1482,8 +1317,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
     public void testEnableGcDeletes() throws Exception {
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         try (Store store = createStore();
-             Translog translog = createTranslog();
-             Engine engine = new InternalEngine(config(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService)), false)) {
+             Engine engine = new InternalEngine(config(indexSettingsService, store, createMergeScheduler(indexSettingsService)),
+                     createTranslog(createTempDir()), false)) {
             engine.config().setEnableGcDeletes(false);
 
             // Add document
@@ -1549,7 +1384,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         try (Engine.Searcher test = this.engine.acquireSearcher("test")) {
             ShardId shardId = ShardUtils.extractShardId(test.reader());
             assertNotNull(shardId);
-            assertEquals(shardId, ((InternalEngine) engine).config().getShardId());
+            assertEquals(shardId, engine.config().getShardId());
         }
     }
 
@@ -1567,10 +1402,9 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             wrapper.setAllowRandomFileNotFoundException(randomBoolean());
             wrapper.setRandomIOExceptionRate(randomDouble());
             wrapper.setRandomIOExceptionRateOnOpen(randomDouble());
-            try (Store store = createStore(wrapper)) {
+            try (Store store = createStore(wrapper); FsTranslog translog = createTranslog(createTempDir("testFailStart"))) {
                 int refCount = store.refCount();
                 assertTrue("refCount: " + store.refCount(), store.refCount() > 0);
-                Translog translog = createTranslog();
                 InternalEngine holder;
                 try {
                     holder = createEngine(store, translog);
@@ -1592,7 +1426,6 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                         break;
                     }
                 }
-                translog.close();
                 holder.close();
                 assertEquals(store.refCount(), refCount);
             }
@@ -1601,7 +1434,6 @@ public class InternalEngineTests extends ElasticsearchTestCase {
 
     @Test
     public void testSettings() {
-        InternalEngine engine = (InternalEngine) this.engine;
         CodecService codecService = new CodecService(shardId.index());
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
@@ -1707,8 +1539,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), indexSettings);
         try (Store store = createStore();
-             Translog translog = createTranslog();
-             final Engine engine = new InternalEngine(config(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService)), false)) {
+             Engine engine = new InternalEngine(config(indexSettingsService, store, createMergeScheduler(indexSettingsService)),
+                     createTranslog(createTempDir()), false)) {
             for (int i = 0; i < 100; i++) {
                 String id = Integer.toString(i);
                 ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), B_1, null);
@@ -1741,6 +1573,28 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         }
     }
 
+    public void testMissingTranslog() throws IOException {
+        // test that we can force start the engine , even if the translog is missing.
+        engine.close();
+        // fake a new translog, causing the engine to point to a missing one.
+        FsTranslog translog = createTranslog();
+        translog.markCommitted(translog.currentId());
+        // we have to re-open the translog because o.w. it will complain about commit information going backwards, which is OK as we did a fake markComitted
+        translog.close();
+        translog = createTranslog();
+        try {
+            engine = createEngine(store, translog);
+            fail("engine shouldn't start without a valid translog id");
+        } catch (EngineCreationFailureException ex) {
+            // expected
+        }
+        // now it should be OK.
+        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings)
+                .put(EngineConfig.INDEX_IGNORE_UNKNOWN_TRANSLOG, true).build());
+        engine = createEngine(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService));
+    }
+
+    @TestLogging("index.translog:TRACE")
     public void testTranslogReplayWithFailure() throws IOException {
         boolean canHaveDuplicates = true;
         boolean autoGeneratedId = true;
@@ -1770,21 +1624,13 @@ public class InternalEngineTests extends ElasticsearchTestCase {
                 directory.setRandomIOExceptionRate(randomDouble());
                 directory.setFailOnOpenInput(randomBoolean());
                 directory.setAllowRandomFileNotFoundException(randomBoolean());
+                final FsTranslog translog = createTranslog();
                 try {
                     engine = createEngine(store, translog);
                     started = true;
                     break;
                 } catch (EngineCreationFailureException ex) {
-                    // sometimes we fail after we committed the recovered docs during the finaly refresh call
-                    // that means hte index is consistent and recovered so we can't assert on the num recovered ops below.
-                        try (IndexReader reader = DirectoryReader.open(directory.getDelegate())) {
-                            if (reader.numDocs() == numDocs) {
-                                recoveredButFailed = true;
-                                break;
-                            } else {
-                                // skip - we just failed
-                            }
-                        }
+                    translog.close();
                 }
             }
 
@@ -1793,19 +1639,15 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             directory.setFailOnOpenInput(false);
             directory.setAllowRandomFileNotFoundException(false);
             if (started == false) {
-                engine = createEngine(store, translog);
+                engine = createEngine(store, createTranslog());
             }
         } else {
             // no mock directory, no fun.
-            engine = createEngine(store, translog);
+            engine = createEngine(store, createTranslog());
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
             assertThat(topDocs.totalHits, equalTo(numDocs));
-        }
-        if (recoveredButFailed == false) {
-            TranslogHandler parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
-            assertEquals(numDocs, parser.recoveredOps.get());
         }
     }
 
@@ -1831,11 +1673,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             // this so we have to disable the check explicitly
             directory.setPreventDoubleWrite(false);
         }
-        long currentTranslogId = translog.currentId();
         engine.close();
-        engine = new InternalEngine(engine.config(), true);
-        assertTrue(currentTranslogId + "<" + translog.currentId(), currentTranslogId < translog.currentId());
-        assertEquals("translog ID must be incremented by 2 after initial recovery", currentTranslogId + 2, translog.currentId());
+        engine = new InternalEngine(engine.config(), createTranslog(), true);
 
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
@@ -1875,11 +1714,8 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         TranslogHandler parser = (TranslogHandler) engine.config().getTranslogRecoveryPerformer();
         parser.mappingUpdate = dynamicUpdate();
 
-        long currentTranslogId = translog.currentId();
         engine.close();
-        engine = new InternalEngine(engine.config(), false); // we need to reuse the engine config otherwise the parser.mappingModified won't work
-        assertTrue(currentTranslogId + "<" + translog.currentId(), currentTranslogId < translog.currentId());
-        assertEquals("translog ID must be incremented by 2 after initial recovery", currentTranslogId + 2, translog.currentId());
+        engine = new InternalEngine(engine.config(), createTranslog(), false); // we need to reuse the engine config unless the parser.mappingModified won't work
 
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
@@ -1895,7 +1731,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         }
 
         engine.close();
-        engine = createEngine(store, translog);
+        engine = createEngine(store, createTranslog());
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), randomIntBetween(numDocs, numDocs + 10));
             assertThat(topDocs.totalHits, equalTo(numDocs));
@@ -1925,7 +1761,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
         }
 
         engine.close();
-        engine = createEngine(store, translog);
+        engine = createEngine(store, createTranslog());
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs + 1);
             assertThat(topDocs.totalHits, equalTo(numDocs + 1));
@@ -1937,7 +1773,7 @@ public class InternalEngineTests extends ElasticsearchTestCase {
             engine.refresh("test");
         } else {
             engine.close();
-            engine = createEngine(store, translog);
+            engine = createEngine(store, createTranslog());
         }
         try (Engine.Searcher searcher = engine.acquireSearcher("test")) {
             TopDocs topDocs = searcher.searcher().search(new MatchAllDocsQuery(), numDocs);

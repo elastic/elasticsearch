@@ -39,6 +39,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
@@ -92,8 +93,7 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
     private Store store;
     private Store storeReplica;
 
-    protected Translog translog;
-    protected Translog replicaTranslog;
+    protected FsTranslog translog;
 
     protected Engine primaryEngine;
     protected Engine replicaEngine;
@@ -139,8 +139,7 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
             primaryEngine.config().setEnableGcDeletes(false);
         }
 
-        replicaTranslog = createTranslogReplica();
-        replicaEngine = createShadowEngine(storeReplica, replicaTranslog);
+        replicaEngine = createShadowEngine(storeReplica);
 
         assertEquals(replicaEngine.config().getCodec().getName(), codecService.codec(codecName).getName());
         if (randomBoolean()) {
@@ -154,11 +153,8 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
         super.tearDown();
         replicaEngine.close();
         storeReplica.close();
-        
-        translog.close();
-        replicaTranslog.close();
-
         primaryEngine.close();
+        translog.close();
         store.close();
         terminate(threadPool);
     }
@@ -201,12 +197,8 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
         return new Store(shardId, EMPTY_SETTINGS, directoryService, new DummyShardLock(shardId));
     }
 
-    protected Translog createTranslog() throws IOException {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, createTempDir("translog-primary"));
-    }
-
-    protected Translog createTranslogReplica() throws IOException {
-        return new FsTranslog(shardId, EMPTY_SETTINGS, createTempDir("translog-replica"));
+    protected FsTranslog createTranslog() throws IOException {
+        return new FsTranslog(shardId, EMPTY_SETTINGS, BigArrays.NON_RECYCLING_INSTANCE, createTempDir("translog-primary"));
     }
 
     protected IndexDeletionPolicy createIndexDeletionPolicy() {
@@ -225,36 +217,34 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
         return new ConcurrentMergeSchedulerProvider(shardId, EMPTY_SETTINGS, threadPool, indexSettingsService);
     }
 
-    protected ShadowEngine createShadowEngine(Store store, Translog translog) {
+    protected ShadowEngine createShadowEngine(Store store) {
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
-        return createShadowEngine(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService));
+        return createShadowEngine(indexSettingsService, store, createMergeScheduler(indexSettingsService));
     }
 
-    protected InternalEngine createInternalEngine(Store store, Translog translog) {
+    protected InternalEngine createInternalEngine(Store store, FsTranslog translog) {
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), ImmutableSettings.builder().put(defaultSettings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
         return createInternalEngine(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService));
     }
 
-    protected ShadowEngine createShadowEngine(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider mergeSchedulerProvider) {
-        return new ShadowEngine(config(indexSettingsService, store, translog, mergeSchedulerProvider));
+    protected ShadowEngine createShadowEngine(IndexSettingsService indexSettingsService, Store store, MergeSchedulerProvider mergeSchedulerProvider) {
+        return new ShadowEngine(config(indexSettingsService, store, mergeSchedulerProvider));
     }
 
-    protected InternalEngine createInternalEngine(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider mergeSchedulerProvider) {
-        return new InternalEngine(config(indexSettingsService, store, translog, mergeSchedulerProvider), true);
+    protected InternalEngine createInternalEngine(IndexSettingsService indexSettingsService, Store store, FsTranslog translog, MergeSchedulerProvider mergeSchedulerProvider) {
+        return new InternalEngine(config(indexSettingsService, store, mergeSchedulerProvider), translog, true);
     }
 
-    public EngineConfig config(IndexSettingsService indexSettingsService, Store store, Translog translog, MergeSchedulerProvider mergeSchedulerProvider) {
+    public EngineConfig config(IndexSettingsService indexSettingsService, Store store, MergeSchedulerProvider mergeSchedulerProvider) {
         IndexWriterConfig iwc = newIndexWriterConfig();
         EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, EMPTY_SETTINGS, new ShardSlowLogIndexingService(shardId, EMPTY_SETTINGS, indexSettingsService)), indexSettingsService
-                , null, store, createSnapshotDeletionPolicy(), translog, createMergePolicy(), mergeSchedulerProvider,
+                , null, store, createSnapshotDeletionPolicy(), createMergePolicy(), mergeSchedulerProvider,
                 iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(shardId.index()), new Engine.FailedEngineListener() {
             @Override
             public void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
             }
         }, null);
-
-
         return config;
     }
 
@@ -907,10 +897,9 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
             try (Store store = createStore(wrapper)) {
                 int refCount = store.refCount();
                 assertTrue("refCount: "+ store.refCount(), store.refCount() > 0);
-                Translog translog = createTranslog();
                 ShadowEngine holder;
                 try {
-                    holder = createShadowEngine(store, translog);
+                    holder = createShadowEngine(store);
                 } catch (EngineCreationFailureException ex) {
                     assertEquals(store.refCount(), refCount);
                     continue;
@@ -921,7 +910,7 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
                     try {
                         assertEquals(store.refCount(), refCount + 1);
                         holder.close();
-                        holder = createShadowEngine(store, translog);
+                        holder = createShadowEngine(store);
                         assertEquals(store.refCount(), refCount + 1);
                     } catch (EngineCreationFailureException ex) {
                         // all is fine
@@ -948,7 +937,6 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
         final Path srDir = createTempDir();
         final Store srStore = createStore(srDir);
         Lucene.cleanLuceneIndex(srStore.directory());
-        final Translog srTranslog = createTranslogReplica();
 
         final AtomicBoolean succeeded = new AtomicBoolean(false);
         final CountDownLatch latch = new CountDownLatch(1);
@@ -963,7 +951,7 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
                 } catch (InterruptedException e) {
                     // ignore interruptions
                 }
-                try (ShadowEngine srEngine = createShadowEngine(srStore, srTranslog)) {
+                try (ShadowEngine srEngine = createShadowEngine(srStore)) {
                     succeeded.set(true);
                 } catch (Exception e) {
                     fail("should have been able to create the engine!");
@@ -979,7 +967,7 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
         // Create an InternalEngine, which creates the index so the shadow
         // replica will handle it correctly
         Store pStore = createStore(srDir);
-        Translog pTranslog = createTranslog();
+        FsTranslog pTranslog = createTranslog();
         InternalEngine pEngine = createInternalEngine(pStore, pTranslog);
 
         // create a document
@@ -992,6 +980,6 @@ public class ShadowEngineTests extends ElasticsearchTestCase {
         t.join();
         assertTrue("ShadowEngine should have been able to be created", succeeded.get());
         // (shadow engine is already shut down in the try-with-resources)
-        IOUtils.close(srTranslog, srStore, pTranslog, pEngine, pStore);
+        IOUtils.close(srStore, pTranslog, pEngine, pStore);
     }
 }

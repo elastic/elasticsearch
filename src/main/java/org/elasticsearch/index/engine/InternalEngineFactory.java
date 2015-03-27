@@ -18,10 +18,12 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.index.translog.fs.FsTranslog;
+
 public class InternalEngineFactory implements EngineFactory {
     @Override
-    public Engine newReadWriteEngine(EngineConfig config, boolean skipTranslogRecovery) {
-        return new InternalEngine(config, skipTranslogRecovery);
+    public Engine newReadWriteEngine(EngineConfig config, FsTranslog translog, boolean skipTranslogRecovery) {
+        return new InternalEngine(config, translog, skipTranslogRecovery);
     }
 
     @Override

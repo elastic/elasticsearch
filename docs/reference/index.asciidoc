@@ -1,7 +1,7 @@
 [[elasticsearch-reference]]
 = Reference
 
-:version: 1.5.1
+:version: 1.5.0
 :branch:  1.5
 :jdk:     1.8.0_25
 

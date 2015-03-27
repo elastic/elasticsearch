@@ -20,22 +20,21 @@
 package org.elasticsearch.index.translog.fs;
 
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.index.translog.AbstractSimpleTranslogTests;
-import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
-import java.nio.file.Path;
 
 /**
  *
  */
-public class FsSimpleTranslogTests extends AbstractSimpleTranslogTests {
+@TestLogging("index.translog.fs:TRACE")
+public class FsSimpleTranslogTests extends AbstractTranslogTests {
 
     @Override
-    protected Translog create(Path translogDir) throws IOException {
+    protected FsTranslog create() throws IOException {
         return new FsTranslog(shardId,
                 ImmutableSettings.settingsBuilder().put("index.translog.fs.type", FsTranslogFile.Type.SIMPLE.name()).build(),
-                translogDir);
+                BigArrays.NON_RECYCLING_INSTANCE, translogDir);
     }
-    
 }

@@ -45,7 +45,7 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
     }
 
     @Override
-    public void phase1(SnapshotIndexCommit snapshot) {
+    public void phase1(SnapshotIndexCommit snapshot, final Translog.View translogView) {
         if (request.recoveryType() == RecoveryState.Type.RELOCATION && shard.routingEntry().primary()) {
             // here we simply fail the primary shard since we can't move them (have 2 writers open at the same time)
             // by failing the shard we play safe and just go through the entire reallocation procedure of the primary
@@ -54,13 +54,14 @@ public class SharedFSRecoverySourceHandler extends RecoverySourceHandler {
             shard.failShard("primary_relocation", exception);
             throw exception;
         }
-        logger.trace("{} recovery [phase2] to {}: skipping phase 1 for shared filesystem", request.shardId(), request.targetNode());
+        logger.trace("{} recovery [phase1] to {}: skipping phase 1 for shared filesystem", request.shardId(), request.targetNode());
+        prepareTargetForTranslog(translogView);
     }
 
 
     @Override
     protected int sendSnapshot(Translog.Snapshot snapshot) {
-        logger.trace("{} recovery [phase3] to {}: skipping transaction log operations for file sync", shard.shardId(), request.targetNode());
+        logger.trace("{} recovery [phase2] to {}: skipping transaction log operations for file sync", shard.shardId(), request.targetNode());
         return 0;
     }
 

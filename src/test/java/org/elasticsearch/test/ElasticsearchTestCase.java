@@ -60,7 +60,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.*;
 import org.junit.rules.RuleChain;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.nio.file.FileSystem;
@@ -125,7 +124,7 @@ public abstract class ElasticsearchTestCase extends LuceneTestCase {
     }
 
     /** called after a test is finished, but only if succesfull */
-    protected void afterIfSuccessful() {
+    protected void afterIfSuccessful() throws Exception {
     }
 
     // TODO: Parent/child and other things does not work with the query cache

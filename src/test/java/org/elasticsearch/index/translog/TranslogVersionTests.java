@@ -44,7 +44,6 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
 
         StreamInput in = stream.openInput(translogFile);
 
-        in.readInt();
         Translog.Operation operation = stream.read(in);
 
         assertThat("operation is the correct type correctly", operation.opType() == Translog.Operation.Type.SAVE, equalTo(true));
@@ -60,7 +59,6 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
         assertThat(op.versionType(), equalTo(VersionType.INTERNAL));
 
         try {
-            in.readInt();
             stream.read(in);
             fail("should have been the end of the file");
         } catch (EOFException e) {
@@ -143,7 +141,7 @@ public class TranslogVersionTests extends ElasticsearchTestCase {
             fail("should have thrown an exception about the body being corrupted");
         } catch (TranslogCorruptedException e) {
             assertThat("translog corruption from body: " + e.getMessage(),
-                    e.getMessage().contains("translog stream is corrupted"), equalTo(true));
+                    e.getMessage().contains("translog corruption while reading from stream"), equalTo(true));
         }
 
     }

@@ -17,18 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.index.translog;
+package org.elasticsearch.index.translog.fs;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.*;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -42,12 +46,12 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CountDownLatch;
+import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.google.common.collect.Lists.newArrayList;
 import static org.hamcrest.Matchers.*;
@@ -56,12 +60,29 @@ import static org.hamcrest.Matchers.*;
  *
  */
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
-public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase {
+public abstract class AbstractTranslogTests extends ElasticsearchTestCase {
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
+    protected FsTranslog translog;
     protected Path translogDir;
-    protected Translog translog;
+
+    @Override
+    protected void afterIfSuccessful() throws Exception {
+        super.afterIfSuccessful();
+
+        if (translog.isOpen()) {
+            assertNotLeaking();
+            if (translog.currentId() > 1) {
+                translog.markCommitted(translog.currentId());
+                assertFileDeleted(translog, translog.currentId() - 1);
+            }
+            translog.close();
+        }
+        assertFileIsPresent(translog, translog.currentId());
+        IOUtils.rm(translog.location()); // delete all the locations
+
+    }
 
     @Override
     @Before
@@ -69,8 +90,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         super.setUp();
         // if a previous test failed we clean up things here
         translogDir = createTempDir();
-        translog = create(translogDir);
-        translog.newTranslog(1);
+        translog = create();
     }
 
     @Override
@@ -78,17 +98,56 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     public void tearDown() throws Exception {
         try {
             translog.close();
-            if (translog.currentId() > 1) {
-                // ensure all snapshots etc are closed if this fails something was not closed
-                assertFileDeleted(translog, translog.currentId() - 1);
-            }
-            assertFileIsPresent(translog, translog.currentId());
         } finally {
             super.tearDown();
         }
     }
 
-    protected abstract Translog create(Path translogDir) throws IOException;
+
+    protected abstract FsTranslog create() throws IOException;
+
+    protected void assertNotLeaking() throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    assertThat(translog.getUnreferenced(), emptyArray());
+                } catch (IOException e) {
+                    logger.warn("error while checking for unreferenced files in translog");
+                }
+            }
+        });
+    }
+
+    protected void assertTranslogFilesClosed() throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                FsTranslog.assertAllClosed();
+            }
+        });
+    }
+
+    protected void addToTranslogAndList(Translog translog, ArrayList<Translog.Operation> list, Translog.Operation op) {
+        list.add(op);
+        translog.add(op);
+    }
+
+
+    public void testIdParsingFromFile() {
+        long id = randomIntBetween(0, Integer.MAX_VALUE);
+        Path file = translogDir.resolve(FsTranslog.TRANSLOG_FILE_PREFIX + id);
+        assertThat(FsTranslog.parseIdFromFileName(file), equalTo(id));
+
+        file = translogDir.resolve(FsTranslog.TRANSLOG_FILE_PREFIX + id + ".recovering");
+        assertThat(FsTranslog.parseIdFromFileName(file), equalTo(id));
+
+        file = translogDir.resolve(FsTranslog.TRANSLOG_FILE_PREFIX + randomRealisticUnicodeOfCodepointLength(randomIntBetween(1, 10)) + id);
+        assertThat(FsTranslog.parseIdFromFileName(file), equalTo(-1l));
+
+        file = translogDir.resolve(randomRealisticUnicodeOfCodepointLength(randomIntBetween(1, FsTranslog.TRANSLOG_FILE_PREFIX.length() - 1)));
+        assertThat(FsTranslog.parseIdFromFileName(file), equalTo(-1l));
+    }
 
     @Test
     public void testRead() throws IOException {
@@ -106,69 +165,31 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     }
 
     @Test
-    public void testTransientTranslog() throws IOException {
-        Translog.Snapshot snapshot = translog.snapshot();
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
-        snapshot.close();
-
-        translog.add(new Translog.Create("test", "1", new byte[]{1}));
-        snapshot = translog.snapshot();
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
-        assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
-        snapshot.close();
-
-        translog.newTransientTranslog(2);
-
-        snapshot = translog.snapshot();
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
-        assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
-        snapshot.close();
-
-        translog.add(new Translog.Index("test", "2", new byte[]{2}));
-        snapshot = translog.snapshot();
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(2));
-        assertThat(snapshot.estimatedTotalOperations(), equalTo(2));
-        snapshot.close();
-
-        translog.makeTransientCurrent();
-
-        snapshot = translog.snapshot();
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(1)); // now its one, since it only includes "2"
-        assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
-        snapshot.close();
-    }
-
-    @Test
     public void testSimpleOperations() throws IOException {
-        Translog.Snapshot snapshot = translog.snapshot();
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        Translog.Snapshot snapshot = translog.newSnapshot();
+        assertThat(snapshot, SnapshotMatchers.size(0));
         snapshot.close();
 
-        translog.add(new Translog.Create("test", "1", new byte[]{1}));
-        snapshot = translog.snapshot();
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
+        addToTranslogAndList(translog, ops, new Translog.Create("test", "1", new byte[]{1}));
+        snapshot = translog.newSnapshot();
+        assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
         snapshot.close();
 
-        translog.add(new Translog.Index("test", "2", new byte[]{2}));
-        snapshot = translog.snapshot();
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(2));
-        assertThat(snapshot.estimatedTotalOperations(), equalTo(2));
+        addToTranslogAndList(translog, ops, new Translog.Index("test", "2", new byte[]{2}));
+        snapshot = translog.newSnapshot();
+        assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
+        assertThat(snapshot.estimatedTotalOperations(), equalTo(ops.size()));
         snapshot.close();
 
-        translog.add(new Translog.Delete(newUid("3")));
-        snapshot = translog.snapshot();
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(3));
-        assertThat(snapshot.estimatedTotalOperations(), equalTo(3));
+        addToTranslogAndList(translog, ops, new Translog.Delete(newUid("3")));
+        snapshot = translog.newSnapshot();
+        assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
+        assertThat(snapshot.estimatedTotalOperations(), equalTo(ops.size()));
         snapshot.close();
 
-        translog.add(new Translog.DeleteByQuery(new BytesArray(new byte[]{4}), null));
-        snapshot = translog.snapshot();
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(4));
-        assertThat(snapshot.estimatedTotalOperations(), equalTo(4));
-        snapshot.close();
-
-        snapshot = translog.snapshot();
+        snapshot = translog.newSnapshot();
 
         Translog.Create create = (Translog.Create) snapshot.next();
         assertThat(create != null, equalTo(true));
@@ -182,31 +203,24 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         assertThat(delete != null, equalTo(true));
         assertThat(delete.uid(), equalTo(newUid("3")));
 
-        Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) snapshot.next();
-        assertThat(deleteByQuery != null, equalTo(true));
-        assertThat(deleteByQuery.source().toBytes(), equalTo(new byte[]{4}));
-
         assertThat(snapshot.next(), equalTo(null));
 
         snapshot.close();
 
         long firstId = translog.currentId();
-        translog.newTranslog(2);
+        translog.newTranslog();
         assertThat(translog.currentId(), Matchers.not(equalTo(firstId)));
 
-        snapshot = translog.snapshot();
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
+        snapshot = translog.newSnapshot();
+        assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
+        assertThat(snapshot.estimatedTotalOperations(), equalTo(ops.size()));
+        snapshot.close();
+
+        translog.markCommitted(translog.currentId());
+        snapshot = translog.newSnapshot();
+        assertThat(snapshot, SnapshotMatchers.size(0));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(0));
         snapshot.close();
-    }
-
-    @Test(expected = TranslogException.class)
-    public void testReuseFails() throws IOException {
-        if (randomBoolean()) {
-            translog.newTranslog(1);
-        } else {
-            translog.newTransientTranslog(1);
-        }
     }
 
     protected TranslogStats stats() throws IOException {
@@ -248,88 +262,69 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         assertThat(stats.translogSizeInBytes().bytes(), greaterThan(lastSize));
         lastSize = stats.translogSizeInBytes().bytes();
 
-
-        translog.add(new Translog.DeleteByQuery(new BytesArray(new byte[]{4}), null));
+        translog.add(new Translog.Delete(newUid("4")));
+        translog.newTranslog();
         stats = stats();
         assertThat(stats.estimatedNumberOfOperations(), equalTo(4l));
         assertThat(stats.translogSizeInBytes().bytes(), greaterThan(lastSize));
 
-        translog.newTranslog(2);
+        translog.markCommitted(2);
         stats = stats();
         assertThat(stats.estimatedNumberOfOperations(), equalTo(0l));
         assertThat(stats.translogSizeInBytes().bytes(), equalTo(17l));
     }
 
     @Test
-    public void testSnapshot() throws IOException {
-        Translog.Snapshot snapshot = translog.snapshot();
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
+    public void testSnapshot() {
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        Translog.Snapshot snapshot = translog.newSnapshot();
+        assertThat(snapshot, SnapshotMatchers.size(0));
         snapshot.close();
 
-        translog.add(new Translog.Create("test", "1", new byte[]{1}));
-        snapshot = translog.snapshot();
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
+        addToTranslogAndList(translog, ops, new Translog.Create("test", "1", new byte[]{1}));
+
+        snapshot = translog.newSnapshot();
+        assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
         assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
         snapshot.close();
 
-        snapshot = translog.snapshot();
-        Translog.Create create = (Translog.Create) snapshot.next();
-        assertThat(create != null, equalTo(true));
-        assertThat(create.source().toBytes(), equalTo(new byte[]{1}));
-        snapshot.close();
+        snapshot = translog.newSnapshot();
+        assertThat(snapshot, SnapshotMatchers.equalsTo(ops));
+        assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
 
-        Translog.Snapshot snapshot1 = translog.snapshot();
-        assertThat(snapshot1, TranslogSizeMatcher.translogSize(1));
+        // snapshot while another is open
+        Translog.Snapshot snapshot1 = translog.newSnapshot();
+        assertThat(snapshot1, SnapshotMatchers.size(1));
         assertThat(snapshot1.estimatedTotalOperations(), equalTo(1));
 
-        // seek to the end of the translog snapshot
-        while (snapshot1.next() != null) {
-            // spin
-        }
-
-        translog.add(new Translog.Index("test", "2", new byte[]{2}));
-        snapshot = translog.snapshot(snapshot1);
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
-        assertThat(snapshot.estimatedTotalOperations(), equalTo(2));
-        snapshot.close();
-
-        snapshot = translog.snapshot(snapshot1);
-        Translog.Index index = (Translog.Index) snapshot.next();
-        assertThat(index != null, equalTo(true));
-        assertThat(index.source().toBytes(), equalTo(new byte[]{2}));
-        assertThat(snapshot.next(), equalTo(null));
-        assertThat(snapshot.estimatedTotalOperations(), equalTo(2));
         snapshot.close();
         snapshot1.close();
     }
 
     @Test
     public void testSnapshotWithNewTranslog() throws IOException {
-        Translog.Snapshot snapshot = translog.snapshot();
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
+        ArrayList<Translog.Operation> ops = new ArrayList<>();
+        Translog.Snapshot snapshot = translog.newSnapshot();
+        assertThat(snapshot, SnapshotMatchers.size(0));
         snapshot.close();
 
-        translog.add(new Translog.Create("test", "1", new byte[]{1}));
-        Translog.Snapshot actualSnapshot = translog.snapshot();
+        addToTranslogAndList(translog, ops, new Translog.Create("test", "1", new byte[]{1}));
+        Translog.Snapshot snapshot1 = translog.newSnapshot();
 
-        translog.add(new Translog.Index("test", "2", new byte[]{2}));
+        addToTranslogAndList(translog, ops, new Translog.Index("test", "2", new byte[]{2}));
 
-        translog.newTranslog(2);
+        translog.newTranslog();
 
-        translog.add(new Translog.Index("test", "3", new byte[]{3}));
+        addToTranslogAndList(translog, ops, new Translog.Index("test", "3", new byte[]{3}));
 
-        snapshot = translog.snapshot(actualSnapshot);
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
-        snapshot.close();
+        Translog.Snapshot snapshot2 = translog.newSnapshot();
+        assertThat(snapshot2, SnapshotMatchers.equalsTo(ops));
+        assertThat(snapshot2.estimatedTotalOperations(), equalTo(ops.size()));
 
-        snapshot = translog.snapshot(actualSnapshot);
-        Translog.Index index = (Translog.Index) snapshot.next();
-        assertThat(index != null, equalTo(true));
-        assertThat(index.source().toBytes(), equalTo(new byte[]{3}));
-        assertThat(snapshot.next(), equalTo(null));
 
-        actualSnapshot.close();
-        snapshot.close();
+        assertThat(snapshot1, SnapshotMatchers.equalsTo(ops.get(0)));
+        snapshot1.close();
+        snapshot2.close();
     }
 
     public void testSnapshotOnClosedTranslog() throws IOException {
@@ -337,105 +332,63 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
         translog.add(new Translog.Create("test", "1", new byte[]{1}));
         translog.close();
         try {
-            Translog.Snapshot snapshot = translog.snapshot();
+            Translog.Snapshot snapshot = translog.newSnapshot();
             fail("translog is closed");
         } catch (TranslogException ex) {
-            assertEquals(ex.getMessage(), "current translog is already closed");
+            assertThat(ex.getMessage(), containsString("can't increment channel"));
         }
     }
 
     @Test
-    public void deleteOnRollover() throws IOException {
-        translog.add(new Translog.Create("test", "1", new byte[]{1}));
+    public void deleteOnSnapshotRelease() throws Exception {
+        ArrayList<Translog.Operation> firstOps = new ArrayList<>();
+        addToTranslogAndList(translog, firstOps, new Translog.Create("test", "1", new byte[]{1}));
 
-        Translog.Snapshot firstSnapshot = translog.snapshot();
-        assertThat(firstSnapshot, TranslogSizeMatcher.translogSize(1));
+        Translog.Snapshot firstSnapshot = translog.newSnapshot();
         assertThat(firstSnapshot.estimatedTotalOperations(), equalTo(1));
-        translog.newTransientTranslog(2);
+        translog.newTranslog();
+        translog.markCommitted(translog.currentId());
         assertFileIsPresent(translog, 1);
 
 
-        translog.add(new Translog.Index("test", "2", new byte[]{2}));
-        assertThat(firstSnapshot, TranslogSizeMatcher.translogSize(1));
+        ArrayList<Translog.Operation> secOps = new ArrayList<>();
+        addToTranslogAndList(translog, secOps, new Translog.Index("test", "2", new byte[]{2}));
         assertThat(firstSnapshot.estimatedTotalOperations(), equalTo(1));
-        if (randomBoolean()) {
-            translog.clearUnreferenced();
-        }
-        translog.makeTransientCurrent();
-        Translog.Snapshot secondSnapshot = translog.snapshot();
+        assertNotLeaking();
+
+        Translog.Snapshot secondSnapshot = translog.newSnapshot();
         translog.add(new Translog.Index("test", "3", new byte[]{3}));
-        assertThat(secondSnapshot, TranslogSizeMatcher.translogSize(1));
+        assertThat(secondSnapshot, SnapshotMatchers.equalsTo(secOps));
         assertThat(secondSnapshot.estimatedTotalOperations(), equalTo(1));
         assertFileIsPresent(translog, 1);
         assertFileIsPresent(translog, 2);
-        if (randomBoolean()) {
-            translog.clearUnreferenced();
-        }
+        assertNotLeaking();
+
         firstSnapshot.close();
         assertFileDeleted(translog, 1);
         assertFileIsPresent(translog, 2);
         secondSnapshot.close();
         assertFileIsPresent(translog, 2); // it's the current nothing should be deleted
-        if (randomBoolean()) {
-            translog.clearUnreferenced();
-        }
-        translog.newTransientTranslog(3);
-        translog.makeTransientCurrent();
-        if (randomBoolean()) {
-            translog.clearUnreferenced();
-        }
+        assertNotLeaking();
+        translog.newTranslog();
+        translog.markCommitted(translog.currentId());
+        assertNotLeaking();
         assertFileIsPresent(translog, 3); // it's the current nothing should be deleted
         assertFileDeleted(translog, 2);
-        assertEquals(3, translog.findLargestPresentTranslogId());
-
-        translog.newTransientTranslog(4);
-        translog.revertTransient();
-        assertFileIsPresent(translog, 3); // it's the current nothing should be deleted
-        assertFileDeleted(translog, 4);
 
     }
 
-    public void assertFileIsPresent(Translog translog, long id) {
-        if(Files.exists(translog.location().resolve(translog.getFilename(id)))) {
+
+    public void assertFileIsPresent(FsTranslog translog, long id) {
+        if (Files.exists(translogDir.resolve(translog.getFilename(id)))) {
             return;
         }
         fail(translog.getFilename(id) + " is not present in any location: " + translog.location());
     }
 
-    public void assertFileDeleted(Translog translog, long id) {
-        assertFalse(Files.exists(translog.location().resolve(translog.getFilename(id))));
+    public void assertFileDeleted(FsTranslog translog, long id) {
+        assertFalse("translog [" + id + "] still exists", Files.exists(translog.location().resolve(translog.getFilename(id))));
     }
-
-    @Test
-    public void testSnapshotWithSeekTo() throws IOException {
-        Translog.Snapshot snapshot = translog.snapshot();
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
-        snapshot.close();
-
-        translog.add(new Translog.Create("test", "1", new byte[]{1}));
-        snapshot = translog.snapshot();
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
-        // seek to the end of the translog snapshot
-        while (snapshot.next() != null) {
-            // spin
-        }
-        long lastPosition = snapshot.position();
-        snapshot.close();
-
-        translog.add(new Translog.Create("test", "2", new byte[]{1}));
-        snapshot = translog.snapshot();
-        snapshot.seekTo(lastPosition);
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
-        snapshot.close();
-
-        snapshot = translog.snapshot();
-        snapshot.seekTo(lastPosition);
-        Translog.Create create = (Translog.Create) snapshot.next();
-        assertThat(create != null, equalTo(true));
-        assertThat(create.id(), equalTo("2"));
-        snapshot.close();
-    }
-
 
     static class LocationOperation {
         final Translog.Operation operation;
@@ -445,6 +398,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
             this.operation = operation;
             this.location = location;
         }
+
     }
 
     @Test
@@ -482,11 +436,8 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
                                             randomFrom(VersionType.values()));
                                     break;
                                 case DELETE_BY_QUERY:
-                                    op = new Translog.DeleteByQuery(
-                                            new BytesArray(randomRealisticUnicodeOfLengthBetween(10, 400).getBytes("UTF-8")),
-                                            new String[]{randomRealisticUnicodeOfLengthBetween(10, 400)},
-                                            "test");
-                                    break;
+                                    // deprecated
+                                    continue;
                                 default:
                                     throw new ElasticsearchException("not supported op type");
                             }
@@ -544,14 +495,6 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
                     assertEquals(expDelOp.version(), delOp.version());
                     assertEquals(expDelOp.versionType(), delOp.versionType());
                     break;
-                case DELETE_BY_QUERY:
-                    Translog.DeleteByQuery delQueryOp = (Translog.DeleteByQuery) op;
-                    Translog.DeleteByQuery expDelQueryOp = (Translog.DeleteByQuery) expectedOp;
-                    assertThat(expDelQueryOp.source(), equalTo(delQueryOp.source()));
-                    assertThat(expDelQueryOp.filteringAliases(), equalTo(delQueryOp.filteringAliases()));
-                    assertThat(expDelQueryOp.types(), equalTo(delQueryOp.types()));
-                    break;
-
                 default:
                     throw new ElasticsearchException("unsupported opType");
             }
@@ -655,10 +598,11 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
 
     @Test
     public void testVerifyTranslogIsNotDeleted() throws IOException {
-        assertTrue(Files.exists(translogDir.resolve("translog-1")));
+        assertFileIsPresent(translog, 1);
         translog.add(new Translog.Create("test", "1", new byte[]{1}));
-        Translog.Snapshot snapshot = translog.snapshot();
-        assertThat(snapshot, TranslogSizeMatcher.translogSize(1));
+        Translog.Snapshot snapshot = translog.newSnapshot();
+        assertThat(snapshot, SnapshotMatchers.size(1));
+        assertFileIsPresent(translog, 1);
         assertThat(snapshot.estimatedTotalOperations(), equalTo(1));
         if (randomBoolean()) {
             translog.close();
@@ -668,6 +612,181 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
             translog.close();
         }
 
-        assertTrue(Files.exists(translogDir.resolve("translog-1")));
+        assertFileIsPresent(translog, 1);
     }
+
+    /** Tests that concurrent readers and writes maintain view and snapshot semantics */
+    @Test
+    public void testConcurrentWriteViewsAndSnapshot() throws Throwable {
+        final Thread[] writers = new Thread[randomIntBetween(1, 10)];
+        final Thread[] readers = new Thread[randomIntBetween(1, 10)];
+        final int flushEveryOps = randomIntBetween(5, 100);
+        // used to notify main thread that so many operations have been written so it can simulate a flush
+        final AtomicReference<CountDownLatch> writtenOpsLatch = new AtomicReference<>(new CountDownLatch(0));
+        final AtomicLong idGenerator = new AtomicLong();
+        final CyclicBarrier barrier = new CyclicBarrier(writers.length + readers.length + 1);
+
+        // a map of all written ops and their returned location.
+        final Map<Translog.Operation, Translog.Location> writtenOps = ConcurrentCollections.newConcurrentMap();
+
+        // a signal for all threads to stop
+        final AtomicBoolean run = new AtomicBoolean(true);
+
+        // any errors on threads
+        final List<Throwable> errors = new CopyOnWriteArrayList<>();
+        logger.debug("using [{}] readers. [{}] writers. flushing every ~[{}] ops.", readers.length, writers.length, flushEveryOps);
+        for (int i = 0; i < writers.length; i++) {
+            final String threadId = "writer_" + i;
+            writers[i] = new Thread(new AbstractRunnable() {
+                @Override
+                public void doRun() throws BrokenBarrierException, InterruptedException {
+                    barrier.await();
+                    int counter = 0;
+                    while (run.get()) {
+                        long id = idGenerator.incrementAndGet();
+                        final Translog.Operation op;
+                        switch (Translog.Operation.Type.values()[((int) (id % Translog.Operation.Type.values().length))]) {
+                            case CREATE:
+                                op = new Translog.Create("type", "" + id, new byte[]{(byte) id});
+                                break;
+                            case SAVE:
+                                op = new Translog.Index("type", "" + id, new byte[]{(byte) id});
+                                break;
+                            case DELETE:
+                                op = new Translog.Delete(newUid("" + id));
+                                break;
+                            case DELETE_BY_QUERY:
+                                // deprecated
+                                continue;
+                            default:
+                                throw new ElasticsearchException("unknown type");
+                        }
+                        Translog.Location location = translog.add(op);
+                        Translog.Location existing = writtenOps.put(op, location);
+                        if (existing != null) {
+                            fail("duplicate op [" + op + "], old entry at " + location);
+                        }
+                        writtenOpsLatch.get().countDown();
+                        counter++;
+                    }
+                    logger.debug("--> [{}] done. wrote [{}] ops.", threadId, counter);
+                }
+
+                @Override
+                public void onFailure(Throwable t) {
+                    logger.error("--> writer [{}] had an error", t, threadId);
+                    errors.add(t);
+                }
+            }, threadId);
+            writers[i].start();
+        }
+
+        for (int i = 0; i < readers.length; i++) {
+            final String threadId = "reader_" + i;
+            readers[i] = new Thread(new AbstractRunnable() {
+                Translog.View view = null;
+                Set<Translog.Operation> writtenOpsAtView;
+
+                @Override
+                public void onFailure(Throwable t) {
+                    logger.error("--> reader [{}] had an error", t, threadId);
+                    errors.add(t);
+                    closeView();
+                }
+
+                void closeView() {
+                    if (view != null) {
+                        view.close();
+                    }
+                }
+
+                void newView() {
+                    closeView();
+                    view = translog.newView();
+                    // captures the currently written ops so we know what to expect from the view
+                    writtenOpsAtView = new HashSet<>(writtenOps.keySet());
+                    logger.debug("--> [{}] opened view from [{}]", threadId, view.minTranslogId());
+                }
+
+                @Override
+                protected void doRun() throws Exception {
+                    barrier.await();
+                    int iter = 0;
+                    while (run.get()) {
+                        if (iter++ % 10 == 0) {
+                            newView();
+                        }
+
+                        // captures al views that are written since the view was created (with a small caveat see bellow)
+                        // these are what we expect the snapshot to return (and potentially some more).
+                        Set<Translog.Operation> expectedOps = new HashSet<>(writtenOps.keySet());
+                        expectedOps.removeAll(writtenOpsAtView);
+                        try (Translog.Snapshot snapshot = view.snapshot()) {
+                            Translog.Operation op;
+                            while ((op = snapshot.next()) != null) {
+                                expectedOps.remove(op);
+                            }
+                        }
+                        if (expectedOps.isEmpty() == false) {
+                            StringBuilder missed = new StringBuilder("missed ").append(expectedOps.size()).append(" operations");
+                            boolean failed = false;
+                            for (Translog.Operation op : expectedOps) {
+                                final Translog.Location loc = writtenOps.get(op);
+                                if (loc.translogId < view.minTranslogId()) {
+                                    // writtenOps is only updated after the op was written to the translog. This mean
+                                    // that ops written to the translog before the view was taken (and will be missing from the view)
+                                    // may yet be available in writtenOpsAtView, meaning we will erroneously expect them
+                                    continue;
+                                }
+                                failed = true;
+                                missed.append("\n --> [").append(op).append("] written at ").append(loc);
+                            }
+                            if (failed) {
+                                fail(missed.toString());
+                            }
+                        }
+                        // slow down things a bit and spread out testing..
+                        writtenOpsLatch.get().await(200, TimeUnit.MILLISECONDS);
+                    }
+                    closeView();
+                    logger.debug("--> [{}] done. tested [{}] snapshots", threadId, iter);
+                }
+            }, threadId);
+            readers[i].start();
+        }
+
+        barrier.await();
+        try {
+            long previousId = translog.currentId();
+            for (int iterations = scaledRandomIntBetween(10, 200); iterations > 0 && errors.isEmpty(); iterations--) {
+                writtenOpsLatch.set(new CountDownLatch(flushEveryOps));
+                while (writtenOpsLatch.get().await(200, TimeUnit.MILLISECONDS) == false) {
+                    if (errors.size() > 0) {
+                        break;
+                    }
+                }
+                long newId = translog.newTranslog();
+                translog.markCommitted(previousId);
+                previousId = newId;
+            }
+        } finally {
+            run.set(false);
+            logger.debug("--> waiting for threads to stop");
+            for (Thread thread : writers) {
+                thread.join();
+            }
+            for (Thread thread : readers) {
+                thread.join();
+            }
+            if (errors.size() > 0) {
+                Throwable e = errors.get(0);
+                for (Throwable suppress : errors.subList(1, errors.size())) {
+                    e.addSuppressed(suppress);
+                }
+                throw e;
+            }
+            logger.info("--> test done. total ops written [{}]", writtenOps.size());
+        }
+    }
+
 }

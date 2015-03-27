@@ -23,9 +23,14 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.store.InputStreamDataInput;
 import org.apache.lucene.store.OutputStreamDataOutput;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.io.stream.NoopStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
-import java.io.*;
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.channels.Channels;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -65,12 +70,12 @@ public class ChecksummedTranslogStream implements TranslogStream {
             Translog.Operation.Type type = Translog.Operation.Type.fromId(in.readByte());
             operation = TranslogStreams.newOperationFromType(type);
             operation.readFrom(in);
+            verifyChecksum(in);
         } catch (EOFException e) {
             throw new TruncatedTranslogException("reached premature end of file, translog is truncated", e);
         } catch (AssertionError|Exception e) {
             throw new TranslogCorruptedException("translog corruption while reading from stream", e);
         }
-        verifyChecksum(in);
         return operation;
     }
 
@@ -103,6 +108,11 @@ public class ChecksummedTranslogStream implements TranslogStream {
         // closing it will close the FileChannel
         OutputStreamDataOutput out = new OutputStreamDataOutput(Channels.newOutputStream(channel));
         CodecUtil.writeHeader(out, TranslogStreams.TRANSLOG_CODEC, VERSION);
+        return headerLength();
+    }
+
+    @Override
+    public int headerLength() {
         return CodecUtil.headerLength(TranslogStreams.TRANSLOG_CODEC);
     }
 

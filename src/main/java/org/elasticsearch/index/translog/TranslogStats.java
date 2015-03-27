@@ -34,14 +34,13 @@ import java.io.IOException;
 public class TranslogStats implements ToXContent, Streamable {
 
     private long translogSizeInBytes = 0;
-    private int estimatedNumberOfOperations = 0;
+    private int estimatedNumberOfOperations = -1;
 
     public TranslogStats() {
     }
 
     public TranslogStats(int estimatedNumberOfOperations, long translogSizeInBytes) {
-        assert estimatedNumberOfOperations >= 0 : "estimatedNumberOfOperations must be >=0, got [" + estimatedNumberOfOperations + "]";
-        assert translogSizeInBytes >= 0 : "translogSizeInBytes must be >=0, got [" + translogSizeInBytes + "]";
+        assert translogSizeInBytes >= 0 : "translogSizeInBytes must be >= 0, got [" + translogSizeInBytes + "]";
         this.estimatedNumberOfOperations = estimatedNumberOfOperations;
         this.translogSizeInBytes = translogSizeInBytes;
     }

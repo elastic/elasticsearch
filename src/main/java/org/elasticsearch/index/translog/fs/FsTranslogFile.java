@@ -19,17 +19,32 @@
 
 package org.elasticsearch.index.translog.fs;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
-import org.elasticsearch.index.translog.TranslogStream;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.nio.file.Path;
+import java.nio.ByteBuffer;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-public interface FsTranslogFile extends Closeable {
+public abstract class FsTranslogFile extends FsChannelReader {
+
+    protected final ShardId shardId;
+    protected final ReleasableLock readLock;
+    protected final ReleasableLock writeLock;
+
+    public FsTranslogFile(ShardId shardId, long id, ChannelReference channelReference) {
+        super(id, channelReference);
+        this.shardId = shardId;
+        ReadWriteLock rwl = new ReentrantReadWriteLock();
+        readLock = new ReleasableLock(rwl.readLock());
+        writeLock = new ReleasableLock(rwl.writeLock());
+    }
+
 
     public static enum Type {
 
@@ -58,29 +73,83 @@ public interface FsTranslogFile extends Closeable {
         }
     }
 
-    long id();
 
-    int estimatedNumberOfOperations();
+    /** add the given bytes to the translog and return the location they were written at */
+    public abstract Translog.Location add(BytesReference data) throws IOException;
 
-    long translogSizeInBytes();
+    /** reuse resources from another translog file, which is guaranteed not to be used anymore */
+    public abstract void reuse(FsTranslogFile other) throws TranslogException;
 
-    Translog.Location add(BytesReference data) throws IOException;
+    /** change the size of the internal buffer if relevant */
+    public abstract void updateBufferSize(int bufferSize) throws TranslogException;
 
-    byte[] read(Translog.Location location) throws IOException;
+    /** write all buffered ops to disk and fsync file */
+    public abstract void sync() throws IOException;
 
-    FsChannelSnapshot snapshot() throws TranslogException;
+    /** returns true if there are buffered ops */
+    public abstract boolean syncNeeded();
 
-    void reuse(FsTranslogFile other) throws TranslogException;
+    @Override
+    public FsChannelSnapshot newSnapshot() {
+        return new FsChannelSnapshot(immutableReader());
+    }
 
-    void updateBufferSize(int bufferSize) throws TranslogException;
+    /**
+     * returns a new reader that follows the current writes (most importantly allows making
+     * repeated snapshots that includes new content)
+     */
+    public FsChannelReader reader() {
+        channelReference.incRef();
+        boolean success = false;
+        try {
+            FsChannelReader reader = new InnerReader(this.id, channelReference);
+            success = true;
+            return reader;
+        } finally {
+            if (!success) {
+                channelReference.decRef();
+            }
+        }
+    }
 
-    void sync() throws IOException;
 
-    boolean syncNeeded();
+    /** returns a new immutable reader which only exposes the current written operation * */
+    abstract public FsChannelImmutableReader immutableReader();
 
-    TranslogStream getStream();
+    boolean assertBytesAtLocation(Translog.Location location, BytesReference expectedBytes) throws IOException {
+        ByteBuffer buffer = ByteBuffer.allocate(location.size);
+        readBytes(buffer, location.translogLocation);
+        return new BytesArray(buffer.array()).equals(expectedBytes);
+    }
 
-    public Path getPath();
+    /**
+     * this class is used when one wants a reference to this file which exposes all recently written operation.
+     * as such it needs access to the internals of the current reader
+     */
+    final class InnerReader extends FsChannelReader {
 
-    public boolean closed();
+        public InnerReader(long id, ChannelReference channelReference) {
+            super(id, channelReference);
+        }
+
+        @Override
+        public long sizeInBytes() {
+            return FsTranslogFile.this.sizeInBytes();
+        }
+
+        @Override
+        public int totalOperations() {
+            return FsTranslogFile.this.totalOperations();
+        }
+
+        @Override
+        protected void readBytes(ByteBuffer buffer, long position) throws IOException {
+            FsTranslogFile.this.readBytes(buffer, position);
+        }
+
+        @Override
+        public FsChannelSnapshot newSnapshot() {
+            return FsTranslogFile.this.newSnapshot();
+        }
+    }
 }

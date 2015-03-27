@@ -80,7 +80,8 @@ public class IndexShardSnapshotAndRestoreService extends AbstractIndexShardCompo
         }
 
         try {
-            SnapshotIndexCommit snapshotIndexCommit = indexShard.snapshotIndex();
+            // we flush first to make sure we get the latest writes snapshotted
+            SnapshotIndexCommit snapshotIndexCommit = indexShard.snapshotIndex(true);
             try {
                 indexShardRepository.snapshot(snapshotId, shardId, snapshotIndexCommit, snapshotStatus);
                 if (logger.isDebugEnabled()) {

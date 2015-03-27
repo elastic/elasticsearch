@@ -19,15 +19,19 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
+import com.spatial4j.core.exception.InvalidShapeException;
 import com.spatial4j.core.shape.Shape;
 import com.vividsolutions.jts.geom.*;
-import org.elasticsearch.ElasticsearchParseException;
+import org.apache.commons.lang3.tuple.Pair;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.WeakHashMap;
 
 /**
  * The {@link BasePolygonBuilder} implements the groundwork to create polygons. This contains
@@ -112,6 +116,18 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
     }
 
     /**
+     * Validates only 1 vertex is tangential (shared) between the interior and exterior of a polygon
+     */
+    protected void validateHole(BaseLineStringBuilder shell, BaseLineStringBuilder hole) {
+        ArrayList exterior = Lists.newArrayList(Sets.newHashSet(shell.points));
+        ArrayList interior = Lists.newArrayList(Sets.newHashSet(hole.points));
+        exterior.retainAll(interior);
+        if (exterior.size() >= 2) {
+            throw new InvalidShapeException("Invalid polygon, interior cannot share more than one point");
+        }
+    }
+
+    /**
      * The coordinates setup by the builder will be assembled to a polygon. The result will consist of
      * a set of polygons. Each of these components holds a list of linestrings defining the polygon: the
      * first set of coordinates will be used as the shell of the polygon. The others are defined to holes
@@ -125,6 +141,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         int numEdges = shell.points.size()-1; // Last point is repeated 
         for (int i = 0; i < holes.size(); i++) {
             numEdges += holes.get(i).points.size()-1;
+            validateHole(shell, this.holes.get(i));
         }
 
         Edge[] edges = new Edge[numEdges];
@@ -261,20 +278,54 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         // run along the border of the component, collect the
         // edges, shift them according to the dateline and
         // update the component id
-        int length = 0;
+        int length = 0, connectedComponents = 0;
+        // if there are two connected components, splitIndex keeps track of where to split the edge array
+        // start at 1 since the source coordinate is shared
+        int splitIndex = 1;
         Edge current = edge;
+        Edge prev = edge;
+        // bookkeep the source and sink of each visited coordinate
+        WeakHashMap<Coordinate, Pair<Edge, Edge>> visitedEdge = new WeakHashMap<>();
         do {
-
-            current.coordinate = shift(current.coordinate, shift); 
+            current.coordinate = shift(current.coordinate, shift);
             current.component = id;
-            if(edges != null) {
+
+            if (edges != null) {
+                // found a closed loop - we have two connected components so we need to slice into two distinct components
+                if (visitedEdge.containsKey(current.coordinate)) {
+                    if (connectedComponents > 0 && current.next != edge) {
+                        throw new InvalidShapeException("Shape contains more than one tangential point");
+                    }
+
+                    // a negative id flags the edge as visited for the edges(...) method.
+                    // since we're splitting connected components, we want the edges method to visit
+                    // the newly separated component
+                    final int visitID = -id;
+                    Edge firstAppearance = visitedEdge.get(current.coordinate).getRight();
+                    // correct the graph pointers by correcting the 'next' pointer for both the
+                    // first appearance and this appearance of the edge
+                    Edge temp = firstAppearance.next;
+                    firstAppearance.next = current.next;
+                    current.next = temp;
+                    current.component = visitID;
+                    // backtrack until we get back to this coordinate, setting the visit id to
+                    // a non-visited value (anything positive)
+                    do {
+                        prev.component = visitID;
+                        prev = visitedEdge.get(prev.coordinate).getLeft();
+                        ++splitIndex;
+                    } while (!current.coordinate.equals(prev.coordinate));
+                    ++connectedComponents;
+                } else {
+                    visitedEdge.put(current.coordinate, Pair.of(prev, current));
+                }
                 edges.add(current);
+                prev = current;
             }
-
             length++;
-        } while((current = current.next) != edge);
+        } while(connectedComponents == 0 && (current = current.next) != edge);
 
-        return length;
+        return (splitIndex != 1) ? length-splitIndex: length;
     }
 
     /**
@@ -364,11 +415,12 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
             // if no intersection is found then the hole is not within the polygon, so
             // don't waste time calling a binary search
             final int pos;
-            if (intersections == 0 ||
-               (pos = Arrays.binarySearch(edges, 0, intersections, current, INTERSECTION_ORDER)) >= 0) {
-                throw new ElasticsearchParseException("Invalid shape: Hole is not within polygon");
+            boolean sharedVertex = false;
+            if (intersections == 0 || ((pos = Arrays.binarySearch(edges, 0, intersections, current, INTERSECTION_ORDER)) >= 0)
+                            && !(sharedVertex = (edges[pos].intersect.compareTo(current.coordinate) == 0)) ) {
+                throw new InvalidShapeException("Invalid shape: Hole is not within polygon");
             }
-            final int index = -(pos+2);
+            final int index = -((sharedVertex) ? 0 : pos+2);
             final int component = -edges[index].component - numHoles - 1;
 
             if(debugEnabled()) {
@@ -465,7 +517,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
                                    Edge[] edges, int offset) {
         // inner rings (holes) have an opposite direction than the outer rings
         // XOR will invert the orientation for outer ring cases (Truth Table:, T/T = F, T/F = T, F/T = T, F/F = F)
-        boolean direction = (component != 0 ^ orientation == Orientation.RIGHT);
+        boolean direction = (component == 0 ^ orientation == Orientation.RIGHT);
         // set the points array accordingly (shell or hole)
         Coordinate[] points = (hole != null) ? hole.coordinates(false) : shell.coordinates(false);
         Edge.ring(component, direction, orientation == Orientation.LEFT, shell, points, 0, edges, offset, points.length-1);

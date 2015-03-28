@@ -5,13 +5,13 @@
  */
 package org.elasticsearch.watcher.client;
 
+import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionBuilders;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.NoneInput;
-import org.elasticsearch.watcher.scheduler.schedule.Schedule;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.TimeValue;
@@ -35,7 +35,7 @@ public class WatchSourceBuilder implements ToXContent {
         return new WatchSourceBuilder();
     }
 
-    private Schedule schedule;
+    private Trigger.SourceBuilder trigger;
     private Input.SourceBuilder input = NoneInput.SourceBuilder.INSTANCE;
     private Condition.SourceBuilder condition = ConditionBuilders.alwaysTrueCondition();
     private Transform.SourceBuilder transform = null;
@@ -43,8 +43,8 @@ public class WatchSourceBuilder implements ToXContent {
     private TimeValue throttlePeriod = null;
     private Map<String, Object> metadata;
 
-    public WatchSourceBuilder schedule(Schedule schedule) {
-        this.schedule = schedule;
+    public WatchSourceBuilder trigger(Trigger.SourceBuilder trigger) {
+        this.trigger = trigger;
         return this;
     }
 
@@ -82,8 +82,8 @@ public class WatchSourceBuilder implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        builder.startObject(Watch.Parser.SCHEDULE_FIELD.getPreferredName())
-                .field(schedule.type(), schedule)
+        builder.startObject(Watch.Parser.TRIGGER_FIELD.getPreferredName())
+                .field(trigger.type(), trigger)
                 .endObject();
 
         builder.startObject(Watch.Parser.INPUT_FIELD.getPreferredName())

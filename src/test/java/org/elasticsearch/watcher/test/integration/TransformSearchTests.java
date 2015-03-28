@@ -7,13 +7,13 @@ package org.elasticsearch.watcher.test.integration;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.watcher.scheduler.schedule.IntervalSchedule.Interval;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transform.SearchTransform;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -22,10 +22,11 @@ import java.util.Map;
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilder.watchSourceBuilder;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
-import static org.elasticsearch.watcher.scheduler.schedule.Schedules.interval;
 import static org.elasticsearch.watcher.transform.TransformBuilders.searchTransform;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -50,17 +51,17 @@ public class TransformSearchTests extends AbstractWatcherIntegrationTests {
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("test-payload")
                 .source(watchSourceBuilder()
-                        .schedule(interval(5, Interval.Unit.SECONDS))
+                        .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(inputRequest))
                         .transform(searchTransform(transformRequest))
                         .addAction(indexAction("my-payload-output", "result"))
                         .metadata(metadata)
                         .throttlePeriod(TimeValue.timeValueSeconds(0)))
-                .get();
+                        .get();
         assertThat(putWatchResponse.indexResponse().isCreated(), is(true));
 
         if (timeWarped()) {
-            timeWarp().scheduler().fire("test-payload");
+            timeWarp().scheduler().trigger("test-payload");
             refresh();
         }
 

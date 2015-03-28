@@ -5,20 +5,22 @@
  */
 package org.elasticsearch.watcher.history;
 
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.DateTimeZone;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Actions;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.simple.AlwaysFalseCondition;
 import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.scheduler.Scheduler;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.transform.Transform;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.watcher.trigger.TriggerService;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.*;
 import org.junit.Before;
 import org.junit.Test;
@@ -52,9 +54,9 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         WatchExecutor executor = mock(WatchExecutor.class);
         WatchStore watchStore = mock(WatchStore.class);
         WatchLockService watchLockService = mock(WatchLockService.class);
-        Scheduler scheduler = mock(Scheduler.class);
+        TriggerService triggerService = mock(TriggerService.class);
         ClusterService clusterService = mock(ClusterService.class);
-        historyService = new HistoryService(ImmutableSettings.EMPTY, historyStore, executor, watchStore, watchLockService, scheduler, clusterService, SystemClock.INSTANCE);
+        historyService = new HistoryService(ImmutableSettings.EMPTY, historyStore, executor, watchStore, watchLockService, triggerService, clusterService, SystemClock.INSTANCE);
     }
 
     @Test
@@ -85,7 +87,10 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         when(watch.actions()).thenReturn(actions);
         when(watch.status()).thenReturn(watchStatus);
 
-        WatchExecutionContext context = new WatchExecutionContext("1", watch, DateTime.now(), DateTime.now(), DateTime.now());
+        DateTime now = DateTime.now(DateTimeZone.UTC);
+
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent(now, now);
+        WatchExecutionContext context = new WatchExecutionContext("1", watch, now, event);
         WatchExecution watchExecution = historyService.execute(context);
         assertThat(watchExecution.conditionResult(), sameInstance(conditionResult));
         assertThat(watchExecution.transformResult(), sameInstance(transformResult));
@@ -128,7 +133,10 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         when(watch.actions()).thenReturn(actions);
         when(watch.status()).thenReturn(watchStatus);
 
-        WatchExecutionContext context = new WatchExecutionContext("1", watch, DateTime.now(), DateTime.now(), DateTime.now());
+        DateTime now = DateTime.now(DateTimeZone.UTC);
+
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent(now, now);
+        WatchExecutionContext context = new WatchExecutionContext("1", watch, now, event);
         WatchExecution watchExecution = historyService.execute(context);
         assertThat(watchExecution.inputResult(), sameInstance(inputResult));
         assertThat(watchExecution.conditionResult(), sameInstance(conditionResult));
@@ -171,7 +179,10 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         when(watch.actions()).thenReturn(actions);
         when(watch.status()).thenReturn(watchStatus);
 
-        WatchExecutionContext context = new WatchExecutionContext("1", watch, DateTime.now(), DateTime.now(), DateTime.now());
+        DateTime now = DateTime.now(DateTimeZone.UTC);
+
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent(now, now);
+        WatchExecutionContext context = new WatchExecutionContext("1", watch, now, event);
         WatchExecution watchExecution = historyService.execute(context);
         assertThat(watchExecution.inputResult(), sameInstance(inputResult));
         assertThat(watchExecution.conditionResult(), sameInstance(conditionResult));

@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.watcher.test;
 
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
 import org.elasticsearch.common.unit.TimeValue;
@@ -28,7 +28,6 @@ import org.elasticsearch.watcher.actions.webhook.HttpClient;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.input.search.SearchInput;
-import org.elasticsearch.watcher.scheduler.schedule.CronSchedule;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.SystemClock;
@@ -37,11 +36,13 @@ import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.template.ScriptTemplate;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.transform.SearchTransform;
+import org.elasticsearch.watcher.trigger.TriggerEvent;
+import org.elasticsearch.watcher.trigger.schedule.CronSchedule;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchExecutionContext;
-import org.hamcrest.Description;
-import org.hamcrest.TypeSafeMatcher;
 
 import javax.mail.internet.AddressException;
 import java.util.ArrayList;
@@ -49,6 +50,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.mockito.Mockito.mock;
@@ -89,18 +91,17 @@ public final class WatcherTestUtils {
     }
 
     public static WatchExecutionContext mockExecutionContext(String watchName, Payload payload) {
-        return mockExecutionContext(DateTime.now(), watchName, payload);
+        return mockExecutionContext(watchName, DateTime.now(UTC), payload);
     }
 
-    public static WatchExecutionContext mockExecutionContext(DateTime time, String watchName, Payload payload) {
-        return mockExecutionContext(time, time, time, watchName, payload);
+    public static WatchExecutionContext mockExecutionContext(String watchName, DateTime time, Payload payload) {
+        return mockExecutionContext(watchName, time, new ScheduleTriggerEvent(time, time), payload);
     }
 
-    public static WatchExecutionContext mockExecutionContext(DateTime executionTime, DateTime firedTime, DateTime scheduledTime, String watchName, Payload payload) {
+    public static WatchExecutionContext mockExecutionContext(String watchName, DateTime executionTime, TriggerEvent event, Payload payload) {
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
         when(ctx.executionTime()).thenReturn(executionTime);
-        when(ctx.fireTime()).thenReturn(firedTime);
-        when(ctx.scheduledTime()).thenReturn(scheduledTime);
+        when(ctx.triggerEvent()).thenReturn(event);
         Watch watch = mock(Watch.class);
         when(watch.name()).thenReturn(watchName);
         when(ctx.watch()).thenReturn(watch);
@@ -143,7 +144,7 @@ public final class WatcherTestUtils {
         return new Watch(
                 watchName,
                 SystemClock.INSTANCE,
-                new CronSchedule("0/5 * * * * ? *"),
+                new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
                 new SearchInput(logger, scriptService, ClientProxy.of(ElasticsearchIntegrationTest.client()), conditionRequest),
                 new ScriptCondition(logger, scriptService, new Script("return true")),
                 new SearchTransform(logger, scriptService, ClientProxy.of(ElasticsearchIntegrationTest.client()), transformRequest),

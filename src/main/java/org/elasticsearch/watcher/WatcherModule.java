@@ -17,7 +17,6 @@ import org.elasticsearch.watcher.condition.ConditionModule;
 import org.elasticsearch.watcher.history.HistoryModule;
 import org.elasticsearch.watcher.input.InputModule;
 import org.elasticsearch.watcher.rest.WatcherRestModule;
-import org.elasticsearch.watcher.scheduler.SchedulerModule;
 import org.elasticsearch.watcher.shield.WatcherShieldModule;
 import org.elasticsearch.watcher.support.TemplateUtils;
 import org.elasticsearch.watcher.support.clock.ClockModule;
@@ -25,6 +24,7 @@ import org.elasticsearch.watcher.support.init.InitializingModule;
 import org.elasticsearch.watcher.support.template.TemplateModule;
 import org.elasticsearch.watcher.transform.TransformModule;
 import org.elasticsearch.watcher.transport.WatcherTransportModule;
+import org.elasticsearch.watcher.trigger.TriggerModule;
 import org.elasticsearch.watcher.watch.WatchModule;
 
 
@@ -46,7 +46,7 @@ public class WatcherModule extends AbstractModule implements SpawnModules {
                 new WatcherClientModule(),
                 new TransformModule(),
                 new WatcherRestModule(),
-                new SchedulerModule(),
+                new TriggerModule(),
                 new WatcherTransportModule(),
                 new ConditionModule(),
                 new InputModule(),

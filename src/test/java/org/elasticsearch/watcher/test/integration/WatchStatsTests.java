@@ -63,7 +63,7 @@ public class WatchStatsTests extends AbstractWatcherIntegrationTests {
                 .get();
 
         if (timeWarped()) {
-            timeWarp().scheduler().fire("_name", 30, TimeValue.timeValueSeconds(1));
+            timeWarp().scheduler().trigger("_name", 30, TimeValue.timeValueSeconds(1));
         } else {
             //Wait a little until we should have queued an action
             Thread.sleep(TimeUnit.SECONDS.toMillis(5));

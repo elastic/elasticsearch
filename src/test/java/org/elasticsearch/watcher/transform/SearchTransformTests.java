@@ -15,9 +15,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.WatchExecutionContext;
 import org.junit.Test;
@@ -104,13 +104,14 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
         refresh();
 
         SearchRequest request = Requests.searchRequest("idx").source(searchSource().query(filteredQuery(matchAllQuery(), boolFilter()
-                .must(rangeFilter("date").gt("{{" + Variables.CTX + "." + Variables.SCHEDULED_FIRE_TIME + "}}"))
-                .must(rangeFilter("date").lt("{{" + Variables.CTX + "." + Variables.EXECUTION_TIME + "}}"))
-                .must(termFilter("value", "{{" + Variables.CTX + "." + Variables.PAYLOAD + ".value}}")))));
+                .must(rangeFilter("date").gt("{{ctx.trigger.scheduled_time}}"))
+                .must(rangeFilter("date").lt("{{ctx.execution_time}}"))
+                .must(termFilter("value", "{{ctx.payload.value}}")))));
 
         SearchTransform transform = new SearchTransform(logger, scriptService(), ClientProxy.of(client()), request);
 
-        WatchExecutionContext ctx = mockExecutionContext(parseDate("2015-01-04T00:00:00"), parseDate("2015-01-04T00:00:00"), parseDate("2015-01-01T00:00:00"), "_name", EMPTY_PAYLOAD);
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent(parseDate("2015-01-04T00:00:00"), parseDate("2015-01-01T00:00:00"));
+        WatchExecutionContext ctx = mockExecutionContext("_name", parseDate("2015-01-04T00:00:00"), event, EMPTY_PAYLOAD);
 
         Payload payload = simplePayload("value", "val_3");
 
@@ -140,7 +141,6 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
         SearchType searchType = randomBoolean() ? null : randomFrom(SearchType.values());
         String templateName = randomBoolean() ? null : "template1";
         ScriptService.ScriptType templateType = templateName != null && randomBoolean() ? randomFrom(ScriptService.ScriptType.values()) : null;
-        BytesReference source = null;
         XContentBuilder builder = jsonBuilder().startObject();
         if (indices != null) {
             builder.array("indices", indices);
@@ -163,7 +163,7 @@ public class SearchTransformTests extends AbstractWatcherIntegrationTests {
                         .endObject()
                     .endObject()
                 .endObject();
-        source = sourceBuilder.bytes();
+        BytesReference source = sourceBuilder.bytes();
 
         builder.startObject("body")
                 .startObject("query")

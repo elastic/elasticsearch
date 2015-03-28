@@ -5,7 +5,20 @@
  */
 package org.elasticsearch.watcher.watch;
 
+import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableSet;
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableList;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionRegistry;
 import org.elasticsearch.watcher.actions.Actions;
@@ -24,31 +37,25 @@ import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.input.search.SearchInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
-import org.elasticsearch.watcher.scheduler.schedule.*;
-import org.elasticsearch.watcher.scheduler.schedule.support.*;
-import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.Script;
+import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.template.ScriptTemplate;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableList;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.netty.handler.codec.http.HttpMethod;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.transform.*;
+import org.elasticsearch.watcher.trigger.Trigger;
+import org.elasticsearch.watcher.trigger.TriggerEngine;
+import org.elasticsearch.watcher.trigger.TriggerService;
+import org.elasticsearch.watcher.trigger.schedule.*;
+import org.elasticsearch.watcher.trigger.schedule.support.*;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 
 import static org.elasticsearch.watcher.test.WatcherTestUtils.matchAllRequest;
@@ -81,7 +88,10 @@ public class WatchTests extends ElasticsearchTestCase {
         TransformRegistry transformRegistry = transformRegistry();
 
         Schedule schedule = randomSchedule();
+        Trigger trigger = new ScheduleTrigger(schedule);
         ScheduleRegistry scheduleRegistry = registry(schedule);
+        TriggerEngine triggerEngine = new ParseOnlyScheduleTriggerEngine(ImmutableSettings.EMPTY, scheduleRegistry);
+        TriggerService triggerService = new TriggerService(ImmutableSettings.EMPTY, ImmutableSet.of(triggerEngine));
 
         Input input = randomInput();
         InputRegistry inputRegistry = registry(input);
@@ -100,11 +110,11 @@ public class WatchTests extends ElasticsearchTestCase {
 
         TimeValue throttlePeriod = randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(5, 10));
 
-        Watch watch = new Watch("_name", SystemClock.INSTANCE, schedule, input, condition, transform, actions, metadata, throttlePeriod, status);
+        Watch watch = new Watch("_name", SystemClock.INSTANCE, trigger, input, condition, transform, actions, metadata, throttlePeriod, status);
 
         BytesReference bytes = XContentFactory.jsonBuilder().value(watch).bytes();
         logger.info(bytes.toUtf8());
-        Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, scheduleRegistry, transformRegistry, actionRegistry, inputRegistry, SystemClock.INSTANCE);
+        Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, SystemClock.INSTANCE);
 
         boolean includeStatus = randomBoolean();
         Watch parsedWatch = watchParser.parse("_name", includeStatus, bytes);
@@ -112,7 +122,7 @@ public class WatchTests extends ElasticsearchTestCase {
         if (includeStatus) {
             assertThat(parsedWatch.status(), equalTo(status));
         }
-        assertThat(parsedWatch.schedule(), equalTo(schedule));
+        assertThat(parsedWatch.trigger(), equalTo(trigger));
         assertThat(parsedWatch.input(), equalTo(input));
         assertThat(parsedWatch.condition(), equalTo(condition));
         if (throttlePeriod != null) {
@@ -273,4 +283,46 @@ public class WatchTests extends ElasticsearchTestCase {
         return new ActionRegistry(parsers.build());
     }
 
+
+    static class ParseOnlyScheduleTriggerEngine extends ScheduleTriggerEngine {
+
+        private final ScheduleRegistry registry;
+
+        public ParseOnlyScheduleTriggerEngine(Settings settings, ScheduleRegistry registry) {
+            super(settings);
+            this.registry = registry;
+        }
+
+        @Override
+        public void start(Collection<Job> jobs) {
+        }
+
+        @Override
+        public void stop() {
+        }
+
+        @Override
+        public void register(Listener listener) {
+        }
+
+        @Override
+        public void add(Job job) {
+        }
+
+        @Override
+        public boolean remove(String jobName) {
+            return false;
+        }
+
+        @Override
+        public ScheduleTrigger parseTrigger(String context, XContentParser parser) throws IOException {
+            Schedule schedule = registry.parse(context, parser);
+            return new ScheduleTrigger(schedule);
+        }
+
+        @Override
+        public ScheduleTriggerEvent parseTriggerEvent(String context, XContentParser parser) throws IOException {
+            return null;
+        }
+    }
 }

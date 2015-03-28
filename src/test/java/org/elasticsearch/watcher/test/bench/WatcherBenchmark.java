@@ -17,10 +17,9 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.watcher.WatcherPlugin;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
-import org.elasticsearch.watcher.scheduler.Scheduler;
-import org.elasticsearch.watcher.scheduler.SchedulerMock;
-import org.elasticsearch.watcher.scheduler.SchedulerModule;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchRequest;
+import org.elasticsearch.watcher.trigger.ScheduleTriggerEngineMock;
+import org.elasticsearch.watcher.trigger.TriggerModule;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -29,7 +28,8 @@ import java.util.List;
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
-import static org.elasticsearch.watcher.scheduler.schedule.Schedules.interval;
+import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 
 /**
  */
@@ -51,7 +51,7 @@ public class WatcherBenchmark {
         for (int i = 0; i < numAlerts; i++) {
             final String name = "_name" + i;
             PutWatchRequest putAlertRequest = new PutWatchRequest(name, new WatchSourceBuilder()
-                            .schedule(interval("5s"))
+                            .trigger(schedule(interval("5s")))
                             .input(searchInput(new SearchRequest().source(
                                     new SearchSourceBuilder()
                             )))
@@ -63,7 +63,7 @@ public class WatcherBenchmark {
 
         int numThreads = 50;
         int watchersPerThread = numAlerts / numThreads;
-        final SchedulerMock scheduler = (SchedulerMock) node.injector().getInstance(Scheduler.class);
+        final ScheduleTriggerEngineMock scheduler = node.injector().getInstance(ScheduleTriggerEngineMock.class);
         Thread[] threads = new Thread[numThreads];
         for (int i = 0; i < numThreads; i++) {
             final int begin = i * watchersPerThread;
@@ -73,7 +73,7 @@ public class WatcherBenchmark {
                 public void run() {
                     while (true) {
                         for (int j = begin; j < end; j++) {
-                            scheduler.fire("_name" + j);
+                            scheduler.trigger("_name" + j);
                         }
                     }
                 }
@@ -110,10 +110,10 @@ public class WatcherBenchmark {
             public Iterable<? extends Module> spawnModules() {
                 List<Module> modules = new ArrayList<>();
                 for (Module module : super.spawnModules()) {
-                    if (module instanceof SchedulerModule) {
+                    if (module instanceof TriggerModule) {
                         // replacing scheduler module so we'll
                         // have control on when it fires a job
-                        modules.add(new MockSchedulerModule());
+                        modules.add(new MockTriggerModule());
 
                     } else {
                         modules.add(module);
@@ -122,10 +122,11 @@ public class WatcherBenchmark {
                 return modules;
             }
 
-            public static class MockSchedulerModule extends SchedulerModule {
+            public static class MockTriggerModule extends TriggerModule {
 
-                public MockSchedulerModule() {
-                    super(SchedulerMock.class);
+                @Override
+                protected void registerStandardEngines() {
+                    registerEngine(ScheduleTriggerEngineMock.class);
                 }
 
             }

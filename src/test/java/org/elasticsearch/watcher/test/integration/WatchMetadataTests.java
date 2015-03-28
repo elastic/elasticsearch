@@ -19,10 +19,11 @@ import java.util.Map;
 import static org.elasticsearch.watcher.client.WatchSourceBuilder.watchSourceBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
-import static org.elasticsearch.watcher.scheduler.schedule.Schedules.cron;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
 import static org.hamcrest.Matchers.greaterThan;
 
 /**
@@ -43,14 +44,14 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTests {
         metadata.put("baz", metaList);
         watcherClient().preparePutWatch("_name")
                 .source(watchSourceBuilder()
-                        .schedule(cron("0/5 * * * * ? *"))
+                        .trigger(schedule(cron("0/5 * * * * ? *")))
                         .input(searchInput(WatcherTestUtils.newInputSearchRequest("my-index").source(searchSource().query(matchAllQuery()))))
                         .condition(scriptCondition("ctx.payload.hits.total == 1"))
                         .metadata(metadata))
-                .get();
+                        .get();
 
         if (timeWarped()) {
-            timeWarp().scheduler().fire("_name");
+            timeWarp().scheduler().trigger("_name");
         } else {
             // Wait for a no action entry to be added. (the condition search request will not match, because there are no docs in my-index)
             assertWatchWithNoActionNeeded("_name", 1);

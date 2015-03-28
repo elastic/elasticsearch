@@ -36,7 +36,7 @@ public class ScriptServiceProxy implements InitializingService.Initializable {
         this.service = injector.getInstance(ScriptService.class);
     }
 
-    public ExecutableScript executable(String lang, String script, ScriptService.ScriptType scriptType, Map vars) {
+    public ExecutableScript executable(String lang, String script, ScriptService.ScriptType scriptType, Map<String, Object> vars) {
         return service.executable(lang, script, scriptType, vars);
     }
 

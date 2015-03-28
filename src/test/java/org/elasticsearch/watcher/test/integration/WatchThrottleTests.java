@@ -7,30 +7,31 @@ package org.elasticsearch.watcher.test.integration;
 
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.watcher.watch.Watch;
+import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.actions.ActionBuilders;
 import org.elasticsearch.watcher.client.WatcherClient;
-import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.history.HistoryStore;
+import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.transport.actions.ack.AckWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.watcher.watch.Watch;
 import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.watcher.client.WatchSourceBuilder.watchSourceBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
-import static org.elasticsearch.watcher.scheduler.schedule.Schedules.cron;
-import static org.elasticsearch.watcher.scheduler.schedule.Schedules.interval;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.matchAllRequest;
 import static org.elasticsearch.watcher.transform.TransformBuilders.searchTransform;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
+import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.IsEqual.equalTo;
 
@@ -53,7 +54,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch()
                 .watchName("_name")
                 .source(watchSourceBuilder()
-                        .schedule(cron("0/5 * * * * ? *"))
+                        .trigger(schedule(cron("0/5 * * * * ? *")))
                         .input(searchInput(matchAllRequest().indices("events")))
                         .condition(scriptCondition("ctx.payload.hits.total > 0"))
                         .transform(searchTransform(matchAllRequest().indices("events")))
@@ -63,7 +64,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
         assertThat(putWatchResponse.indexResponse().isCreated(), is(true));
 
         if (timeWarped()) {
-            timeWarp().scheduler().fire("_name", 4, TimeValue.timeValueSeconds(5));
+            timeWarp().scheduler().trigger("_name", 4, TimeValue.timeValueSeconds(5));
         } else {
             Thread.sleep(20000);
         }
@@ -75,7 +76,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
         assertThat(countAfterAck, greaterThanOrEqualTo((long) 1));
 
         if (timeWarped()) {
-            timeWarp().scheduler().fire("_name", 4, TimeValue.timeValueSeconds(5));
+            timeWarp().scheduler().trigger("_name", 4, TimeValue.timeValueSeconds(5));
         } else {
             Thread.sleep(20000);
         }
@@ -91,7 +92,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
         refresh();
 
         if (timeWarped()) {
-            timeWarp().scheduler().fire("_name", 4, TimeValue.timeValueSeconds(5));
+            timeWarp().scheduler().trigger("_name", 4, TimeValue.timeValueSeconds(5));
         } else {
             Thread.sleep(20000);
         }
@@ -124,7 +125,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch()
                 .watchName("_name")
                 .source(watchSourceBuilder()
-                        .schedule(interval("5s"))
+                        .trigger(schedule(interval("5s")))
                         .input(searchInput(matchAllRequest().indices("events")))
                         .condition(scriptCondition("ctx.payload.hits.total > 0"))
                         .transform(searchTransform(matchAllRequest().indices("events")))
@@ -136,7 +137,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
         if (timeWarped()) {
             timeWarp().clock().setTime(DateTime.now());
 
-            timeWarp().scheduler().fire("_name");
+            timeWarp().scheduler().trigger("_name");
             refresh();
 
             // the first fire should work
@@ -144,7 +145,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
             assertThat(actionsCount, is(1L));
 
             timeWarp().clock().fastForwardSeconds(5);
-            timeWarp().scheduler().fire("_name");
+            timeWarp().scheduler().trigger("_name");
             refresh();
 
             // the last fire should have been throttled, so number of actions shouldn't change
@@ -152,7 +153,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
             assertThat(actionsCount, is(1L));
 
             timeWarp().clock().fastForwardSeconds(10);
-            timeWarp().scheduler().fire("_name");
+            timeWarp().scheduler().trigger("_name");
             refresh();
 
             // the last fire occurred passed the throttle period, so a new action should have been added

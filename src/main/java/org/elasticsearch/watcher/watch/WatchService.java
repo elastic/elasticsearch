@@ -10,13 +10,13 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.history.HistoryService;
-import org.elasticsearch.watcher.scheduler.Scheduler;
 import org.elasticsearch.watcher.support.Callback;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.watcher.trigger.TriggerService;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
@@ -24,17 +24,17 @@ import java.util.concurrent.atomic.AtomicReference;
 
 public class WatchService extends AbstractComponent {
 
-    private final Scheduler scheduler;
+    private final TriggerService triggerService;
     private final WatchStore watchStore;
     private final WatchLockService watchLockService;
     private final HistoryService historyService;
     private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
 
     @Inject
-    public WatchService(Settings settings, Scheduler scheduler, WatchStore watchStore, HistoryService historyService,
+    public WatchService(Settings settings, TriggerService triggerService, WatchStore watchStore, HistoryService historyService,
                         WatchLockService watchLockService) {
         super(settings);
-        this.scheduler = scheduler;
+        this.triggerService = triggerService;
         this.watchStore = watchStore;
         this.watchLockService = watchLockService;
         this.historyService = historyService;
@@ -54,7 +54,7 @@ public class WatchService extends AbstractComponent {
 
                         @Override
                         public void onSuccess(ClusterState clusterState) {
-                            scheduler.start(watchStore.watches().values());
+                            triggerService.start(watchStore.watches().values());
                             state.set(State.STARTED);
                             logger.info("watch service has started");
                         }
@@ -79,7 +79,7 @@ public class WatchService extends AbstractComponent {
             logger.info("stopping watch service...");
             watchLockService.stop();
             historyService.stop();
-            scheduler.stop();
+            triggerService.stop();
             watchStore.stop();
             state.set(State.STOPPED);
             logger.info("watch service has stopped");
@@ -92,7 +92,7 @@ public class WatchService extends AbstractComponent {
         try {
             WatchStore.WatchDelete delete = watchStore.delete(name);
             if (delete.deleteResponse().isFound()) {
-                scheduler.remove(name);
+                triggerService.remove(name);
             }
             return delete;
         } finally {
@@ -105,8 +105,8 @@ public class WatchService extends AbstractComponent {
         WatchLockService.Lock lock = watchLockService.acquire(name);
         try {
             WatchStore.WatchPut result = watchStore.put(name, watchSource);
-            if (result.previous() == null || !result.previous().schedule().equals(result.current().schedule())) {
-                scheduler.add(result.current());
+            if (result.previous() == null || !result.previous().trigger().equals(result.current().trigger())) {
+                triggerService.add(result.current());
             }
             return result.indexResponse();
         } finally {

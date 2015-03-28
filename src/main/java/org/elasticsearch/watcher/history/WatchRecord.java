@@ -6,8 +6,16 @@
 package org.elasticsearch.watcher.history;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchExecution;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.actions.ActionRegistry;
@@ -16,17 +24,10 @@ import org.elasticsearch.watcher.condition.ConditionRegistry;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.transform.TransformRegistry;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.trigger.TriggerEvent;
+import org.elasticsearch.watcher.trigger.TriggerService;
+import org.elasticsearch.watcher.watch.Watch;
+import org.elasticsearch.watcher.watch.WatchExecution;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -37,8 +38,7 @@ public class WatchRecord implements ToXContent {
 
     private String id;
     private String name;
-    private DateTime fireTime;
-    private DateTime scheduledTime;
+    private TriggerEvent triggerEvent;
     private Input input;
     private Condition condition;
     private State state;
@@ -55,11 +55,10 @@ public class WatchRecord implements ToXContent {
     WatchRecord() {
     }
 
-    public WatchRecord(Watch watch, DateTime scheduledTime, DateTime fireTime) {
-        this.id = watch.name() + "#" + scheduledTime.toDateTimeISO();
+    public WatchRecord(Watch watch, TriggerEvent triggerEvent) {
+        this.id = watch.name() + "#" + triggerEvent.triggeredTime().toDateTimeISO();
         this.name = watch.name();
-        this.fireTime = fireTime;
-        this.scheduledTime = scheduledTime;
+        this.triggerEvent = triggerEvent;
         this.condition = watch.condition();
         this.input = watch.input();
         this.state = State.AWAITS_EXECUTION;
@@ -71,16 +70,12 @@ public class WatchRecord implements ToXContent {
         return id;
     }
 
-    public DateTime scheduledTime() {
-        return scheduledTime;
+    public TriggerEvent triggerEvent() {
+        return triggerEvent;
     }
 
     public String name() {
         return name;
-    }
-
-    public DateTime fireTime() {
-        return fireTime;
     }
 
     public Input input() { return input; }
@@ -129,27 +124,28 @@ public class WatchRecord implements ToXContent {
     }
 
     @Override
-    public XContentBuilder toXContent(XContentBuilder historyEntry, Params params) throws IOException {
-        historyEntry.startObject();
-        historyEntry.field(Parser.WATCH_NAME_FIELD.getPreferredName(), name);
-        historyEntry.field(Parser.FIRE_TIME_FIELD.getPreferredName(), fireTime.toDateTimeISO());
-        historyEntry.field(Parser.SCHEDULED_FIRE_TIME_FIELD.getPreferredName(), scheduledTime.toDateTimeISO());
-        historyEntry.startObject(Watch.Parser.CONDITION_FIELD.getPreferredName()).field(condition.type(), condition, params).endObject();
-        historyEntry.field(Parser.STATE_FIELD.getPreferredName(), state.id());
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        builder.field(Parser.WATCH_NAME_FIELD.getPreferredName(), name);
+        builder.startObject(Parser.TRIGGER_EVENT_FIELD.getPreferredName())
+                .field(triggerEvent.type(), triggerEvent)
+                .endObject();
+        builder.startObject(Watch.Parser.CONDITION_FIELD.getPreferredName()).field(condition.type(), condition, params).endObject();
+        builder.field(Parser.STATE_FIELD.getPreferredName(), state.id());
 
         if (message != null) {
-            historyEntry.field(Parser.MESSAGE_FIELD.getPreferredName(), message);
+            builder.field(Parser.MESSAGE_FIELD.getPreferredName(), message);
         }
         if (metadata != null) {
-            historyEntry.field(Parser.METADATA_FIELD.getPreferredName(), metadata);
+            builder.field(Parser.METADATA_FIELD.getPreferredName(), metadata);
         }
 
         if (execution != null) {
-            historyEntry.field(Parser.WATCH_EXECUTION_FIELD.getPreferredName(), execution);
+            builder.field(Parser.WATCH_EXECUTION_FIELD.getPreferredName(), execution);
         }
 
-        historyEntry.endObject();
-        return historyEntry;
+        builder.endObject();
+        return builder;
     }
 
     @Override
@@ -203,8 +199,7 @@ public class WatchRecord implements ToXContent {
     public static class Parser extends AbstractComponent {
 
         public static final ParseField WATCH_NAME_FIELD = new ParseField("watch_name");
-        public static final ParseField FIRE_TIME_FIELD = new ParseField("fire_time");
-        public static final ParseField SCHEDULED_FIRE_TIME_FIELD = new ParseField("scheduled_fire_time");
+        public static final ParseField TRIGGER_EVENT_FIELD = new ParseField("trigger_event");
         public static final ParseField MESSAGE_FIELD = new ParseField("message");
         public static final ParseField STATE_FIELD = new ParseField("state");
         public static final ParseField METADATA_FIELD = new ParseField("meta");
@@ -214,15 +209,17 @@ public class WatchRecord implements ToXContent {
         private final ActionRegistry actionRegistry;
         private final InputRegistry inputRegistry;
         private final TransformRegistry transformRegistry;
+        private final TriggerService triggerService;
 
         @Inject
         public Parser(Settings settings, ConditionRegistry conditionRegistry, ActionRegistry actionRegistry,
-                      InputRegistry inputRegistry, TransformRegistry transformRegistry) {
+                      InputRegistry inputRegistry, TransformRegistry transformRegistry, TriggerService triggerService) {
             super(settings);
             this.conditionRegistry = conditionRegistry;
             this.actionRegistry = actionRegistry;
             this.inputRegistry = inputRegistry;
             this.transformRegistry = transformRegistry;
+            this.triggerService = triggerService;
         }
 
         public WatchRecord parse(BytesReference source, String historyId, long version) {
@@ -253,16 +250,14 @@ public class WatchRecord implements ToXContent {
                         record.metadata = parser.map();
                     } else if (WATCH_EXECUTION_FIELD.match(currentFieldName)) {
                         record.execution = WatchExecution.Parser.parse(parser, conditionRegistry, actionRegistry, inputRegistry, transformRegistry);
+                    } else if (TRIGGER_EVENT_FIELD.match(currentFieldName)) {
+                        record.triggerEvent = triggerService.parseTriggerEvent(id, parser);
                     } else {
                         throw new WatcherException("unable to parse watch record. unexpected field [" + currentFieldName + "]");
                     }
                 } else if (token.isValue()) {
                     if (WATCH_NAME_FIELD.match(currentFieldName)) {
                         record.name = parser.text();
-                    } else if (FIRE_TIME_FIELD.match(currentFieldName)) {
-                        record.fireTime = DateTime.parse(parser.text());
-                    } else if (SCHEDULED_FIRE_TIME_FIELD.match(currentFieldName)) {
-                        record.scheduledTime = DateTime.parse(parser.text());
                     } else if (MESSAGE_FIELD.match(currentFieldName)) {
                         record.message = parser.textOrNull();
                     } else if (STATE_FIELD.match(currentFieldName)) {

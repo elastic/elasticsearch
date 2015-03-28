@@ -13,6 +13,7 @@ import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
 import org.junit.Test;
 
@@ -34,7 +35,8 @@ public class HistoryStoreLifeCycleTest extends AbstractWatcherIntegrationTests {
         WatchRecord[] watchRecords = new WatchRecord[randomIntBetween(1, 50)];
         for (int i = 0; i < watchRecords.length; i++) {
             DateTime dateTime = new DateTime(i, DateTimeZone.UTC);
-            watchRecords[i] = new WatchRecord(watch, dateTime, dateTime);
+            ScheduleTriggerEvent event = new ScheduleTriggerEvent(dateTime, dateTime);
+            watchRecords[i] = new WatchRecord(watch, event);
             historyStore.put(watchRecords[i]);
             GetResponse getResponse = client().prepareGet(HistoryStore.getHistoryIndexNameForTime(dateTime), HistoryStore.DOC_TYPE, watchRecords[i].id())
                     .setVersion(1)
@@ -54,7 +56,7 @@ public class HistoryStoreLifeCycleTest extends AbstractWatcherIntegrationTests {
             assertThat(watchRecord.version(), equalTo(1l));
             watchRecord.update(WatchRecord.State.EXECUTED, "_message");
             historyStore.update(watchRecord);
-            GetResponse getResponse = client().prepareGet(HistoryStore.getHistoryIndexNameForTime(watchRecord.scheduledTime()), HistoryStore.DOC_TYPE, watchRecord.id())
+            GetResponse getResponse = client().prepareGet(HistoryStore.getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime()), HistoryStore.DOC_TYPE, watchRecord.id())
                     .setVersion(2l)
                     .get();
             assertThat(getResponse.isExists(), equalTo(true));

@@ -11,7 +11,7 @@
     "watch": {
       "dynamic" : "strict",
       "properties": {
-        "schedule": {
+        "trigger" : {
           "type": "object",
           "enabled" : false,
           "dynamic" : true

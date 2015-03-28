@@ -25,12 +25,13 @@ import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputException;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
-import org.elasticsearch.watcher.scheduler.schedule.IntervalSchedule;
-import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchExecutionContext;
@@ -56,7 +57,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
     @Test
     public void testExecute() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(
-                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{" + Variables.SCHEDULED_FIRE_TIME + "}}||-30s").to("{{" + Variables.SCHEDULED_FIRE_TIME + "}}")));
+                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}")));
         SearchRequest request = client()
                 .prepareSearch()
                 .setSearchType(SearchInput.DEFAULT_SEARCH_TYPE)
@@ -69,7 +70,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         WatchExecutionContext ctx = new WatchExecutionContext("test-watch",
                 new Watch("test-alert",
                         new ClockMock(),
-                        new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES)),
+                        new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                         new SimpleInput(logger, new Payload.Simple()),
                         new AlwaysTrueCondition(logger),
                         null,
@@ -77,7 +78,8 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                         null,
                         null,
                         new Watch.Status()),
-                new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
+                new DateTime(0, DateTimeZone.UTC),
+                new ScheduleTriggerEvent(new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC)));
         SearchInput.Result result = searchInput.execute(ctx);
 
         assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
@@ -90,7 +92,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
     @Test
     public void testDifferentSearchType() throws Exception {
         SearchSourceBuilder searchSourceBuilder = searchSource().query(
-                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{" + Variables.SCHEDULED_FIRE_TIME + "}}||-30s").to("{{" + Variables.SCHEDULED_FIRE_TIME + "}}"))
+                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))
         );
         SearchType searchType = randomFrom(SearchType.values());
         SearchRequest request = client()
@@ -105,7 +107,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         WatchExecutionContext ctx = new WatchExecutionContext("test-watch",
                 new Watch("test-alert",
                         new ClockMock(),
-                        new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES)),
+                        new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                         new SimpleInput(logger, new Payload.Simple()),
                         new AlwaysTrueCondition(logger),
                         null,
@@ -113,7 +115,8 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                         null,
                         null,
                         new Watch.Status()),
-                new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
+                new DateTime(0, DateTimeZone.UTC),
+                new ScheduleTriggerEvent(new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC)));
         SearchInput.Result result = searchInput.execute(ctx);
 
         assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
@@ -129,7 +132,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                 .setSearchType(SearchInput.DEFAULT_SEARCH_TYPE)
                 .request()
                 .source(searchSource()
-                        .query(filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{" + Variables.SCHEDULED_FIRE_TIME + "}}||-30s").to("{{" + Variables.SCHEDULED_FIRE_TIME + "}}"))));
+                        .query(filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{ctx.trigger.scheduled_time}}||-30s").to("{{ctx.trigger.triggered_time}}"))));
 
         XContentBuilder builder = WatcherUtils.writeSearchRequest(request, jsonBuilder(), ToXContent.EMPTY_PARAMS);
         XContentParser parser = JsonXContent.jsonXContent.createParser(builder.bytes());
@@ -169,7 +172,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         data.put("baz", new ArrayList<String>() );
 
         SearchSourceBuilder searchSourceBuilder = searchSource().query(
-                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{" + Variables.SCHEDULED_FIRE_TIME + "}}||-30s").to("{{" + Variables.SCHEDULED_FIRE_TIME + "}}")));
+                filteredQuery(matchQuery("event_type", "a"), rangeFilter("_timestamp").from("{{ctx.triggered.scheduled_time}}||-30s").to("{{ctx.triggered.triggered_time}}")));
         SearchRequest request = client()
                 .prepareSearch()
                 .setSearchType(SearchInput.DEFAULT_SEARCH_TYPE)

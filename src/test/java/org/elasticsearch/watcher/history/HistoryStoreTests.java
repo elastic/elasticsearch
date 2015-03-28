@@ -34,6 +34,7 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.watcher.support.TemplateUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Watch;
 import org.hamcrest.core.IsNull;
 import org.junit.Before;
@@ -73,7 +74,8 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         when(watch.condition()).thenReturn(new AlwaysTrueCondition(logger));
         when(watch.input()).thenReturn(null);
         when(watch.metadata()).thenReturn(null);
-        WatchRecord watchRecord = new WatchRecord(watch, new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
+        WatchRecord watchRecord = new WatchRecord(watch, event);
 
         IndexResponse indexResponse = mock(IndexResponse.class);
         long version = randomLong();
@@ -91,7 +93,8 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         when(watch.condition()).thenReturn(new AlwaysTrueCondition(logger));
         when(watch.input()).thenReturn(null);
         when(watch.metadata()).thenReturn(null);
-        WatchRecord watchRecord = new WatchRecord(watch, new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
+        WatchRecord watchRecord = new WatchRecord(watch, event);
         watchRecord.version(4l);
 
         IndexResponse indexResponse = mock(IndexResponse.class);

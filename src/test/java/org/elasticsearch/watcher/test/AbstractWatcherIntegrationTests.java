@@ -12,7 +12,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -45,15 +44,16 @@ import org.elasticsearch.watcher.actions.webhook.HttpClient;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
-import org.elasticsearch.watcher.scheduler.Scheduler;
-import org.elasticsearch.watcher.scheduler.SchedulerMock;
-import org.elasticsearch.watcher.scheduler.schedule.Schedule;
-import org.elasticsearch.watcher.scheduler.schedule.Schedules;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
+import org.elasticsearch.watcher.trigger.ScheduleTriggerEngineMock;
+import org.elasticsearch.watcher.trigger.TriggerService;
+import org.elasticsearch.watcher.trigger.schedule.Schedule;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.watcher.trigger.schedule.Schedules;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchService;
 import org.junit.After;
@@ -83,8 +83,6 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     private TimeWarp timeWarp;
 
     boolean shieldEnabled = shieldEnabled();
-    private TransportClient shieldWatcherTransportClient;
-    private WatcherClient shieldWatcherClient;
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -127,9 +125,6 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         // Clear all internal watcher state for the next test method:
         logger.info("[{}#{}]: clearing watches", getTestClass().getSimpleName(), getTestName());
         stopWatcher();
-        if (shieldWatcherTransportClient != null) {
-            shieldWatcherTransportClient.close();
-        }
     }
 
     @Override
@@ -150,9 +145,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
     private void setupTimeWarp() throws Exception {
         if (timeWarped()) {
-            timeWarp = new TimeWarp(
-                    internalTestCluster().getInstance(SchedulerMock.class, internalTestCluster().getMasterName()),
-                    internalTestCluster().getInstance(ClockMock.class, internalTestCluster().getMasterName()));
+            timeWarp = new TimeWarp(getInstanceFromMaster(ScheduleTriggerEngineMock.class), getInstanceFromMaster(ClockMock.class));
         }
     }
 
@@ -213,11 +206,12 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     }
 
     protected BytesReference createWatchSource(Schedule schedule, SearchRequest conditionRequest, String conditionScript, Map<String, Object> metadata) throws IOException {
+        ScheduleTrigger trigger = new ScheduleTrigger(schedule);
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         {
-            builder.startObject("schedule")
-                    .field(schedule.type(), schedule)
+            builder.startObject("trigger")
+                    .field(trigger.type(), trigger)
                     .endObject();
 
             if (metadata != null) {
@@ -266,22 +260,18 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         return getInstanceFromMaster(Watch.Parser.class);
     }
 
-    protected Scheduler scheduler() {
-        return getInstanceFromMaster(Scheduler.class);
+    protected TriggerService triggerService() {
+        return getInstanceFromMaster(TriggerService.class);
+    }
+
+    public AbstractWatcherIntegrationTests() {
+        super();
     }
 
     protected WatcherClient watcherClient() {
         return shieldEnabled ?
                 new WatcherClient(internalTestCluster().transportClient()) :
                 new WatcherClient(client());
-//        if (shieldEnabled) {
-//            if (shieldWatcherClient == null) {
-//                shieldWatcherClient = createShieldWatcherClient();
-//            }
-//            return shieldWatcherClient;
-//        }
-//        WatcherClient client = internalTestCluster().getInstance(WatcherClient.class);
-//        return client;
     }
 
     protected ScriptServiceProxy scriptService() {
@@ -521,15 +511,15 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
     protected static class TimeWarp {
 
-        protected final SchedulerMock scheduler;
+        protected final ScheduleTriggerEngineMock scheduler;
         protected final ClockMock clock;
 
-        public TimeWarp(SchedulerMock scheduler, ClockMock clock) {
+        public TimeWarp(ScheduleTriggerEngineMock scheduler, ClockMock clock) {
             this.scheduler = scheduler;
             this.clock = clock;
         }
 
-        public SchedulerMock scheduler() {
+        public ScheduleTriggerEngineMock scheduler() {
             return scheduler;
         }
 

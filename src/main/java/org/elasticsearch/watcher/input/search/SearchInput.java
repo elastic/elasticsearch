@@ -8,22 +8,11 @@ package org.elasticsearch.watcher.input.search;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
-import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.input.InputException;
-import org.elasticsearch.watcher.support.WatcherUtils;
-import org.elasticsearch.watcher.support.SearchRequestEquivalence;
-import org.elasticsearch.watcher.support.Variables;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -32,12 +21,18 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.watcher.input.Input;
+import org.elasticsearch.watcher.input.InputException;
+import org.elasticsearch.watcher.support.SearchRequestEquivalence;
+import org.elasticsearch.watcher.support.Variables;
+import org.elasticsearch.watcher.support.WatcherUtils;
+import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.watcher.watch.WatchExecutionContext;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
-
-import static org.elasticsearch.watcher.support.WatcherDateUtils.formatDate;
 
 /**
  * An input that executes search and returns the search response as the initial payload
@@ -68,7 +63,7 @@ public class SearchInput extends Input<SearchInput.Result> {
     @Override
     public Result execute(WatchExecutionContext ctx) throws IOException {
 
-        SearchRequest request = createSearchRequestWithTimes(this.searchRequest, ctx.scheduledTime(), ctx.fireTime(), ctx.executionTime(), scriptService);
+        SearchRequest request = createSearchRequestWithTimes(this.searchRequest, ctx, scriptService);
         if (logger.isTraceEnabled()) {
             logger.trace("[{}] running query for [{}] [{}]", ctx.id(), ctx.watch().name(), XContentHelper.convertToJson(request.source(), false, true));
         }
@@ -111,25 +106,20 @@ public class SearchInput extends Input<SearchInput.Result> {
     /**
      * Creates a new search request applying the scheduledFireTime and fireTime to the original request
      */
-    public static SearchRequest createSearchRequestWithTimes(SearchRequest requestPrototype, DateTime scheduledFireTime, DateTime fireTime, DateTime executionTime, ScriptServiceProxy scriptService) throws IOException {
+    public static SearchRequest createSearchRequestWithTimes(SearchRequest requestPrototype, WatchExecutionContext ctx, ScriptServiceProxy scriptService) throws IOException {
         SearchRequest request = new SearchRequest(requestPrototype)
                 .indicesOptions(requestPrototype.indicesOptions())
                 .searchType(requestPrototype.searchType())
                 .indices(requestPrototype.indices());
         if (Strings.hasLength(requestPrototype.source())) {
-            Map<String, String> templateParams = new HashMap<>();
-            templateParams.put(Variables.SCHEDULED_FIRE_TIME, formatDate(scheduledFireTime));
-            templateParams.put(Variables.FIRE_TIME, formatDate(fireTime));
-            templateParams.put(Variables.EXECUTION_TIME, formatDate(executionTime));
+            Map<String, Object> templateParams = Variables.createCtxModel(ctx, null);
             String requestSource = XContentHelper.convertToJson(requestPrototype.source(), false);
             ExecutableScript script = scriptService.executable("mustache", requestSource, ScriptService.ScriptType.INLINE, templateParams);
             request.source((BytesReference) script.unwrap(script.run()), false);
         } else if (requestPrototype.templateName() != null) {
-            MapBuilder<String, Object> templateParams = MapBuilder.newMapBuilder(requestPrototype.templateParams())
-                    .put(Variables.SCHEDULED_FIRE_TIME, formatDate(scheduledFireTime))
-                    .put(Variables.FIRE_TIME, formatDate(fireTime))
-                    .put(Variables.EXECUTION_TIME, formatDate(executionTime));
-            request.templateParams(templateParams.map());
+            Map<String, Object> templateParams = Variables.createCtxModel(ctx, null);
+            templateParams.putAll(requestPrototype.templateParams());
+            request.templateParams(templateParams);
             request.templateName(requestPrototype.templateName());
             request.templateType(requestPrototype.templateType());
         }

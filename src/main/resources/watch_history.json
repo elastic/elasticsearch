@@ -15,11 +15,10 @@
           "type": "string",
           "index": "not_analyzed"
         },
-        "fire_time": {
-          "type": "date"
-        },
-        "scheduled_fire_time": {
-          "type": "date"
+        "trigger_event" : {
+          "type" : "object",
+          "enabled" : false,
+          "dynamic" : true
         },
         "state": {
           "type": "string",

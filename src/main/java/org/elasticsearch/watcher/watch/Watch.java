@@ -5,24 +5,6 @@
  */
 package org.elasticsearch.watcher.watch;
 
-import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.WatcherSettingsException;
-import org.elasticsearch.watcher.actions.ActionRegistry;
-import org.elasticsearch.watcher.actions.Actions;
-import org.elasticsearch.watcher.condition.Condition;
-import org.elasticsearch.watcher.condition.ConditionRegistry;
-import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
-import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.input.InputRegistry;
-import org.elasticsearch.watcher.input.NoneInput;
-import org.elasticsearch.watcher.scheduler.Scheduler;
-import org.elasticsearch.watcher.scheduler.schedule.Schedule;
-import org.elasticsearch.watcher.scheduler.schedule.ScheduleRegistry;
-import org.elasticsearch.watcher.support.clock.Clock;
-import org.elasticsearch.watcher.throttle.WatchThrottler;
-import org.elasticsearch.watcher.throttle.Throttler;
-import org.elasticsearch.watcher.transform.Transform;
-import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,6 +21,24 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.WatcherException;
+import org.elasticsearch.watcher.WatcherSettingsException;
+import org.elasticsearch.watcher.actions.ActionRegistry;
+import org.elasticsearch.watcher.actions.Actions;
+import org.elasticsearch.watcher.condition.Condition;
+import org.elasticsearch.watcher.condition.ConditionRegistry;
+import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
+import org.elasticsearch.watcher.input.Input;
+import org.elasticsearch.watcher.input.InputRegistry;
+import org.elasticsearch.watcher.input.NoneInput;
+import org.elasticsearch.watcher.support.clock.Clock;
+import org.elasticsearch.watcher.throttle.Throttler;
+import org.elasticsearch.watcher.throttle.WatchThrottler;
+import org.elasticsearch.watcher.transform.Transform;
+import org.elasticsearch.watcher.transform.TransformRegistry;
+import org.elasticsearch.watcher.trigger.Trigger;
+import org.elasticsearch.watcher.trigger.TriggerEngine;
+import org.elasticsearch.watcher.trigger.TriggerService;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -46,10 +46,10 @@ import java.util.Map;
 
 import static org.elasticsearch.watcher.support.WatcherDateUtils.*;
 
-public class Watch implements Scheduler.Job, ToXContent {
+public class Watch implements TriggerEngine.Job, ToXContent {
 
     private final String name;
-    private final Schedule schedule;
+    private final Trigger trigger;
     private final Input input;
     private final Condition condition;
     private final Actions actions;
@@ -63,9 +63,9 @@ public class Watch implements Scheduler.Job, ToXContent {
     @Nullable
     private final Transform transform;
 
-    public Watch(String name, Clock clock, Schedule schedule, Input input, Condition condition, @Nullable Transform transform, Actions actions, @Nullable Map<String, Object> metadata, @Nullable TimeValue throttlePeriod, @Nullable Status status) {
+    public Watch(String name, Clock clock, Trigger trigger, Input input, Condition condition, @Nullable Transform transform, Actions actions, @Nullable Map<String, Object> metadata, @Nullable TimeValue throttlePeriod, @Nullable Status status) {
         this.name = name;
-        this.schedule = schedule;
+        this.trigger = trigger;
         this.input = input;
         this.condition = condition;
         this.actions = actions;
@@ -80,8 +80,8 @@ public class Watch implements Scheduler.Job, ToXContent {
         return name;
     }
 
-    public Schedule schedule() {
-        return schedule;
+    public Trigger trigger() {
+        return trigger;
     }
 
     public Input input() { return input;}
@@ -144,7 +144,7 @@ public class Watch implements Scheduler.Job, ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Parser.SCHEDULE_FIELD.getPreferredName()).startObject().field(schedule.type(), schedule).endObject();
+        builder.field(Parser.TRIGGER_FIELD.getPreferredName()).startObject().field(trigger.type(), trigger).endObject();
         builder.field(Parser.INPUT_FIELD.getPreferredName()).startObject().field(input.type(), input).endObject();
         builder.field(Parser.CONDITION_FIELD.getPreferredName()).startObject().field(condition.type(), condition).endObject();
         if (transform != null) {
@@ -164,7 +164,7 @@ public class Watch implements Scheduler.Job, ToXContent {
 
     public static class Parser extends AbstractComponent {
 
-        public static final ParseField SCHEDULE_FIELD = new ParseField("schedule");
+        public static final ParseField TRIGGER_FIELD = new ParseField("trigger");
         public static final ParseField INPUT_FIELD = new ParseField("input");
         public static final ParseField CONDITION_FIELD = new ParseField("condition");
         public static final ParseField ACTIONS_FIELD = new ParseField("actions");
@@ -174,7 +174,7 @@ public class Watch implements Scheduler.Job, ToXContent {
         public static final ParseField THROTTLE_PERIOD_FIELD = new ParseField("throttle_period");
 
         private final ConditionRegistry conditionRegistry;
-        private final ScheduleRegistry scheduleRegistry;
+        private final TriggerService triggerService;
         private final TransformRegistry transformRegistry;
         private final ActionRegistry actionRegistry;
         private final InputRegistry inputRegistry;
@@ -184,14 +184,14 @@ public class Watch implements Scheduler.Job, ToXContent {
         private final Condition defaultCondition;
 
         @Inject
-        public Parser(Settings settings, ConditionRegistry conditionRegistry, ScheduleRegistry scheduleRegistry,
+        public Parser(Settings settings, ConditionRegistry conditionRegistry, TriggerService triggerService,
                       TransformRegistry transformRegistry, ActionRegistry actionRegistry,
                       InputRegistry inputRegistry, Clock clock) {
 
             super(settings);
             this.conditionRegistry = conditionRegistry;
-            this.scheduleRegistry = scheduleRegistry;
             this.transformRegistry = transformRegistry;
+            this.triggerService = triggerService;
             this.actionRegistry = actionRegistry;
             this.inputRegistry = inputRegistry;
             this.clock = clock;
@@ -212,7 +212,7 @@ public class Watch implements Scheduler.Job, ToXContent {
         }
 
         public Watch parse(String name, boolean includeStatus, XContentParser parser) throws IOException {
-            Schedule schedule = null;
+            Trigger trigger = null;
             Input input = defaultInput;
             Condition condition = defaultCondition;
             Actions actions = null;
@@ -229,8 +229,8 @@ public class Watch implements Scheduler.Job, ToXContent {
                 } else if (token == null ){
                     throw new WatcherException("could not parse watch [" + name + "]. null token");
                 } else if ((token.isValue() || token == XContentParser.Token.START_OBJECT || token == XContentParser.Token.START_ARRAY) && currentFieldName !=null ) {
-                    if (SCHEDULE_FIELD.match(currentFieldName)) {
-                        schedule = scheduleRegistry.parse(parser);
+                    if (TRIGGER_FIELD.match(currentFieldName)) {
+                        trigger = triggerService.parseTrigger(name, parser);
                     } else if (INPUT_FIELD.match(currentFieldName)) {
                         input = inputRegistry.parse(parser);
                     } else if (CONDITION_FIELD.match(currentFieldName)) {
@@ -254,14 +254,14 @@ public class Watch implements Scheduler.Job, ToXContent {
                     }
                 }
             }
-            if (schedule == null) {
-                throw new WatcherSettingsException("could not parse watch [" + name + "]. missing watch schedule");
+            if (trigger == null) {
+                throw new WatcherSettingsException("could not parse watch [" + name + "]. missing watch trigger");
             }
             if (actions == null) {
                 throw new WatcherSettingsException("could not parse watch [" + name + "]. missing watch actions");
             }
 
-            return new Watch(name, clock, schedule, input, condition, transform, actions, metatdata, throttlePeriod, status);
+            return new Watch(name, clock, trigger, input, condition, transform, actions, metatdata, throttlePeriod, status);
         }
 
     }

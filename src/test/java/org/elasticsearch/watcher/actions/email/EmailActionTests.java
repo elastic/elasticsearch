@@ -6,8 +6,14 @@
 package org.elasticsearch.watcher.actions.email;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
-import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.ActionSettingsException;
 import org.elasticsearch.watcher.actions.email.service.*;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
@@ -15,23 +21,17 @@ import org.elasticsearch.watcher.support.template.ScriptTemplate;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.transform.TransformRegistry;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.ImmutableMap;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.DateTimeZone;
-import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.watcher.watch.WatchExecutionContext;
 import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
+import static org.elasticsearch.common.joda.time.DateTimeZone.UTC;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -79,10 +79,10 @@ public class EmailActionTests extends ElasticsearchTestCase {
             }
         };
 
-        DateTime now = DateTime.now(DateTimeZone.UTC);
+        DateTime now = DateTime.now(UTC);
 
         String ctxId = randomAsciiOfLength(5);
-        WatchExecutionContext ctx = mockExecutionContext(now, "watch1", payload);
+        WatchExecutionContext ctx = mockExecutionContext("watch1", now, payload);
         when(ctx.id()).thenReturn(ctxId);
         if (transform != null) {
             Transform.Result transformResult = mock(Transform.Result.class);
@@ -92,11 +92,14 @@ public class EmailActionTests extends ElasticsearchTestCase {
         }
         Map<String, Object> expectedModel = ImmutableMap.<String, Object>builder()
                 .put("ctx", ImmutableMap.<String, Object>builder()
-                    .put("watch_name", "watch1")
-                    .put("payload", transform == null ? data : new Payload.Simple("_key", "_value").data())
-                    .put("execution_time", now)
-                    .put("fire_time", now)
-                    .put("scheduled_fire_time", now).build())
+                        .put("watch_name", "watch1")
+                        .put("payload", transform == null ? data : new Payload.Simple("_key", "_value").data())
+                        .put("execution_time", now)
+                        .put("trigger", ImmutableMap.<String, Object>builder()
+                                .put("triggered_time", now)
+                                .put("scheduled_time", now)
+                                .build())
+                        .build())
                 .build();
 
         if (subject != null) {

@@ -6,23 +6,24 @@
 package org.elasticsearch.watcher.history;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
-import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.condition.Condition;
-import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.scheduler.Scheduler;
-import org.elasticsearch.watcher.support.Callback;
-import org.elasticsearch.watcher.support.clock.Clock;
-import org.elasticsearch.watcher.throttle.Throttler;
-import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.watcher.actions.Action;
+import org.elasticsearch.watcher.condition.Condition;
+import org.elasticsearch.watcher.input.Input;
+import org.elasticsearch.watcher.support.Callback;
+import org.elasticsearch.watcher.support.clock.Clock;
+import org.elasticsearch.watcher.throttle.Throttler;
+import org.elasticsearch.watcher.transform.Transform;
+import org.elasticsearch.watcher.trigger.TriggerEngine;
+import org.elasticsearch.watcher.trigger.TriggerEvent;
+import org.elasticsearch.watcher.trigger.TriggerService;
 import org.elasticsearch.watcher.watch.*;
 
 import java.io.IOException;
@@ -48,7 +49,7 @@ public class HistoryService extends AbstractComponent {
 
     @Inject
     public HistoryService(Settings settings, HistoryStore historyStore, WatchExecutor executor,
-                          WatchStore watchStore, WatchLockService watchLockService, Scheduler scheduler,
+                          WatchStore watchStore, WatchLockService watchLockService, TriggerService triggerService,
                           ClusterService clusterService, Clock clock) {
         super(settings);
         this.historyStore = historyStore;
@@ -57,7 +58,7 @@ public class HistoryService extends AbstractComponent {
         this.watchLockService = watchLockService;
         this.clusterService = clusterService;
         this.clock = clock;
-        scheduler.addListener(new SchedulerListener());
+        triggerService.register(new SchedulerListener());
     }
 
     public void start(ClusterState state, Callback<ClusterState> callback) {
@@ -106,11 +107,11 @@ public class HistoryService extends AbstractComponent {
         return executor.largestPoolSize();
     }
 
-    void execute(Watch watch, DateTime scheduledFireTime, DateTime fireTime) throws HistoryException {
+    void execute(Watch watch, TriggerEvent event) throws HistoryException {
         if (!started.get()) {
             throw new ElasticsearchIllegalStateException("not started");
         }
-        WatchRecord watchRecord = new WatchRecord(watch, scheduledFireTime, fireTime);
+        WatchRecord watchRecord = new WatchRecord(watch, event);
         logger.debug("saving watch record [{}]", watch.name());
         historyStore.put(watchRecord);
         executeAsync(watchRecord, watch);
@@ -223,7 +224,7 @@ public class HistoryService extends AbstractComponent {
             try {
                 watchRecord.update(WatchRecord.State.CHECKING, null);
                 logger.debug("checking watch [{}]", watchRecord.name());
-                WatchExecutionContext ctx = new WatchExecutionContext(watchRecord.id(), watch, clock.now(), watchRecord.fireTime(), watchRecord.scheduledTime());
+                WatchExecutionContext ctx = new WatchExecutionContext(watchRecord.id(), watch, clock.now(), watchRecord.triggerEvent());
                 WatchExecution execution = execute(ctx);
                 watchRecord.seal(execution);
                 historyStore.update(watchRecord);
@@ -247,9 +248,10 @@ public class HistoryService extends AbstractComponent {
 
     }
 
-    private class SchedulerListener implements Scheduler.Listener {
+    private class SchedulerListener implements TriggerEngine.Listener {
+
         @Override
-        public void fire(String name, DateTime scheduledFireTime, DateTime fireTime) {
+        public void triggered(String name, TriggerEvent event) {
             if (!started.get()) {
                 throw new ElasticsearchIllegalStateException("not started");
             }
@@ -259,7 +261,7 @@ public class HistoryService extends AbstractComponent {
                 return;
             }
             try {
-                HistoryService.this.execute(watch, scheduledFireTime, fireTime);
+                HistoryService.this.execute(watch, event);
             } catch (Exception e) {
                 logger.error("failed to execute watch [{}]", e, name);
             }

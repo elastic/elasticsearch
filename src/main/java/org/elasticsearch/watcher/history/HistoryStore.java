@@ -58,7 +58,7 @@ public class HistoryStore extends AbstractComponent {
     }
 
     public void put(WatchRecord watchRecord) throws HistoryException {
-        String index = getHistoryIndexNameForTime(watchRecord.scheduledTime());
+        String index = getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime());
         try {
             IndexRequest request = new IndexRequest(index, DOC_TYPE, watchRecord.id())
                     .source(XContentFactory.jsonBuilder().value(watchRecord))
@@ -74,7 +74,7 @@ public class HistoryStore extends AbstractComponent {
         logger.debug("updating watch record [{}]...", watchRecord);
         try {
             BytesReference bytes = XContentFactory.jsonBuilder().value(watchRecord).bytes();
-            IndexRequest request = new IndexRequest(getHistoryIndexNameForTime(watchRecord.scheduledTime()), DOC_TYPE, watchRecord.id())
+            IndexRequest request = new IndexRequest(getHistoryIndexNameForTime(watchRecord.triggerEvent().triggeredTime()), DOC_TYPE, watchRecord.id())
                     .source(bytes, true)
                     .version(watchRecord.version());
             IndexResponse response = client.index(request);

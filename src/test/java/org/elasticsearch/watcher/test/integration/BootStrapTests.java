@@ -8,16 +8,19 @@ package org.elasticsearch.watcher.test.integration;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchService;
-import org.elasticsearch.watcher.watch.WatchStore;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.DateTimeZone;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Actions;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
-import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.history.HistoryStore;
+import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.search.SearchInput;
-import org.elasticsearch.watcher.scheduler.schedule.CronSchedule;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
@@ -26,13 +29,12 @@ import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transform.SearchTransform;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.common.joda.time.DateTimeZone;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.watcher.trigger.schedule.CronSchedule;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.watcher.watch.Watch;
+import org.elasticsearch.watcher.watch.WatchService;
+import org.elasticsearch.watcher.watch.WatchStore;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -82,7 +84,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         Watch watch = new Watch(
                 "test-serialization",
                 SystemClock.INSTANCE,
-                new CronSchedule("0/5 * * * * ? 2035"), //Set this into the future so we don't get any extra runs
+                new ScheduleTrigger(new CronSchedule("0/5 * * * * ? 2035")), //Set this into the future so we don't get any extra runs
                 new SearchInput(logger, scriptService(), ClientProxy.of(client()), searchRequest),
                 new ScriptCondition(logger, scriptService(), new Script("return true")),
                 new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
@@ -98,9 +100,10 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         refresh();
         assertThat(indexResponse.isCreated(), is(true));
 
-        DateTime scheduledFireTime = new DateTime(DateTimeZone.UTC);
-        WatchRecord watchRecord = new WatchRecord(watch, scheduledFireTime, scheduledFireTime);
-        String actionHistoryIndex = HistoryStore.getHistoryIndexNameForTime(scheduledFireTime);
+        DateTime now = DateTime.now(DateTimeZone.UTC);
+        ScheduleTriggerEvent event = new ScheduleTriggerEvent(now, now);
+        WatchRecord watchRecord = new WatchRecord(watch, event);
+        String actionHistoryIndex = HistoryStore.getHistoryIndexNameForTime(now);
 
         createIndex(actionHistoryIndex);
         ensureGreen(actionHistoryIndex);
@@ -141,7 +144,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 Watch watch = new Watch(
                         "action-test-" + i + " " + j,
                         SystemClock.INSTANCE,
-                        new CronSchedule("0/5 * * * * ? 2035"), //Set a cron schedule far into the future so this watch is never scheduled
+                        new ScheduleTrigger(new CronSchedule("0/5 * * * * ? 2035")), //Set a cron schedule far into the future so this watch is never scheduled
                         new SearchInput(logger, scriptService(), ClientProxy.of(client()),
                                 searchRequest),
                         new ScriptCondition(logger, scriptService(), new Script("return true")),
@@ -156,7 +159,8 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 PutWatchResponse putWatchResponse = watcherClient().preparePutWatch(watch.name()).source(jsonBuilder.bytes()).get();
                 assertThat(putWatchResponse.indexResponse().isCreated(), is(true));
 
-                WatchRecord watchRecord = new WatchRecord(watch, historyIndexDate, historyIndexDate);
+                ScheduleTriggerEvent event = new ScheduleTriggerEvent(historyIndexDate, historyIndexDate);
+                WatchRecord watchRecord = new WatchRecord(watch, event);
 
                 XContentBuilder jsonBuilder2 = jsonBuilder();
                 watchRecord.toXContent(jsonBuilder2, ToXContent.EMPTY_PARAMS);

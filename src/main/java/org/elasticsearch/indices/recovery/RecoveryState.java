@@ -662,7 +662,7 @@ public class RecoveryState implements ToXContent, Streamable {
             if (in.getVersion().onOrAfter(Version.V_1_5_0)) {
                 reused = in.readBoolean();
             } else {
-                reused = recovered > 0;
+                reused = recovered <= 0;
             }
         }
 
@@ -682,7 +682,7 @@ public class RecoveryState implements ToXContent, Streamable {
             builder.field(Fields.NAME, name);
             builder.byteSizeField(Fields.LENGTH_IN_BYTES, Fields.LENGTH, length);
             builder.field(Fields.REUSED, reused);
-            builder.byteSizeField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, length);
+            builder.byteSizeField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, recovered);
             builder.endObject();
             return builder;
         }

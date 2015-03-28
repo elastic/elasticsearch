@@ -29,10 +29,14 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
+
+import java.util.HashMap;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -93,33 +97,38 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
         assertHitCount(countResponse, numDocs);
 
         RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").setDetailed(true).get();
+        HashMap<String, String> map = new HashMap<>();
+        map.put("details", "true");
+        final ToXContent.Params params = new ToXContent.MapParams(map);
         for (ShardRecoveryResponse response : recoveryResponse.shardResponses().get("test")) {
             RecoveryState recoveryState = response.recoveryState();
+
+            final String recoverStateAsJSON = XContentHelper.toString(recoveryState, params);
             if (!recoveryState.getPrimary()) {
                 RecoveryState.Index index = recoveryState.getIndex();
                 if (compatibilityVersion().onOrAfter(Version.V_1_2_0)) {
-                    assertThat(index.toString(), index.recoveredBytes(), equalTo(0l));
-                    assertThat(index.toString(), index.reusedBytes(), greaterThan(0l));
-                    assertThat(index.toString(), index.reusedBytes(), equalTo(index.totalBytes()));
-                    assertThat(index.toString(), index.recoveredFileCount(), equalTo(0));
-                    assertThat(index.toString(), index.reusedFileCount(), equalTo(index.totalFileCount()));
-                    assertThat(index.toString(), index.reusedFileCount(), greaterThan(0));
-                    assertThat(index.toString(), index.recoveredBytesPercent(), equalTo(100.f));
-                    assertThat(index.toString(), index.recoveredFilesPercent(), equalTo(100.f));
-                    assertThat(index.toString(), index.reusedBytes(), greaterThan(index.recoveredBytes()));
+                    assertThat(recoverStateAsJSON, index.recoveredBytes(), equalTo(0l));
+                    assertThat(recoverStateAsJSON, index.reusedBytes(), greaterThan(0l));
+                    assertThat(recoverStateAsJSON, index.reusedBytes(), equalTo(index.totalBytes()));
+                    assertThat(recoverStateAsJSON, index.recoveredFileCount(), equalTo(0));
+                    assertThat(recoverStateAsJSON, index.reusedFileCount(), equalTo(index.totalFileCount()));
+                    assertThat(recoverStateAsJSON, index.reusedFileCount(), greaterThan(0));
+                    assertThat(recoverStateAsJSON, index.recoveredBytesPercent(), equalTo(100.f));
+                    assertThat(recoverStateAsJSON, index.recoveredFilesPercent(), equalTo(100.f));
+                    assertThat(recoverStateAsJSON, index.reusedBytes(), greaterThan(index.recoveredBytes()));
                 } else {
                     /* We added checksums on 1.3 but they were available on 1.2 already since this uses Lucene 4.8.
                      * yet in this test we upgrade the entire cluster and therefor the 1.3 nodes try to read the checksum
                      * from the files even if they haven't been written with ES 1.3. Due to that we don't have to recover
                      * the segments files if we are on 1.2 or above...*/
-                    assertThat(index.toString(), index.recoveredBytes(), greaterThan(0l));
-                    assertThat(index.toString(), index.recoveredFileCount(), greaterThan(0));
-                    assertThat(index.toString(), index.reusedBytes(), greaterThan(0l));
-                    assertThat(index.toString(), index.recoveredBytesPercent(), greaterThan(0.0f));
-                    assertThat(index.toString(), index.recoveredBytesPercent(), equalTo(100.f));
-                    assertThat(index.toString(), index.recoveredFilesPercent(), equalTo(100.f));
-                    assertThat(index.toString(), index.reusedBytes(), greaterThan(index.recoveredBytes()));
-                    assertThat(index.toString(), index.recoveredBytes(), lessThan(index.totalBytes()));
+                    assertThat(recoverStateAsJSON, index.recoveredBytes(), greaterThan(0l));
+                    assertThat(recoverStateAsJSON, index.recoveredFileCount(), greaterThan(0));
+                    assertThat(recoverStateAsJSON, index.reusedBytes(), greaterThan(0l));
+                    assertThat(recoverStateAsJSON, index.recoveredBytesPercent(), greaterThan(0.0f));
+                    assertThat(recoverStateAsJSON, index.recoveredBytesPercent(), equalTo(100.f));
+                    assertThat(recoverStateAsJSON, index.recoveredFilesPercent(), equalTo(100.f));
+                    assertThat(recoverStateAsJSON, index.reusedBytes(), greaterThan(index.recoveredBytes()));
+                    assertThat(recoverStateAsJSON, index.recoveredBytes(), lessThan(index.totalBytes()));
                 }
                 // TODO upgrade via optimize?
             }

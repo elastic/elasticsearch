@@ -59,6 +59,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
     private final LongObjectPagedHashMap<long[]> parentOrdToOtherBuckets;
     private boolean multipleBucketsPerParentOrd = false;
 
+    // This needs to be a Set to avoid duplicate reader context entries via (#setNextReader(...), it can get invoked multiple times with the same reader context)
     private Set<LeafReaderContext> replay = new LinkedHashSet<>();
 
     public ParentToChildrenAggregator(String name, AggregatorFactories factories, AggregationContext aggregationContext,

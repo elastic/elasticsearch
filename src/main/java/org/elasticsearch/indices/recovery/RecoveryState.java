@@ -641,7 +641,7 @@ public class RecoveryState implements ToXContent, Streamable {
             builder.field(Fields.NAME, name);
             builder.byteSizeField(Fields.LENGTH_IN_BYTES, Fields.LENGTH, length);
             builder.field(Fields.REUSED, reused);
-            builder.byteSizeField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, length);
+            builder.byteSizeField(Fields.RECOVERED_IN_BYTES, Fields.RECOVERED, recovered);
             builder.endObject();
             return builder;
         }

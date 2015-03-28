@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
     <name>Elasticsearch JavaScript language plugin</name>
     <description>The JavaScript language plugin allows to have javascript as the language of scripts to execute.</description>
-    <url>https://github.com/elasticsearch/elasticsearch-lang-javascript/</url>
+    <url>https://github.com/elastic/elasticsearch-lang-javascript/</url>
     <inceptionYear>2009</inceptionYear>
     <licenses>
         <license>
@@ -20,9 +20,9 @@
         </license>
     </licenses>
     <scm>
-        <connection>scm:git:git@github.com:elasticsearch/elasticsearch-lang-javascript.git</connection>
-        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-lang-javascript.git</developerConnection>
-        <url>http://github.com/elasticsearch/elasticsearch-lang-javascript</url>
+        <connection>scm:git:git@github.com:elastic/elasticsearch-lang-javascript.git</connection>
+        <developerConnection>scm:git:git@github.com:elastic/elasticsearch-lang-javascript.git</developerConnection>
+        <url>http://github.com/elastic/elasticsearch-lang-javascript</url>
     </scm>
 
     <parent>

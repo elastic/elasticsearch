@@ -664,10 +664,10 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         mapping2.endObject()
                 .endObject().endObject();
 
-        testConflict(mapping1.string(), mapping2.string(), parser, (path1 == path2 ? null : "Cannot update path in _timestamp value"));
+        assertConflict(mapping1.string(), mapping2.string(), parser, (path1 == path2 ? null : "Cannot update path in _timestamp value"));
     }
 
-    void testConflict(String mapping1, String mapping2, DocumentMapperParser parser, String conflict) throws IOException {
+    void assertConflict(String mapping1, String mapping2, DocumentMapperParser parser, String conflict) throws IOException {
         DocumentMapper docMapper = parser.parse(mapping1);
         docMapper.refreshSource();
         docMapper = parser.parse(docMapper.mappingSource().string());
@@ -676,5 +676,60 @@ public class TimestampMappingTests extends ElasticsearchSingleNodeTest {
         if (conflict != null) {
             assertThat(mergeResult.conflicts()[0], containsString(conflict));
         }
+    }
+    
+    public void testDocValuesSerialization() throws Exception {
+        // default
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_timestamp")
+            .endObject().endObject().endObject().string();
+        assertDocValuesSerialization(mapping);
+
+        // just format specified
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_timestamp")
+            .startObject("fielddata").field("format", "doc_values").endObject()
+            .endObject().endObject().endObject().string();
+        assertDocValuesSerialization(mapping);
+
+        // explicitly enabled
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_timestamp")
+            .field("doc_values", true)
+            .endObject().endObject().endObject().string();
+        assertDocValuesSerialization(mapping);
+
+        // explicitly disabled
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_timestamp")
+            .field("doc_values", false)
+            .endObject().endObject().endObject().string();
+        assertDocValuesSerialization(mapping);
+
+        // explicitly enabled, with format
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_timestamp")
+            .field("doc_values", true)
+            .startObject("fielddata").field("format", "doc_values").endObject()
+            .endObject().endObject().endObject().string();
+        assertDocValuesSerialization(mapping);
+
+        // explicitly disabled, with format
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("_timestamp")
+            .field("doc_values", false)
+            .startObject("fielddata").field("format", "doc_values").endObject()
+            .endObject().endObject().endObject().string();
+        assertDocValuesSerialization(mapping);
+    }
+    
+    void assertDocValuesSerialization(String mapping) throws Exception {
+        DocumentMapperParser parser = createIndex("test_doc_values").mapperService().documentMapperParser();
+        DocumentMapper docMapper = parser.parse(mapping);
+        boolean docValues= docMapper.timestampFieldMapper().hasDocValues();
+        docMapper.refreshSource();
+        docMapper = parser.parse(docMapper.mappingSource().string());
+        assertThat(docMapper.timestampFieldMapper().hasDocValues(), equalTo(docValues));
+        assertAcked(client().admin().indices().prepareDelete("test_doc_values"));
     }
 }

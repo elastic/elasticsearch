@@ -294,7 +294,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
     protected final Names names;
     protected float boost;
     protected FieldType fieldType;
-    protected final boolean docValues;
+    protected final Boolean docValues;
     protected final NamedAnalyzer indexAnalyzer;
     protected NamedAnalyzer searchAnalyzer;
     protected final SimilarityProvider similarity;
@@ -349,13 +349,9 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         } else if (fieldDataType != null && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(fieldDataType.getFormat(indexSettings))) {
             // convoluted way to enable doc values, should be removed in the future
             this.docValues = true;
-        } else if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0)) {
-            // 2.0+ index, default to true when appropriate
-            this.docValues = defaultDocValues();
         } else {
-            // old default, disable
-            this.docValues = false;
-        } 
+            this.docValues = null; // use the default
+        }
         this.multiFields = multiFields;
         this.copyTo = copyTo;
     }
@@ -380,7 +376,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
 
     @Override
     public final boolean hasDocValues() {
-        return docValues;
+        return docValues == null ? defaultDocValues() : docValues;
     }
 
     @Override
@@ -723,9 +719,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
         if (includeDefaults || fieldType.stored() != defaultFieldType.stored()) {
             builder.field("store", fieldType.stored());
         }
-        if (includeDefaults || hasDocValues() != defaultDocValues()) {
-            builder.field(TypeParsers.DOC_VALUES, docValues);
-        }
+        doXContentDocValues(builder, includeDefaults);
         if (includeDefaults || fieldType.storeTermVectors() != defaultFieldType.storeTermVectors()) {
             builder.field("term_vector", termVectorOptionsToString(fieldType));
         }
@@ -776,6 +770,12 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             if (searchAnalyzer.name().equals(indexAnalyzer.name()) == false) {
                 builder.field("search_analyzer", searchAnalyzer.name());
             }
+        }
+    }
+    
+    protected void doXContentDocValues(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        if (includeDefaults || docValues != null) {
+            builder.field(TypeParsers.DOC_VALUES, hasDocValues());
         }
     }
 

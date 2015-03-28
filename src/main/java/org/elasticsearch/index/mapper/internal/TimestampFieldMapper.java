@@ -42,7 +42,6 @@ import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.core.TypeParsers;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -328,9 +327,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());
         }
-        if (includeDefaults || hasDocValues() != defaultDocValues()) {
-            builder.field(TypeParsers.DOC_VALUES, docValues);
-        }
+        doXContentDocValues(builder, includeDefaults);
         if (includeDefaults || path != Defaults.PATH) {
             builder.field("path", path);
         }

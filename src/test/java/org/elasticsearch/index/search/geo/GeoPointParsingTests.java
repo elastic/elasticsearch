@@ -20,9 +20,11 @@
 package org.elasticsearch.index.search.geo;
 
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.ShapeBuilderTests;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -78,7 +80,7 @@ public class GeoPointParsingTests  extends ElasticsearchTestCase {
     }
 
     // Based on issue5390
-    @Test
+    @Test(expected = ElasticsearchParseException.class)
     public void testInvalidPointEmbeddedObject() throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.startObject();
@@ -89,14 +91,11 @@ public class GeoPointParsingTests  extends ElasticsearchTestCase {
 
         XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
         parser.nextToken();
-        
-        try {
-            GeoUtils.parseGeoPoint(parser);
-            assertTrue(false);
-        } catch (Throwable e) {}
+
+        GeoUtils.parseGeoPoint(parser);
     }
 
-    @Test
+    @Test(expected = ElasticsearchParseException.class)
     public void testInvalidPointLatHashMix() throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.startObject();
@@ -106,13 +105,10 @@ public class GeoPointParsingTests  extends ElasticsearchTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
         parser.nextToken();
 
-        try {
-            GeoUtils.parseGeoPoint(parser);
-            assertTrue(false);
-        } catch (Throwable e) {}
+        GeoUtils.parseGeoPoint(parser);
     }
 
-    @Test
+    @Test(expected = ElasticsearchParseException.class)
     public void testInvalidPointLonHashMix() throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.startObject();
@@ -122,13 +118,10 @@ public class GeoPointParsingTests  extends ElasticsearchTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
         parser.nextToken();
 
-        try {
-            GeoUtils.parseGeoPoint(parser);
-            assertTrue(false);
-        } catch (Throwable e) {}
+        GeoUtils.parseGeoPoint(parser);
     }
 
-    @Test
+    @Test(expected = ElasticsearchParseException.class)
     public void testInvalidField() throws IOException {
         XContentBuilder content = JsonXContent.contentBuilder();
         content.startObject();
@@ -138,10 +131,7 @@ public class GeoPointParsingTests  extends ElasticsearchTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(content.bytes());
         parser.nextToken();
 
-        try {
-            GeoUtils.parseGeoPoint(parser);
-            assertTrue(false);
-        } catch (Throwable e) {}
+        GeoUtils.parseGeoPoint(parser);
     }
 
     private static XContentParser objectLatLon(double lat, double lon) throws IOException {

@@ -175,19 +175,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
     private void parsePercolateAction(XContentParser parser, PercolateRequest percolateRequest, boolean allowExplicitIndex) throws IOException {
         String globalIndex = indices != null && indices.length > 0 ? indices[0] : null;
 
-        Map<String, Object> header = new HashMap<>();
-
-        String currentFieldName = null;
-        XContentParser.Token token;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                header.put(currentFieldName, parser.text());
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                header.put(currentFieldName, parseArray(parser));
-            }
-        }
+        Map<String, Object> header = parseToMap(parser);
 
         IndicesOptions defaultOptions = indicesOptions;
         boolean ignoreUnavailable = defaultOptions.ignoreUnavailable();
@@ -226,11 +214,11 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                     percolateRequest.preference((String) value);
                 } else if ("percolate_routing".equals(entry.getKey()) || "percolateRouting".equals(entry.getKey())) {
                     percolateRequest.routing((String) value);
-                } else if ("ignore_unavailable".equals(currentFieldName) || "ignoreUnavailable".equals(currentFieldName)) {
+                } else if ("ignore_unavailable".equals(entry.getKey()) || "ignoreUnavailable".equals(entry.getKey())) {
                     ignoreUnavailable = Boolean.valueOf((String) value);
-                } else if ("allow_no_indices".equals(currentFieldName) || "allowNoIndices".equals(currentFieldName)) {
+                } else if ("allow_no_indices".equals(entry.getKey()) || "allowNoIndices".equals(entry.getKey())) {
                     allowNoIndices = Boolean.valueOf((String) value);
-                } else if ("expand_wildcards".equals(currentFieldName) || "expandWildcards".equals(currentFieldName)) {
+                } else if ("expand_wildcards".equals(entry.getKey()) || "expandWildcards".equals(entry.getKey())) {
                     String[] wildcards;
                     if (value instanceof String[]) {
                         wildcards = (String[]) value;
@@ -281,11 +269,11 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                     percolateRequest.preference((String) value);
                 } else if ("routing".equals(entry.getKey())) {
                     percolateRequest.routing((String) value);
-                } else if ("ignore_unavailable".equals(currentFieldName) || "ignoreUnavailable".equals(currentFieldName)) {
+                } else if ("ignore_unavailable".equals(entry.getKey()) || "ignoreUnavailable".equals(entry.getKey())) {
                     ignoreUnavailable = Boolean.valueOf((String) value);
-                } else if ("allow_no_indices".equals(currentFieldName) || "allowNoIndices".equals(currentFieldName)) {
+                } else if ("allow_no_indices".equals(entry.getKey()) || "allowNoIndices".equals(entry.getKey())) {
                     allowNoIndices = Boolean.valueOf((String) value);
-                } else if ("expand_wildcards".equals(currentFieldName) || "expandWildcards".equals(currentFieldName)) {
+                } else if ("expand_wildcards".equals(entry.getKey()) || "expandWildcards".equals(entry.getKey())) {
                     String[] wildcards;
                     if (value instanceof String[]) {
                         wildcards = (String[]) value;
@@ -306,6 +294,23 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
             }
         }
         percolateRequest.indicesOptions(IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandWildcardsOpen, expandWildcardsClosed, defaultOptions));
+    }
+
+    private Map<String, Object> parseToMap(XContentParser parser) throws IOException {
+        Map<String, Object> header = new HashMap<>();
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                header.put(currentFieldName, parser.text());
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                header.put(currentFieldName, parseArray(parser));
+            }
+        }
+        return header;
     }
 
     private String[] parseArray(XContentParser parser) throws IOException {

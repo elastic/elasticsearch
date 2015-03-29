@@ -90,7 +90,7 @@ It also uses the common
 === Disable HTTP
 
 The http module can be completely disabled and not started by setting
-`http.enabled` to `false`. This make sense when creating non
-<<modules-node,data nodes>> which accept HTTP
+`http.enabled` to `false`. It makes sense to do this on data nodes 
+when a cluster also has non <<modules-node,data nodes>> which accept HTTP
 requests, and communicate with data nodes using the internal
 <<modules-transport,transport>>.

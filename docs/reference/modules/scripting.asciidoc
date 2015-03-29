@@ -82,12 +82,20 @@ GET /_search
 
 
 Additional `lang` plugins are provided to allow to execute scripts in
-different languages. Currently supported plugins are `lang-javascript`
-for JavaScript, `lang-mvel` for Mvel, and `lang-python` for Python.
-All places where a `script` parameter can be used, a `lang` parameter
+different languages. All places where a `script` parameter can be used, a `lang` parameter
 (on the same level) can be provided to define the language of the
-script. The `lang` options are `groovy`, `js`, `mvel`, `python`,
-`expression` and `native`.
+script. The following are the supported scripting languages:
+
+[cols="<,<,<",options="header",]
+|=======================================================================
+|Language   |Sandboxed |Required plugin
+|groovy     |no        |built-in
+|expression |yes       |built-in
+|mustache   |yes       |built-in
+|mvel       |no        |https://github.com/elastic/elasticsearch-lang-mvel[elasticsearch-lang-mvel]
+|javascript |no        |https://github.com/elastic/elasticsearch-lang-javascript[elasticsearch-lang-javascript]
+|python     |no        |https://github.com/elastic/elasticsearch-lang-python[elasticsearch-lang-python]
+|=======================================================================
 
 To increase security, Elasticsearch does not allow you to specify scripts for
 non-sandboxed languages with a request. Instead, scripts must be placed in the
@@ -230,8 +238,6 @@ protects Elasticsearch from the outside world. If users are allowed to run
 inline scripts (even in a search request) or indexed scripts, then they have
 the same access to your box as the user that Elasticsearch is running as. For
 this reason dynamic scripting is allowed only for sandboxed languages by default.
-The script engines that currently support sandboxing are `mustache` and
-`expressions`.
 
 First, you should not run Elasticsearch as the `root` user, as this would allow
 a script to access or do *anything* on your server, without limitations. Second,
@@ -267,7 +273,7 @@ script settings:
 |Value |Description
 | `off` |scripting is turned off completely, in the context of the setting being set.
 | `on`  |scripting is turned on, in the context of the setting being set.
-| `sandbox` |scripts may be executed only for languages that are sandboxed (`mustache` and `expressions`)
+| `sandbox` |scripts may be executed only for languages that are sandboxed
 |=======================================================================
 
 The default values are the following:

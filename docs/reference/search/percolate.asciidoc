@@ -398,7 +398,7 @@ Response:
 [source,js]
 --------------------------------------------------
 {
-    "items" : [
+    "responses" : [
         {
             "took" : 24,
             "_shards" : {
@@ -407,7 +407,20 @@ Response:
                 "failed" : 0,
             },
             "total" : 3,
-            "matches" : ["1", "2", "3"]
+            "matches" : [
+                {
+                    "_index": "twitter",
+                    "_id": "1"
+                },
+                {
+                    "_index": "twitter",
+                    "_id": "2"
+                },
+                {
+                    "_index": "twitter",
+                    "_id": "3"
+                }
+            ]
         },
         {
             "took" : 12,
@@ -417,10 +430,23 @@ Response:
                 "failed" : 0,
             },
             "total" : 3,
-            "matches" : ["4", "5", "6"]
+            "matches" : [
+                {
+                    "_index": "twitter",
+                    "_id": "4"
+                },
+                {
+                    "_index": "twitter",
+                    "_id": "5"
+                },
+                {
+                    "_index": "twitter",
+                    "_id": "6"
+                }
+             ]
         },
         {
-            "error" : "[user][3]document missing"
+            "error" : "DocumentMissingException[[_na][_na] [user][3]: document missing]"
         },
         {
             "took" : 12,
@@ -442,6 +468,7 @@ Response:
         }
     ]
 }
+
 --------------------------------------------------
 
 Each item represents a percolate response, the order of the items maps to the order in which the percolate requests

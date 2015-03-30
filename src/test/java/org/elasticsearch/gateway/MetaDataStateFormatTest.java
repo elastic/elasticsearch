@@ -36,6 +36,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -49,6 +50,7 @@ import org.junit.Test;
 import java.io.Closeable;
 import java.io.InputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
@@ -63,7 +65,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -78,7 +79,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
      * Ensure we can read a pre-generated cluster state.
      */
     public void testReadClusterState() throws URISyntaxException, IOException {
-        final MetaDataStateFormat<MetaData> format = new MetaDataStateFormat<MetaData>(randomFrom(XContentType.values()), false) {
+        final MetaDataStateFormat<MetaData> format = new MetaDataStateFormat<MetaData>(randomFrom(XContentType.values()), "global-") {
 
             @Override
             public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
@@ -95,7 +96,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         assertThat(resource, notNullValue());
         Path dst = tmp.resolve("global-3.st");
         Files.copy(resource, dst);
-        MetaData read = format.read(dst, 3);
+        MetaData read = format.read(dst);
         assertThat(read, notNullValue());
         assertThat(read.uuid(), equalTo("3O1tDF1IRB6fSJ-GrTMUtg"));
         // indices are empty since they are serialized separately
@@ -106,47 +107,38 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = newTempDirPath(LifecycleScope.TEST);
         }
-        final boolean deleteOldFiles = randomBoolean();
-        Format format = new Format(randomFrom(XContentType.values()), deleteOldFiles);
+        final long id = addDummyFiles("foo-", dirs);
+        Format format = new Format(randomFrom(XContentType.values()), "foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
-        format.write(state, "foo-", version, dirs);
+        format.write(state, version, dirs);
         for (Path file : dirs) {
-            Path[] list = content(file);
+            Path[] list = content("*", file);
             assertEquals(list.length, 1);
             assertThat(list[0].getFileName().toString(), equalTo(MetaDataStateFormat.STATE_DIR_NAME));
             Path stateDir = list[0];
             assertThat(Files.isDirectory(stateDir), is(true));
-            list = content(stateDir);
+            list = content("foo-*", stateDir);
             assertEquals(list.length, 1);
-            assertThat(list[0].getFileName().toString(), equalTo("foo-" + version + ".st"));
-            DummyState read = format.read(list[0], version);
+            assertThat(list[0].getFileName().toString(), equalTo("foo-" + id + ".st"));
+            DummyState read = format.read(list[0]);
             assertThat(read, equalTo(state));
         }
         final int version2 = between(version, Integer.MAX_VALUE);
         DummyState state2 = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
-        format.write(state2, "foo-", version2, dirs);
+        format.write(state2, version2, dirs);
 
         for (Path file : dirs) {
-            Path[] list = content(file);
+            Path[] list = content("*", file);
             assertEquals(list.length, 1);
             assertThat(list[0].getFileName().toString(), equalTo(MetaDataStateFormat.STATE_DIR_NAME));
             Path stateDir = list[0];
             assertThat(Files.isDirectory(stateDir), is(true));
-            list = content(stateDir);
-            assertEquals(list.length, deleteOldFiles ? 1 : 2);
-            if (deleteOldFiles) {
-                assertThat(list[0].getFileName().toString(), equalTo("foo-" + version2 + ".st"));
-                DummyState read = format.read(list[0], version2);
-                assertThat(read, equalTo(state2));
-            } else {
-                assertThat(list[0].getFileName().toString(), anyOf(equalTo("foo-" + version + ".st"), equalTo("foo-" + version2 + ".st")));
-                assertThat(list[1].getFileName().toString(), anyOf(equalTo("foo-" + version + ".st"), equalTo("foo-" + version2 + ".st")));
-                DummyState read = format.read(stateDir.resolve("foo-" + version2 + ".st"), version2);
-                assertThat(read, equalTo(state2));
-                read = format.read(stateDir.resolve("foo-" + version + ".st"), version);
-                assertThat(read, equalTo(state));
-            }
+            list = content("foo-*", stateDir);
+            assertEquals(list.length,1);
+            assertThat(list[0].getFileName().toString(), equalTo("foo-"+ (id+1) + ".st"));
+            DummyState read = format.read(list[0]);
+            assertThat(read, equalTo(state2));
 
         }
     }
@@ -157,27 +149,22 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = newTempDirPath(LifecycleScope.TEST);
         }
-        final boolean deleteOldFiles = randomBoolean();
-        Format format = new Format(randomFrom(XContentType.values()), deleteOldFiles);
+        final long id = addDummyFiles("foo-", dirs);
+
+        Format format = new Format(randomFrom(XContentType.values()), "foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
-        format.write(state, "foo-", version, dirs);
+        format.write(state, version, dirs);
         for (Path file : dirs) {
-            Path[] list = content(file);
+            Path[] list = content("*", file);
             assertEquals(list.length, 1);
             assertThat(list[0].getFileName().toString(), equalTo(MetaDataStateFormat.STATE_DIR_NAME));
             Path stateDir = list[0];
             assertThat(Files.isDirectory(stateDir), is(true));
-            list = content(stateDir);
+            list = content("foo-*", stateDir);
             assertEquals(list.length, 1);
-            assertThat(list[0].getFileName().toString(), equalTo("foo-" + version + ".st"));
-            try {
-                format.read(list[0], between(version+1, Integer.MAX_VALUE));
-                fail("corruption expected");
-            } catch (CorruptStateException ex) {
-                // success
-            }
-            DummyState read = format.read(list[0], version);
+            assertThat(list[0].getFileName().toString(), equalTo("foo-" + id + ".st"));
+            DummyState read = format.read(list[0]);
             assertThat(read, equalTo(state));
         }
     }
@@ -187,26 +174,26 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = newTempDirPath(LifecycleScope.TEST);
         }
-        final boolean deleteOldFiles = randomBoolean();
-        Format format = new Format(randomFrom(XContentType.values()), deleteOldFiles);
+        final long id = addDummyFiles("foo-", dirs);
+        Format format = new Format(randomFrom(XContentType.values()), "foo-");
         DummyState state = new DummyState(randomRealisticUnicodeOfCodepointLengthBetween(1, 1000), randomInt(), randomLong(), randomDouble(), randomBoolean());
         int version = between(0, Integer.MAX_VALUE/2);
-        format.write(state, "foo-", version, dirs);
+        format.write(state, version, dirs);
         for (Path file : dirs) {
-            Path[] list = content(file);
+            Path[] list = content("*", file);
             assertEquals(list.length, 1);
             assertThat(list[0].getFileName().toString(), equalTo(MetaDataStateFormat.STATE_DIR_NAME));
             Path stateDir = list[0];
             assertThat(Files.isDirectory(stateDir), is(true));
-            list = content(stateDir);
+            list = content("foo-*", stateDir);
             assertEquals(list.length, 1);
-            assertThat(list[0].getFileName().toString(), equalTo("foo-" + version + ".st"));
-            DummyState read = format.read(list[0], version);
+            assertThat(list[0].getFileName().toString(), equalTo("foo-" + id + ".st"));
+            DummyState read = format.read(list[0]);
             assertThat(read, equalTo(state));
             // now corrupt it
             corruptFile(list[0], logger);
             try {
-                format.read(list[0], version);
+                format.read(list[0]);
                 fail("corrupted file");
             } catch (CorruptStateException ex) {
                 // expected
@@ -230,9 +217,8 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
                 bb.flip();
                 byte oldValue = bb.get(0);
                 byte newValue = (byte) ~oldValue;
-                
-                raf.position(filePointer);
-                raf.write(bb);
+                bb.put(0, newValue);
+                raf.write(bb, filePointer);
                 logger.debug("Corrupting file {} --  flipping at position {} from {} to {} ", fileToCorrupt.getFileName().toString(), filePointer, Integer.toHexString(oldValue), Integer.toHexString(newValue));
             }
         long checksumAfterCorruption;
@@ -258,7 +244,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
     // If the latest version doesn't use the legacy format while previous versions do, then fail hard
     public void testLatestVersionDoesNotUseLegacy() throws IOException {
         final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
-        MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params, randomBoolean());
+        MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params);
         final Path[] dirs = new Path[2];
         dirs[0] = newTempDirPath(LifecycleScope.TEST);
         dirs[1] = newTempDirPath(LifecycleScope.TEST);
@@ -268,7 +254,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         final Path dir1 = randomFrom(dirs);
         final int v1 = randomInt(10);
         // write a first state file in the new format
-        format.write(randomMeta(), MetaStateService.GLOBAL_STATE_FILE_PREFIX, v1, dir1);
+        format.write(randomMeta(), v1, dir1);
 
         // write older state files in the old format but with a newer version
         final int numLegacyFiles = randomIntBetween(1, 5);
@@ -283,24 +269,33 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         }
 
         try {
-            MetaDataStateFormat.loadLatestState(logger, format, MetaStateService.GLOBAL_STATE_FILE_PATTERN, "foobar", dirs);
+            format.loadLatestState(logger, dirs);
             fail("latest version can not be read");
         } catch (ElasticsearchIllegalStateException ex) {
             assertThat(ex.getMessage(), startsWith("Could not find a state file to recover from among "));
         }
+        // write the next state file in the new format and ensure it get's a higher ID
+        final MetaData meta = randomMeta();
+        format.write(meta, v1, dirs);
+        final MetaData metaData = format.loadLatestState(logger, dirs);
+        assertEquals(meta.uuid(), metaData.uuid());
+        final Path path = randomFrom(dirs);
+        final Path[] files = FileSystemUtils.files(path.resolve("_state"));
+        assertEquals(1, files.length);
+        assertEquals("global-" + format.findMaxStateId("global-", dirs) + ".st", files[0].getFileName().toString());
+
     }
 
     // If both the legacy and the new format are available for the latest version, prefer the new format
     public void testPrefersNewerFormat() throws IOException {
         final ToXContent.Params params = ToXContent.EMPTY_PARAMS;
-        MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params, randomBoolean());
+        MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params);
         final Path[] dirs = new Path[2];
         dirs[0] = newTempDirPath(LifecycleScope.TEST);
         dirs[1] = newTempDirPath(LifecycleScope.TEST);
         for (Path dir : dirs) {
             Files.createDirectories(dir.resolve(MetaDataStateFormat.STATE_DIR_NAME));
         }
-        final Path dir1 = randomFrom(dirs);
         final long v = randomInt(10);
 
         MetaData meta = randomMeta();
@@ -317,10 +312,12 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         }
 
         // write a second state file in the new format but with the same version
-        format.write(meta, MetaStateService.GLOBAL_STATE_FILE_PREFIX, v, dir1);
+        format.write(meta, v, dirs);
 
-        MetaData state = MetaDataStateFormat.loadLatestState(logger, format, MetaStateService.GLOBAL_STATE_FILE_PATTERN, "foobar", dirs);
-        assertThat(state.uuid(), equalTo(uuid));
+        MetaData state = format.loadLatestState(logger, dirs);
+        final Path path = randomFrom(dirs);
+        assertTrue(Files.exists(path.resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + (v+1) + ".st")));
+        assertEquals(state.uuid(), uuid);
     }
 
     @Test
@@ -334,7 +331,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
             meta.add(randomMeta());
         }
         Set<Path> corruptedFiles = new HashSet<>();
-        MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params, randomBoolean());
+        MetaDataStateFormat<MetaData> format = MetaStateService.globalStateFormat(randomFrom(XContentType.values()), params);
         for (int i = 0; i < dirs.length; i++) {
             dirs[i] = newTempDirPath(LifecycleScope.TEST);
             Files.createDirectories(dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME));
@@ -352,7 +349,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
                 }
             }
             for (int j = numLegacy; j < numStates; j++) {
-                format.write(meta.get(j), MetaStateService.GLOBAL_STATE_FILE_PREFIX, j, dirs[i]);
+                format.write(meta.get(j), j, dirs[i]);
                 if (randomBoolean() && (j < numStates - 1 || dirs.length > 0 && i != 0)) {  // corrupt a file that we do not necessarily need here....
                     Path file = dirs[i].resolve(MetaDataStateFormat.STATE_DIR_NAME).resolve("global-" + j + ".st");
                     corruptedFiles.add(file);
@@ -363,7 +360,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         }
         List<Path> dirList = Arrays.asList(dirs);
         Collections.shuffle(dirList, getRandom());
-        MetaData loadedMetaData = MetaDataStateFormat.loadLatestState(logger, format, MetaStateService.GLOBAL_STATE_FILE_PATTERN, "foobar", dirList.toArray(new Path[0]));
+        MetaData loadedMetaData = format.loadLatestState(logger, dirList.toArray(new Path[0]));
         MetaData latestMetaData = meta.get(numStates-1);
         assertThat(loadedMetaData.uuid(), not(equalTo("_na_")));
         assertThat(loadedMetaData.uuid(), equalTo(latestMetaData.uuid()));
@@ -387,7 +384,7 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
                 MetaDataStateFormatTest.corruptFile(file, logger);
             }
             try {
-                MetaDataStateFormat.loadLatestState(logger, format, MetaStateService.GLOBAL_STATE_FILE_PATTERN, "foobar", dirList.toArray(new Path[0]));
+                format.loadLatestState(logger, dirList.toArray(new Path[0]));
                 fail("latest version can not be read");
             } catch (ElasticsearchException ex) {
                 assertThat(ex.getCause(), instanceOf(CorruptStateException.class));
@@ -414,8 +411,8 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
 
     private class Format extends MetaDataStateFormat<DummyState> {
 
-        Format(XContentType format, boolean deleteOldFiles) {
-            super(format, deleteOldFiles);
+        Format(XContentType format, String prefix) {
+            super(format, prefix);
         }
 
         @Override
@@ -567,9 +564,30 @@ public class MetaDataStateFormatTest extends ElasticsearchTestCase {
         }
     }
 
-    public Path[] content(Path dir) throws IOException {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
+    public Path[] content(String glob, Path dir) throws IOException {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, glob)) {
             return Iterators.toArray(stream.iterator(), Path.class);
         }
+    }
+
+    public long addDummyFiles(String prefix, Path... paths) throws IOException {
+        int realId = -1;
+        for (Path path : paths) {
+            if (randomBoolean()) {
+                Path stateDir = path.resolve(MetaDataStateFormat.STATE_DIR_NAME);
+                Files.createDirectories(stateDir);
+                String actualPrefix = prefix;
+                int id = randomIntBetween(0, 10);
+                if (randomBoolean()) {
+                    actualPrefix = "dummy-";
+                } else {
+                   realId = Math.max(realId, id);
+                }
+                try (OutputStream stream = Files.newOutputStream(stateDir.resolve(actualPrefix + id + MetaDataStateFormat.STATE_FILE_EXTENSION))) {
+                    stream.write(0);
+                }
+            }
+        }
+        return realId + 1;
     }
 }

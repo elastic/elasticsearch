@@ -1274,7 +1274,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                     return;
                 }
                 final ShardStateMetaData newShardStateMetadata = new ShardStateMetaData(newRouting.version(), newRouting.primary(), getIndexUUID());
-                ShardStateMetaData.write(logger, writeReason, shardId, newShardStateMetadata, currentRouting != null, nodeEnv.shardPaths(shardId));
+                logger.trace("{} writing shard state, reason [{}]", shardId, writeReason);
+                ShardStateMetaData.FORMAT.write(newShardStateMetadata, newShardStateMetadata.version, nodeEnv.shardPaths(shardId));
             } catch (IOException e) { // this is how we used to handle it.... :(
                 logger.warn("failed to write shard state", e);
                 // we failed to write the shard state, we will try and write

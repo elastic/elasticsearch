@@ -38,7 +38,6 @@ import java.util.regex.Pattern;
 public final class ShardStateMetaData {
 
     private static final String SHARD_STATE_FILE_PREFIX = "state-";
-    private static final Pattern SHARD_STATE_FILE_PATTERN = Pattern.compile(SHARD_STATE_FILE_PREFIX + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
     private static final String PRIMARY_KEY = "primary";
     private static final String VERSION_KEY = "version";
     private static final String INDEX_UUID_KEY = "index_uuid" ;
@@ -91,70 +90,57 @@ public final class ShardStateMetaData {
         return "version [" + version + "], primary [" + primary + "]";
     }
 
-    private static MetaDataStateFormat<ShardStateMetaData> newShardStateInfoFormat(boolean deleteOldFiles) {
-        return new MetaDataStateFormat<ShardStateMetaData>(XContentType.JSON, deleteOldFiles) {
+    public static final MetaDataStateFormat<ShardStateMetaData> FORMAT = new MetaDataStateFormat<ShardStateMetaData>(XContentType.JSON, SHARD_STATE_FILE_PREFIX) {
 
-            @Override
-            protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream) throws IOException {
-                XContentBuilder xContentBuilder = super.newXContentBuilder(type, stream);
-                xContentBuilder.prettyPrint();
-                return xContentBuilder;
+        @Override
+        protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream) throws IOException {
+            XContentBuilder xContentBuilder = super.newXContentBuilder(type, stream);
+            xContentBuilder.prettyPrint();
+            return xContentBuilder;
+        }
+
+        @Override
+        public void toXContent(XContentBuilder builder, ShardStateMetaData shardStateMetaData) throws IOException {
+            builder.field(VERSION_KEY, shardStateMetaData.version);
+            builder.field(PRIMARY_KEY, shardStateMetaData.primary);
+            builder.field(INDEX_UUID_KEY, shardStateMetaData.indexUUID);
+        }
+
+        @Override
+        public ShardStateMetaData fromXContent(XContentParser parser) throws IOException {
+            XContentParser.Token token = parser.nextToken();
+            if (token == null) {
+                return null;
             }
-
-            @Override
-            public void toXContent(XContentBuilder builder, ShardStateMetaData shardStateMetaData) throws IOException {
-                builder.field(VERSION_KEY, shardStateMetaData.version);
-                builder.field(PRIMARY_KEY, shardStateMetaData.primary);
-                builder.field(INDEX_UUID_KEY, shardStateMetaData.indexUUID);
-            }
-
-            @Override
-            public ShardStateMetaData fromXContent(XContentParser parser) throws IOException {
-                XContentParser.Token token = parser.nextToken();
-                if (token == null) {
-                    return null;
-                }
-                long version = -1;
-                Boolean primary = null;
-                String currentFieldName = null;
-                String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
-                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    if (token == XContentParser.Token.FIELD_NAME) {
-                        currentFieldName = parser.currentName();
-                    } else if (token.isValue()) {
-                        if (VERSION_KEY.equals(currentFieldName)) {
-                            version = parser.longValue();
-                        } else if (PRIMARY_KEY.equals(currentFieldName)) {
-                            primary = parser.booleanValue();
-                        } else if (INDEX_UUID_KEY.equals(currentFieldName)) {
-                            indexUUID = parser.text();
-                        } else {
-                            throw new CorruptStateException("unexpected field in shard state [" + currentFieldName + "]");
-                        }
+            long version = -1;
+            Boolean primary = null;
+            String currentFieldName = null;
+            String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token.isValue()) {
+                    if (VERSION_KEY.equals(currentFieldName)) {
+                        version = parser.longValue();
+                    } else if (PRIMARY_KEY.equals(currentFieldName)) {
+                        primary = parser.booleanValue();
+                    } else if (INDEX_UUID_KEY.equals(currentFieldName)) {
+                        indexUUID = parser.text();
                     } else {
-                        throw new CorruptStateException("unexpected token in shard state [" + token.name() + "]");
+                        throw new CorruptStateException("unexpected field in shard state [" + currentFieldName + "]");
                     }
+                } else {
+                    throw new CorruptStateException("unexpected token in shard state [" + token.name() + "]");
                 }
-                if (primary == null) {
-                    throw new CorruptStateException("missing value for [primary] in shard state");
-                }
-                if (version == -1) {
-                    throw new CorruptStateException("missing value for [version] in shard state");
-                }
-                return new ShardStateMetaData(version, primary, indexUUID);
             }
-        };
-    }
+            if (primary == null) {
+                throw new CorruptStateException("missing value for [primary] in shard state");
+            }
+            if (version == -1) {
+                throw new CorruptStateException("missing value for [version] in shard state");
+            }
+            return new ShardStateMetaData(version, primary, indexUUID);
+        }
+    };
 
-    public static ShardStateMetaData load(ESLogger logger, ShardId shardId, Path... shardPaths) throws IOException {
-        return MetaDataStateFormat.loadLatestState(logger, newShardStateInfoFormat(false), SHARD_STATE_FILE_PATTERN,
-                shardId.toString(), shardPaths);
-    }
-
-    public static void write(ESLogger logger, String reason, ShardId shardId, ShardStateMetaData shardStateMetaData,
-                                 boolean deletePreviousState, Path... shardPaths) throws IOException {
-        logger.trace("{} writing shard state, reason [{}]", shardId, reason);
-        MetaDataStateFormat<ShardStateMetaData> stateFormat = newShardStateInfoFormat(deletePreviousState);
-        stateFormat.write(shardStateMetaData, SHARD_STATE_FILE_PREFIX, shardStateMetaData.version, shardPaths);
-    }
 }

@@ -491,7 +491,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void convertWildcardsJustIndicesTests() {
+    public void testConvertWildcardsJustIndicesTests() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("testXXX"))
                 .put(indexBuilder("testXYY"))
@@ -507,7 +507,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void convertWildcardsTests() {
+    public void testConvertWildcardsTests() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("testXXX").putAlias(AliasMetaData.builder("alias1")).putAlias(AliasMetaData.builder("alias2")))
                 .put(indexBuilder("testXYY").putAlias(AliasMetaData.builder("alias2")))
@@ -522,7 +522,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void convertWildcardsOpenClosedIndicesTests() {
+    public void testConvertWildcardsOpenClosedIndicesTests() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("testXXX").state(State.OPEN))
                 .put(indexBuilder("testXXY").state(State.OPEN))
@@ -542,7 +542,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
     }
 
     @Test(expected = IndexMissingException.class)
-    public void concreteIndicesIgnoreIndicesOneMissingIndex() {
+    public void testConcreteIndicesIgnoreIndicesOneMissingIndex() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("testXXX"))
                 .put(indexBuilder("kuku"));
@@ -551,7 +551,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void concreteIndicesIgnoreIndicesOneMissingIndexOtherFound() {
+    public void testConcreteIndicesIgnoreIndicesOneMissingIndexOtherFound() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("testXXX"))
                 .put(indexBuilder("kuku"));
@@ -560,7 +560,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
     }
 
     @Test(expected = IndexMissingException.class)
-    public void concreteIndicesIgnoreIndicesAllMissing() {
+    public void testConcreteIndicesIgnoreIndicesAllMissing() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("testXXX"))
                 .put(indexBuilder("kuku"));
@@ -569,7 +569,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void concreteIndicesIgnoreIndicesEmptyRequest() {
+    public void testConcreteIndicesIgnoreIndicesEmptyRequest() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("testXXX"))
                 .put(indexBuilder("kuku"));
@@ -578,7 +578,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void concreteIndicesWildcardExpansion() {
+    public void testConcreteIndicesWildcardExpansion() {
         MetaData.Builder mdBuilder = MetaData.builder()
                 .put(indexBuilder("testXXX").state(State.OPEN))
                 .put(indexBuilder("testXXY").state(State.OPEN))
@@ -596,7 +596,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
      * test resolving _all pattern (null, empty arry or "_all") for random IndicesOptions
      */
     @Test
-    public void concreteIndicesAllPatternRandom() {
+    public void testConcreteIndicesAllPatternRandom() {
         for (int i = 0; i < 10; i++) {
             String[] allIndices = null;
             switch (randomIntBetween(0, 2)) {
@@ -659,7 +659,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
      * test resolving wildcard pattern that matches no index of alias for random IndicesOptions
      */
     @Test
-    public void concreteIndicesWildcardEmptyRandom() {
+    public void testConcreteIndicesWildcardEmptyRandom() {
         for (int i = 0; i < 10; i++) {
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
             MetaData metadata = MetaData.builder().build();

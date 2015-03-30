@@ -458,7 +458,7 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
                 }
             }
             // Set the maximum length of strings returned by the parseToString method, -1 sets no limit
-            parsedContent = tika.parseToString(new BytesStreamInput(content, false), metadata, indexedChars);
+            parsedContent = tika.parseToString(new BytesStreamInput(content), metadata, indexedChars);
         } catch (Throwable e) {
             // It could happen that Tika adds a System property `sun.font.fontmanager` which should not happen
             // TODO Remove when this will be fixed in Tika. See https://issues.apache.org/jira/browse/TIKA-1548

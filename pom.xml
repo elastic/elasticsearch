@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
     <name>Elasticsearch Mapper Attachment plugin</name>
     <description>The mapper attachments plugin adds the attachment type to Elasticsearch using Apache Tika.</description>
-    <url>https://github.com/elasticsearch/elasticsearch-mapper-attachments/</url>
+    <url>https://github.com/elastics/elasticsearch-mapper-attachments/</url>
     <inceptionYear>2009</inceptionYear>
     <licenses>
         <license>
@@ -20,9 +20,9 @@
         </license>
     </licenses>
     <scm>
-        <connection>scm:git:git@github.com:elasticsearch/elasticsearch-mapper-attachments.git</connection>
-        <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-mapper-attachments.git</developerConnection>
-        <url>http://github.com/elasticsearch/elasticsearch-mapper-attachments</url>
+        <connection>scm:git:git@github.com:elastics/elasticsearch-mapper-attachments.git</connection>
+        <developerConnection>scm:git:git@github.com:elastics/elasticsearch-mapper-attachments.git</developerConnection>
+        <url>http://github.com/elastics/elasticsearch-mapper-attachments</url>
     </scm>
 
     <parent>

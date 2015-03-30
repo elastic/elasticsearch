@@ -90,7 +90,7 @@ public class FunctionScoreQueryParser implements QueryParser {
 
         FiltersFunctionScoreQuery.ScoreMode scoreMode = FiltersFunctionScoreQuery.ScoreMode.Multiply;
         ArrayList<FiltersFunctionScoreQuery.FilterFunction> filterFunctions = new ArrayList<>();
-        float maxBoost = Float.MAX_VALUE;
+        Float maxBoost = null;
         Float minScore = null;
 
         String currentFieldName = null;
@@ -157,13 +157,17 @@ public class FunctionScoreQueryParser implements QueryParser {
             query = new FilteredQuery(query, filter);
         }
         // if all filter elements returned null, just use the query
-        if (filterFunctions.isEmpty()) {
+        if (filterFunctions.isEmpty() && combineFunction == null) {
             return query;
+        }
+        if (maxBoost == null) {
+            maxBoost = Float.MAX_VALUE;
         }
         // handle cases where only one score function and no filter was
         // provided. In this case we create a FunctionScoreQuery.
-        if (filterFunctions.size() == 1 && (filterFunctions.get(0).filter == null || filterFunctions.get(0).filter instanceof MatchAllDocsFilter)) {
-            FunctionScoreQuery theQuery = new FunctionScoreQuery(query, filterFunctions.get(0).function, minScore);
+        if (filterFunctions.size() == 0 || filterFunctions.size() == 1 && (filterFunctions.get(0).filter == null || filterFunctions.get(0).filter instanceof MatchAllDocsFilter)) {
+            ScoreFunction function = filterFunctions.size() == 0 ? null : filterFunctions.get(0).function;
+            FunctionScoreQuery theQuery = new FunctionScoreQuery(query, function, minScore);
             if (combineFunction != null) {
                 theQuery.setCombineFunction(combineFunction);
             }

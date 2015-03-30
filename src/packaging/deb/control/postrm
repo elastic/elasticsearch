@@ -15,7 +15,9 @@ case "$1" in
         rm -rf /usr/share/elasticsearch/plugins
 
         # Remove **only** empty data dir
-        rmdir --ignore-fail-on-non-empty /var/lib/elasticsearch
+        if [ -d /var/lib/elasticsearch ]; then
+            rmdir --ignore-fail-on-non-empty /var/lib/elasticsearch
+        fi
     ;;
 
     purge)

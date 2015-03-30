@@ -9,6 +9,7 @@ import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -17,6 +18,8 @@ import org.elasticsearch.watcher.support.http.auth.BasicAuth;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.net.BindException;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -27,10 +30,23 @@ public class HttpClientTest extends ElasticsearchTestCase {
     private MockWebServer webServer;
     private HttpClient httpClient;
 
+    private int webPort = 9200;
+
     @Before
     public void init() throws Exception {
         webServer = new MockWebServer();
-        webServer.start(9200);
+        while (webPort < 9300) {
+            try {
+                webServer.start(webPort);
+                break;
+            } catch (BindException be) {
+                logger.warn("port [{}] was already in use trying next port", webPort);
+                ++webPort;
+            }
+        }
+        if (webPort == 9300) {
+            throw new ElasticsearchException("unable to find open port between 9200 and 9300");
+        }
         httpClient = new HttpClient(ImmutableSettings.EMPTY);
     }
 
@@ -50,7 +66,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
         HttpRequest request = new HttpRequest();
         request.method(HttpMethod.POST);
         request.host("localhost");
-        request.port(9200);
+        request.port(webPort);
         request.path("/" + randomAsciiOfLength(5));
         String paramKey;
         String paramValue;
@@ -81,7 +97,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
         HttpRequest request = new HttpRequest();
         request.method(HttpMethod.POST);
         request.host("localhost");
-        request.port(9200);
+        request.port(webPort);
         request.path("/test");
         request.auth(new BasicAuth("user", "pass"));
         request.body("body");

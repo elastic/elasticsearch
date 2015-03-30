@@ -4,12 +4,6 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <parent>
-        <groupId>org.elasticsearch</groupId>
-        <artifactId>elasticsearch-parent</artifactId>
-        <version>2.0.0-SNAPSHOT</version>
-    </parent>
-
     <groupId>org.elasticsearch</groupId>
     <artifactId>elasticsearch-mapper-attachments</artifactId>
     <version>3.0.0-SNAPSHOT</version>
@@ -30,6 +24,12 @@
         <developerConnection>scm:git:git@github.com:elasticsearch/elasticsearch-mapper-attachments.git</developerConnection>
         <url>http://github.com/elasticsearch/elasticsearch-mapper-attachments</url>
     </scm>
+
+    <parent>
+        <groupId>org.elasticsearch</groupId>
+        <artifactId>elasticsearch-parent</artifactId>
+        <version>2.0.0-SNAPSHOT</version>
+    </parent>
 
     <properties>
         <!-- If we need to define any specific property -->

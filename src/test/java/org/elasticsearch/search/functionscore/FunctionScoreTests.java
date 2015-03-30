@@ -557,5 +557,39 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
             assertThat(Float.parseFloat(hit.getId()), equalTo(hit.getScore()));
         }
     }
+
+    @Test
+    public void testWithEmptyFunctions() throws IOException, ExecutionException, InterruptedException {
+        assertAcked(prepareCreate("test"));
+        ensureYellow();
+        index("test", "testtype", "1", jsonBuilder().startObject().field("text", "test text").endObject());
+        refresh();
+
+        // make sure that min_score works, see https://github.com/elastic/elasticsearch/issues/10253
+        float termQueryScore = 0.19178301f;
+        testMinScoreApplied("sum", termQueryScore);
+        testMinScoreApplied("avg", termQueryScore);
+        testMinScoreApplied("max", termQueryScore);
+        testMinScoreApplied("min", termQueryScore);
+        testMinScoreApplied("multiply", termQueryScore);
+        testMinScoreApplied("replace", 1.0f);
+    }
+
+    protected void testMinScoreApplied(String boostMode, float expectedScore) throws InterruptedException, ExecutionException {
+        SearchResponse response = client().search(
+                searchRequest().source(
+                        searchSource().query(
+                                functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(0.1f)))).get();
+        assertSearchResponse(response);
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().getAt(0).getScore(), equalTo(expectedScore));
+
+        response = client().search(
+                searchRequest().source(
+                        searchSource().query(
+                                functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(2f)))).get();
+        assertSearchResponse(response);
+        assertThat(response.getHits().totalHits(), equalTo(0l));
+    }
 }
 

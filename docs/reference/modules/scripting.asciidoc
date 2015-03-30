@@ -372,7 +372,7 @@ that can be used for configuring this sandbox:
 
 `script.groovy.sandbox.enabled`::
 
-    Flag to disable the sandbox (defaults to `false` added[v1.4.3] meaning the sandbox is
+    Flag to enable the sandbox (defaults to `false` added[v1.4.3] meaning the sandbox is
     disabled).
 
 When specifying whitelist or blacklist settings for the groovy sandbox, all

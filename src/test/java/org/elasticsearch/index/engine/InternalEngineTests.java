@@ -1680,14 +1680,14 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
 
     // #10312
     @Test
-    public void testDeletesAloneCanTriggerRefresh() throws IOException {
+    public void testDeletesAloneCanTriggerRefresh() throws Exception {
         // Tiny indexing buffer:
         Settings indexSettings = ImmutableSettings.builder().put(defaultSettings)
             .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), indexSettings);
         try (Store store = createStore();
             Translog translog = createTranslog();
-            Engine engine = new InternalEngine(config(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService)))) {
+            final Engine engine = new InternalEngine(config(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService)))) {
             for(int i=0;i<100;i++) {
                 String id = Integer.toString(i);
                 ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), B_1, false);
@@ -1698,18 +1698,25 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
             engine.forceMerge(true, 1, false, false);
 
             Searcher s = engine.acquireSearcher("test");
-            long version1 = ((DirectoryReader) s.reader()).getVersion();
+            final long version1 = ((DirectoryReader) s.reader()).getVersion();
             s.close();
             for(int i=0;i<100;i++) {
                 String id = Integer.toString(i);
                 engine.delete(new Engine.Delete("test", id, newUid(id), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
             }
-            s = engine.acquireSearcher("test");
-            long version2 = ((DirectoryReader) s.reader()).getVersion();
-            s.close();
 
-            // 100 buffered deletes will easily exceed 25% of our 1 KB indexing buffer so it should have forced a refresh:
-            assertThat(version2, greaterThan(version1));
+            // We must assertBusy because refresh due to version map being full is done in background (REFRESH) thread pool:
+            assertBusy(new Runnable() {
+                @Override
+                public void run() {
+                    Searcher s2 = engine.acquireSearcher("test");
+                    long version2 = ((DirectoryReader) s2.reader()).getVersion();
+                    s2.close();
+
+                    // 100 buffered deletes will easily exceed 25% of our 1 KB indexing buffer so it should have forced a refresh:
+                    assertThat(version2, greaterThan(version1));
+                }
+            });
         }
     }
 

@@ -52,6 +52,7 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.deletionpolicy.KeepOnlyLastDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotDeletionPolicy;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
+import org.elasticsearch.index.engine.Engine.Searcher;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.indexing.slowlog.ShardSlowLogIndexingService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
@@ -1675,6 +1676,41 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         assertThat(topDocs.totalHits, equalTo(1));
         searcher.close();
         replicaSearcher.close();
+    }
+
+    // #10312
+    @Test
+    public void testDeletesAloneCanTriggerRefresh() throws IOException {
+        // Tiny indexing buffer:
+        Settings indexSettings = ImmutableSettings.builder().put(defaultSettings)
+            .put(EngineConfig.INDEX_BUFFER_SIZE_SETTING, "1kb").build();
+        IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), indexSettings);
+        try (Store store = createStore();
+            Translog translog = createTranslog();
+            Engine engine = new InternalEngine(config(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService)))) {
+            for(int i=0;i<100;i++) {
+                String id = Integer.toString(i);
+                ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), B_1, false);
+                engine.index(new Engine.Index(null, newUid(id), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
+            }
+
+            // Force merge so we know all merges are done before we start deleting:
+            engine.forceMerge(true, 1, false, false);
+
+            Searcher s = engine.acquireSearcher("test");
+            long version1 = ((DirectoryReader) s.reader()).getVersion();
+            s.close();
+            for(int i=0;i<100;i++) {
+                String id = Integer.toString(i);
+                engine.delete(new Engine.Delete("test", id, newUid(id), 10, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime(), false));
+            }
+            s = engine.acquireSearcher("test");
+            long version2 = ((DirectoryReader) s.reader()).getVersion();
+            s.close();
+
+            // 100 buffered deletes will easily exceed 25% of our 1 KB indexing buffer so it should have forced a refresh:
+            assertThat(version2, greaterThan(version1));
+        }
     }
 
 }

@@ -466,7 +466,9 @@ public class AttachmentMapper extends AbstractFieldMapper<Object> {
 
             // #18: we could ignore errors when Tika does not parse data
             if (!ignoreErrors) {
-                throw new MapperParsingException("Failed to extract [" + indexedChars + "] characters of text for [" + name + "]", e);
+                logger.trace("exception caught", e);
+                throw new MapperParsingException("Failed to extract [" + indexedChars + "] characters of text for [" + name + "] : "
+                        + e.getMessage());
             } else {
                 logger.debug("Failed to extract [{}] characters of text for [{}]: [{}]", indexedChars, name, e.getMessage());
                 logger.trace("exception caught", e);

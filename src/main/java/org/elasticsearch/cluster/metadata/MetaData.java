@@ -678,7 +678,8 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
             if (!indicesOptions.allowNoIndices()) {
-                throw new ElasticsearchIllegalArgumentException("Index or alias list is " + aliasesOrIndices + " and IndicesOptions don't allow no indices.");
+                throw new ElasticsearchIllegalArgumentException("Null or zero length argument for list of index or alias names "
+                        + "not allowed for indices options with " + indicesOptions.toString());
             } else {
                 return Strings.EMPTY_ARRAY;
             }

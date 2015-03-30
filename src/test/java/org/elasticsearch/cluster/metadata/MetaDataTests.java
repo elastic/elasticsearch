@@ -649,7 +649,16 @@ public class MetaDataTests extends ElasticsearchTestCase {
                     metadata.concreteIndices(indicesOptions, allIndices);
                     fail("calling concreteIndices for _all, with no wildcard expansion and allowNoIndices=false should throw exception");
                 } catch (ElasticsearchIllegalArgumentException | IndexMissingException e) {
-                    // expected exception
+                    if (indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed()) {
+                            // expected exception
+                            assertThat(e.getClass().getSimpleName(), is("IndexMissingException"));
+                    } else if (allIndices==null || allIndices.length==0) {
+                            assertThat(e.getClass().getSimpleName(), is("ElasticsearchIllegalArgumentException"));
+                    } else if (allIndices[0].equals("_all")){
+                        assertThat(e.getClass().getSimpleName(), is("IndexMissingException"));
+                    } else {
+                        fail("Wrong exception type.");
+                    }
                 }
             }
         }

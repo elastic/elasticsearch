@@ -245,6 +245,11 @@ public class IndicesOptions {
         return id;
     }
 
+    @Override
+    public String toString() {
+        return "id: " + this.id;
+    }
+
     private static boolean toBool(String sValue, boolean defaultValue) {
         if (sValue == null) {
             return defaultValue;

@@ -17,9 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.rest;
+package org.elasticsearch.test.rest;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.rest.RestRequest;
 
 import java.util.HashMap;
 import java.util.Map;

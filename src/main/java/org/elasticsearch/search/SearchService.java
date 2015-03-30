@@ -182,6 +182,15 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.indicesWarmer.addListener(new SearchWarmer());
     }
 
+    protected void putContext(SearchContext context) {
+        final SearchContext previous = activeContexts.put(context.id(), context);
+        assert previous == null;
+    }
+
+    protected SearchContext removeContext(long id) {
+        return activeContexts.remove(id);
+    }
+
     @Override
     protected void doStart() throws ElasticsearchException {
     }
@@ -191,7 +200,6 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         for (final SearchContext context : activeContexts.values()) {
             freeContext(context.id());
         }
-        activeContexts.clear();
     }
 
     @Override
@@ -525,7 +533,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         SearchContext context = createContext(request, null);
         boolean success = false;
         try {
-            activeContexts.put(context.id(), context);
+            putContext(context);
             context.indexShard().searchService().onNewContext(context);
             success = true;
             return context;
@@ -590,7 +598,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
 
     public boolean freeContext(long id) {
-        final SearchContext context = activeContexts.remove(id);
+        final SearchContext context = removeContext(id);
         if (context != null) {
             try {
                 context.indexShard().searchService().onFreeContext(context);

@@ -106,6 +106,8 @@ public class SearchScrollWithFailingNodesTests extends ElasticsearchIntegrationT
             assertThat(searchResponse.getSuccessfulShards(), equalTo(numberOfSuccessfulShards));
         } while (searchResponse.getHits().hits().length > 0);
         assertThat(numHits, greaterThan(0l));
+
+        clearScroll(searchResponse.getScrollId());
     }
 
 }

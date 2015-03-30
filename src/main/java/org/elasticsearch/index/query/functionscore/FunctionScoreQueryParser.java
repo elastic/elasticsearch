@@ -31,11 +31,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.MatchAllDocsFilter;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.common.lucene.search.function.ScoreFunction;
-import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
+import org.elasticsearch.common.lucene.search.function.*;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParser;
@@ -156,9 +152,15 @@ public class FunctionScoreQueryParser implements QueryParser {
         } else if (query != null && filter != null) {
             query = new FilteredQuery(query, filter);
         }
-        // if all filter elements returned null, just use the query
+
         if (filterFunctions.isEmpty()) {
-            return query;
+            if (minScore != null) {
+                // it might make sense to use functions score as  a means to filter out in a bool query for example
+                filterFunctions.add(new FiltersFunctionScoreQuery.FilterFunction(null, new NeutralScoreFunction(combineFunction)));
+            } else {
+                // if all filter elements returned null, just use the query
+                return query;
+            }
         }
         // handle cases where only one score function and no filter was
         // provided. In this case we create a FunctionScoreQuery.

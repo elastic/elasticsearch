@@ -19,12 +19,24 @@
 package org.elasticsearch.gateway.local;
 
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.admin.indices.recovery.ShardRecoveryResponse;
+import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.*;
 
 @ElasticsearchIntegrationTest.ClusterScope(numDataNodes = 0, scope = ElasticsearchIntegrationTest.Scope.TEST, numClientNodes = 0, transportClientRatio = 0.0)
 public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsCompatIntegrationTest {
@@ -49,71 +61,68 @@ public class RecoveryBackwardsCompatibilityTests extends ElasticsearchBackwardsC
 
     @Test
     @LuceneTestCase.Slow
-    @LuceneTestCase.AwaitsFix(bugUrl = "fails due to https://github.com/elastic/elasticsearch/pull/10283, Boaz looking into it")
     public void testReusePeerRecovery() throws Exception {
-        // BL: also commenting out because CI doesn't honor AwaitsFix on when running bwc tests.
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put(indexSettings()).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)));
+        logger.info("--> indexing docs");
+        int numDocs = scaledRandomIntBetween(100, 1000);
+        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
+        for (int i = 0; i < builders.length; i++) {
+            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
+        }
+        indexRandom(true, builders);
+        ensureGreen();
 
-//        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder().put(indexSettings()).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)));
-//        logger.info("--> indexing docs");
-//        int numDocs = scaledRandomIntBetween(100, 1000);
-//        IndexRequestBuilder[] builders = new IndexRequestBuilder[numDocs];
-//        for (int i = 0; i < builders.length; i++) {
-//            builders[i] = client().prepareIndex("test", "type").setSource("field", "value");
-//        }
-//        indexRandom(true, builders);
-//        ensureGreen();
-//
-//        logger.info("--> bump number of replicas from 0 to 1");
-//        client().admin().indices().prepareFlush().execute().actionGet();
-//        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1").build()).get();
-//        ensureGreen();
-//
-//        assertAllShardsOnNodes("test", backwardsCluster().backwardsNodePattern());
-//
-//        logger.info("--> upgrade cluster");
-//        logClusterState();
-//        CountResponse countResponse = client().prepareCount().get();
-//        assertHitCount(countResponse, numDocs);
-//
-//        client().admin().cluster().prepareUpdateSettings().setTransientSettings(ImmutableSettings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")).execute().actionGet();
-//        backwardsCluster().upgradeAllNodes();
-//        client().admin().cluster().prepareUpdateSettings().setTransientSettings(ImmutableSettings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "all")).execute().actionGet();
-//        ensureGreen();
-//
-//        countResponse = client().prepareCount().get();
-//        assertHitCount(countResponse, numDocs);
-//
-//        RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").setDetailed(true).get();
-//        for (ShardRecoveryResponse response : recoveryResponse.shardResponses().get("test")) {
-//            RecoveryState recoveryState = response.recoveryState();
-//            if (!recoveryState.getPrimary()) {
-//                RecoveryState.Index index = recoveryState.getIndex();
-//                if (compatibilityVersion().onOrAfter(Version.V_1_2_0)) {
-//                    assertThat(index.toString(), index.recoveredBytes(), equalTo(0l));
-//                    assertThat(index.toString(), index.reusedBytes(), greaterThan(0l));
-//                    assertThat(index.toString(), index.reusedBytes(), equalTo(index.totalBytes()));
-//                    assertThat(index.toString(), index.recoveredFileCount(), equalTo(0));
-//                    assertThat(index.toString(), index.reusedFileCount(), equalTo(index.totalFileCount()));
-//                    assertThat(index.toString(), index.reusedFileCount(), greaterThan(0));
-//                    assertThat(index.toString(), index.recoveredBytesPercent(), equalTo(100.f));
-//                    assertThat(index.toString(), index.recoveredFilesPercent(), equalTo(100.f));
-//                    assertThat(index.toString(), index.reusedBytes(), greaterThan(index.recoveredBytes()));
-//                } else {
-//                    /* We added checksums on 1.3 but they were available on 1.2 already since this uses Lucene 4.8.
-//                     * yet in this test we upgrade the entire cluster and therefor the 1.3 nodes try to read the checksum
-//                     * from the files even if they haven't been written with ES 1.3. Due to that we don't have to recover
-//                     * the segments files if we are on 1.2 or above...*/
-//                    assertThat(index.toString(), index.recoveredBytes(), greaterThan(0l));
-//                    assertThat(index.toString(), index.recoveredFileCount(), greaterThan(0));
-//                    assertThat(index.toString(), index.reusedBytes(), greaterThan(0l));
-//                    assertThat(index.toString(), index.recoveredBytesPercent(), greaterThan(0.0f));
-//                    assertThat(index.toString(), index.recoveredBytesPercent(), equalTo(100.f));
-//                    assertThat(index.toString(), index.recoveredFilesPercent(), equalTo(100.f));
-//                    assertThat(index.toString(), index.reusedBytes(), greaterThan(index.recoveredBytes()));
-//                    assertThat(index.toString(), index.recoveredBytes(), lessThan(index.totalBytes()));
-//                }
-//                // TODO upgrade via optimize?
-//            }
-//        }
+        logger.info("--> bump number of replicas from 0 to 1");
+        client().admin().indices().prepareFlush().execute().actionGet();
+        client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "1").build()).get();
+        ensureGreen();
+
+        assertAllShardsOnNodes("test", backwardsCluster().backwardsNodePattern());
+
+        logger.info("--> upgrade cluster");
+        logClusterState();
+        CountResponse countResponse = client().prepareCount().get();
+        assertHitCount(countResponse, numDocs);
+
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(ImmutableSettings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")).execute().actionGet();
+        backwardsCluster().upgradeAllNodes();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(ImmutableSettings.settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "all")).execute().actionGet();
+        ensureGreen();
+
+        countResponse = client().prepareCount().get();
+        assertHitCount(countResponse, numDocs);
+
+        RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").setDetailed(true).get();
+        for (ShardRecoveryResponse response : recoveryResponse.shardResponses().get("test")) {
+            RecoveryState recoveryState = response.recoveryState();
+            if (!recoveryState.getPrimary()) {
+                RecoveryState.Index index = recoveryState.getIndex();
+                if (compatibilityVersion().onOrAfter(Version.V_1_2_0)) {
+                    assertThat(index.toString(), index.recoveredBytes(), equalTo(0l));
+                    assertThat(index.toString(), index.reusedBytes(), greaterThan(0l));
+                    assertThat(index.toString(), index.reusedBytes(), equalTo(index.totalBytes()));
+                    assertThat(index.toString(), index.recoveredFileCount(), equalTo(0));
+                    assertThat(index.toString(), index.reusedFileCount(), equalTo(index.totalFileCount()));
+                    assertThat(index.toString(), index.reusedFileCount(), greaterThan(0));
+                    assertThat(index.toString(), index.recoveredBytesPercent(), equalTo(100.f));
+                    assertThat(index.toString(), index.recoveredFilesPercent(), equalTo(100.f));
+                    assertThat(index.toString(), index.reusedBytes(), greaterThan(index.recoveredBytes()));
+                } else {
+                    /* We added checksums on 1.3 but they were available on 1.2 already since this uses Lucene 4.8.
+                     * yet in this test we upgrade the entire cluster and therefor the 1.3 nodes try to read the checksum
+                     * from the files even if they haven't been written with ES 1.3. Due to that we don't have to recover
+                     * the segments files if we are on 1.2 or above...*/
+                    assertThat(index.toString(), index.recoveredBytes(), greaterThan(0l));
+                    assertThat(index.toString(), index.recoveredFileCount(), greaterThan(0));
+                    assertThat(index.toString(), index.reusedBytes(), greaterThan(0l));
+                    assertThat(index.toString(), index.recoveredBytesPercent(), greaterThan(0.0f));
+                    assertThat(index.toString(), index.recoveredBytesPercent(), equalTo(100.f));
+                    assertThat(index.toString(), index.recoveredFilesPercent(), equalTo(100.f));
+                    assertThat(index.toString(), index.reusedBytes(), greaterThan(index.recoveredBytes()));
+                    assertThat(index.toString(), index.recoveredBytes(), lessThan(index.totalBytes()));
+                }
+                // TODO upgrade via optimize?
+            }
+        }
     }
 }

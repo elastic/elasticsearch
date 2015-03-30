@@ -29,6 +29,7 @@ import com.google.common.collect.*;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -86,10 +87,12 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchServiceModule;
 import org.elasticsearch.test.cache.recycler.MockBigArraysModule;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecyclerModule;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.engine.MockEngineFactory;
+import org.elasticsearch.test.search.MockSearchServiceModule;
 import org.elasticsearch.test.store.MockFSIndexStoreModule;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -360,6 +363,7 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(PageCacheRecyclerModule.CACHE_IMPL, MockPageCacheRecyclerModule.class.getName());
             builder.put(BigArraysModule.IMPL, MockBigArraysModule.class.getName());
             builder.put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName());
+            builder.put(SearchServiceModule.IMPL, MockSearchServiceModule.class.getName());
         }
         if (isLocalTransportConfigured()) {
             builder.put(TransportModule.TRANSPORT_TYPE_KEY, AssertingLocalTransport.class.getName());

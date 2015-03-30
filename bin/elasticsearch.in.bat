@@ -14,11 +14,11 @@ for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 REM ***** JAVA options *****
 
 if "%ES_MIN_MEM%" == "" (
-set ES_MIN_MEM=256m
+set ES_MIN_MEM=${packaging.elasticsearch.heap.min}
 )
 
 if "%ES_MAX_MEM%" == "" (
-set ES_MAX_MEM=1g
+set ES_MAX_MEM=${packaging.elasticsearch.heap.max}
 )
 
 if NOT "%ES_HEAP_SIZE%" == "" (

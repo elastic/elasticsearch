@@ -214,7 +214,13 @@ public class ClusterStateObserver {
             if (context != null) {
                 logger.trace("observer: cluster service closed. notifying listener.");
                 clusterService.remove(this);
-                context.listener.onClusterServiceClose();
+                try {
+                    context.listener.onClusterServiceClose();
+                } catch (Exception e) {
+                    // here we can catch the EsRejectedExecutionExceptions, but what to do with them?
+                    // they are not caught anywhere else and I am unsure if we should swallow or not
+                    logger.warn("caught exception while notifying cluster state listener ", e);
+                }
             }
         }
 

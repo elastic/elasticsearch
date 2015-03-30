@@ -1654,10 +1654,10 @@ public class InternalEngineTests extends ElasticsearchLuceneTestCase {
         IndexSettingsService indexSettingsService = new IndexSettingsService(shardId.index(), indexSettings);
         try (Store store = createStore();
             Translog translog = createTranslog();
-            Engine engine = new InternalEngine(config(indexSettingsService, store, translog, createMergeScheduler(indexSettingsService)))) {
+            Engine engine = new InternalEngine(config(indexSettingsService, store, translog, createMergeScheduler()))) {
             for(int i=0;i<100;i++) {
                 String id = Integer.toString(i);
-                ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), B_1, false);
+                ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocument(), Lucene.STANDARD_ANALYZER, B_1, false);
                 engine.index(new Engine.Index(null, newUid(id), doc, 2, VersionType.EXTERNAL, Engine.Operation.Origin.PRIMARY, System.nanoTime()));
             }
 

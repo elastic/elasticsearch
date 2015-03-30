@@ -30,14 +30,12 @@ import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MultiDataPathUpgrader;
 import org.elasticsearch.env.NodeEnvironment;
 
-import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -58,7 +56,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     private final DanglingIndicesState danglingIndicesState;
 
     @Nullable
-    private volatile MetaData currentMetaData;
+    private volatile MetaData previousMetaData;
 
     @Inject
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
@@ -100,7 +98,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         final ClusterState state = event.state();
         if (state.blocks().disableStatePersistence()) {
             // reset the current metadata, we need to start fresh...
-            this.currentMetaData = null;
+            this.previousMetaData = null;
             return;
         }
 
@@ -111,7 +109,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         // write the state if this node is a master eligible node or if it is a data node and has shards allocated on it
         if (state.nodes().localNode().masterNode() || state.nodes().localNode().dataNode()) {
             // check if the global state changed?
-            if (currentMetaData == null || !MetaData.isGlobalStateEquals(currentMetaData, newMetaData)) {
+            if (previousMetaData == null || !MetaData.isGlobalStateEquals(previousMetaData, newMetaData)) {
                 try {
                     metaStateService.writeGlobalState("changed", newMetaData);
                 } catch (Throwable e) {
@@ -121,9 +119,9 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
             Iterable<IndexMetaWriteInfo> writeInfo;
             if (isDataOnlyNode(event.state())) {
-                writeInfo = filterStateOnDataNode(event, currentMetaData);
+                writeInfo = filterStateOnDataNode(event, previousMetaData);
             } else if (isMasterEligibleNode(event.state())) {
-                writeInfo = filterStatesOnMaster(event.state(), currentMetaData);
+                writeInfo = filterStatesOnMaster(event.state(), previousMetaData);
             } else {
                 writeInfo = Collections.emptyList();
             }
@@ -141,7 +139,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         danglingIndicesState.processDanglingIndices(newMetaData);
 
         if (success) {
-            currentMetaData = newMetaData;
+            previousMetaData = newMetaData;
         }
     }
 

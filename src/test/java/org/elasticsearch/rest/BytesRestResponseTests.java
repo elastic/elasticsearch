@@ -21,6 +21,7 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.junit.Test;
 
 import java.io.FileNotFoundException;

@@ -17,24 +17,25 @@
  * under the License.
  */
 
-package org.elasticsearch.rest;
+package org.elasticsearch.test.rest;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.rest.RestRequest;
 
 import java.util.HashMap;
 import java.util.Map;
 
-class FakeRestRequest extends RestRequest {
+public class FakeRestRequest extends RestRequest {
 
     private final Map<String, String> headers;
 
     private final Map<String, String> params;
 
-    FakeRestRequest() {
+    public FakeRestRequest() {
         this(new HashMap<String, String>(), new HashMap<String, String>());
     }
 
-    FakeRestRequest(Map<String, String> headers, Map<String, String> context) {
+    public FakeRestRequest(Map<String, String> headers, Map<String, String> context) {
         this.headers = headers;
         for (Map.Entry<String, String> entry : context.entrySet()) {
             putInContext(entry.getKey(), entry.getValue());

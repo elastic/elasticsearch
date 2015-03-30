@@ -2,7 +2,7 @@
 === Prefix Filter
 
 Filters documents that have fields containing terms with a specified
-prefix (*not analyzed*). Similar to phrase query, except that it acts as
+prefix (*not analyzed*). Similar to prefix query, except that it acts as
 a filter. Can be placed within queries that accept a filter.
 
 [source,js]

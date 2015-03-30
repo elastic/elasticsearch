@@ -29,17 +29,17 @@ import java.io.IOException;
  */
 public abstract class ScoreFunction implements ReaderContextAware {
 
-    private final CombineFunction defaultScoreCombiner;
+    private final CombineFunction scoreCombiner;
 
     public abstract double score(int docId, float subQueryScore);
 
     public abstract Explanation explainScore(int docId, Explanation subQueryScore) throws IOException;
 
     public CombineFunction getDefaultScoreCombiner() {
-        return defaultScoreCombiner;
+        return scoreCombiner;
     }
 
     protected ScoreFunction(CombineFunction scoreCombiner) {
-        this.defaultScoreCombiner = scoreCombiner;
+        this.scoreCombiner = scoreCombiner;
     }
 }

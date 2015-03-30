@@ -43,7 +43,7 @@ public class FunctionScoreQuery extends Query {
     public FunctionScoreQuery(Query subQuery, ScoreFunction function, Float minScore) {
         this.subQuery = subQuery;
         this.function = function;
-        this.combineFunction = function.getDefaultScoreCombiner();
+        this.combineFunction = function == null? combineFunction.MULT : function.getDefaultScoreCombiner();
         this.minScore = minScore;
     }
 
@@ -124,7 +124,9 @@ public class FunctionScoreQuery extends Query {
             if (subQueryScorer == null) {
                 return null;
             }
-            function.setNextReader(context);
+            if (function != null) {
+                function.setNextReader(context);
+            }
             return new FunctionFactorScorer(this, subQueryScorer, function, maxBoost, combineFunction, minScore);
         }
 
@@ -134,9 +136,13 @@ public class FunctionScoreQuery extends Query {
             if (!subQueryExpl.isMatch()) {
                 return subQueryExpl;
             }
-            function.setNextReader(context);
-            Explanation functionExplanation = function.explainScore(doc, subQueryExpl);
-            return combineFunction.explain(getBoost(), subQueryExpl, functionExplanation, maxBoost);
+            if (function != null) {
+                function.setNextReader(context);
+                Explanation functionExplanation = function.explainScore(doc, subQueryExpl);
+                return combineFunction.explain(getBoost(), subQueryExpl, functionExplanation, maxBoost);
+            } else {
+                return subQueryExpl;
+            }
         }
     }
 
@@ -153,8 +159,12 @@ public class FunctionScoreQuery extends Query {
         @Override
         public float innerScore() throws IOException {
             float score = scorer.score();
-            return scoreCombiner.combine(subQueryBoost, score,
-                    function.score(scorer.docID(), score), maxBoost);
+            if (function == null) {
+                return subQueryBoost * score;
+            } else {
+                return scoreCombiner.combine(subQueryBoost, score,
+                        function.score(scorer.docID(), score), maxBoost);
+            }
         }
     }
 
@@ -171,12 +181,12 @@ public class FunctionScoreQuery extends Query {
         if (o == null || getClass() != o.getClass())
             return false;
         FunctionScoreQuery other = (FunctionScoreQuery) o;
-        return this.getBoost() == other.getBoost() && this.subQuery.equals(other.subQuery) && this.function.equals(other.function)
+        return this.getBoost() == other.getBoost() && this.subQuery.equals(other.subQuery) && (this.function != null ? this.function.equals(other.function) : other.function == null)
                 && this.maxBoost == other.maxBoost;
     }
 
     @Override
     public int hashCode() {
-        return subQuery.hashCode() + 31 * function.hashCode() ^ Float.floatToIntBits(getBoost());
+        return subQuery.hashCode() + 31 * (function == null ? 0 : function.hashCode()) ^ Float.floatToIntBits(getBoost());
     }
 }

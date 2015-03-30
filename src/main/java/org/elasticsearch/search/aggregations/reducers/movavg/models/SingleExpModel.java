@@ -17,14 +17,14 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers.smooth.models;
+package org.elasticsearch.search.aggregations.reducers.movavg.models;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.reducers.smooth.SmoothParser;
+import org.elasticsearch.search.aggregations.reducers.movavg.MovAvgParser;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -33,7 +33,7 @@ import java.util.Map;
 /**
  * Calculate a exponentially weighted moving average
  */
-public class SingleExpModel extends SmoothingModel {
+public class SingleExpModel extends MovAvgModel {
 
     protected static final ParseField NAME_FIELD = new ParseField("single_exp");
 
@@ -65,9 +65,9 @@ public class SingleExpModel extends SmoothingModel {
         return avg;
     }
 
-    public static final SmoothingModelStreams.Stream STREAM = new SmoothingModelStreams.Stream() {
+    public static final MovAvgModelStreams.Stream STREAM = new MovAvgModelStreams.Stream() {
         @Override
-        public SmoothingModel readResult(StreamInput in) throws IOException {
+        public MovAvgModel readResult(StreamInput in) throws IOException {
             return new SingleExpModel(in.readDouble());
         }
 
@@ -83,7 +83,7 @@ public class SingleExpModel extends SmoothingModel {
         out.writeDouble(alpha);
     }
 
-    public static class SingleExpModelParser implements SmoothingModelParser {
+    public static class SingleExpModelParser implements MovAvgModelParser {
 
         @Override
         public String getName() {
@@ -91,7 +91,7 @@ public class SingleExpModel extends SmoothingModel {
         }
 
         @Override
-        public SmoothingModel parse(@Nullable Map<String, Object> settings) {
+        public MovAvgModel parse(@Nullable Map<String, Object> settings) {
 
             Double alpha;
             if (settings == null || (alpha = (Double)settings.get("alpha")) == null) {
@@ -102,7 +102,7 @@ public class SingleExpModel extends SmoothingModel {
         }
     }
 
-    public static class SingleExpModelBuilder implements SmoothingModelBuilder {
+    public static class SingleExpModelBuilder implements MovAvgModelBuilder {
 
         private double alpha = 0.5;
 
@@ -113,8 +113,8 @@ public class SingleExpModel extends SmoothingModel {
 
         @Override
         public void toXContent(XContentBuilder builder) throws IOException {
-            builder.field(SmoothParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
-            builder.startObject(SmoothParser.SETTINGS.getPreferredName());
+            builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+            builder.startObject(MovAvgParser.SETTINGS.getPreferredName());
                 builder.field("alpha", alpha);
             builder.endObject();
         }

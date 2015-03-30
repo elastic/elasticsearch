@@ -26,10 +26,10 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
-import org.elasticsearch.search.aggregations.reducers.smooth.models.DoubleExpModel;
-import org.elasticsearch.search.aggregations.reducers.smooth.models.LinearModel;
-import org.elasticsearch.search.aggregations.reducers.smooth.models.SimpleModel;
-import org.elasticsearch.search.aggregations.reducers.smooth.models.SingleExpModel;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.DoubleExpModel;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.LinearModel;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.SimpleModel;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.SingleExpModel;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 

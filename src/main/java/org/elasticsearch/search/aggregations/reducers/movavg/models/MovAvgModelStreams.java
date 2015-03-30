@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers.smooth.models;
+package org.elasticsearch.search.aggregations.reducers.movavg.models;
 
 import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
@@ -29,11 +29,11 @@ import java.io.IOException;
  * A registry for all moving average models. This is needed for reading them from a stream without knowing which
  * one it is.
  */
-public class SmoothingModelStreams {
+public class MovAvgModelStreams {
 
     private static ImmutableMap<String, Stream> STREAMS = ImmutableMap.of();
 
-    public static SmoothingModel read(StreamInput in) throws IOException {
+    public static MovAvgModel read(StreamInput in) throws IOException {
         return stream(in.readString()).readResult(in);
     }
 
@@ -42,7 +42,7 @@ public class SmoothingModelStreams {
      */
     public static interface Stream {
 
-        SmoothingModel readResult(StreamInput in) throws IOException;
+        MovAvgModel readResult(StreamInput in) throws IOException;
 
         String getName();
     }

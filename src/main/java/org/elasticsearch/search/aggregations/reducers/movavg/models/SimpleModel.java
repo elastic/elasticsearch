@@ -17,46 +17,39 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers.smooth.models;
-
+package org.elasticsearch.search.aggregations.reducers.movavg.models;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.search.aggregations.reducers.smooth.SmoothParser;
+import org.elasticsearch.search.aggregations.reducers.movavg.MovAvgParser;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 
 /**
- * Calculate a linearly weighted moving average, such that older values are
- * linearly less important.  "Time" is determined by position in collection
+ * Calculate a simple unweighted (arithmetic) moving average
  */
-public class LinearModel extends SmoothingModel {
+public class SimpleModel extends MovAvgModel {
 
-    protected static final ParseField NAME_FIELD = new ParseField("linear");
+    protected static final ParseField NAME_FIELD = new ParseField("simple");
 
     @Override
     public <T extends Number> double next(Collection<T> values) {
         double avg = 0;
-        long totalWeight = 1;
-        long current = 1;
-
         for (T v : values) {
-            avg += v.doubleValue() * current;
-            totalWeight += current;
-            current += 1;
+            avg += v.doubleValue();
         }
-        return avg / totalWeight;
+        return avg / values.size();
     }
 
-    public static final SmoothingModelStreams.Stream STREAM = new SmoothingModelStreams.Stream() {
+    public static final MovAvgModelStreams.Stream STREAM = new MovAvgModelStreams.Stream() {
         @Override
-        public SmoothingModel readResult(StreamInput in) throws IOException {
-            return new LinearModel();
+        public MovAvgModel readResult(StreamInput in) throws IOException {
+            return new SimpleModel();
         }
 
         @Override
@@ -70,7 +63,7 @@ public class LinearModel extends SmoothingModel {
         out.writeString(STREAM.getName());
     }
 
-    public static class LinearModelParser implements SmoothingModelParser {
+    public static class SimpleModelParser implements MovAvgModelParser {
 
         @Override
         public String getName() {
@@ -78,15 +71,15 @@ public class LinearModel extends SmoothingModel {
         }
 
         @Override
-        public SmoothingModel parse(@Nullable Map<String, Object> settings) {
-            return new LinearModel();
+        public MovAvgModel parse(@Nullable Map<String, Object> settings) {
+            return new SimpleModel();
         }
     }
 
-    public static class LinearModelBuilder implements SmoothingModelBuilder {
+    public static class SimpleModelBuilder implements MovAvgModelBuilder {
         @Override
         public void toXContent(XContentBuilder builder) throws IOException {
-            builder.field(SmoothParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+            builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
         }
     }
 }

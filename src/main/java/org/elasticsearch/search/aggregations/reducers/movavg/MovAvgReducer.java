@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers.smooth;
+package org.elasticsearch.search.aggregations.reducers.movavg;
 
 import com.google.common.base.Function;
 import com.google.common.collect.EvictingQueue;
@@ -32,8 +32,8 @@ import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.reducers.*;
-import org.elasticsearch.search.aggregations.reducers.smooth.models.SmoothingModel;
-import org.elasticsearch.search.aggregations.reducers.smooth.models.SmoothingModelStreams;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModel;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModelStreams;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
@@ -46,14 +46,14 @@ import java.util.Map;
 import static org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
 import static org.elasticsearch.search.aggregations.reducers.BucketHelpers.resolveBucketValue;
 
-public class SmoothReducer extends Reducer {
+public class MovAvgReducer extends Reducer {
 
-    public final static Type TYPE = new Type("smooth");
+    public final static Type TYPE = new Type("moving_avg");
 
     public final static ReducerStreams.Stream STREAM = new ReducerStreams.Stream() {
         @Override
-        public SmoothReducer readResult(StreamInput in) throws IOException {
-            SmoothReducer result = new SmoothReducer();
+        public MovAvgReducer readResult(StreamInput in) throws IOException {
+            MovAvgReducer result = new MovAvgReducer();
             result.readFrom(in);
             return result;
         }
@@ -73,13 +73,13 @@ public class SmoothReducer extends Reducer {
     private ValueFormatter formatter;
     private GapPolicy gapPolicy;
     private int window;
-    private SmoothingModel model;
+    private MovAvgModel model;
 
-    public SmoothReducer() {
+    public MovAvgReducer() {
     }
 
-    public SmoothReducer(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
-                         int window, SmoothingModel model, Map<String, Object> metadata) {
+    public MovAvgReducer(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
+                         int window, MovAvgModel model, Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
         this.gapPolicy = gapPolicy;
@@ -127,7 +127,7 @@ public class SmoothReducer extends Reducer {
         formatter = ValueFormatterStreams.readOptional(in);
         gapPolicy = GapPolicy.readFrom(in);
         window = in.readVInt();
-        model = SmoothingModelStreams.read(in);
+        model = MovAvgModelStreams.read(in);
     }
 
     @Override
@@ -143,10 +143,10 @@ public class SmoothReducer extends Reducer {
         private final ValueFormatter formatter;
         private GapPolicy gapPolicy;
         private int window;
-        private SmoothingModel model;
+        private MovAvgModel model;
 
         public Factory(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
-                       int window, SmoothingModel model) {
+                       int window, MovAvgModel model) {
             super(name, TYPE.name(), bucketsPaths);
             this.formatter = formatter;
             this.gapPolicy = gapPolicy;
@@ -157,7 +157,7 @@ public class SmoothReducer extends Reducer {
         @Override
         protected Reducer createInternal(AggregationContext context, Aggregator parent, boolean collectsFromSingleBucket,
                 Map<String, Object> metaData) throws IOException {
-            return new SmoothReducer(name, bucketsPaths, formatter, gapPolicy, window, model, metaData);
+            return new MovAvgReducer(name, bucketsPaths, formatter, gapPolicy, window, model, metaData);
         }
 
         @Override

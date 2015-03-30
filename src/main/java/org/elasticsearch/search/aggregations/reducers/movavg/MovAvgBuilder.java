@@ -17,44 +17,43 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers.smooth;
+package org.elasticsearch.search.aggregations.reducers.movavg;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.reducers.ReducerBuilder;
-import org.elasticsearch.search.aggregations.reducers.smooth.models.SmoothingModelBuilder;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModelBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 import static org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
 
-public class SmoothBuilder extends ReducerBuilder<SmoothBuilder> {
+public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
 
     private String format;
     private GapPolicy gapPolicy;
-    private SmoothingModelBuilder modelBuilder;
+    private MovAvgModelBuilder modelBuilder;
     private Integer window;
 
-    public SmoothBuilder(String name) {
-        super(name, SmoothReducer.TYPE.name());
+    public MovAvgBuilder(String name) {
+        super(name, MovAvgReducer.TYPE.name());
     }
 
-    public SmoothBuilder format(String format) {
+    public MovAvgBuilder format(String format) {
         this.format = format;
         return this;
     }
 
-    public SmoothBuilder gapPolicy(GapPolicy gapPolicy) {
+    public MovAvgBuilder gapPolicy(GapPolicy gapPolicy) {
         this.gapPolicy = gapPolicy;
         return this;
     }
 
-    public SmoothBuilder modelBuilder(SmoothingModelBuilder modelBuilder) {
+    public MovAvgBuilder modelBuilder(MovAvgModelBuilder modelBuilder) {
         this.modelBuilder = modelBuilder;
         return this;
     }
 
-    public SmoothBuilder window(int window) {
+    public MovAvgBuilder window(int window) {
         this.window = window;
         return this;
     }
@@ -63,16 +62,16 @@ public class SmoothBuilder extends ReducerBuilder<SmoothBuilder> {
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
         if (format != null) {
-            builder.field(SmoothParser.FORMAT.getPreferredName(), format);
+            builder.field(MovAvgParser.FORMAT.getPreferredName(), format);
         }
         if (gapPolicy != null) {
-            builder.field(SmoothParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
+            builder.field(MovAvgParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
         }
         if (modelBuilder != null) {
             modelBuilder.toXContent(builder);
         }
         if (window != null) {
-            builder.field(SmoothParser.WINDOW.getPreferredName(), window);
+            builder.field(MovAvgParser.WINDOW.getPreferredName(), window);
         }
         return builder;
     }

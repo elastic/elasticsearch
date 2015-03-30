@@ -34,20 +34,17 @@ public class HttpClientTest extends ElasticsearchTestCase {
 
     @Before
     public void init() throws Exception {
-        while (webPort < 9300) {
+        for (; webPort < 9300; webPort++) {
             try {
                 webServer = new MockWebServer();
                 webServer.start(webPort);
-                break;
+                httpClient = new HttpClient(ImmutableSettings.EMPTY);
+                return;
             } catch (BindException be) {
                 logger.warn("port [{}] was already in use trying next port", webPort);
-                ++webPort;
             }
         }
-        if (webPort == 9300) {
-            throw new ElasticsearchException("unable to find open port between 9200 and 9300");
-        }
-        httpClient = new HttpClient(ImmutableSettings.EMPTY);
+        throw new ElasticsearchException("unable to find open port between 9200 and 9300");
     }
 
     @After

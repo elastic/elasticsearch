@@ -200,6 +200,9 @@ public class ShardSlowLogSearchService extends AbstractIndexShardComponent {
                 sb.append("], ");
             }
             sb.append("search_type[").append(context.searchType()).append("], total_shards[").append(context.numberOfShards()).append("], ");
+            if ( context.aliasFilter() != null ){
+                sb.append("alias_filters[").append(context.aliasFilter().toString()).append("], ");
+            }
             if (context.request().source() != null && context.request().source().length() > 0) {
                 try {
                     sb.append("source[").append(XContentHelper.convertToJson(context.request().source(), reformat)).append("], ");

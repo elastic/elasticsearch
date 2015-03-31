@@ -50,7 +50,7 @@ public class IndicesQueryCacheTests extends ElasticsearchIntegrationTest {
         // see #9500
         final SearchResponse r1 = client().prepareSearch("index").setSize(0).setSearchType(SearchType.QUERY_THEN_FETCH)
             .addAggregation(dateHistogram("histo").field("f").timeZone("+01:00").minDocCount(0).interval(DateHistogramInterval.MONTH)).get();
-        assertSearchResponse(r1);System.out.println(r1);
+        assertSearchResponse(r1);
 
         // The cached is actually used
         assertThat(client().admin().indices().prepareStats("index").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));

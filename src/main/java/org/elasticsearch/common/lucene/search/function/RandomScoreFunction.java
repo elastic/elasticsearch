@@ -73,7 +73,7 @@ public class RandomScoreFunction extends ScoreFunction {
     }
 
     @Override
-    public Explanation explainScore(int docId, float subQueryScore) {
+    public Explanation explainScore(int docId, Explanation subQueryScore) {
         Explanation exp = new Explanation();
         exp.setDescription("random score function (seed: " + originalSeed + ")");
         return exp;

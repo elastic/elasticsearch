@@ -154,7 +154,7 @@ public class IndexMetaData {
             throw new ElasticsearchIllegalStateException("No state match for [" + state + "]");
         }
     }
-
+    public static final String INDEX_SETTING_PREFIX = "index.";
     public static final String SETTING_NUMBER_OF_SHARDS = "index.number_of_shards";
     public static final String SETTING_NUMBER_OF_REPLICAS = "index.number_of_replicas";
     public static final String SETTING_SHADOW_REPLICAS = "index.shadow_replicas";

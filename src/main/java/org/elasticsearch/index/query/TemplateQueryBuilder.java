@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
 import java.io.IOException;
@@ -108,7 +109,7 @@ public class TemplateQueryBuilder extends BaseQueryBuilder implements QueryParse
         builder.field(TemplateQueryBuilder.PARAMS, vars);
         builder.endObject();
     }
-    
+
     @Override
     public String[] names() {
         return new String[] {NAME};
@@ -125,7 +126,7 @@ public class TemplateQueryBuilder extends BaseQueryBuilder implements QueryParse
     public Query parse(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
         TemplateContext templateContext = parse(parser, PARAMS, parametersToTypes);
-        ExecutableScript executable = this.scriptService.executable(MustacheScriptEngineService.NAME, templateContext.template(), templateContext.scriptType(), templateContext.params());
+        ExecutableScript executable = this.scriptService.executable(MustacheScriptEngineService.NAME, templateContext.template(), templateContext.scriptType(), ScriptContext.SEARCH, templateContext.params());
 
         BytesReference querySource = (BytesReference) executable.run();
 

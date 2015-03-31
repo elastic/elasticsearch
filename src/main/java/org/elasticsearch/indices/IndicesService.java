@@ -20,13 +20,7 @@
 package org.elasticsearch.indices;
 
 import com.google.common.base.Function;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
-
+import com.google.common.collect.*;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.IOUtils;
@@ -38,18 +32,12 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.bootstrap.Elasticsearch;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.CreationException;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Injectors;
-import org.elasticsearch.common.inject.ModulesBuilder;
+import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -58,11 +46,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.gateway.MetaDataStateFormat;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.LocalNodeIdModule;
+import org.elasticsearch.index.*;
 import org.elasticsearch.index.aliases.IndexAliasesServiceModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
@@ -78,6 +62,7 @@ import org.elasticsearch.index.mapper.MapperServiceModule;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.IndexQueryParserModule;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -97,7 +82,10 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.*;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
@@ -212,6 +200,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                     case Refresh:
                         oldStats.refresh.add(oldShardsStats.refreshStats);
                         break;
+                    case Recovery:
+                        oldStats.recoveryStats.add(oldShardsStats.recoveryStats);
+                        break;
                     case Flush:
                         oldStats.flush.add(oldShardsStats.flushStats);
                         break;
@@ -235,6 +226,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                     }
                 } catch (IllegalIndexShardStateException e) {
                     // we can safely ignore illegal state on ones that are closing for example
+                    logger.trace("{} ignoring shard stats", e, indexShard.shardId());
                 }
             }
         }
@@ -417,6 +409,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         final MergeStats mergeStats = new MergeStats();
         final RefreshStats refreshStats = new RefreshStats();
         final FlushStats flushStats = new FlushStats();
+        final RecoveryStats recoveryStats = new RecoveryStats();
 
         @Override
         public synchronized void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
@@ -428,6 +421,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 mergeStats.add(indexShard.mergeStats());
                 refreshStats.add(indexShard.refreshStats());
                 flushStats.add(indexShard.flushStats());
+                recoveryStats.addAsOld(indexShard.recoveryStats());
             }
         }
     }

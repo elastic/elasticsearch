@@ -20,7 +20,7 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.rest.FakeRestRequest;
+import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;

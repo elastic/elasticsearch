@@ -160,16 +160,7 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(requiredSettings())
-                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName()) // run same transport  / disco as external
-                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName());
-        if (compatibilityVersion().before(Version.V_1_3_2)) {
-            // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
-            // see #7210
-            builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, false)
-                   .put(RecoverySettings.INDICES_RECOVERY_COMPRESS, false);
-        }
-        return builder.build();
+        return commonNodeSettings(nodeOrdinal);
     }
 
     public void assertAllShardsOnNodes(String index, String pattern) {
@@ -186,7 +177,20 @@ public abstract class ElasticsearchBackwardsCompatIntegrationTest extends Elasti
         }
     }
 
+    protected Settings commonNodeSettings(int nodeOrdinal) {
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(requiredSettings())
+                .put(TransportModule.TRANSPORT_TYPE_KEY, NettyTransport.class.getName()) // run same transport  / disco as external
+                .put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, TransportService.class.getName());
+        if (compatibilityVersion().before(Version.V_1_3_2)) {
+            // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
+            // see #7210
+            builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, false)
+                    .put(RecoverySettings.INDICES_RECOVERY_COMPRESS, false);
+        }
+        return builder.build();
+    }
+
     protected Settings externalNodeSettings(int nodeOrdinal) {
-        return addLoggerSettings(nodeSettings(nodeOrdinal));
+        return addLoggerSettings(commonNodeSettings(nodeOrdinal));
     }
 }

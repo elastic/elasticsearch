@@ -153,7 +153,7 @@ The `parent` parameter has been removed from the update request. Before 2.x it j
 `routing` setting should be used instead. The `parent` setting was confusing, because it had the impression that the parent
 a child documents points to can be changed but this is not true.
 
-=== Delete by query
+==== Delete by query
 
 The meaning of the `_shards` headers in the delete by query response has changed. Before version 2.0 the `total`,
 `successful` and `failed` fields in the header are based on the number of primary shards. The failures on replica
@@ -161,9 +161,16 @@ shards aren't being kept track of. From version 2.0 the stats in the `_shards` h
 of an index. The http status code is left unchanged and is only based on failures that occurred while executing on
 primary shards.
 
+=== Delete api with missing routing when required
+
+Delete api requires a routing value when deleting a document belonging to a type that has routing set to required in its
+mapping, whereas previous elasticsearch versions would trigger a broadcast delete on all shards belonging to the index.
+A `RoutingMissingException` is now thrown instead.
+
 === Mappings
 
 * The setting `index.mapping.allow_type_wrapper` has been removed.  Documents should always be sent without the type as the root element.
+* The delete mappings API has been removed. Mapping types can no longer be deleted.
 
 ==== Removed type prefix on field names in queries
 Types can no longer be specified on fields within queries.  Instead, specify type restrictions in the search request.
@@ -279,7 +286,27 @@ setting. Please however note that using a non-default codec is discouraged as
 it could prevent future versions of Elasticsearch from being able to read the
 index.
 
-=== Scripts
+=== Scripting settings
+
+Removed support for `script.disable_dynamic` node setting, replaced by
+fine-grained script settings described in the <<enable-dynamic-scripting,scripting docs>>.
+The following setting previously used to enable dynamic scripts:
+
+[source,yaml]
+---------------
+script.disable_dynamic: false
+---------------
+
+can be replaced with the following two settings in `elasticsearch.yml` that
+achieve the same result:
+
+[source,yaml]
+---------------
+script.inline: on
+script.indexed: on
+---------------
+
+=== Script parameters
 
 Deprecated script parameters `id`, `file`, and `scriptField` have been removed
 from all scriptable APIs. `script_id`, `script_file` and `script` should be used
@@ -290,3 +317,8 @@ in their place.
 The thrift and memcached transport plugins are no longer supported.  Instead, use
 either the HTTP transport (enabled by default) or the node or transport Java client.
 
+=== `search_type=count` deprecation
+
+The `count` search type has been deprecated. All benefits from this search type can
+now be achieved by using the `query_then_fetch` search type (which is the
+default) and setting `size` to `0`.

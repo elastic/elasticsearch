@@ -447,6 +447,7 @@ public class InternalEngine extends Engine {
         }
 
         maybePruneDeletedTombstones();
+        checkVersionMapRefresh();
     }
 
     private void maybePruneDeletedTombstones() {

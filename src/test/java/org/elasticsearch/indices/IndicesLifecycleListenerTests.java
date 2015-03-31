@@ -22,7 +22,11 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.MutableShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -33,6 +37,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.hamcrest.Matchers;
 import org.junit.Test;
 
 import java.util.List;
@@ -52,6 +57,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest {
@@ -98,6 +104,30 @@ public class IndicesLifecycleListenerTests extends ElasticsearchIntegrationTest 
             ClusterStateResponse resp = client().admin().cluster().prepareState().get();
             assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
         }
+    }
+
+    /**
+     * Tests that if an *index* structure creation fails on relocation to a new node, the shard
+     * is not stuck but properly failed.
+     */
+    @Test
+    public void testIndexShardFailedOnRelocation() throws Throwable {
+        String node1 = internalCluster().startNode();
+        client().admin().indices().prepareCreate("index1").setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).get();
+        ensureGreen("index1");
+        String node2 = internalCluster().startNode();
+        internalCluster().getInstance(IndicesLifecycle.class, node2).addListener(new IndexShardStateChangeListener() {
+            @Override
+            public void beforeIndexCreated(Index index, @IndexSettings Settings indexSettings) {
+                throw new RuntimeException("FAIL");
+            }
+        });
+        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand(new ShardId("index1", 0), node1, node2)).get();
+        ensureGreen("index1");
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        List<MutableShardRouting> shard = state.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED);
+        assertThat(shard, hasSize(1));
+        assertThat(state.nodes().resolveNode(shard.get(0).currentNodeId()).getName(), Matchers.equalTo(node1));
     }
 
     @Test

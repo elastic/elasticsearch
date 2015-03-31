@@ -97,7 +97,7 @@ public class BytesArray implements BytesReference {
 
     @Override
     public StreamInput streamInput() {
-        return new BytesStreamInput(bytes, offset, length, false);
+        return new BytesStreamInput(bytes, offset, length);
     }
 
     @Override

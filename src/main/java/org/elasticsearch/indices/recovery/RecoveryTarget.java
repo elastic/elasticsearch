@@ -19,12 +19,13 @@
 
 package org.elasticsearch.indices.recovery;
 
+import com.google.common.base.Predicate;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.IndexOutput;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.lucene.store.RateLimiter;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -54,6 +55,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -112,17 +114,18 @@ public class RecoveryTarget extends AbstractComponent {
         });
     }
 
-    public RecoveryState recoveryState(IndexShard indexShard) {
-        try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.findRecoveryByShard(indexShard)) {
-            if (statusRef == null) {
-                return null;
-            }
-            final RecoveryStatus recoveryStatus = statusRef.status();
-            return recoveryStatus.state();
-        } catch (Exception e) {
-            // shouldn't really happen, but have to be here due to auto close
-            throw new ElasticsearchException("error while getting recovery state", e);
-        }
+    /**
+     * cancel all ongoing recoveries for the given shard, if their status match a predicate
+     *
+     * @param reason       reason for cancellation
+     * @param shardId      shardId for which to cancel recoveries
+     * @param shouldCancel a predicate to check if a recovery should be cancelled or not. Null means cancel without an extra check.
+     *                     note that the recovery state can change after this check, but before it is being cancelled via other
+     *                     already issued outstanding references.
+     * @return true if a recovery was cancelled
+     */
+    public boolean cancelRecoveriesForShard(ShardId shardId, String reason, @Nullable Predicate<RecoveryStatus> shouldCancel) {
+        return onGoingRecoveries.cancelRecoveriesForShard(shardId, reason, shouldCancel);
     }
 
     public void startRecovery(final IndexShard indexShard, final RecoveryState.Type recoveryType, final DiscoveryNode sourceNode, final RecoveryListener listener) {
@@ -386,6 +389,7 @@ public class RecoveryTarget extends AbstractComponent {
                 // first, we go and move files that were created with the recovery id suffix to
                 // the actual names, its ok if we have a corrupted index here, since we have replicas
                 // to recover from in case of a full cluster shutdown just when this code executes...
+                recoveryStatus.indexShard().deleteShardState(); // we have to delete it first since even if we fail to rename the shard might be invalid
                 recoveryStatus.renameAllTempFiles();
                 final Store store = recoveryStatus.store();
                 // now write checksums
@@ -416,6 +420,9 @@ public class RecoveryTarget extends AbstractComponent {
 
     class FileChunkTransportRequestHandler extends BaseTransportRequestHandler<RecoveryFileChunkRequest> {
 
+        // How many bytes we've copied since we last called RateLimiter.pause
+        final AtomicLong bytesSinceLastPause = new AtomicLong();
+
         @Override
         public RecoveryFileChunkRequest newInstance() {
             return new RecoveryFileChunkRequest();
@@ -432,21 +439,33 @@ public class RecoveryTarget extends AbstractComponent {
                 final RecoveryStatus recoveryStatus = statusRef.status();
                 final Store store = recoveryStatus.store();
                 recoveryStatus.state().getTranslog().totalOperations(request.totalTranslogOps());
+                final RecoveryState.Index indexState = recoveryStatus.state().getIndex();
+                if (request.sourceThrottleTimeInNanos() != RecoveryState.Index.UNKNOWN) {
+                    indexState.addSourceThrottling(request.sourceThrottleTimeInNanos());
+                }
                 IndexOutput indexOutput;
                 if (request.position() == 0) {
                     indexOutput = recoveryStatus.openAndPutIndexOutput(request.name(), request.metadata(), store);
                 } else {
                     indexOutput = recoveryStatus.getOpenIndexOutput(request.name());
                 }
-                if (recoverySettings.rateLimiter() != null) {
-                    recoverySettings.rateLimiter().pause(request.content().length());
-                }
                 BytesReference content = request.content();
                 if (!content.hasArray()) {
                     content = content.toBytesArray();
                 }
+                RateLimiter rl = recoverySettings.rateLimiter();
+                if (rl != null) {
+                    long bytes = bytesSinceLastPause.addAndGet(content.length());
+                    if (bytes > rl.getMinPauseCheckBytes()) {
+                        // Time to pause
+                        bytesSinceLastPause.addAndGet(-bytes);
+                        long throttleTimeInNanos = rl.pause(bytes);
+                        indexState.addTargetThrottling(throttleTimeInNanos);
+                        recoveryStatus.indexShard().recoveryStats().addThrottleTime(throttleTimeInNanos);
+                    }
+                }
                 indexOutput.writeBytes(content.array(), content.arrayOffset(), content.length());
-                recoveryStatus.state().getIndex().addRecoveredBytesToFile(request.name(), content.length());
+                indexState.addRecoveredBytesToFile(request.name(), content.length());
                 if (indexOutput.getFilePointer() >= request.length() || request.lastChunk()) {
                     try {
                         Store.verify(indexOutput);

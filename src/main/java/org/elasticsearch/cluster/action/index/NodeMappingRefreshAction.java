@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -55,11 +56,16 @@ public class NodeMappingRefreshAction extends AbstractComponent {
     }
 
     public void nodeMappingRefresh(final ClusterState state, final NodeMappingRefreshRequest request) throws ElasticsearchException {
-        DiscoveryNodes nodes = state.nodes();
+        final DiscoveryNodes nodes = state.nodes();
+        if (nodes.masterNode() == null) {
+            logger.warn("can't send mapping refresh for [{}][{}], no master known.", request.index(), Strings.arrayToCommaDelimitedString(request.types()));
+            return;
+        }
+
         if (nodes.localNodeMaster()) {
             innerMappingRefresh(request);
         } else {
-            transportService.sendRequest(state.nodes().masterNode(),
+            transportService.sendRequest(nodes.masterNode(),
                     ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
         }
     }

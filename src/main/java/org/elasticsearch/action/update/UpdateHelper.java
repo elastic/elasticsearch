@@ -46,6 +46,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -93,7 +94,7 @@ public class UpdateHelper extends AbstractComponent {
                 ctx.put("op", "create");
                 ctx.put("_source", upsertDoc);
                 try {
-                    ExecutableScript script = scriptService.executable(request.scriptLang, request.script, request.scriptType, request.scriptParams);
+                    ExecutableScript script = scriptService.executable(request.scriptLang, request.script, request.scriptType, ScriptContext.UPDATE, request.scriptParams);
                     script.setNextVar("ctx", ctx);
                     script.run();
                     // we need to unwrap the ctx...
@@ -117,15 +118,16 @@ public class UpdateHelper extends AbstractComponent {
                     update.setGetResult(getResult);
                     return new Result(update, Operation.NONE, upsertDoc, XContentType.JSON);
                 }
-                indexRequest.source((Map)ctx.get("_source"));
+                indexRequest.source((Map) ctx.get("_source"));
             }
 
             indexRequest.index(request.index()).type(request.type()).id(request.id())
                     // it has to be a "create!"
                     .create(true)                    
-                    .routing(request.routing())
                     .ttl(ttl)
                     .refresh(request.refresh())
+                    .routing(request.routing())
+                    .parent(request.parent())
                     .consistencyLevel(request.consistencyLevel());
             indexRequest.operationThreaded(false);
             if (request.versionType() != VersionType.INTERNAL) {
@@ -191,7 +193,7 @@ public class UpdateHelper extends AbstractComponent {
             ctx.put("_source", sourceAndContent.v2());
 
             try {
-                ExecutableScript script = scriptService.executable(request.scriptLang, request.script, request.scriptType, request.scriptParams);
+                ExecutableScript script = scriptService.executable(request.scriptLang, request.script, request.scriptType, ScriptContext.UPDATE, request.scriptParams);
                 script.setNextVar("ctx", ctx);
                 script.run();
                 // we need to unwrap the ctx...

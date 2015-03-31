@@ -81,13 +81,13 @@ public class FieldDataTermsFilterTests extends ElasticsearchSingleNodeTest {
                 new IndexWriterConfig(new StandardAnalyzer()));
 
         // setup field mappers
-        strMapper = new StringFieldMapper.Builder("str_value")
+        strMapper = new StringFieldMapper.Builder("str_value").docValues(false)
                 .build(new Mapper.BuilderContext(settings, new ContentPath(1)));
 
-        lngMapper = new LongFieldMapper.Builder("lng_value")
+        lngMapper = new LongFieldMapper.Builder("lng_value").docValues(false)
                 .build(new Mapper.BuilderContext(settings, new ContentPath(1)));
 
-        dblMapper = new DoubleFieldMapper.Builder("dbl_value")
+        dblMapper = new DoubleFieldMapper.Builder("dbl_value").docValues(false)
                 .build(new Mapper.BuilderContext(settings, new ContentPath(1)));
 
         int numDocs = 10;

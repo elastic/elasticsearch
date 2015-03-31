@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.string;
 
 import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -28,19 +27,25 @@ import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.queries.TermsFilter;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.FieldDataType;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapper.MergeFlags;
 import org.elasticsearch.index.mapper.DocumentMapper.MergeResult;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Before;
 import org.junit.Test;
@@ -48,7 +53,9 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
@@ -285,34 +292,83 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(doc.rootDoc().getField("field6").fieldType().storeTermVectorPayloads(), equalTo(true));
     }
 
-    public void testDocValues() throws Exception {
-        // doc values only work on non-analyzed content
+    public void testDocValuesFielddata() throws Exception {
+        IndexService indexService = createIndex("index");
+        DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
         final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
-        try {
-            new StringFieldMapper.Builder("anything").fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx);
-            fail();
-        } catch (Exception e) { /* OK */ }
-        new StringFieldMapper.Builder("anything").tokenized(false).fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx);
-        new StringFieldMapper.Builder("anything").index(false).fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx);
 
         assertFalse(new StringFieldMapper.Builder("anything").index(false).build(ctx).hasDocValues());
         assertTrue(new StringFieldMapper.Builder("anything").index(false).fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx).hasDocValues());
         assertTrue(new StringFieldMapper.Builder("anything").index(false).docValues(true).build(ctx).hasDocValues());
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+            .startObject("properties")
+            .startObject("str1")
+                .field("type", "string")
+                .startObject("fielddata")
+                    .field("format", "fst")
+                .endObject()
+            .endObject()
+            .startObject("str2")
+                .field("type", "string")
+                .field("index", "not_analyzed")
+                .startObject("fielddata")
+                    .field("format", "doc_values")
+                .endObject()
+            .endObject()
+            .endObject()
+            .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = parser.parse(mapping);
+
+        ParsedDocument parsedDoc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+            .startObject()
+            .field("str1", "1234")
+            .field("str2", "1234")
+            .endObject()
+            .bytes());
+        final Document doc = parsedDoc.rootDoc();
+        assertEquals(DocValuesType.NONE, docValuesType(doc, "str1"));
+        assertEquals(DocValuesType.SORTED_SET, docValuesType(doc, "str2"));
+    }
+
+    public void testDocValues() throws Exception {
+        // doc values only work on non-analyzed content
+        final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
+        try {
+            new StringFieldMapper.Builder("anything").docValues(true).build(ctx);
+            fail();
+        } catch (Exception e) { /* OK */ }
+
+        assertFalse(new StringFieldMapper.Builder("anything").index(false).build(ctx).hasDocValues());
+        assertTrue(new StringFieldMapper.Builder("anything").index(true).tokenized(false).build(ctx).hasDocValues());
+        assertFalse(new StringFieldMapper.Builder("anything").index(true).tokenized(true).build(ctx).hasDocValues());
+        assertFalse(new StringFieldMapper.Builder("anything").index(false).tokenized(false).docValues(false).build(ctx).hasDocValues());
+        assertTrue(new StringFieldMapper.Builder("anything").index(false).docValues(true).build(ctx).hasDocValues());
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                 .startObject("str1")
                     .field("type", "string")
-                    .startObject("fielddata")
-                        .field("format", "fst")
-                    .endObject()
+                    .field("index", "no")
                 .endObject()
                 .startObject("str2")
                     .field("type", "string")
                     .field("index", "not_analyzed")
-                    .startObject("fielddata")
-                        .field("format", "doc_values")
-                    .endObject()
+                .endObject()
+                .startObject("str3")
+                    .field("type", "string")
+                    .field("index", "analyzed")
+                .endObject()
+                .startObject("str4")
+                    .field("type", "string")
+                    .field("index", "not_analyzed")
+                    .field("doc_values", false)
+                .endObject()
+                .startObject("str5")
+                    .field("type", "string")
+                    .field("index", "no")
+                    .field("doc_values", true)
                 .endObject()
                 .endObject()
                 .endObject().endObject().string();
@@ -323,13 +379,21 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
                 .startObject()
                 .field("str1", "1234")
                 .field("str2", "1234")
+                .field("str3", "1234")
+                .field("str4", "1234")
+                .field("str5", "1234")
                 .endObject()
                 .bytes());
         final Document doc = parsedDoc.rootDoc();
         assertEquals(DocValuesType.NONE, docValuesType(doc, "str1"));
         assertEquals(DocValuesType.SORTED_SET, docValuesType(doc, "str2"));
+        assertEquals(DocValuesType.NONE, docValuesType(doc, "str3"));
+        assertEquals(DocValuesType.NONE, docValuesType(doc, "str4"));
+        assertEquals(DocValuesType.SORTED_SET, docValuesType(doc, "str5"));
+        
     }
 
+    // TODO: this function shouldn't be necessary.  parsing should just add a single field that is indexed and dv
     public static DocValuesType docValuesType(Document document, String fieldName) {
         for (IndexableField field : document.getFields(fieldName)) {
             if (field.fieldType().docValuesType() != DocValuesType.NONE) {

@@ -456,9 +456,9 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         protected abstract String getFieldName();
 
         @Override
-        public Explanation explainScore(int docId, float subQueryScore) {
+        public Explanation explainScore(int docId, Explanation subQueryScore) {
             ComplexExplanation ce = new ComplexExplanation();
-            ce.setValue(CombineFunction.toFloat(score(docId, subQueryScore)));
+            ce.setValue(CombineFunction.toFloat(score(docId, subQueryScore.getValue())));
             ce.setMatch(true);
             ce.setDescription("Function for field " + getFieldName() + ":");
             ce.addDetail(func.explainFunction(getDistanceString(docId), distance(docId), scale));

@@ -33,6 +33,7 @@ import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
@@ -85,7 +86,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     }
 
     public void initialize(InternalAggregation.ReduceContext context) {
-        script = context.scriptService().executable(scriptLang, scriptString, scriptType, params);
+        script = context.scriptService().executable(scriptLang, scriptString, scriptType, ScriptContext.AGGS, params);
         script.setNextVar("_subset_freq", subsetDfHolder);
         script.setNextVar("_subset_size", subsetSizeHolder);
         script.setNextVar("_superset_freq", supersetDfHolder);
@@ -170,7 +171,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             }
             ExecutableScript searchScript;
             try {
-                searchScript = scriptService.executable(scriptLang, script, scriptType, params);
+                searchScript = scriptService.executable(scriptLang, script, scriptType, ScriptContext.AGGS, params);
             } catch (Exception e) {
                 throw new ElasticsearchParseException("The script [" + script + "] could not be loaded", e);
             }

@@ -351,13 +351,14 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                                 .create(true)
                                 .source(data.slice(from, nextMarker - from), contentUnsafe), payload);
                     } else if ("update".equals(action)) {
-                        UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).retryOnConflict(retryOnConflict)
+                        UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).parent(parent).retryOnConflict(retryOnConflict)
                                 .version(version).versionType(versionType)
+                                .routing(routing)
+                                .parent(parent)
                                 .source(data.slice(from, nextMarker - from));
 
                         IndexRequest upsertRequest = updateRequest.upsertRequest();
                         if (upsertRequest != null) {
-                            upsertRequest.routing(routing);
                             upsertRequest.timestamp(timestamp);
                             upsertRequest.ttl(ttl);
                             upsertRequest.version(version);
@@ -365,7 +366,6 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                         }
                         IndexRequest doc = updateRequest.doc();
                         if (doc != null) {
-                            doc.routing(routing);
                             doc.timestamp(timestamp);
                             doc.ttl(ttl);
                             doc.version(version);

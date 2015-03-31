@@ -65,9 +65,9 @@ public class WeightFactorFunction extends ScoreFunction {
     }
 
     @Override
-    public Explanation explainScore(int docId, float score) throws IOException {
+    public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
         Explanation functionScoreExplanation;
-        Explanation functionExplanation = scoreFunction.explainScore(docId, score);
+        Explanation functionExplanation = scoreFunction.explainScore(docId, subQueryScore);
         functionScoreExplanation = new ComplexExplanation(true, functionExplanation.getValue() * (float) getWeight(), "product of:");
         functionScoreExplanation.addDetail(functionExplanation);
         functionScoreExplanation.addDetail(explainWeight());
@@ -99,7 +99,7 @@ public class WeightFactorFunction extends ScoreFunction {
         }
 
         @Override
-        public Explanation explainScore(int docId, float subQueryScore) {
+        public Explanation explainScore(int docId, Explanation subQueryScore) {
             return new Explanation(1.0f, "constant score 1.0 - no function provided");
         }
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ElasticsearchBackwardsCompatIntegrationTest;
 import org.junit.Test;
 
@@ -98,6 +99,12 @@ public class FunctionScoreBackwardCompatibilityTests extends ElasticsearchBackwa
         } while (upgraded);
         client().admin().indices().prepareUpdateSettings("test").setSettings(ImmutableSettings.builder().put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE, "all")).get();
         logger.debug("done function_score while upgrading");
+    }
+
+    @Override
+    protected Settings commonNodeSettings(int nodeOrdinal) {
+        return ImmutableSettings.builder().put(super.commonNodeSettings(nodeOrdinal))
+                .put("script.inline", "on").build();
     }
 
     private void checkFunctionScoreStillWorks(String... ids) throws ExecutionException, InterruptedException, IOException {

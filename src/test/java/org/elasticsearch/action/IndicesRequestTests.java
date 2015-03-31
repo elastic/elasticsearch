@@ -30,8 +30,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
@@ -607,19 +605,6 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
 
         clearInterceptedActions();
         assertSameIndices(putMappingRequest, PutMappingAction.NAME);
-    }
-
-    @Test
-    public void testDeleteMapping() {
-        interceptTransportActions(DeleteMappingAction.NAME);
-
-        String[] indices = randomUniqueIndicesOrAliases();
-        client().admin().indices().putMapping(new PutMappingRequest(indices).type("type").source("field", "type=string")).actionGet();
-        DeleteMappingRequest deleteMappingRequest = new DeleteMappingRequest(indices).types("type");
-        internalCluster().clientNodeClient().admin().indices().deleteMapping(deleteMappingRequest).actionGet();
-
-        clearInterceptedActions();
-        assertSameIndices(deleteMappingRequest, DeleteMappingAction.NAME);
     }
 
     @Test

@@ -100,7 +100,8 @@ public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
                 if (value == null) {
                     values = Collections.emptyList();
                 } else if (value instanceof Collection) {
-                    values = new ArrayList<>((Collection<?>) value);
+                    // TODO: use diamond operator once JI-9019884 is fixed
+                    values = new ArrayList<Object>((Collection<?>) value);
                 } else {
                     values = Collections.singletonList(value);
                 }

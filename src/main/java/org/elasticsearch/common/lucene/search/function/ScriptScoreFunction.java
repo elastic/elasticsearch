@@ -107,20 +107,23 @@ public class ScriptScoreFunction extends ScoreFunction {
     }
 
     @Override
-    public Explanation explainScore(int docId, float subQueryScore) throws IOException {
+    public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
         Explanation exp;
         if (script instanceof ExplainableSearchScript) {
             script.setNextDocId(docId);
             scorer.docid = docId;
-            scorer.score = subQueryScore;
+            scorer.score = subQueryScore.getValue();
             exp = ((ExplainableSearchScript) script).explain(subQueryScore);
         } else {
-            double score = score(docId, subQueryScore);
+            double score = score(docId, subQueryScore.getValue());
             String explanation = "script score function, computed with script:\"" + sScript;
             if (params != null) {
                 explanation += "\" and parameters: \n" + params.toString();
             }
             exp = new Explanation(CombineFunction.toFloat(score), explanation);
+            Explanation scoreExp = new Explanation(subQueryScore.getValue(), "_score: ");
+            scoreExp.addDetail(subQueryScore);
+            exp.addDetail(scoreExp);
         }
         return exp;
     }

@@ -225,7 +225,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
         Transports.assertTransportThread();
         try {
             transportServiceAdapter.received(data.length);
-            StreamInput stream = new BytesStreamInput(data, false);
+            StreamInput stream = new BytesStreamInput(data);
             stream.setVersion(version);
 
             long requestId = stream.readLong();
@@ -235,9 +235,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             if (isRequest) {
                 handleRequest(stream, requestId, sourceTransport, version);
             } else {
-                // notify with response before we process it and before we remove information about it.
-                transportServiceAdapter.onResponseReceived(requestId);
-                final TransportResponseHandler handler = transportServiceAdapter.remove(requestId);
+                final TransportResponseHandler handler = transportServiceAdapter.onResponseReceived(requestId);
                 // ignore if its null, the adapter logs it
                 if (handler != null) {
                     if (TransportStatus.isError(status)) {
@@ -249,7 +247,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             }
         } catch (Throwable e) {
             if (sendRequestId != null) {
-                TransportResponseHandler handler = transportServiceAdapter.remove(sendRequestId);
+                TransportResponseHandler handler = transportServiceAdapter.onResponseReceived(sendRequestId);
                 if (handler != null) {
                     handleException(handler, new RemoteTransportException(nodeName(), localAddress, action, e));
                 }
@@ -271,7 +269,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
             final TransportRequest request = handler.newInstance();
             request.remoteAddress(sourceTransport.boundAddress.publishAddress());
             request.readFrom(stream);
-            if (handler.executor() == ThreadPool.Names.SAME) {
+            if (ThreadPool.Names.SAME.equals(handler.executor())) {
                 //noinspection unchecked
                 handler.messageReceived(request, transportChannel);
             } else {

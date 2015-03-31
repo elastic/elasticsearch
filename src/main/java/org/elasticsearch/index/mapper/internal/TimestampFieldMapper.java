@@ -230,6 +230,11 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         return defaultFieldType;
     }
 
+    @Override
+    public boolean defaultDocValues() {
+        return false;
+    }
+
     public boolean enabled() {
         return this.enabledState.enabled;
     }
@@ -310,7 +315,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                 fieldType.stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED && path == Defaults.PATH
                 && dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())
                 && Defaults.DEFAULT_TIMESTAMP.equals(defaultTimestamp)
-                && Defaults.DOC_VALUES == hasDocValues()) {
+                && defaultDocValues() == hasDocValues()) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
@@ -323,7 +328,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());
         }
-        if (includeDefaults || hasDocValues() != Defaults.DOC_VALUES) {
+        if (includeDefaults || hasDocValues() != defaultDocValues()) {
             builder.field(TypeParsers.DOC_VALUES, docValues);
         }
         if (includeDefaults || path != Defaults.PATH) {

@@ -148,7 +148,7 @@ public class CardinalityAggregationSearchBenchmark {
                 long start = System.nanoTime();
                 SearchResponse resp = null;
                 for (int j = 0; j < ITERS; ++j) {
-                    resp = client.prepareSearch("index").setSearchType(SearchType.COUNT).addAggregation(cardinality("cardinality").field(field)).execute().actionGet();
+                    resp = client.prepareSearch("index").setSize(0).addAggregation(cardinality("cardinality").field(field)).execute().actionGet();
                 }
                 long end = System.nanoTime();
                 final long cardinality = ((Cardinality) resp.getAggregations().get("cardinality")).getValue();

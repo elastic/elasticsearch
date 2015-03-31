@@ -69,6 +69,11 @@ public class UpdateRequestBuilder extends InstanceShardOperationRequestBuilder<U
         return this;
     }
 
+    public UpdateRequestBuilder setParent(String parent) {
+        request.parent(parent);
+        return this;
+    }
+
     /**
      * The script to execute. Note, make sure not to send different script each times and instead
      * use script params if possible with the same (automatically compiled) script.

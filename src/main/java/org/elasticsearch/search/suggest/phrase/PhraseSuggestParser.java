@@ -30,7 +30,8 @@ import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.CompiledScript;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestUtils;
@@ -152,7 +153,7 @@ public final class PhraseSuggestParser implements SuggestContextParser {
                             if (suggestion.getCollateQueryScript() != null) {
                                 throw new ElasticsearchIllegalArgumentException("suggester[phrase][collate] query already set, doesn't support additional [" + fieldName + "]");
                             }
-                            CompiledScript compiledScript = suggester.scriptService().compile(MustacheScriptEngineService.NAME, templateNameOrTemplateContent, ScriptService.ScriptType.INLINE);
+                            CompiledScript compiledScript = suggester.scriptService().compile(MustacheScriptEngineService.NAME, templateNameOrTemplateContent, ScriptType.INLINE, ScriptContext.SEARCH);
                             if ("query".equals(fieldName)) {
                                 suggestion.setCollateQueryScript(compiledScript);
                             } else {

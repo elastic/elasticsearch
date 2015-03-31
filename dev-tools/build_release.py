@@ -62,7 +62,6 @@ Once it's done it will print all the remaining steps.
 env = os.environ
 
 PLUGINS = [('license', 'elasticsearch/license/latest'),
-           ('marvel', 'elasticsearch/marvel/latest'),
            ('bigdesk', 'lukas-vlcek/bigdesk'),
            ('paramedic', 'karmi/elasticsearch-paramedic'),
            ('segmentspy', 'polyfractal/elasticsearch-segmentspy'),
@@ -269,7 +268,7 @@ def ensure_no_open_tickets(version):
   try:
     log('Checking for open tickets on Github for version %s' % version)
     log('Check if node is available')
-    conn.request('GET', '/repos/elasticsearch/elasticsearch/issues?state=open&labels=%s' % version, headers= {'User-Agent' : 'Elasticsearch version checker'})
+    conn.request('GET', '/repos/elastic/elasticsearch/issues?state=open&labels=%s' % version, headers= {'User-Agent' : 'Elasticsearch version checker'})
     res = conn.getresponse()
     if res.status == 200:
       issues = json.loads(res.read().decode("utf-8"))
@@ -310,8 +309,8 @@ def wait_for_node_startup(host='127.0.0.1', port=9200,timeout=15):
 # Ensures we are using a true Lucene release, not a snapshot build:
 def verify_lucene_version():
   s = open('pom.xml', encoding='utf-8').read()
-  if 'download.elasticsearch.org/lucenesnapshots' in s:
-    raise RuntimeError('pom.xml contains download.elasticsearch.org/lucenesnapshots repository: remove that before releasing')
+  if 'download.elastic.co/lucenesnapshots' in s:
+    raise RuntimeError('pom.xml contains download.elastic.co/lucenesnapshots repository: remove that before releasing')
 
   m = re.search(r'<lucene.version>(.*?)</lucene.version>', s)
   if m is None:
@@ -389,7 +388,7 @@ def generate_checksums(files):
     res = res + [os.path.join(directory, checksum_file), release_file]
   return res
 
-def download_and_verify(release, files, plugins=None, base_url='https://download.elasticsearch.org/elasticsearch/elasticsearch'):
+def download_and_verify(release, files, plugins=None, base_url='https://download.elastic.co/elasticsearch/elasticsearch'):
   print('Downloading and verifying release %s from %s' % (release, base_url))
   tmp_dir = tempfile.mkdtemp()
   try:
@@ -437,7 +436,7 @@ def smoke_test_release(release, files, expected_hash, plugins):
     else:
       background = '-d'
     print('  Starting elasticsearch deamon from [%s]' % os.path.join(tmp_dir, 'elasticsearch-%s' % release))
-    run('%s; %s -Des.node.name=smoke_tester -Des.cluster.name=prepare_release -Des.discovery.zen.ping.multicast.enabled=false -Des.node.bench=true -Des.script.disable_dynamic=false %s'
+    run('%s; %s -Des.node.name=smoke_tester -Des.cluster.name=prepare_release -Des.discovery.zen.ping.multicast.enabled=false -Des.script.inline=on -Des.script.indexed=on %s'
          % (java_exe(), es_run_path, background))
     conn = HTTPConnection('127.0.0.1', 9200, 20);
     wait_for_node_startup()
@@ -693,7 +692,7 @@ if __name__ == '__main__':
         cherry_pick_command = ' and cherry-pick the documentation changes: \'git cherry-pick %s\' to the development branch' % (version_head_hash)
       pending_msg = """
       Release successful pending steps:
-        * create a new vX.Y.Z label on github for the next release, with label color #dddddd (https://github.com/elasticsearch/elasticsearch/labels)
+        * create a new vX.Y.Z label on github for the next release, with label color #dddddd (https://github.com/elastic/elasticsearch/labels)
         * publish the maven artifacts on Sonatype: https://oss.sonatype.org/index.html
            - here is a guide: http://central.sonatype.org/pages/releasing-the-deployment.html
         * check if the release is there https://oss.sonatype.org/content/repositories/releases/org/elasticsearch/elasticsearch/%(version)s

@@ -314,6 +314,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                     if (changeSettings.names().isEmpty() && ignoreSettings.length == 0) {
                         return indexMetaData;
                     }
+                    Settings normalizedChangeSettings = ImmutableSettings.settingsBuilder().put(changeSettings).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX).build();
                     IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
                     Map<String, String> settingsMap = newHashMap(indexMetaData.settings().getAsMap());
                     List<String> simpleMatchPatterns = newArrayList();
@@ -340,7 +341,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                             }
                         }
                     }
-                    for(Map.Entry<String, String> entry : changeSettings.getAsMap().entrySet()) {
+                    for(Map.Entry<String, String> entry : normalizedChangeSettings.getAsMap().entrySet()) {
                         if (UNMODIFIABLE_SETTINGS.contains(entry.getKey())) {
                             throw new SnapshotRestoreException(snapshotId, "cannot modify setting [" + entry.getKey() + "] on restore");
                         } else {

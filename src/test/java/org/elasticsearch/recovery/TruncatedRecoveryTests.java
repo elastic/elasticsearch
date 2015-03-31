@@ -109,11 +109,6 @@ public class TruncatedRecoveryTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).get();
         client().admin().indices().prepareOptimize().setMaxNumSegments(1).setFlush(true).get();
 
-        logger.info("--> bumping replicas to 1"); //
-        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder()
-                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
-                .put("index.routing.allocation.include._name",  // now allow allocation on all nodes
-                        primariesNode.getNode().name() + "," + unluckyNode.getNode().name())).get();
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean truncate = new AtomicBoolean(true);
         for (NodeStats dataNode : dataNodeStats) {
@@ -124,7 +119,8 @@ public class TruncatedRecoveryTests extends ElasticsearchIntegrationTest {
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
                     if (action.equals(RecoveryTarget.Actions.FILE_CHUNK)) {
                         RecoveryFileChunkRequest req = (RecoveryFileChunkRequest) request;
-                        if ((req.name().endsWith("cfs") || req.name().endsWith("fdt"))&& req.lastChunk() && truncate.get()) {
+                        logger.debug("file chunk [" + req.toString() + "] lastChunk: " + req.lastChunk());
+                        if ((req.name().endsWith("cfs") || req.name().endsWith("fdt")) && req.lastChunk() && truncate.get()) {
                             latch.countDown();
                             throw new RuntimeException("Caused some truncated files for fun and profit");
                         }
@@ -133,6 +129,13 @@ public class TruncatedRecoveryTests extends ElasticsearchIntegrationTest {
                 }
             });
         }
+
+        logger.info("--> bumping replicas to 1"); //
+        client().admin().indices().prepareUpdateSettings("test").setSettings(settingsBuilder()
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put("index.routing.allocation.include._name",  // now allow allocation on all nodes
+                        primariesNode.getNode().name() + "," + unluckyNode.getNode().name())).get();
+
         latch.await();
 
         // at this point we got some truncated left overs on the replica on the unlucky node

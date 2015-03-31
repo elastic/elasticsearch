@@ -40,8 +40,7 @@ public enum VersionType {
             if (currentVersion == Versions.NOT_SET) {
                 return false;
             }
-            // we need to allow pre 1.2.0 match any as requests can come in for java code where the may be hardcoded
-            if (expectedVersion == Versions.MATCH_ANY || expectedVersion == Versions.MATCH_ANY_PRE_1_2_0) {
+            if (expectedVersion == Versions.MATCH_ANY) {
                 return false;
             }
             if (currentVersion == Versions.NOT_FOUND) {
@@ -61,13 +60,13 @@ public enum VersionType {
         @Override
         public boolean validateVersionForWrites(long version) {
             // not allowing Versions.NOT_FOUND as it is not a valid input value.
-            return version > 0L || version == Versions.MATCH_ANY || version == Versions.MATCH_ANY_PRE_1_2_0;
+            return version > 0L || version == Versions.MATCH_ANY;
         }
 
         @Override
         public boolean validateVersionForReads(long version) {
             // not allowing Versions.NOT_FOUND as it is not a valid input value.
-            return version > 0L || version == Versions.MATCH_ANY || version == Versions.MATCH_ANY_PRE_1_2_0;
+            return version > 0L || version == Versions.MATCH_ANY;
         }
 
         @Override

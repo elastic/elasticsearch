@@ -73,4 +73,11 @@ public abstract class Assertion implements ExecutableSection {
      * Executes the assertion comparing the actual value (parsed from the response) with the expected one
      */
     protected abstract void doAssert(Object actualValue, Object expectedValue);
+
+    /**
+     * a utility to get the class of an object, protecting for null (i.e., returning null if the input is null)
+     */
+    protected Class<?> safeClass(Object o) {
+        return o == null ? null : o.getClass();
+    }
 }

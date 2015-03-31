@@ -44,7 +44,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
-import org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
@@ -275,17 +274,6 @@ public class Requests {
      */
     public static PutMappingRequest putMappingRequest(String... indices) {
         return new PutMappingRequest(indices);
-    }
-
-    /**
-     * Deletes mapping (and all its data) from one or more indices.
-     *
-     * @param indices The indices the mapping will be deleted from. Use <tt>null</tt> or <tt>_all</tt> to execute against all indices
-     * @return The create mapping request
-     * @see org.elasticsearch.client.IndicesAdminClient#deleteMapping(org.elasticsearch.action.admin.indices.mapping.delete.DeleteMappingRequest)
-     */
-    public static DeleteMappingRequest deleteMappingRequest(String... indices) {
-        return new DeleteMappingRequest(indices);
     }
 
     /**

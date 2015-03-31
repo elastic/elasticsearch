@@ -224,7 +224,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -247,7 +248,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(numValueBuckets - i - 1);
             assertThat(bucket, notNullValue());
@@ -271,7 +273,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
         LongOpenHashSet buckets = new LongOpenHashSet();
-        List<Histogram.Bucket> histoBuckets = new ArrayList<>(histo.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<Histogram.Bucket> histoBuckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
         long previousCount = Long.MIN_VALUE;
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = histoBuckets.get(i);
@@ -300,7 +303,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
         LongOpenHashSet buckets = new LongOpenHashSet();
-        List<Histogram.Bucket> histoBuckets = new ArrayList<>(histo.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<Histogram.Bucket> histoBuckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
         long previousCount = Long.MAX_VALUE;
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = histoBuckets.get(i);
@@ -332,7 +336,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         Object[] propertiesDocCounts = (Object[]) histo.getProperty("_count");
         Object[] propertiesCounts = (Object[]) histo.getProperty("sum.value");
 
-        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -369,7 +374,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -405,7 +411,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
 
         LongOpenHashSet visited = new LongOpenHashSet();
         double previousSum = Double.NEGATIVE_INFINITY;
-        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -445,7 +452,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
 
         LongOpenHashSet visited = new LongOpenHashSet();
         double previousSum = Double.POSITIVE_INFINITY;
-        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -485,7 +493,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
 
         LongOpenHashSet visited = new LongOpenHashSet();
         double previousSum = Double.NEGATIVE_INFINITY;
-        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -525,7 +534,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
 
         LongOpenHashSet visited = new LongOpenHashSet();
         double previousSum = Double.POSITIVE_INFINITY;
-        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -567,7 +577,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
 
         LongOpenHashSet visited = new LongOpenHashSet();
         double prevMax = asc ? Double.NEGATIVE_INFINITY : Double.POSITIVE_INFINITY;
-        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());
@@ -653,7 +664,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValuesBuckets));
 
-        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
         for (int i = 0; i < numValuesBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(numValuesBuckets - i - 1);
             assertThat(bucket, notNullValue());
@@ -782,7 +794,8 @@ public class HistogramTests extends ElasticsearchIntegrationTest {
         assertThat(histo.getName(), equalTo("histo"));
         assertThat(histo.getBuckets().size(), equalTo(numValueBuckets));
 
-        List<Histogram.Bucket> buckets = new ArrayList<>(histo.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<Histogram.Bucket> buckets = new ArrayList<Histogram.Bucket>(histo.getBuckets());
         for (int i = 0; i < numValueBuckets; ++i) {
             Histogram.Bucket bucket = buckets.get(i);
             assertThat(bucket, notNullValue());

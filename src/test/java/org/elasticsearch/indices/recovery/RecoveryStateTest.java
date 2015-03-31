@@ -199,6 +199,12 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
             index.start();
             for (int i = randomIntBetween(0, 10); i > 0; i--) {
                 index.addFileDetail("t_" + i, randomIntBetween(1, 100), randomBoolean());
+                if (randomBoolean()) {
+                    index.addSourceThrottling(randomIntBetween(0, 20));
+                }
+                if (randomBoolean()) {
+                    index.addTargetThrottling(randomIntBetween(0, 20));
+                }
             }
             if (randomBoolean()) {
                 index.stop();
@@ -210,6 +216,8 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
         // before we start we must report 0
         assertThat(index.recoveredFilesPercent(), equalTo((float) 0.0));
         assertThat(index.recoveredBytesPercent(), equalTo((float) 0.0));
+        assertThat(index.sourceThrottling().nanos(), equalTo(Index.UNKNOWN));
+        assertThat(index.targetThrottling().nanos(), equalTo(Index.UNKNOWN));
 
         index.start();
         for (File file : files) {
@@ -247,11 +255,27 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
         backgroundReader.start();
 
         long recoveredBytes = 0;
+        long sourceThrottling = Index.UNKNOWN;
+        long targetThrottling = Index.UNKNOWN;
         while (bytesToRecover > 0) {
             File file = randomFrom(filesToRecover);
-            long toRecover = Math.min(bytesToRecover, randomIntBetween(1, (int) (file.length() - file.recovered())));
+            final long toRecover = Math.min(bytesToRecover, randomIntBetween(1, (int) (file.length() - file.recovered())));
+            final long throttledOnSource = rarely() ? randomIntBetween(10, 200) : 0;
+            index.addSourceThrottling(throttledOnSource);
+            if (sourceThrottling == Index.UNKNOWN) {
+                sourceThrottling = throttledOnSource;
+            } else {
+                sourceThrottling += throttledOnSource;
+            }
             index.addRecoveredBytesToFile(file.name(), toRecover);
             file.addRecoveredBytes(toRecover);
+            final long throttledOnTarget = rarely() ? randomIntBetween(10, 200) : 0;
+            if (targetThrottling == Index.UNKNOWN) {
+                targetThrottling = throttledOnTarget;
+            } else {
+                targetThrottling += throttledOnTarget;
+            }
+            index.addTargetThrottling(throttledOnTarget);
             bytesToRecover -= toRecover;
             recoveredBytes += toRecover;
             if (file.reused() || file.fullyRecovered()) {
@@ -278,6 +302,8 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
             assertThat(lastRead.time(), lessThanOrEqualTo(index.time()));
         }
         assertThat(lastRead.stopTime(), equalTo(index.stopTime()));
+        assertThat(lastRead.targetThrottling(), equalTo(index.targetThrottling()));
+        assertThat(lastRead.sourceThrottling(), equalTo(index.sourceThrottling()));
 
         logger.info("testing post recovery");
         assertThat(index.totalBytes(), equalTo(totalFileBytes));
@@ -288,6 +314,8 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
         assertThat(index.totalRecoverFiles(), equalTo(files.length - totalReused));
         assertThat(index.recoveredFileCount(), equalTo(index.totalRecoverFiles() - filesToRecover.size()));
         assertThat(index.recoveredBytes(), equalTo(recoveredBytes));
+        assertThat(index.targetThrottling().nanos(), equalTo(targetThrottling));
+        assertThat(index.sourceThrottling().nanos(), equalTo(sourceThrottling));
         if (index.totalRecoverFiles() == 0) {
             assertThat((double) index.recoveredFilesPercent(), equalTo(100.0));
             assertThat((double) index.recoveredBytesPercent(), equalTo(100.0));

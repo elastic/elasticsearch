@@ -86,6 +86,7 @@ public class RestShardsAction extends AbstractCatAction {
                 .addCell("docs", "alias:d,dc;text-align:right;desc:number of docs in shard")
                 .addCell("store", "alias:sto;text-align:right;desc:store size of shard (how much disk it uses)")
                 .addCell("ip", "default:true;desc:ip of node where it lives")
+                .addCell("id", "default:false;desc:unique id of node where it lives")
                 .addCell("node", "default:true;alias:n;desc:name of node where it lives");
 
         table.addCell("completion.size", "alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
@@ -186,19 +187,25 @@ public class RestShardsAction extends AbstractCatAction {
             table.addCell(shardStats == null ? null : shardStats.getStore().getSize());
             if (shard.assignedToNode()) {
                 String ip = state.getState().nodes().get(shard.currentNodeId()).getHostAddress();
+                String nodeId = shard.currentNodeId();
                 StringBuilder name = new StringBuilder();
                 name.append(state.getState().nodes().get(shard.currentNodeId()).name());
                 if (shard.relocating()) {
                     String reloIp = state.getState().nodes().get(shard.relocatingNodeId()).getHostAddress();
                     String reloNme = state.getState().nodes().get(shard.relocatingNodeId()).name();
+                    String reloNodeId = shard.relocatingNodeId();
                     name.append(" -> ");
                     name.append(reloIp);
+                    name.append(" ");
+                    name.append(reloNodeId);
                     name.append(" ");
                     name.append(reloNme);
                 }
                 table.addCell(ip);
+                table.addCell(nodeId);
                 table.addCell(name);
             } else {
+                table.addCell(null);
                 table.addCell(null);
                 table.addCell(null);
             }

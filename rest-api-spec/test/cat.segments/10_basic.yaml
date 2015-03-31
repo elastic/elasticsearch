@@ -10,6 +10,7 @@
                     shard        .+   \n
                     prirep       .+   \n
                     ip           .+   \n
+                    id           .+   \n
                     segment      .+   \n
                     generation   .+   \n
                     docs.count   .+   \n

@@ -96,7 +96,7 @@ public class VersionFieldMapper extends AbstractFieldMapper<Long> implements Int
     };
 
     public VersionFieldMapper(Settings indexSettings) {
-        super(new Names(NAME, NAME, NAME, NAME), Defaults.BOOST, Defaults.FIELD_TYPE, null, null, null, null, null, null, indexSettings);
+        super(new Names(NAME, NAME, NAME, NAME), Defaults.BOOST, Defaults.FIELD_TYPE, true, null, null, null, null, null, indexSettings);
     }
 
     @Override
@@ -169,10 +169,5 @@ public class VersionFieldMapper extends AbstractFieldMapper<Long> implements Int
     @Override
     public void close() {
         fieldCache.remove();
-    }
-
-    @Override
-    public boolean hasDocValues() {
-        return true;
     }
 }

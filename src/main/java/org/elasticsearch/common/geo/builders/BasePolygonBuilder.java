@@ -271,9 +271,9 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
             }
         }
 
-        double shift = any.coordinate.x > DATELINE ? DATELINE : (any.coordinate.x < -DATELINE ? -DATELINE : 0);
+        double shiftOffset = any.coordinate.x > DATELINE ? DATELINE : (any.coordinate.x < -DATELINE ? -DATELINE : 0);
         if (debugEnabled()) {
-            LOGGER.debug("shift: {[]}", shift);
+            LOGGER.debug("shift: {[]}", shiftOffset);
         }
 
         // run along the border of the component, collect the
@@ -288,7 +288,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         // bookkeep the source and sink of each visited coordinate
         WeakHashMap<Coordinate, Pair<Edge, Edge>> visitedEdge = new WeakHashMap<>();
         do {
-            current.coordinate = shift(current.coordinate, shift);
+            current.coordinate = shift(current.coordinate, shiftOffset);
             current.component = id;
 
             if (edges != null) {

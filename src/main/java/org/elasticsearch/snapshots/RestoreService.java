@@ -429,12 +429,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         logger.trace("[{}] successfully restored shard  [{}]", snapshotId, shardId);
         UpdateIndexShardRestoreStatusRequest request = new UpdateIndexShardRestoreStatusRequest(snapshotId, shardId,
                 new ShardRestoreStatus(clusterService.state().nodes().localNodeId(), RestoreMetaData.State.SUCCESS));
-        if (clusterService.state().nodes().localNodeMaster()) {
-            innerUpdateRestoreState(request);
-        } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
                     UPDATE_RESTORE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
-        }
     }
 
     public final static class RestoreCompletionResponse {
@@ -460,7 +456,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
      *
      * @param request update shard status request
      */
-    private void innerUpdateRestoreState(final UpdateIndexShardRestoreStatusRequest request) {
+    private void updateRestoreStateOnMaster(final UpdateIndexShardRestoreStatusRequest request) {
         clusterService.submitStateUpdateTask("update snapshot state", new ProcessedClusterStateUpdateTask() {
 
             private RestoreInfo restoreInfo = null;
@@ -655,7 +651,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                 if (shardsToFail != null) {
                     for (ShardId shardId : shardsToFail) {
                         logger.trace("[{}] failing running shard restore [{}]", entry.snapshotId(), shardId);
-                        innerUpdateRestoreState(new UpdateIndexShardRestoreStatusRequest(entry.snapshotId(), shardId, new ShardRestoreStatus(null, RestoreMetaData.State.FAILURE, "index was deleted")));
+                        updateRestoreStateOnMaster(new UpdateIndexShardRestoreStatusRequest(entry.snapshotId(), shardId, new ShardRestoreStatus(null, RestoreMetaData.State.FAILURE, "index was deleted")));
                     }
                 }
             }
@@ -669,12 +665,8 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         logger.debug("[{}] failed to restore shard  [{}]", snapshotId, shardId);
         UpdateIndexShardRestoreStatusRequest request = new UpdateIndexShardRestoreStatusRequest(snapshotId, shardId,
                 new ShardRestoreStatus(clusterService.state().nodes().localNodeId(), RestoreMetaData.State.FAILURE));
-        if (clusterService.state().nodes().localNodeMaster()) {
-            innerUpdateRestoreState(request);
-        } else {
             transportService.sendRequest(clusterService.state().nodes().masterNode(),
                     UPDATE_RESTORE_ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
-        }
     }
 
     private boolean failed(Snapshot snapshot, String index) {
@@ -999,7 +991,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
         @Override
         public void messageReceived(UpdateIndexShardRestoreStatusRequest request, final TransportChannel channel) throws Exception {
-            innerUpdateRestoreState(request);
+            updateRestoreStateOnMaster(request);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
 

@@ -40,7 +40,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
     public void testDefaultConfiguration() throws IOException {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
-                .field("type", "completion")
+                .field("type", "completion_old")
                 .endObject().endObject()
                 .endObject().endObject().string();
 
@@ -57,7 +57,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
     public void testThatSerializationIncludesAllElements() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
-                .field("type", "completion")
+                .field("type", "completion_old")
                 .field("analyzer", "simple")
                 .field("search_analyzer", "standard")
                 .field("payloads", true)
@@ -94,7 +94,7 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
     public void testThatSerializationCombinesToOneAnalyzerFieldIfBothAreEqual() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
-                .field("type", "completion")
+                .field("type", "completion_old")
                 .field("analyzer", "simple")
                 .field("search_analyzer", "simple")
                 .endObject().endObject()

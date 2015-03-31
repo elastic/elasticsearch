@@ -118,6 +118,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             case TermSuggestion.TYPE:
                 suggestion = new TermSuggestion();
                 break;
+            case org.elasticsearch.search.suggest.completionv2.CompletionSuggestion.TYPE:
+                suggestion = new org.elasticsearch.search.suggest.completionv2.CompletionSuggestion();
+                break;
             case CompletionSuggestion.TYPE:
                 suggestion = new CompletionSuggestion();
                 break;

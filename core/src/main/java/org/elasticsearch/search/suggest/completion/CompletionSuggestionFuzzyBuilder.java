@@ -34,7 +34,8 @@ import java.io.IOException;
 public class CompletionSuggestionFuzzyBuilder extends SuggestBuilder.SuggestionBuilder<CompletionSuggestionFuzzyBuilder> {
 
     public CompletionSuggestionFuzzyBuilder(String name) {
-        super(name, "completion");
+        // breaks back-compat
+        super(name, "completion_old");
     }
 
     private Fuzziness fuzziness = Fuzziness.ONE;

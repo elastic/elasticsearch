@@ -89,7 +89,7 @@ public class TransformOnIndexMapperIT extends ESIntegTestCase {
     public void contextSuggestPayloadTransformed() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         builder.startObject("properties");
-        builder.startObject("suggest").field("type", "completion").field("payloads", true).endObject();
+        builder.startObject("suggest").field("type", "completion_old").field("payloads", true).endObject();
         builder.endObject();
         builder.startObject("transform");
         builder.field("script", "ctx._source.suggest = ['input': ctx._source.text];ctx._source.suggest.payload = ['display': ctx._source.text, 'display_detail': 'on the fly']");

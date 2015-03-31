@@ -19,13 +19,21 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.core.CompletionV2FieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
+import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.search.suggest.completionv2.CompletionSuggestParser;
+import org.elasticsearch.search.suggest.completionv2.CompletionSuggester;
+import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
 
 import java.io.IOException;
 import java.util.Map;
@@ -69,6 +77,8 @@ public final class SuggestParseElement implements SearchParseElement {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 String suggestionName = fieldName;
                 BytesRef suggestText = null;
+                BytesRef prefix = null;
+                BytesRef regex = null;
                 SuggestionContext suggestionContext = null;
 
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -77,6 +87,10 @@ public final class SuggestParseElement implements SearchParseElement {
                     } else if (token.isValue()) {
                         if ("text".equals(fieldName)) {
                             suggestText = parser.utf8Bytes();
+                        } else if ("prefix".equals(fieldName)) {
+                            prefix = parser.utf8Bytes();
+                        } else if ("regex".equals(fieldName)) {
+                            regex = parser.utf8Bytes();
                         } else {
                             throw new IllegalArgumentException("[suggest] does not support [" + fieldName + "]");
                         }
@@ -88,11 +102,31 @@ public final class SuggestParseElement implements SearchParseElement {
                             throw new IllegalArgumentException("Suggester[" + fieldName + "] not supported");
                         }
                         final SuggestContextParser contextParser = suggesters.get(fieldName).getContextParser();
+                        if (contextParser instanceof CompletionSuggestParser) {
+                            if (prefix == null && suggestText != null) {
+                                prefix = suggestText;
+                            }
+                            if (suggestText == null) {
+                                if (prefix != null) {
+                                    suggestText = prefix;
+                                } else if (regex != null) {
+                                    suggestText = regex;
+                                } else {
+                                    throw new IllegalArgumentException("Suggestion against completion field must have either 'prefix' or 'regex'");
+                                }
+                            }
+                            if (prefix != null && regex != null) {
+                                throw new IllegalArgumentException("Suggestion against completion field must have either 'prefix' or 'regex'");
+                            }
+                            ((CompletionSuggestParser) contextParser).setOldCompletionSuggester(((org.elasticsearch.search.suggest.completion.CompletionSuggester) suggesters.get("completion_old")));
+                        }
                         suggestionContext = contextParser.parse(parser, mapperService, queryParserService);
                     }
                 }
                 if (suggestionContext != null) {
                     suggestionContext.setText(suggestText);
+                    suggestionContext.setPrefix(prefix);
+                    suggestionContext.setRegex(regex);
                     suggestionContexts.put(suggestionName, suggestionContext);
                 }
 

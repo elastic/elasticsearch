@@ -593,7 +593,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
     }
 
     /**
-     * test resolving _all pattern (null, empty arry or "_all") for random IndicesOptions
+     * test resolving _all pattern (null, empty array or "_all") for random IndicesOptions
      */
     @Test
     public void testConcreteIndicesAllPatternRandom() {
@@ -668,17 +668,18 @@ public class MetaDataTests extends ElasticsearchTestCase {
      * test resolving wildcard pattern that matches no index of alias for random IndicesOptions
      */
     @Test
-    public void testConcreteIndicesWildcardEmptyRandom() {
+    public void testConcreteIndicesWildcardNoMatch() {
         for (int i = 0; i < 10; i++) {
             IndicesOptions indicesOptions = IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean());
             MetaData metadata = MetaData.builder().build();
 
-            // with existing indices, asking for non existing wildcard pattern should return empty list or exception
             metadata = MetaData.builder()
                     .put(indexBuilder("aaa").state(State.OPEN).putAlias(AliasMetaData.builder("aaa_alias1")))
                     .put(indexBuilder("bbb").state(State.OPEN).putAlias(AliasMetaData.builder("bbb_alias1")))
                     .put(indexBuilder("ccc").state(State.CLOSE).putAlias(AliasMetaData.builder("ccc_alias1")))
                     .build();
+
+            // asking for non existing wildcard pattern should return empty list or exception
             if (indicesOptions.allowNoIndices()) {
                 String[] concreteIndices = metadata.concreteIndices(indicesOptions, "Foo*");
                 assertThat(concreteIndices, notNullValue());

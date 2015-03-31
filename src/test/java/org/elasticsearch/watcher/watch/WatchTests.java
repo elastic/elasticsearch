@@ -185,7 +185,7 @@ public class WatchTests extends ElasticsearchTestCase {
         String type = randomFrom(SearchInput.TYPE, SimpleInput.TYPE);
         switch (type) {
             case SearchInput.TYPE:
-                return new SearchInput(logger, scriptService, client, WatcherTestUtils.newInputSearchRequest("idx"));
+                return new SearchInput(logger, scriptService, client, WatcherTestUtils.newInputSearchRequest("idx"), null);
             default:
                 return new SimpleInput(logger, new Payload.Simple(ImmutableMap.<String, Object>builder().put("_key", "_val").build()));
         }

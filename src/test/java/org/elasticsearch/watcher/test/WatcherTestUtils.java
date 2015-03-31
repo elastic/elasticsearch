@@ -144,7 +144,7 @@ public final class WatcherTestUtils {
                 watchName,
                 SystemClock.INSTANCE,
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
-                new SearchInput(logger, scriptService, ClientProxy.of(ElasticsearchIntegrationTest.client()), conditionRequest),
+                new SearchInput(logger, scriptService, ClientProxy.of(ElasticsearchIntegrationTest.client()), conditionRequest, null),
                 new ScriptCondition(logger, scriptService, new Script("return true")),
                 new SearchTransform(logger, scriptService, ClientProxy.of(ElasticsearchIntegrationTest.client()), transformRequest),
                 new Actions(actions),

@@ -26,13 +26,19 @@ import org.elasticsearch.watcher.input.InputException;
 import org.elasticsearch.watcher.support.SearchRequestEquivalence;
 import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.WatcherUtils;
+import org.elasticsearch.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.WatchExecutionContext;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.common.xcontent.XContentParser.*;
 
 /**
  * An input that executes search and returns the search response as the initial payload
@@ -43,13 +49,15 @@ public class SearchInput extends Input<SearchInput.Result> {
 
     public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.COUNT;
 
+    private final Set<String> extractKeys;
     private final SearchRequest searchRequest;
 
     private final ScriptServiceProxy scriptService;
     private final ClientProxy client;
 
-    public SearchInput(ESLogger logger, ScriptServiceProxy scriptService, ClientProxy client, SearchRequest searchRequest) {
+    public SearchInput(ESLogger logger, ScriptServiceProxy scriptService, ClientProxy client, SearchRequest searchRequest, Set<String> extractKeys) {
         super(logger);
+        this.extractKeys = extractKeys;
         this.searchRequest = searchRequest;
         this.scriptService = scriptService;
         this.client = client;
@@ -78,12 +86,32 @@ public class SearchInput extends Input<SearchInput.Result> {
 
         }
 
-        return new Result(TYPE, new Payload.XContent(response), request);
+        final Payload payload;
+        if (extractKeys != null) {
+            XContentBuilder builder = jsonBuilder().startObject().value(response).endObject();
+            XContentParser parser = XContentHelper.createParser(builder.bytes());
+            Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(extractKeys, parser);
+            payload = new Payload.Simple(filteredKeys);
+        } else {
+            payload = new Payload.XContent(response);
+        }
+        return new Result(TYPE, payload, request);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return WatcherUtils.writeSearchRequest(searchRequest, builder, params);
+        builder.startObject();
+        builder.field(Parser.REQUEST_FIELD.getPreferredName());
+        builder = WatcherUtils.writeSearchRequest(searchRequest, builder, params);
+        if (extractKeys != null) {
+            builder.startArray(Parser.EXTRACT_FIELD.getPreferredName());
+            for (String extractKey : extractKeys) {
+                builder.value(extractKey);
+            }
+            builder.endObject();
+        }
+        builder.endObject();
+        return builder;
     }
 
     @Override
@@ -150,6 +178,7 @@ public class SearchInput extends Input<SearchInput.Result> {
     public static class Parser extends AbstractComponent implements Input.Parser<Result,SearchInput> {
 
         public static ParseField REQUEST_FIELD = new ParseField("request");
+        public static ParseField EXTRACT_FIELD = new ParseField("extract");
 
         private final ScriptServiceProxy scriptService;
         private final ClientProxy client;
@@ -167,11 +196,44 @@ public class SearchInput extends Input<SearchInput.Result> {
 
         @Override
         public SearchInput parse(XContentParser parser) throws IOException {
-            SearchRequest request = WatcherUtils.readSearchRequest(parser, DEFAULT_SEARCH_TYPE);
+            Set<String> extract = null;
+            SearchRequest request = null;
+
+            String currentFieldName = null;
+            for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
+                switch (token) {
+                    case FIELD_NAME:
+                        currentFieldName = parser.currentName();
+                        break;
+                    case START_OBJECT:
+                        if (REQUEST_FIELD.getPreferredName().equals(currentFieldName)) {
+                            request = WatcherUtils.readSearchRequest(parser, DEFAULT_SEARCH_TYPE);
+                        } else {
+                            throw new InputException("could not parse [search] input. unexpected field [" + currentFieldName + "]");
+                        }
+                        break;
+                    case START_ARRAY:
+                        if (EXTRACT_FIELD.getPreferredName().equals(currentFieldName)) {
+                            extract = new HashSet<>();
+                            for (Token arrayToken = parser.nextToken(); arrayToken != Token.END_ARRAY; arrayToken = parser.nextToken()) {
+                                if (arrayToken == Token.VALUE_STRING) {
+                                    extract.add(parser.text());
+                                }
+                            }
+                        } else {
+                            throw new InputException("could not parse [search] input. unexpected field [" + currentFieldName + "]");
+                        }
+                        break;
+                    default:
+                        throw new InputException("could not parse [search] input. unexpected token [" + token + "]");
+
+                }
+            }
+
             if (request == null) {
                 throw new InputException("could not parse [search] input. search request is missing or null.");
             }
-            return new SearchInput(logger, scriptService, client, request);
+            return new SearchInput(logger, scriptService, client, request, extract);
         }
 
         @Override
@@ -180,11 +242,10 @@ public class SearchInput extends Input<SearchInput.Result> {
             SearchRequest request = null;
 
             String currentFieldName = null;
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
+            for (Token token = parser.nextToken(); token != Token.END_OBJECT; token = parser.nextToken()) {
+                if (token == Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
+                } else if (token == Token.START_OBJECT && currentFieldName != null) {
                     if (Input.Result.PAYLOAD_FIELD.match(currentFieldName)) {
                         payload = new Payload.XContent(parser);
                     } else if (REQUEST_FIELD.match(currentFieldName)) {
@@ -212,9 +273,18 @@ public class SearchInput extends Input<SearchInput.Result> {
     public static class SourceBuilder implements Input.SourceBuilder {
 
         private final SearchRequest request;
+        private Set<String> extractKeys;
 
         public SourceBuilder(SearchRequest request) {
             this.request = request;
+        }
+
+        public SourceBuilder addExtractKey(String key) {
+            if (extractKeys == null) {
+                extractKeys = new HashSet<>();
+            }
+            extractKeys.add(key);
+            return this;
         }
 
         @Override
@@ -224,7 +294,17 @@ public class SearchInput extends Input<SearchInput.Result> {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return WatcherUtils.writeSearchRequest(request, builder, params);
+            builder.startObject();
+            if (extractKeys != null) {
+                builder.startArray(Parser.EXTRACT_FIELD.getPreferredName());
+                for (String extractKey : extractKeys) {
+                    builder.value(extractKey);
+                }
+                builder.endArray();
+            }
+            builder.field(Parser.REQUEST_FIELD.getPreferredName());
+            builder = WatcherUtils.writeSearchRequest(request, builder, params);
+            return builder.endObject();
         }
     }
 }

@@ -220,8 +220,10 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
             builder.startObject("input");
             {
-                builder.field("search");
+                builder.startObject("search");
+                builder.field("request");
                 WatcherUtils.writeSearchRequest(conditionRequest, builder, ToXContent.EMPTY_PARAMS);
+                builder.endObject();
             }
             builder.endObject();
 

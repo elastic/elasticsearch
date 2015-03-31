@@ -79,7 +79,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
         Template mockBody = mock(Template.class);
         when(mockBody.render(anyMap())).thenReturn(body);
         request.body(mockBody);
-        HttpInput input = new HttpInput(logger, httpClient, request);
+        HttpInput input = new HttpInput(logger, httpClient, request, null);
 
         HttpResponse response = new HttpResponse();
         response.status(123);
@@ -163,7 +163,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
         String httpMethod = "get";
         String body = "_body";
         Map<String, Template> headers = new MapBuilder<String, Template>().put("a", new MockTemplate("b")).map();
-        HttpInput.SourceBuilder sourceBuilder = new HttpInput.SourceBuilder()
+        HttpRequest.SourceBuilder sourceBuilder = new HttpRequest.SourceBuilder()
                 .setMethod(httpMethod)
                 .setHost("_host")
                 .setPort(123)

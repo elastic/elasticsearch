@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
+import org.elasticsearch.watcher.support.template.Template;
 
 import java.io.IOException;
 import java.util.Map;
@@ -215,6 +216,84 @@ public class HttpRequest implements ToXContent {
             return request;
         }
 
+    }
+
+    public final static class SourceBuilder implements ToXContent {
+
+        private String host;
+        private int port;
+        private String method;
+        private Template path;
+        private Map<String, Template> params;
+        private Map<String, Template> headers;
+        private HttpAuth auth;
+        private Template body;
+
+        public SourceBuilder setHost(String host) {
+            this.host = host;
+            return this;
+        }
+
+        public SourceBuilder setPort(int port) {
+            this.port = port;
+            return this;
+        }
+
+        public SourceBuilder setMethod(String method) {
+            this.method = method;
+            return this;
+        }
+
+        public SourceBuilder setPath(Template path) {
+            this.path = path;
+            return this;
+        }
+
+        public SourceBuilder setParams(Map<String, Template> params) {
+            this.params = params;
+            return this;
+        }
+
+        public SourceBuilder setHeaders(Map<String, Template> headers) {
+            this.headers = headers;
+            return this;
+        }
+
+        public SourceBuilder setAuth(HttpAuth auth) {
+            this.auth = auth;
+            return this;
+        }
+
+        public SourceBuilder setBody(Template body) {
+            this.body = body;
+            return this;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params p) throws IOException {
+            builder.startObject();
+            builder.field(HttpRequest.Parser.HOST_FIELD.getPreferredName(), host);
+            builder.field(HttpRequest.Parser.PORT_FIELD.getPreferredName(), port);
+            if (method != null) {
+                builder.field(HttpRequest.Parser.METHOD_FIELD.getPreferredName(), method);
+            }
+            if (path != null) {
+                builder.field(HttpRequest.Parser.PATH_FIELD.getPreferredName(), path);
+            }
+            if (params != null) {
+                builder.field(HttpRequest.Parser.PARAMS_FIELD.getPreferredName(), params);
+            }
+            if (headers != null) {
+                builder.field(HttpRequest.Parser.HEADERS_FIELD.getPreferredName(), headers);
+            }
+            if (auth != null) {
+                builder.field(HttpRequest.Parser.AUTH_FIELD.getPreferredName(), auth);
+            }
+            if (body != null) {
+                builder.field(HttpRequest.Parser.BODY_FIELD.getPreferredName(), body);
+            }
+            return builder.endObject();
+        }
     }
 
 }

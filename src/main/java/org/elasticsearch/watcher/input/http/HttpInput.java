@@ -16,7 +16,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.watcher.input.Input;
+import org.elasticsearch.watcher.input.InputException;
 import org.elasticsearch.watcher.support.Variables;
+import org.elasticsearch.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpResponse;
@@ -27,7 +29,9 @@ import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.WatchExecutionContext;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  */
@@ -36,12 +40,14 @@ public class HttpInput extends Input<HttpInput.Result> {
     public static final String TYPE = "http";
 
     private final HttpClient client;
+    private final Set<String> extractKeys;
     private final TemplatedHttpRequest request;
 
-    public HttpInput(ESLogger logger, HttpClient client, TemplatedHttpRequest request) {
+    public HttpInput(ESLogger logger, HttpClient client, TemplatedHttpRequest request, Set<String> extractKeys) {
         super(logger);
         this.request = request;
         this.client = client;
+        this.extractKeys = extractKeys;
     }
 
     @Override
@@ -54,14 +60,33 @@ public class HttpInput extends Input<HttpInput.Result> {
         Map<String, Object> model = Variables.createCtxModel(ctx, null);
         HttpRequest httpRequest = request.render(model);
         try (HttpResponse response = client.execute(httpRequest)) {
-            Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(response.body(), true);
-            return new Result(TYPE, new Payload.Simple(result.v2()), httpRequest, response.status());
+            byte[] bytes = response.body();
+            final Payload payload;
+            if (extractKeys != null) {
+                XContentParser parser = XContentHelper.createParser(bytes, 0, bytes.length);
+                Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(extractKeys, parser);
+                payload = new Payload.Simple(filteredKeys);
+            } else {
+                Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(bytes, true);
+                payload = new Payload.Simple(result.v2());
+            }
+            return new Result(TYPE, payload, httpRequest, response.status());
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return request.toXContent(builder, params);
+        builder.startObject();
+        builder.field(Parser.REQUEST_FIELD.getPreferredName());
+        builder =  request.toXContent(builder, params);
+        if (extractKeys != null) {
+            builder.startArray(Parser.EXTRACT_FIELD.getPreferredName());
+            for (String extractKey : extractKeys) {
+                builder.value(extractKey);
+            }
+            builder.endObject();
+        }
+        return builder.endObject();
     }
 
     @Override
@@ -114,6 +139,7 @@ public class HttpInput extends Input<HttpInput.Result> {
     public final static class Parser extends AbstractComponent implements Input.Parser<Result, HttpInput> {
 
         public static final ParseField REQUEST_FIELD = new ParseField("request");
+        public static final ParseField EXTRACT_FIELD = new ParseField("extract");
         public static final ParseField HTTP_STATUS_FIELD = new ParseField("http_status");
 
         private final HttpClient client;
@@ -135,8 +161,45 @@ public class HttpInput extends Input<HttpInput.Result> {
 
         @Override
         public HttpInput parse(XContentParser parser) throws IOException {
-            TemplatedHttpRequest request = templatedRequestParser.parse(parser);
-            return new HttpInput(logger, client, request);
+            Set<String> extract = null;
+            TemplatedHttpRequest request = null;
+
+            String currentFieldName = null;
+            for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
+                switch (token) {
+                    case FIELD_NAME:
+                        currentFieldName = parser.currentName();
+                        break;
+                    case START_OBJECT:
+                        if (REQUEST_FIELD.getPreferredName().equals(currentFieldName)) {
+                            request = templatedRequestParser.parse(parser);
+                        } else {
+                            throw new InputException("could not parse [http] input. unexpected field [" + currentFieldName + "]");
+                        }
+                        break;
+                    case START_ARRAY:
+                        if (EXTRACT_FIELD.getPreferredName().equals(currentFieldName)) {
+                            extract = new HashSet<>();
+                            for (XContentParser.Token arrayToken = parser.nextToken(); arrayToken != XContentParser.Token.END_ARRAY; arrayToken = parser.nextToken()) {
+                                if (arrayToken == XContentParser.Token.VALUE_STRING) {
+                                    extract.add(parser.text());
+                                }
+                            }
+                        } else {
+                            throw new InputException("could not parse [http] input. unexpected field [" + currentFieldName + "]");
+                        }
+                        break;
+                    default:
+                        throw new InputException("could not parse [http] input. unexpected token [" + token + "]");
+
+                }
+            }
+
+            if (request == null) {
+                throw new InputException("could not parse [http] input. http request is missing or null.");
+            }
+
+            return new HttpInput(logger, client, request, extract);
         }
 
         @Override
@@ -157,7 +220,9 @@ public class HttpInput extends Input<HttpInput.Result> {
                         request = requestParser.parse(parser);
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                    statusCode = parser.intValue();
+                    if (HTTP_STATUS_FIELD.match(currentFieldName)) {
+                        statusCode = parser.intValue();
+                    }
                 }
             }
             return new Result(TYPE, payload, request, statusCode);
@@ -175,6 +240,7 @@ public class HttpInput extends Input<HttpInput.Result> {
         private Map<String, Template> headers;
         private HttpAuth auth;
         private Template body;
+        private Set<String> extractKeys;
 
         public SourceBuilder setHost(String host) {
             this.host = host;
@@ -216,6 +282,14 @@ public class HttpInput extends Input<HttpInput.Result> {
             return this;
         }
 
+        public SourceBuilder addExtractKey(String key) {
+            if (extractKeys == null) {
+                extractKeys = new HashSet<>();
+            }
+            extractKeys.add(key);
+            return this;
+        }
+
         @Override
         public String type() {
             return TYPE;
@@ -224,6 +298,14 @@ public class HttpInput extends Input<HttpInput.Result> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params p) throws IOException {
             builder.startObject();
+            if (extractKeys != null) {
+                builder.startArray(Parser.EXTRACT_FIELD.getPreferredName());
+                for (String extractKey : extractKeys) {
+                    builder.value(extractKey);
+                }
+                builder.endArray();
+            }
+            builder.startObject(Parser.REQUEST_FIELD.getPreferredName());
             builder.field(HttpRequest.Parser.HOST_FIELD.getPreferredName(), host);
             builder.field(HttpRequest.Parser.PORT_FIELD.getPreferredName(), port);
             if (method != null) {
@@ -244,6 +326,7 @@ public class HttpInput extends Input<HttpInput.Result> {
             if (body != null) {
                 builder.field(HttpRequest.Parser.BODY_FIELD.getPreferredName(), body);
             }
+            builder.endObject();
             return builder.endObject();
         }
     }

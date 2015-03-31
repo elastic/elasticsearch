@@ -85,7 +85,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 "test-serialization",
                 SystemClock.INSTANCE,
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? 2035")), //Set this into the future so we don't get any extra runs
-                new SearchInput(logger, scriptService(), ClientProxy.of(client()), searchRequest),
+                new SearchInput(logger, scriptService(), ClientProxy.of(client()), searchRequest, null),
                 new ScriptCondition(logger, scriptService(), new Script("return true")),
                 new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
                 new Actions(new ArrayList<Action>()),
@@ -146,7 +146,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                         SystemClock.INSTANCE,
                         new ScheduleTrigger(new CronSchedule("0/5 * * * * ? 2035")), //Set a cron schedule far into the future so this watch is never scheduled
                         new SearchInput(logger, scriptService(), ClientProxy.of(client()),
-                                searchRequest),
+                                searchRequest, null),
                         new ScriptCondition(logger, scriptService(), new Script("return true")),
                         new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
                         new Actions(new ArrayList<Action>()),

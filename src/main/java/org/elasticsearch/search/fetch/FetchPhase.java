@@ -376,8 +376,14 @@ public class FetchPhase implements SearchPhase {
             String field;
             Filter parentFilter;
             nestedParentObjectMapper = documentMapper.findParentObjectMapper(nestedObjectMapper);
-            if (nestedParentObjectMapper != null && nestedObjectMapper.nested().isNested()) {
+            if (nestedParentObjectMapper != null) {
                 field = nestedObjectMapper.name();
+                if (!nestedParentObjectMapper.nested().isNested()) {
+                    nestedObjectMapper = nestedParentObjectMapper;
+                    // all right, the parent is a normal object field, so this is the best identiy we can give for that:
+                    nestedIdentity = new InternalSearchHit.InternalNestedIdentity(field, 0, nestedIdentity);
+                    continue;
+                }
                 parentFilter = nestedParentObjectMapper.nestedTypeFilter();
             } else {
                 field = nestedObjectMapper.fullPath();

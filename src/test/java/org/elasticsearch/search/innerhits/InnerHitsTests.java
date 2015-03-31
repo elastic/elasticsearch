@@ -846,4 +846,42 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
         assertThat(String.valueOf(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).highlightFields().get("comments.message").getFragments()[0]), equalTo("<em>fox</em> eat quick"));
     }
 
+    @Test
+    public void testInnerHitsWithObjectFieldThatHasANestedField() throws Exception {
+        assertAcked(prepareCreate("articles")
+                        .addMapping("article", jsonBuilder().startObject()
+                                        .startObject("properties")
+                                            .startObject("comments")
+                                                .field("type", "object")
+                                                .startObject("properties")
+                                                    .startObject("messages").field("type", "nested").endObject()
+                                                .endObject()
+                                                .endObject()
+                                            .endObject()
+                                        .endObject()
+                        )
+        );
+
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        requests.add(client().prepareIndex("articles", "article", "1").setSource(jsonBuilder().startObject()
+                .field("title", "quick brown fox")
+                .startObject("comments").startObject("messages").field("message", "fox eat quick").endObject().endObject()
+                .endObject()));
+        indexRandom(true, requests);
+
+        SearchResponse response = client().prepareSearch("articles")
+                .setQuery(nestedQuery("comments.messages", matchQuery("comments.messages.message", "fox")).innerHit(new QueryInnerHitBuilder()))
+                .get();
+        assertNoFailures(response);
+        assertHitCount(response, 1);
+        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments.messages").getTotalHits(), equalTo(1l));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments.messages").getAt(0).id(), equalTo("1"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments.messages").getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments.messages").getAt(0).getNestedIdentity().getOffset(), equalTo(0));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments.messages").getAt(0).getNestedIdentity().getChild().getField().string(), equalTo("messages"));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments.messages").getAt(0).getNestedIdentity().getChild().getOffset(), equalTo(0));
+        assertThat(response.getHits().getAt(0).getInnerHits().get("comments.messages").getAt(0).getNestedIdentity().getChild().getChild(), nullValue());
+    }
+
 }

@@ -66,6 +66,7 @@ public class SearchScanTests extends ElasticsearchIntegrationTest {
                 .execute().actionGet();
 
         assertThat(searchResponse.getHits().totalHits(), equalTo((long)builders.length/2));
+        assertThat(searchResponse.getHits().getHits().length, equalTo(0));
 
         // start scrolling, until we get not results
         while (true) {

@@ -322,7 +322,7 @@ public class TermsAggregationSearchBenchmark {
         // run just the child query, warm up first
         for (int j = 0; j < QUERY_WARMUP; j++) {
             SearchResponse searchResponse = method.addTermsAgg(client.prepareSearch("test")
-                    .setSearchType(SearchType.COUNT)
+                    .setSize(0)
                     .setQuery(matchAllQuery()), name, field, executionHint)
                     .execute().actionGet();
             if (j == 0) {
@@ -339,7 +339,7 @@ public class TermsAggregationSearchBenchmark {
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {
             SearchResponse searchResponse = method.addTermsAgg(client.prepareSearch()
-                    .setSearchType(SearchType.COUNT)
+                    .setSize(0)
                     .setQuery(matchAllQuery()), name, field, executionHint)
                     .execute().actionGet();
             if (searchResponse.getHits().totalHits() != COUNT) {
@@ -372,7 +372,7 @@ public class TermsAggregationSearchBenchmark {
         // run just the child query, warm up first
         for (int j = 0; j < QUERY_WARMUP; j++) {
             SearchResponse searchResponse = method.addTermsStatsAgg(client.prepareSearch()
-                    .setSearchType(SearchType.COUNT)
+                    .setSize(0)
                     .setQuery(matchAllQuery()), name, keyField, valueField)
                     .execute().actionGet();
             if (j == 0) {
@@ -389,7 +389,7 @@ public class TermsAggregationSearchBenchmark {
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {
             SearchResponse searchResponse = method.addTermsStatsAgg(client.prepareSearch()
-                    .setSearchType(SearchType.COUNT)
+                    .setSize(0)
                     .setQuery(matchAllQuery()), name, keyField, valueField)
                     .execute().actionGet();
             if (searchResponse.getHits().totalHits() != COUNT) {

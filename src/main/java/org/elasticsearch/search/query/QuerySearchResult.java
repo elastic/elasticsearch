@@ -180,7 +180,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
 //        shardTarget.writeTo(out);
         out.writeVInt(from);
         out.writeVInt(size);
-        writeTopDocs(out, topDocs, 0);
+        writeTopDocs(out, topDocs);
         if (aggregations == null) {
             out.writeBoolean(false);
         } else {

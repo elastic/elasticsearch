@@ -71,8 +71,9 @@ And here is a sample response:
 `query_cache`::
 
     Set to `true` or `false` to enable or disable the caching
-    of search results for requests where `?search_type=count`, ie
-    aggregations and suggestions.  See <<index-modules-shard-query-cache>>.
+    of search results for requests where `size` is 0, ie
+    aggregations and suggestions (no top hits returned).
+    See <<index-modules-shard-query-cache>>.
 
 `terminate_after`::
 

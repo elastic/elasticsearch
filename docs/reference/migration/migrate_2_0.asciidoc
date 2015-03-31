@@ -297,3 +297,8 @@ in their place.
 The thrift and memcached transport plugins are no longer supported.  Instead, use
 either the HTTP transport (enabled by default) or the node or transport Java client.
 
+=== `search_type=count` deprecation
+
+The `count` search type has been deprecated. All benefits from this search type can
+now be achieved by using the `query_then_fetch` search type (which is the
+default) and setting `size` to `0`.

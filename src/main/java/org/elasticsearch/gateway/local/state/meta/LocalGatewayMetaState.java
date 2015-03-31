@@ -61,8 +61,6 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
     static final String GLOBAL_STATE_FILE_PREFIX = "global-";
     private static final String INDEX_STATE_FILE_PREFIX = "state-";
-    static final Pattern GLOBAL_STATE_FILE_PATTERN = Pattern.compile(GLOBAL_STATE_FILE_PREFIX + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
-    static final Pattern INDEX_STATE_FILE_PATTERN = Pattern.compile(INDEX_STATE_FILE_PREFIX + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
     private static final String GLOBAL_STATE_LOG_TYPE = "[_global]";
     static enum AutoImportDangledState {
         NO() {
@@ -119,6 +117,8 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
     private final Object danglingMutex = new Object();
     private final IndicesService indicesService;
     private final ClusterService clusterService;
+    private final MetaDataStateFormat<IndexMetaData> indexStateFormat;
+    private final MetaDataStateFormat<MetaData> globalStateFormat;
 
     @Inject
     public LocalGatewayMetaState(Settings settings, ThreadPool threadPool, NodeEnvironment nodeEnv,
@@ -152,6 +152,8 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
         logger.debug("using gateway.local.auto_import_dangled [{}], gateway.local.delete_timeout [{}], with gateway.local.dangling_timeout [{}]",
                 this.autoImportDangled, this.deleteTimeout, this.danglingTimeout);
+        indexStateFormat = indexStateFormat(format, formatParams);
+        globalStateFormat = globalStateFormat(format, gatewayModeFormatParams);
         if (DiscoveryNode.masterNode(settings) || DiscoveryNode.dataNode(settings)) {
             nodeEnv.ensureAtomicMoveSupported();
         }
@@ -319,8 +321,8 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
     /**
      * Returns a StateFormat that can read and write {@link MetaData}
      */
-    static MetaDataStateFormat<MetaData> globalStateFormat(XContentType format, final ToXContent.Params formatParams, final boolean deleteOldFiles) {
-        return new MetaDataStateFormat<MetaData>(format, deleteOldFiles) {
+    static MetaDataStateFormat<MetaData> globalStateFormat(XContentType format, final ToXContent.Params formatParams) {
+        return new MetaDataStateFormat<MetaData>(format, GLOBAL_STATE_FILE_PREFIX) {
 
             @Override
             public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
@@ -337,8 +339,8 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
     /**
      * Returns a StateFormat that can read and write {@link IndexMetaData}
      */
-    static MetaDataStateFormat<IndexMetaData> indexStateFormat(XContentType format, final ToXContent.Params formatParams, boolean deleteOldFiles) {
-        return new MetaDataStateFormat<IndexMetaData>(format, deleteOldFiles) {
+    static MetaDataStateFormat<IndexMetaData> indexStateFormat(XContentType format, final ToXContent.Params formatParams) {
+        return new MetaDataStateFormat<IndexMetaData>(format, INDEX_STATE_FILE_PREFIX) {
 
             @Override
             public void toXContent(XContentBuilder builder, IndexMetaData state) throws IOException {
@@ -353,10 +355,8 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
     private void writeIndex(String reason, IndexMetaData indexMetaData, @Nullable IndexMetaData previousIndexMetaData) throws Exception {
         logger.trace("[{}] writing state, reason [{}]", indexMetaData.index(), reason);
-        final boolean deleteOldFiles = previousIndexMetaData != null && previousIndexMetaData.version() != indexMetaData.version();
-        final MetaDataStateFormat<IndexMetaData> writer = indexStateFormat(format, formatParams, deleteOldFiles);
         try {
-            writer.write(indexMetaData, INDEX_STATE_FILE_PREFIX, indexMetaData.version(),
+            indexStateFormat.write(indexMetaData, indexMetaData.version(),
                     nodeEnv.indexLocations(new Index(indexMetaData.index())));
         } catch (Throwable ex) {
             logger.warn("[{}]: failed to write index state", ex, indexMetaData.index());
@@ -366,9 +366,8 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
     private void writeGlobalState(String reason, MetaData metaData) throws Exception {
         logger.trace("{} writing state, reason [{}]", GLOBAL_STATE_LOG_TYPE, reason);
-        final MetaDataStateFormat<MetaData> writer = globalStateFormat(format, gatewayModeFormatParams, true);
         try {
-            writer.write(metaData, GLOBAL_STATE_FILE_PREFIX, metaData.version(), nodeEnv.nodeDataLocations());
+            globalStateFormat.write(metaData, metaData.version(), nodeEnv.nodeDataLocations());
         } catch (Throwable ex) {
             logger.warn("{}: failed to write global state", ex, GLOBAL_STATE_LOG_TYPE);
             throw new IOException("failed to write global state", ex);
@@ -398,12 +397,11 @@ public class LocalGatewayMetaState extends AbstractComponent implements ClusterS
 
     @Nullable
     private IndexMetaData loadIndexState(String index) {
-        return MetaDataStateFormat.loadLatestState(logger, indexStateFormat(format, formatParams, true),
-                INDEX_STATE_FILE_PATTERN, "[" + index + "]", nodeEnv.indexLocations(new Index(index)));
+        return indexStateFormat.loadLatestState(logger, nodeEnv.indexLocations(new Index(index)));
     }
 
     private MetaData loadGlobalState() {
-        return MetaDataStateFormat.loadLatestState(logger, globalStateFormat(format, gatewayModeFormatParams, true), GLOBAL_STATE_FILE_PATTERN, GLOBAL_STATE_LOG_TYPE, nodeEnv.nodeDataLocations());
+        return globalStateFormat.loadLatestState(logger, nodeEnv.nodeDataLocations());
     }
 
 

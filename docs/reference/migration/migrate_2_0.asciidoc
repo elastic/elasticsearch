@@ -288,6 +288,9 @@ index.
 
 === Scripts
 
+Removed support for `script.disable_dynamic` node setting, replaced by
+fine-grained script settings described in the <<enable-dynamic-scripting,scripting docs>>.
+
 Deprecated script parameters `id`, `file`, and `scriptField` have been removed
 from all scriptable APIs. `script_id`, `script_file` and `script` should be used
 in their place.

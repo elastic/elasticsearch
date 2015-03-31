@@ -94,6 +94,16 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
     }
 
     @Test
+    public void testNotSupportedDisableDynamicSetting() throws IOException {
+        try {
+            buildScriptService(ImmutableSettings.builder().put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, randomUnicodeOfLength(randomIntBetween(1, 10))).build());
+            fail("script service should have thrown exception due to non supported script.disable_dynamic setting");
+        } catch(ElasticsearchIllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings"));
+        }
+    }
+
+    @Test
     public void testScriptsWithoutExtensions() throws IOException {
         buildScriptService(ImmutableSettings.EMPTY);
         logger.info("--> setup two test files one with extension and another without");

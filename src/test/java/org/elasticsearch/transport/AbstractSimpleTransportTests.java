@@ -80,7 +80,8 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
 
         // wait till all nodes are properly connected and the event has been sent, so tests in this class
         // will not get this callback called on the connections done in this setup
-        final CountDownLatch latch = new CountDownLatch(4);
+        final boolean useLocalNode = randomBoolean();
+        final CountDownLatch latch = new CountDownLatch(useLocalNode ? 2 : 4);
         TransportConnectionListener waitForConnection = new TransportConnectionListener() {
             @Override
             public void onNodeConnected(DiscoveryNode node) {
@@ -95,10 +96,18 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
         serviceA.addConnectionListener(waitForConnection);
         serviceB.addConnectionListener(waitForConnection);
 
+        if (useLocalNode) {
+            logger.info("--> using local node optimization");
+            serviceA.setLocalNode(nodeA);
+            serviceB.setLocalNode(nodeB);
+        } else {
+            logger.info("--> actively connecting to local node");
+            serviceA.connectToNode(nodeA);
+            serviceB.connectToNode(nodeB);
+        }
+
         serviceA.connectToNode(nodeB);
-        serviceA.connectToNode(nodeA);
         serviceB.connectToNode(nodeA);
-        serviceB.connectToNode(nodeB);
 
         assertThat("failed to wait for all nodes to connect", latch.await(5, TimeUnit.SECONDS), equalTo(true));
         serviceA.removeConnectionListener(waitForConnection);
@@ -202,6 +211,64 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
         }
 
         serviceA.removeHandler("sayHello");
+    }
+
+    @Test
+    public void testLocalNodeConnection() throws InterruptedException {
+        assertTrue("serviceA is not connected to nodeA", serviceA.nodeConnected(nodeA));
+        if (((TransportService) serviceA).getLocalNodeId() != null) {
+            // this should be a noop
+            serviceA.disconnectFromNode(nodeA);
+        }
+        final AtomicReference<Exception> exception = new AtomicReference<>();
+        serviceA.registerHandler("localNode", new BaseTransportRequestHandler<StringMessageRequest>() {
+            @Override
+            public StringMessageRequest newInstance() {
+                return new StringMessageRequest();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.GENERIC;
+            }
+
+            @Override
+            public void messageReceived(StringMessageRequest request, TransportChannel channel) {
+                try {
+                    channel.sendResponse(new StringMessageResponse(request.message));
+                } catch (IOException e) {
+                    exception.set(e);
+                }
+            }
+        });
+        final AtomicReference<String> responseString = new AtomicReference<>();
+        final CountDownLatch responseLatch = new CountDownLatch(1);
+        serviceA.sendRequest(nodeA, "localNode", new StringMessageRequest("test"), new TransportResponseHandler<StringMessageResponse>() {
+            @Override
+            public StringMessageResponse newInstance() {
+                return new StringMessageResponse();
+            }
+
+            @Override
+            public void handleResponse(StringMessageResponse response) {
+                responseString.set(response.message);
+                responseLatch.countDown();
+            }
+
+            @Override
+            public void handleException(TransportException exp) {
+                exception.set(exp);
+                responseLatch.countDown();
+            }
+
+            @Override
+            public String executor() {
+                return ThreadPool.Names.GENERIC;
+            }
+        });
+        responseLatch.await();
+        assertNull(exception.get());
+        assertThat(responseString.get(), equalTo("test"));
     }
 
     @Test
@@ -367,7 +434,7 @@ public abstract class AbstractSimpleTransportTests extends ElasticsearchTestCase
             res.txGet();
             fail("exception should be thrown");
         } catch (Exception e) {
-            assertThat("bad message !!!", equalTo(e.getCause().getMessage()));
+            assertThat(e.getCause().getMessage(), equalTo("bad message !!!"));
         }
 
         serviceA.removeHandler("sayHelloException");

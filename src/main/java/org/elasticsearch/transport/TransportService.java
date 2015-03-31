@@ -36,13 +36,11 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.common.util.concurrent.*;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -94,6 +92,9 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     volatile String[] tracelLogExclude;
     private final ApplySettings settingsListener = new ApplySettings();
 
+    /** if set will call requests sent to this id to shortcut and executed locally */
+    volatile String localNodeId = null;
+
     public TransportService(Transport transport, ThreadPool threadPool) {
         this(EMPTY_SETTINGS, transport, threadPool);
     }
@@ -107,6 +108,21 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         this.tracelLogExclude = settings.getAsArray(SETTING_TRACE_LOG_EXCLUDE, new String[]{"internal:discovery/zen/fd*"}, true);
         tracerLog = Loggers.getLogger(logger, ".tracer");
         adapter = createAdapter();
+    }
+
+    /**
+     * makes the transport service aware of the local node. this allows it to optimize requests sent
+     * from the local node to it self and by pass the network stack/ serialization
+     *
+     * @param localNode
+     */
+    public void setLocalNode(DiscoveryNode localNode) {
+        localNodeId = localNode.id();
+    }
+
+    // for testing
+    String getLocalNodeId() {
+        return localNodeId;
     }
 
     protected Adapter createAdapter() {
@@ -209,18 +225,27 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public boolean nodeConnected(DiscoveryNode node) {
-        return transport.nodeConnected(node);
+        return node.id().equals(localNodeId) || transport.nodeConnected(node);
     }
 
     public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
+        if (node.id().equals(localNodeId)) {
+            return;
+        }
         transport.connectToNode(node);
     }
 
     public void connectToNodeLight(DiscoveryNode node) throws ConnectTransportException {
+        if (node.id().equals(localNodeId)) {
+            return;
+        }
         transport.connectToNodeLight(node);
     }
 
     public void disconnectFromNode(DiscoveryNode node) {
+        if (node.id().equals(localNodeId)) {
+            return;
+        }
         transport.disconnectFromNode(node);
     }
 
@@ -273,7 +298,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 assert options.timeout() != null;
                 timeoutHandler.future = threadPool.schedule(options.timeout(), ThreadPool.Names.GENERIC, timeoutHandler);
             }
-            transport.sendRequest(node, requestId, action, request, options);
+            if (node.id().equals(localNodeId)) {
+                sendLocalRequest(requestId, action, request);
+            } else {
+                transport.sendRequest(node, requestId, action, request, options);
+            }
         } catch (final Throwable e) {
             // usually happen either because we failed to connect to the node
             // or because we failed serializing the message
@@ -292,6 +321,53 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 });
             }
         }
+    }
+
+    private void sendLocalRequest(long requestId, final String action, final TransportRequest request) {
+        final DirectResponseChannel channel = new DirectResponseChannel(action, requestId, adapter, threadPool);
+        try {
+            final TransportRequestHandler handler = adapter.handler(action);
+            if (handler == null) {
+                throw new ActionNotFoundTransportException("Action [" + action + "] not found");
+            }
+            final String executor = handler.executor();
+            if (ThreadPool.Names.SAME.equals(executor)) {
+                //noinspection unchecked
+                handler.messageReceived(request, channel);
+            } else {
+                threadPool.executor(executor).execute(new AbstractRunnable() {
+                    @Override
+                    protected void doRun() throws Exception {
+                        //noinspection unchecked
+                        handler.messageReceived(request, channel);
+                    }
+
+                    @Override
+                    public boolean isForceExecution() {
+                        return handler.isForceExecution();
+                    }
+
+                    @Override
+                    public void onFailure(Throwable e) {
+                        try {
+                            channel.sendResponse(e);
+                        } catch (Throwable e1) {
+                            logger.warn("failed to notify channel of error message for action [" + action + "]", e1);
+                            logger.warn("actual exception", e);
+                        }
+                    }
+                });
+            }
+
+        } catch (Throwable e) {
+            try {
+                channel.sendResponse(e);
+            } catch (Throwable e1) {
+                logger.warn("failed to notify channel of error message for action [" + action + "]", e1);
+                logger.warn("actual exception", e1);
+            }
+        }
+
     }
 
     private boolean shouldTraceAction(String action) {
@@ -609,4 +685,89 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             }
         }
     }
+
+    static class DirectResponseChannel implements TransportChannel {
+        final private String action;
+        final private long requestId;
+        final TransportServiceAdapter adapter;
+        final ThreadPool threadPool;
+
+        public DirectResponseChannel(String action, long requestId, TransportServiceAdapter adapter, ThreadPool threadPool) {
+            this.action = action;
+            this.requestId = requestId;
+            this.adapter = adapter;
+            this.threadPool = threadPool;
+        }
+
+        @Override
+        public String action() {
+            return action;
+        }
+
+        @Override
+        public void sendResponse(TransportResponse response) throws IOException {
+            sendResponse(response, TransportResponseOptions.EMPTY);
+        }
+
+        @Override
+        public void sendResponse(final TransportResponse response, TransportResponseOptions options) throws IOException {
+            final TransportResponseHandler handler = adapter.onResponseReceived(requestId);
+            // ignore if its null, the adapter logs it
+            if (handler != null) {
+                final String executor = handler.executor();
+                if (ThreadPool.Names.SAME.equals(executor)) {
+                    processResponse(handler, response);
+                } else {
+                    threadPool.executor(executor).execute(new Runnable() {
+                        @SuppressWarnings({"unchecked"})
+                        @Override
+                        public void run() {
+                            processResponse(handler, response);
+                        }
+                    });
+                }
+            }
+        }
+
+        protected void processResponse(TransportResponseHandler handler, TransportResponse response) {
+            try {
+                handler.handleResponse(response);
+            } catch (Throwable e) {
+                handler.handleException(new ResponseHandlerFailureTransportException(e));
+            }
+        }
+
+        @Override
+        public void sendResponse(Throwable error) throws IOException {
+            final TransportResponseHandler handler = adapter.onResponseReceived(requestId);
+            // ignore if its null, the adapter logs it
+            if (handler != null) {
+                if (!(error instanceof RemoteTransportException)) {
+                    error = new RemoteTransportException(error.getMessage(), error);
+                }
+                final RemoteTransportException rtx = (RemoteTransportException) error;
+                final String executor = handler.executor();
+                if (ThreadPool.Names.SAME.equals(executor)) {
+                    processException(handler, rtx);
+                } else {
+                    threadPool.executor(handler.executor()).execute(new Runnable() {
+                        @SuppressWarnings({"unchecked"})
+                        @Override
+                        public void run() {
+                            processException(handler, rtx);
+                        }
+                    });
+                }
+            }
+        }
+
+        protected void processException(final TransportResponseHandler handler, final RemoteTransportException rtx) {
+            try {
+                handler.handleException(rtx);
+            } catch (Throwable e) {
+                handler.handleException(new ResponseHandlerFailureTransportException(e));
+            }
+        }
+    }
+
 }

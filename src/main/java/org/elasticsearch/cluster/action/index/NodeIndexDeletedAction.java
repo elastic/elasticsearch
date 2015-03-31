@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.action.index;
 
 import org.apache.lucene.store.LockObtainFailedException;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -32,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -76,44 +74,23 @@ public class NodeIndexDeletedAction extends AbstractComponent {
 
     public void nodeIndexDeleted(final ClusterState clusterState, final String index, final Settings indexSettings, final String nodeId) throws ElasticsearchException {
         final DiscoveryNodes nodes = clusterState.nodes();
-        if (nodes.localNodeMaster()) {
-            threadPool.generic().execute(new AbstractRunnable() {
-
-                @Override
-                public void onFailure(Throwable t) {
-                    logger.warn("[{}]failed to ack index store deleted for index", t, index);
-                }
-
-                @Override
-                protected void doRun() throws Exception {
-                    innerNodeIndexDeleted(index, nodeId);
-                    if (nodes.localNode().isDataNode() == false) {
-                        logger.trace("[{}] not acking store deletion (not a data node)");
-                        return;
-                    }
-                    lockIndexAndAck(index, nodes, nodeId, clusterState, indexSettings);
-
-                }
-            });
-        } else {
-            transportService.sendRequest(clusterState.nodes().masterNode(),
-                    INDEX_DELETED_ACTION_NAME, new NodeIndexDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
-            if (nodes.localNode().isDataNode() == false) {
-                logger.trace("[{}] not acking store deletion (not a data node)");
-                return;
-            }
-            threadPool.generic().execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Throwable t) {
-                    logger.warn("[{}]failed to ack index store deleted for  index", t, index);
-                }
-
-                @Override
-                protected void doRun() throws Exception {
-                    lockIndexAndAck(index, nodes, nodeId, clusterState, indexSettings);
-                }
-            });
+        transportService.sendRequest(clusterState.nodes().masterNode(),
+                INDEX_DELETED_ACTION_NAME, new NodeIndexDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
+        if (nodes.localNode().isDataNode() == false) {
+            logger.trace("[{}] not acking store deletion (not a data node)");
+            return;
         }
+        threadPool.generic().execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Throwable t) {
+                logger.warn("[{}]failed to ack index store deleted for  index", t, index);
+            }
+
+            @Override
+            protected void doRun() throws Exception {
+                lockIndexAndAck(index, nodes, nodeId, clusterState, indexSettings);
+            }
+        });
     }
 
     private void lockIndexAndAck(String index, DiscoveryNodes nodes, String nodeId, ClusterState clusterState, Settings indexSettings) throws IOException {
@@ -123,30 +100,14 @@ public class NodeIndexDeletedAction extends AbstractComponent {
             // due to a "currently canceled recovery" or so. The shard will delete itself BEFORE the lock is released so it's guaranteed to be
             // deleted by the time we get the lock
             indicesService.processPendingDeletes(new Index(index), indexSettings, new TimeValue(30, TimeUnit.MINUTES));
-            if (nodes.localNodeMaster()) {
-                innerNodeIndexStoreDeleted(index, nodeId);
-            } else {
-                transportService.sendRequest(clusterState.nodes().masterNode(),
-                        INDEX_STORE_DELETED_ACTION_NAME, new NodeIndexStoreDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
-            }
+            transportService.sendRequest(clusterState.nodes().masterNode(),
+                    INDEX_STORE_DELETED_ACTION_NAME, new NodeIndexStoreDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
         } catch (LockObtainFailedException exc) {
             logger.warn("[{}] failed to lock all shards for index - timed out after 30 seconds", index);
         }
     }
 
-    private void innerNodeIndexDeleted(String index, String nodeId) {
-        for (Listener listener : listeners) {
-            listener.onNodeIndexDeleted(index, nodeId);
-        }
-    }
-
-    private void innerNodeIndexStoreDeleted(String index, String nodeId) {
-        for (Listener listener : listeners) {
-            listener.onNodeIndexStoreDeleted(index, nodeId);
-        }
-    }
-
-    public static interface Listener {
+    public interface Listener {
         void onNodeIndexDeleted(String index, String nodeId);
 
         void onNodeIndexStoreDeleted(String index, String nodeId);
@@ -161,7 +122,9 @@ public class NodeIndexDeletedAction extends AbstractComponent {
 
         @Override
         public void messageReceived(NodeIndexDeletedMessage message, TransportChannel channel) throws Exception {
-            innerNodeIndexDeleted(message.index, message.nodeId);
+            for (Listener listener : listeners) {
+                listener.onNodeIndexDeleted(message.index, message.nodeId);
+            }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
 
@@ -180,7 +143,9 @@ public class NodeIndexDeletedAction extends AbstractComponent {
 
         @Override
         public void messageReceived(NodeIndexStoreDeletedMessage message, TransportChannel channel) throws Exception {
-            innerNodeIndexStoreDeleted(message.index, message.nodeId);
+            for (Listener listener : listeners) {
+                listener.onNodeIndexStoreDeleted(message.index, message.nodeId);
+            }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
 

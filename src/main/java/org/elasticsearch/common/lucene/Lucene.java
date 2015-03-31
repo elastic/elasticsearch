@@ -423,8 +423,7 @@ public class Lucene {
         return new ScoreDoc(in.readVInt(), in.readFloat());
     }
 
-    public static void writeTopDocs(StreamOutput out, TopDocs topDocs, int from) throws IOException {
-        from = Math.min(from, topDocs.scoreDocs.length);
+    public static void writeTopDocs(StreamOutput out, TopDocs topDocs) throws IOException {
         if (topDocs instanceof TopFieldDocs) {
             out.writeBoolean(true);
             TopFieldDocs topFieldDocs = (TopFieldDocs) topDocs;
@@ -448,9 +447,8 @@ public class Lucene {
                 out.writeBoolean(sortField.getReverse());
             }
 
-            out.writeVInt(topDocs.scoreDocs.length - from);
-            for (int i = from; i < topFieldDocs.scoreDocs.length; ++i) {
-                ScoreDoc doc = topFieldDocs.scoreDocs[i];
+            out.writeVInt(topDocs.scoreDocs.length);
+            for (ScoreDoc doc : topFieldDocs.scoreDocs) {
                 writeFieldDoc(out, (FieldDoc) doc);
             }
         } else {
@@ -458,9 +456,8 @@ public class Lucene {
             out.writeVInt(topDocs.totalHits);
             out.writeFloat(topDocs.getMaxScore());
 
-            out.writeVInt(topDocs.scoreDocs.length - from);
-            for (int i = from; i < topDocs.scoreDocs.length; ++i) {
-                ScoreDoc doc = topDocs.scoreDocs[i];
+            out.writeVInt(topDocs.scoreDocs.length);
+            for (ScoreDoc doc : topDocs.scoreDocs) {
                 writeScoreDoc(out, doc);
             }
         }

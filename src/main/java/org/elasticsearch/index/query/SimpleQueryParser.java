@@ -208,41 +208,28 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
      * their default values
      */
     public static class Settings {
-        private Locale locale = Locale.ROOT;
-        private boolean lowercaseExpandedTerms = true;
-        private boolean lenient = false;
-        private boolean analyzeWildcard = false;
+        private final Locale locale;
+        private final boolean lowercaseExpandedTerms;
+        private final boolean lenient;
+        private final boolean analyzeWildcard;
 
-        public Settings() {
-
-        }
-
-        public void locale(Locale locale) {
-            this.locale = locale;
+        public Settings(Locale locale, Boolean lowercaseExpandedTerms, Boolean lenient, Boolean analyzeWildcard) {
+            this.locale = locale == null ? Locale.ROOT : locale;
+            this.lowercaseExpandedTerms = lowercaseExpandedTerms == null ? true : lowercaseExpandedTerms;
+            this.lenient = lenient == null ? false : lenient;
+            this.analyzeWildcard = analyzeWildcard == null ? false : analyzeWildcard;
         }
 
         public Locale locale() {
             return this.locale;
         }
 
-        public void lowercaseExpandedTerms(boolean lowercaseExpandedTerms) {
-            this.lowercaseExpandedTerms = lowercaseExpandedTerms;
-        }
-
         public boolean lowercaseExpandedTerms() {
             return this.lowercaseExpandedTerms;
         }
 
-        public void lenient(boolean lenient) {
-            this.lenient = lenient;
-        }
-
         public boolean lenient() {
             return this.lenient;
-        }
-
-        public void analyzeWildcard(boolean analyzeWildcard) {
-            this.analyzeWildcard = analyzeWildcard;
         }
 
         public boolean analyzeWildcard() {

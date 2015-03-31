@@ -47,14 +47,13 @@ import java.util.regex.Pattern;
 public class LocalGatewayShardsState extends AbstractComponent implements ClusterStateListener {
 
     private static final String SHARD_STATE_FILE_PREFIX = "state-";
-    private static final Pattern SHARD_STATE_FILE_PATTERN = Pattern.compile(SHARD_STATE_FILE_PREFIX + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
     private static final String PRIMARY_KEY = "primary";
     private static final String VERSION_KEY = "version";
 
     private final NodeEnvironment nodeEnv;
 
     private volatile Map<ShardId, ShardStateInfo> currentState = Maps.newHashMap();
-
+    public static final MetaDataStateFormat<ShardStateInfo> FORMAT = newShardStateInfoFormat();
     @Inject
     public LocalGatewayShardsState(Settings settings, NodeEnvironment nodeEnv, TransportNodesListGatewayStartedShards listGatewayStartedShards) throws Exception {
         super(settings);
@@ -186,17 +185,16 @@ public class LocalGatewayShardsState extends AbstractComponent implements Cluste
     }
 
     private ShardStateInfo loadShardStateInfo(ShardId shardId) {
-        return MetaDataStateFormat.loadLatestState(logger, newShardStateInfoFormat(false), SHARD_STATE_FILE_PATTERN, shardId.toString(), nodeEnv.shardLocations(shardId));
+        return FORMAT.loadLatestState(logger, nodeEnv.shardLocations(shardId));
     }
 
     private void writeShardState(String reason, ShardId shardId, ShardStateInfo shardStateInfo, @Nullable ShardStateInfo previousStateInfo) throws Exception {
         logger.trace("{} writing shard state, reason [{}]", shardId, reason);
-        final boolean deleteOldFiles = previousStateInfo != null && previousStateInfo.version != shardStateInfo.version;
-        newShardStateInfoFormat(deleteOldFiles).write(shardStateInfo, SHARD_STATE_FILE_PREFIX, shardStateInfo.version, nodeEnv.shardLocations(shardId));
+        FORMAT.write(shardStateInfo, shardStateInfo.version, nodeEnv.shardLocations(shardId));
     }
 
-    private MetaDataStateFormat<ShardStateInfo> newShardStateInfoFormat(boolean deleteOldFiles) {
-        return new MetaDataStateFormat<ShardStateInfo>(XContentType.JSON, deleteOldFiles) {
+    private static MetaDataStateFormat<ShardStateInfo> newShardStateInfoFormat() {
+        return new MetaDataStateFormat<ShardStateInfo>(XContentType.JSON, SHARD_STATE_FILE_PREFIX) {
 
             @Override
             protected XContentBuilder newXContentBuilder(XContentType type, OutputStream stream) throws IOException {

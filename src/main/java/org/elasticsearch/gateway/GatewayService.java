@@ -154,7 +154,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
             if (expectedNodes == -1 && expectedMasterNodes == -1 && expectedDataNodes == -1) {
                 // no expected is set, honor the setting if they are there
                 enforceRecoverAfterTime = true;
-                reason = "recovery_after_time was set to [" + recoverAfterTime + "]";
+                reason = "recover_after_time was set to [" + recoverAfterTime + "]";
             } else {
                 // one of the expected is set, see if all of them meet the need, and ignore the timeout in this case
                 enforceRecoverAfterTime = false;
@@ -184,7 +184,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     @Override
                     public void run() {
                         if (recovered.compareAndSet(false, true)) {
-                            logger.info("recovery_after_time [{}] elapsed. performing state recovery...", recoverAfterTime);
+                            logger.info("recover_after_time [{}] elapsed. performing state recovery...", recoverAfterTime);
                             gateway.performStateRecovery(recoveryListener);
                         }
                     }

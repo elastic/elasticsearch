@@ -75,7 +75,7 @@ public class PkiRealmTests extends ElasticsearchTestCase {
         X509AuthenticationToken token = new X509AuthenticationToken(new X509Certificate[] { certificate }, "Elasticsearch Test Node", "CN=Elasticsearch Test Node,");
         DnRoleMapper roleMapper = mock(DnRoleMapper.class);
         PkiRealm realm = new PkiRealm(new RealmConfig(""), roleMapper);
-        when(roleMapper.resolveRoles(anyString(), anyList())).thenReturn(Collections.emptySet());
+        when(roleMapper.resolveRoles(anyString(), anyList())).thenReturn(Collections.<String>emptySet());
 
         User user = realm.authenticate(token);
         assertThat(user, is(notNullValue()));
@@ -89,7 +89,7 @@ public class PkiRealmTests extends ElasticsearchTestCase {
         X509Certificate certificate = readCert(Paths.get(PkiRealmTests.class.getResource("/org/elasticsearch/shield/transport/ssl/certs/simple/testnode.cert").toURI()));
         DnRoleMapper roleMapper = mock(DnRoleMapper.class);
         PkiRealm realm = new PkiRealm(new RealmConfig("", ImmutableSettings.builder().put("username_pattern", "OU=(.*?),").build()), roleMapper);
-        when(roleMapper.resolveRoles(anyString(), anyList())).thenReturn(Collections.emptySet());
+        when(roleMapper.resolveRoles(anyString(), anyList())).thenReturn(Collections.<String>emptySet());
         FakeRestRequest restRequest = new FakeRestRequest();
         restRequest.putInContext(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
 
@@ -110,7 +110,7 @@ public class PkiRealmTests extends ElasticsearchTestCase {
                 .put("truststore.password", "testnode")
                 .build();
         PkiRealm realm = new PkiRealm(new RealmConfig("", settings), roleMapper);
-        when(roleMapper.resolveRoles(anyString(), anyList())).thenReturn(Collections.emptySet());
+        when(roleMapper.resolveRoles(anyString(), anyList())).thenReturn(Collections.<String>emptySet());
 
         FakeRestRequest restRequest = new FakeRestRequest();
         restRequest.putInContext(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });
@@ -132,7 +132,7 @@ public class PkiRealmTests extends ElasticsearchTestCase {
                 .put("truststore.password", "testnode-client-profile")
                 .build();
         PkiRealm realm = new PkiRealm(new RealmConfig("", settings), roleMapper);
-        when(roleMapper.resolveRoles(anyString(), anyList())).thenReturn(Collections.emptySet());
+        when(roleMapper.resolveRoles(anyString(), anyList())).thenReturn(Collections.<String>emptySet());
 
         FakeRestRequest restRequest = new FakeRestRequest();
         restRequest.putInContext(PkiRealm.PKI_CERT_HEADER_NAME, new X509Certificate[] { certificate });

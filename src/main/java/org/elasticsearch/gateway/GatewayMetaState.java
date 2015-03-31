@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gateway;
 
+import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,9 +40,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 /**
  *
@@ -57,6 +56,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
     @Nullable
     private volatile MetaData previousMetaData;
+
+    private final Set<String> previouslyWrittenIndices = Collections.synchronizedSet(new HashSet<String>());
 
     @Inject
     public GatewayMetaState(Settings settings, NodeEnvironment nodeEnv, MetaStateService metaStateService,
@@ -95,10 +96,12 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        Set<String> relevantIndices = new HashSet<>();
         final ClusterState state = event.state();
         if (state.blocks().disableStatePersistence()) {
             // reset the current metadata, we need to start fresh...
             this.previousMetaData = null;
+            previouslyWrittenIndices.clear();
             return;
         }
 
@@ -118,14 +121,8 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             }
 
             Iterable<IndexMetaWriteInfo> writeInfo;
-            if (isDataOnlyNode(event.state())) {
-                writeInfo = filterStateOnDataNode(event, previousMetaData);
-            } else if (isMasterEligibleNode(event.state())) {
-                writeInfo = filterStatesOnMaster(event.state(), previousMetaData);
-            } else {
-                writeInfo = Collections.emptyList();
-            }
-
+            relevantIndices = getRelevantIndices(event.state(), previouslyWrittenIndices);
+            writeInfo = filterStates(previouslyWrittenIndices, relevantIndices, previousMetaData, event.state().metaData());
             // check and write changes in indices
             for (IndexMetaWriteInfo indexMetaWrite : writeInfo) {
                 try {
@@ -140,15 +137,26 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
         if (success) {
             previousMetaData = newMetaData;
+            previouslyWrittenIndices.clear();
+            previouslyWrittenIndices.addAll(relevantIndices);
         }
     }
 
-    protected boolean isDataOnlyNode(ClusterState state) {
-        return ((isMasterEligibleNode(state) == false) && state.nodes().localNode().dataNode());
+    public static Set<String> getRelevantIndices(ClusterState state, Set<String> previouslyWrittenIndices) {
+        Set<String> relevantIndices;
+        if (isDataOnlyNode(state)) {
+            relevantIndices = getRelevantIndicesOnDataOnlyNode(state, previouslyWrittenIndices);
+        } else if (state.nodes().localNode().masterNode() == true) {
+            relevantIndices = getRelevantIndicesForMasterEligibleNode(state);
+        } else {
+            relevantIndices = Collections.emptySet();
+        }
+        return relevantIndices;
     }
 
-    protected boolean isMasterEligibleNode(ClusterState state) {
-        return state.nodes().localNode().masterNode();
+
+    protected static boolean isDataOnlyNode(ClusterState state) {
+        return ((state.nodes().localNode().masterNode() == false) && state.nodes().localNode().dataNode());
     }
 
     /**
@@ -250,81 +258,52 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
      * Each index state that should be written to disk will be returned. This is only run for data only nodes.
      * It will return only the states for indices that actually have a shard allocated on the current node.
      *
-     * @param event           the cluster state event from which we figure out what is new in each index and should potentially be written
-     * @param currentMetaData the current index state in memory.
+     * @param previouslyWrittenIndices    A list of indices for which the state was already written before
+     * @param potentiallyUnwrittenIndices The list of indices for which state should potentially be written
+     * @param previousMetaData            The last meta data we know of. meta data for all indices in previouslyWrittenIndices list is persisted now
+     * @param newMetaData                 The new metadata
      * @return iterable over all indices states that should be written to disk
      */
-    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStateOnDataNode(ClusterChangedEvent event, MetaData currentMetaData) {
-        ClusterState newState = event.state();
-        ClusterState previousState = event.previousState();
-
-        Map<String, GatewayMetaState.IndexMetaWriteInfo> indicesToWrite = new HashMap<>();
-        RoutingNode newRoutingNode = newState.getRoutingNodes().node(newState.nodes().localNodeId());
-        RoutingNode previousRoutingNode = previousState.getRoutingNodes().node(newState.nodes().localNodeId());
-        if (newRoutingNode == null) {
-            // this needs some other handling
-            return indicesToWrite.values();
-        }
-        // iterate over all shards allocated on this node in the new cluster state but only write if ...
-        for (MutableShardRouting shardRouting : newRoutingNode) {
-            IndexMetaData indexMetaData = newState.metaData().index(shardRouting.index());
-            IndexMetaData currentIndexMetaData = currentMetaData == null ? null : currentMetaData.index(indexMetaData.index());
+    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStates(Set<String> previouslyWrittenIndices, Set<String> potentiallyUnwrittenIndices, MetaData previousMetaData, MetaData newMetaData) {
+        List<GatewayMetaState.IndexMetaWriteInfo> indicesToWrite = new ArrayList<>();
+        for (String index : potentiallyUnwrittenIndices) {
+            IndexMetaData newIndexMetaData = newMetaData.index(index);
+            IndexMetaData previousIndexMetaData = previousMetaData == null ? null : previousMetaData.index(index);
             String writeReason = null;
-            // ... state persistence was disabled or index was newly created
-            if (currentIndexMetaData == null) {
+            if (previouslyWrittenIndices.contains(index) == false || previousIndexMetaData == null) {
                 writeReason = "freshly created";
-                // ... new shard is allocated on node (we could optimize here and make sure only written once and not for each shard per index -> do later)
-            } else if (shardsOfThisIndexExistedOnNodeAlready(previousRoutingNode, shardRouting) == false) {
-                writeReason = "newly allocated on node";
-                // ... version changed
-            } else if (indexMetaData.version() != currentIndexMetaData.version()) {
-                writeReason = "version changed from [" + currentIndexMetaData.version() + "] to [" + indexMetaData.version() + "]";
+            } else if (previousIndexMetaData.version() != newIndexMetaData.version()) {
+                writeReason = "version changed from [" + previousIndexMetaData.version() + "] to [" + newIndexMetaData.version() + "]";
             }
             if (writeReason != null) {
-                indicesToWrite.put(shardRouting.index(),
-                        new GatewayMetaState.IndexMetaWriteInfo(indexMetaData, currentIndexMetaData,
-                                writeReason));
+                indicesToWrite.add(new GatewayMetaState.IndexMetaWriteInfo(newIndexMetaData, previousIndexMetaData, writeReason));
             }
         }
-        return indicesToWrite.values();
+        return indicesToWrite;
     }
 
-    public static boolean shardsOfThisIndexExistedOnNodeAlready(RoutingNode previousRoutingNode, MutableShardRouting shardRouting) {
-        return previousRoutingNode.shardsWithState(shardRouting.index(), ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED).size() != 0;
-    }
-
-    /**
-     * Loads the current meta state for each index in the new cluster state and checks if it has to be persisted.
-     * Each index state that is part of the new cluster state will be considered even if this node has no shard of the
-     * index allocated on it. This is only run for master nodes.
-     *
-     * @param state           the cluster state from which we figure out what is new in each index and should potentially be written
-     * @param currentMetaData the current index state in memory.
-     * @return iterable over all indices states that should be written to disk
-     */
-    public static Iterable<GatewayMetaState.IndexMetaWriteInfo> filterStatesOnMaster(ClusterState state, MetaData currentMetaData) {
-        Map<String, GatewayMetaState.IndexMetaWriteInfo> indicesToWrite = new HashMap<>();
-        MetaData newMetaData = state.metaData();
-        // iterate over all indices but only write if ...
-        for (IndexMetaData indexMetaData : newMetaData) {
-            String writeReason = null;
-            IndexMetaData currentIndexMetaData = currentMetaData == null ? null : currentMetaData.index(indexMetaData.index());
-            // ... new index or state persistence was disabled?
-            if (currentIndexMetaData == null) {
-                writeReason = "freshly created";
-                // ... version changed
-            } else if (currentIndexMetaData.version() != indexMetaData.version()) {
-                writeReason = "version changed from [" + currentIndexMetaData.version() + "] to [" + indexMetaData.version() + "]";
-            }
-            if (writeReason != null) {
-                indicesToWrite.put(indexMetaData.index(),
-                        new GatewayMetaState.IndexMetaWriteInfo(indexMetaData, currentIndexMetaData,
-                                writeReason));
-            }
-
+    public static Set<String> getRelevantIndicesOnDataOnlyNode(ClusterState state, Set<String> previouslyWrittenIndices) {
+        RoutingNode newRoutingNode = state.getRoutingNodes().node(state.nodes().localNodeId());
+        Set<String> indices = new HashSet<>();
+        for (MutableShardRouting routing : newRoutingNode) {
+            indices.add(routing.index());
         }
-        return indicesToWrite.values();
+        for (ObjectCursor<String> index : state.metaData().indices().keys()) {
+            if (previouslyWrittenIndices.contains(index.value) && state.metaData().getIndices().get(index.value).state().equals(IndexMetaData.State.CLOSE)) {
+                indices.add(index.value);
+            }
+        }
+        return indices;
     }
+    public static Set<String> getRelevantIndicesForMasterEligibleNode(ClusterState state) {
+        Set<String> relevantIndices;
+        relevantIndices = new HashSet<>();
+        for (ObjectCursor<String> index : state.metaData().indices().keys()) {
+            relevantIndices.add(index.value);
+        }
+        return relevantIndices;
+    }
+
 
     public static class IndexMetaWriteInfo {
         final IndexMetaData newMetaData;

@@ -677,7 +677,7 @@ public class MetaData implements Iterable<IndexMetaData> {
 
         if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
             if (!indicesOptions.allowNoIndices()) {
-                throw new ElasticsearchIllegalArgumentException("No indices were specified and wildcard expansion is disabled.");
+                throw new ElasticsearchIllegalArgumentException("no indices were specified and wildcard expansion is disabled.");
             } else {
                 return Strings.EMPTY_ARRAY;
             }

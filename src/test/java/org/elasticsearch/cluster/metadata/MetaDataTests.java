@@ -620,17 +620,7 @@ public class MetaDataTests extends ElasticsearchTestCase {
                 assertThat(concreteIndices, notNullValue());
                 assertThat(concreteIndices.length, equalTo(0));
             } else {
-                try {
-                    metadata.concreteIndices(indicesOptions, allIndices);
-                    fail("calling concreteIndices for _all indices with allowNoIndices=false should throw exception");
-                } catch (ElasticsearchIllegalArgumentException e) {
-                    // conditions when this exception should be thrown
-                    assertFalse(indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed());
-                    assertTrue(allIndices == null || allIndices.length == 0);
-                } catch (IndexMissingException e) {
-                    assertTrue((indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed())
-                            || (allIndices != null && allIndices[0].equals("_all")));
-                }
+                checkCorrectException(metadata, indicesOptions, allIndices);
             }
 
             // with existing indices, asking for all indices should return all open/closed indices depending on options
@@ -651,15 +641,30 @@ public class MetaDataTests extends ElasticsearchTestCase {
                 }
                 assertThat(concreteIndices.length, equalTo(expectedNumberOfIndices));
             } else {
-                try {
-                    metadata.concreteIndices(indicesOptions, allIndices);
-                    fail("calling concreteIndices for _all, with no wildcard expansion and allowNoIndices=false should throw exception");
-                } catch (ElasticsearchIllegalArgumentException e) {
-                    // conditions when this exception should be thrown
-                    assertTrue(allIndices == null || allIndices.length == 0);
-                } catch (IndexMissingException e) {
-                    assertTrue((allIndices != null && allIndices[0].equals("_all")));
-                }
+                checkCorrectException(metadata, indicesOptions, allIndices);
+            }
+        }
+    }
+
+    /**
+     * check for correct exception type depending on indicesOptions and provided index name list
+     */
+    private void checkCorrectException(MetaData metadata, IndicesOptions indicesOptions, String[] allIndices) {
+     // two different exception types possible
+        if (!(indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed())
+                && (allIndices == null || allIndices.length == 0)) {
+            try {
+                metadata.concreteIndices(indicesOptions, allIndices);
+                fail("no wildcard expansion and null or empty list argument should trigger ElasticsearchIllegalArgumentException");
+            } catch (ElasticsearchIllegalArgumentException e) {
+                // expected
+            }
+        } else {
+            try {
+                metadata.concreteIndices(indicesOptions, allIndices);
+                fail("wildcard expansion on should trigger IndexMissingException");
+            } catch (IndexMissingException e) {
+                // expected
             }
         }
     }

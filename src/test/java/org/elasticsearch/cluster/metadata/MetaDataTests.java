@@ -21,6 +21,7 @@ package org.elasticsearch.cluster.metadata;
 
 import com.google.common.collect.Sets;
 
+import org.apache.tools.ant.taskdefs.condition.IsTrue;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -622,8 +623,13 @@ public class MetaDataTests extends ElasticsearchTestCase {
                 try {
                     metadata.concreteIndices(indicesOptions, allIndices);
                     fail("calling concreteIndices for _all indices with allowNoIndices=false should throw exception");
-                } catch (ElasticsearchIllegalArgumentException | IndexMissingException e) {
-                    // expected exception
+                } catch (ElasticsearchIllegalArgumentException e) {
+                    // conditions when this exception should be thrown
+                    assertFalse(indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed());
+                    assertTrue(allIndices == null || allIndices.length == 0);
+                } catch (IndexMissingException e) {
+                    assertTrue((indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed())
+                            || (allIndices != null && allIndices[0].equals("_all")));
                 }
             }
 
@@ -648,17 +654,11 @@ public class MetaDataTests extends ElasticsearchTestCase {
                 try {
                     metadata.concreteIndices(indicesOptions, allIndices);
                     fail("calling concreteIndices for _all, with no wildcard expansion and allowNoIndices=false should throw exception");
-                } catch (ElasticsearchIllegalArgumentException | IndexMissingException e) {
-                    if (indicesOptions.expandWildcardsOpen() || indicesOptions.expandWildcardsClosed()) {
-                            // expected exception
-                            assertThat(e.getClass().getSimpleName(), is("IndexMissingException"));
-                    } else if (allIndices==null || allIndices.length==0) {
-                            assertThat(e.getClass().getSimpleName(), is("ElasticsearchIllegalArgumentException"));
-                    } else if (allIndices[0].equals("_all")){
-                        assertThat(e.getClass().getSimpleName(), is("IndexMissingException"));
-                    } else {
-                        fail("Wrong exception type.");
-                    }
+                } catch (ElasticsearchIllegalArgumentException e) {
+                    // conditions when this exception should be thrown
+                    assertTrue(allIndices == null || allIndices.length == 0);
+                } catch (IndexMissingException e) {
+                    assertTrue((allIndices != null && allIndices[0].equals("_all")));
                 }
             }
         }

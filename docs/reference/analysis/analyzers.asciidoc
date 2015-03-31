@@ -32,7 +32,8 @@ remove stopwords, perform stemming, inject synonyms, and generate bigrams for CJ
 
 Elasticsearch provides several ready-to-use analyzers. 
 You can also construct <<analysis-custom-analyzer,custom analyzers>>
-from the built in character filters, tokenizers, and token filters. 
+from the built in character filters, tokenizers, and token filters. There are 
+also a number of https://github.com/elastic?query=elasticsearch-analysis[Elasticsearch analysis plugins] that add specialized text analysis options.
 
 You can specify which analyzer you want to use when configuring <<mapping, mappings>> and 
 <<search, searching>>. If you don't specify an analyzer, Elasticsearch uses the 

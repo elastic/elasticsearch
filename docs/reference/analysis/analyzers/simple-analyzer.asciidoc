@@ -10,7 +10,7 @@ The `simple` analyzer has no configurable attributes.
 For example, using the simple analyzer to process the string "Let the wild 
 rumpus start! (bit.ly/1wsCiKv)" generates the following tokens:
 
-`let, the, wild, rumpus, start, bit.ly, 1wscikv`
+`let, the, wild, rumpus, start, bit, ly, wscikv`
 
 [source,js]
 --------------------------------------------------------------------------------

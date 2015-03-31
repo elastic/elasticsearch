@@ -55,6 +55,7 @@ import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
+import org.elasticsearch.snapshots.mockstore.MockRepositoryPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Ignore;
 import org.junit.Test;
@@ -573,6 +574,27 @@ public class DedicatedClusterSnapshotRestoreTests extends AbstractSnapshotTests 
         }
         logger.info("--> check that at least half of the shards had some reuse: [{}]", reusedShards);
         assertThat(reusedShards.size(), greaterThanOrEqualTo(numberOfShards / 2));
+    }
+
+
+    @Test
+    public void registrationFailureTest() {
+        logger.info("--> start first node");
+        internalCluster().startNode(settingsBuilder().put("plugin.types", MockRepositoryPlugin.class.getName()));
+        logger.info("--> start second node");
+        // Make sure the first node is elected as master
+        internalCluster().startNode(settingsBuilder().put("node.master", false));
+        // Register mock repositories
+        for (int i = 0; i < 5; i++) {
+            client().admin().cluster().preparePutRepository("test-repo" + i)
+                    .setType("mock").setSettings(ImmutableSettings.settingsBuilder()
+                    .put("location", newTempDir(LifecycleScope.SUITE))).setVerify(false).get();
+        }
+        logger.info("--> make sure that properly setup repository can be registered on all nodes");
+        client().admin().cluster().preparePutRepository("test-repo-0")
+                .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
+                .put("location", newTempDir(LifecycleScope.SUITE))).get();
+
     }
 
     @Test

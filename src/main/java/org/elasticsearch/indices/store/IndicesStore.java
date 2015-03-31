@@ -347,7 +347,12 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
             if (indexShard == null) {
                 channel.sendResponse(new ShardActiveResponse(false, clusterService.localNode()));
             }
-            // create observer just in case
+            // create observer here. we need to register it here because we need to capture the current cluster state
+            // which will then be compared to the one that is applied when we call waitForNextChange(). if we create it
+            // later we might miss an update and wait forever in case no new cluster state comes in.
+            // in general, using a cluster state observer here is a workaround for the fact that we cannot listen on shard state changes explicitly.
+            // instead we wait for the cluster state changes because we know any shard state change will trigger or be
+            // triggered by a cluster state change.
             ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout, logger);
             // check if shard is active. if so, all is good
             boolean shardActive = shardActive(indexShard);
@@ -383,8 +388,10 @@ public class IndicesStore extends AbstractComponent implements ClusterStateListe
                 }, new ClusterStateObserver.ValidationPredicate() {
                     @Override
                     protected boolean validate(ClusterState newState) {
-                        // the shard is not there in which case we want to send back a false, so the cluster state listener must be notified
+                        // the shard is not there in which case we want to send back a false (shard is not active), so the cluster state listener must be notified
                         // or the shard is active in which case we want to send back that the shard is active
+                        // here we could also evaluate the cluster state and get the information from there. we
+                        // don't do it because we would have to write another method for this that would have the same effect
                         IndexShard indexShard = getShard(request);
                         return indexShard == null || shardActive(indexShard);
                     }

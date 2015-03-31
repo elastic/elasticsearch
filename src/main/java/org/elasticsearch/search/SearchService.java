@@ -306,7 +306,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
             loadOrExecuteQueryPhase(request, context, queryPhase);
 
-            if (context.queryResult().topDocs().scoreDocs.length == 0) {
+            if (context.queryResult().topDocs().scoreDocs.length == 0 && context.scroll() == null) {
                 freeContext(context.id());
             } else {
                 contextProcessedSuccessfully(context);
@@ -363,7 +363,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             context.indexShard().searchService().onPreQueryPhase(context);
             long time = System.nanoTime();
             queryPhase.execute(context);
-            if (context.queryResult().topDocs().scoreDocs.length == 0) {
+            if (context.queryResult().topDocs().scoreDocs.length == 0 && context.scroll() == null) {
                 // no hits, we can release the context since there will be no fetch phase
                 freeContext(context.id());
             } else {

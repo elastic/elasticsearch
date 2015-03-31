@@ -27,6 +27,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -187,6 +188,6 @@ public class FunctionScoreQuery extends Query {
 
     @Override
     public int hashCode() {
-        return subQuery.hashCode() + 31 * (function == null ? 0 : function.hashCode()) ^ Float.floatToIntBits(getBoost());
+        return subQuery.hashCode() + 31 * Objects.hashCode(function) ^ Float.floatToIntBits(getBoost());
     }
 }

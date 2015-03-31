@@ -427,7 +427,7 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
                     .setQuery(QueryBuilders.matchAllQuery())
                     .setSize(Integer.MAX_VALUE);
 
-            if (searchType == SearchType.SCAN || randomBoolean()) {
+            if (searchType == SearchType.SCAN || searchType != SearchType.COUNT && randomBoolean()) {
                 builder.setScroll("1m");
             }
 

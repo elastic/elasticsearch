@@ -674,6 +674,15 @@ public class MetaData implements Iterable<IndexMetaData> {
 
             aliasesOrIndices = convertFromWildcards(aliasesOrIndices, indicesOptions);
         }
+
+        if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
+            if (!indicesOptions.allowNoIndices()) {
+                throw new ElasticsearchIllegalArgumentException("no indices were specified and wildcard expansion is disabled.");
+            } else {
+                return Strings.EMPTY_ARRAY;
+            }
+        }
+
         boolean failClosed = indicesOptions.forbidClosedIndices() && !indicesOptions.ignoreUnavailable();
 
         // optimize for single element index (common case)
@@ -1058,7 +1067,7 @@ public class MetaData implements Iterable<IndexMetaData> {
      * @param types the array containing index names
      * @return true if the provided array maps to all indices, false otherwise
      */
-    public boolean isAllTypes(String[] types) {
+    public static boolean isAllTypes(String[] types) {
         return types == null || types.length == 0 || isExplicitAllPattern(types);
     }
 

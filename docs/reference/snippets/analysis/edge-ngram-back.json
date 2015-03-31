@@ -1,0 +1,30 @@
+# Configure a custom analyzer to keep the n-grams at the end of a token
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+    "settings": {
+        "analysis": {
+            "analyzer": {
+                "edge_ngrams_back": {
+                    "type": "custom",
+                    "tokenizer": "keyword",
+                    "filter": ["my_edgeNgram"]
+                }
+            },
+            "filter": {
+                "my_edgeNgram": {
+                    "type": "edgeNgram",
+                    "min_gram" : 2,
+                    "max_gram" : 5,
+                    "side": "back",
+                    "token_chars": [ "letter", "digit" ]
+                }
+            }
+        }
+    }
+}
+
+POST /myindex/_open
+
+GET myindex/_analyze?analyzer=edge_ngrams_back&text=abcdefghijk

@@ -1,0 +1,27 @@
+# Using an edgeNgram tokenizer
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+    "settings": {
+        "analysis": {
+            "analyzer": {
+                "my_edgeNgram_analyzer": {
+                    "tokenizer": "my_edgeNgram_tokenizer"
+                }
+            },
+            "tokenizer": {
+                "my_edgeNgram_tokenizer": {
+                    "type": "edgeNgram",
+                    "min_gram" : 2,
+                    "max_gram" : 5,
+                    "token_chars": [ "letter", "digit" ]
+                }
+            }
+        }
+    }
+}
+
+POST /myindex/_open
+
+GET myindex/_analyze?analyzer=my_edgeNgram_analyzer&text=abcdefg hijklmn

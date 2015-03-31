@@ -1,0 +1,24 @@
+# Using a classic tokenizer
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+  "settings": {
+    "analysis": {
+      "tokenizer": {
+        "classic": {
+          "max_token_length": 5
+        },
+      },
+      "analyzer": {
+        "my_analyzer": {
+          "tokenizer":  "classic"
+        }
+      }
+    }
+  }
+}
+
+POST /myindex/_open
+
+GET /_analyze?analyzer=my_analyzer&text=Let the wild rumpus start! (bit.ly/1wsCiKv)

@@ -1,0 +1,25 @@
+# Using a keyword tokenizer
+POST /myindex/_close
+
+PUT /myindex/_settings
+{
+    "settings": {
+        "analysis": {
+            "analyzer": {
+                "my_keyword_analyzer": {
+                    "tokenizer": "my_keyword_tokenizer"
+                }
+            },
+            "tokenizer": {
+                "my_keyword_tokenizer": {
+                    "type": "keyword",
+                    "buffer_size" : 2
+                }
+            }
+        }
+    }
+}
+
+POST /myindex/_open
+
+GET myindex/_analyze?analyzer=my_edgeNgram_analyzer&text=bit.ly/1wsCiKv

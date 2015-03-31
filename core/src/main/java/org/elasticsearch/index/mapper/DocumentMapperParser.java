@@ -98,7 +98,8 @@ public class DocumentMapperParser {
                 .put(ObjectMapper.CONTENT_TYPE, new ObjectMapper.TypeParser())
                 .put(ObjectMapper.NESTED_CONTENT_TYPE, new ObjectMapper.TypeParser())
                 .put(TypeParsers.MULTI_FIELD_CONTENT_TYPE, TypeParsers.multiFieldConverterTypeParser)
-                .put(CompletionFieldMapper.CONTENT_TYPE, new CompletionFieldMapper.TypeParser())
+                //.put(CompletionFieldMapper.CONTENT_TYPE, new CompletionFieldMapper.TypeParser())
+                .put(CompletionV2FieldMapper.CONTENT_TYPE, new CompletionV2FieldMapper.TypeParser())
                 .put(GeoPointFieldMapper.CONTENT_TYPE, new GeoPointFieldMapper.TypeParser())
                 .put(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser());
 

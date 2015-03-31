@@ -891,7 +891,7 @@ public class GetActionIT extends ESIntegTestCase {
                 "    \"doc\": {\n" +
                 "      \"properties\": {\n" +
                 "        \"suggest\": {\n" +
-                "          \"type\": \"completion\"\n" +
+                "          \"type\": \"completion_old\"\n" +
                 "        }\n" +
                 "      }\n" +
                 "    }\n" +

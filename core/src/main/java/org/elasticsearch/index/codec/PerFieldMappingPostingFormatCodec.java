@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.core.CompletionV2FieldMapper;
 
 /**
  * {@link PerFieldMappingPostingFormatCodec This postings format} is the default
@@ -63,6 +64,8 @@ public class PerFieldMappingPostingFormatCodec extends Lucene50Codec {
             final CompletionFieldMapper.CompletionFieldType fieldType = (CompletionFieldMapper.CompletionFieldType) indexName;
             final PostingsFormat defaultFormat = super.getPostingsFormatForField(field);
             return fieldType.postingsFormat(defaultFormat);
+        } else if (indexName instanceof CompletionV2FieldMapper.CompletionFieldType) {
+            return CompletionV2FieldMapper.CompletionFieldType.postingsFormat();
         }
         return super.getPostingsFormatForField(field);
     }

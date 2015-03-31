@@ -165,8 +165,8 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         }
         Collections.shuffle(precisions, getRandom());
         XContentBuilder mapping = jsonBuilder().startObject().startObject(TYPE)
-                .startObject("properties").startObject("completion")
-                .field("type", "completion")
+                .startObject("properties").startObject("completion_old")
+                .field("type", "completion_old")
                 .startObject("context")
                 .startObject("location")
                 .field("type", "geo")
@@ -180,8 +180,8 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
         Collections.shuffle(precisions, getRandom());
         mapping = jsonBuilder().startObject().startObject(TYPE)
-                .startObject("properties").startObject("completion")
-                .field("type", "completion")
+                .startObject("properties").startObject("completion_old")
+                .field("type", "completion_old")
                 .startObject("context")
                 .startObject("location")
                 .field("type", "geo")
@@ -204,7 +204,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         mapping.field("type", "geo_point");
         mapping.endObject();
         mapping.startObject(FIELD);
-        mapping.field("type", "completion");
+        mapping.field("type", "completion_old");
         mapping.field("analyzer", "simple");
 
         mapping.startObject("context");
@@ -338,7 +338,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testTypeCategoryIsActuallyCalledCategory() throws Exception {
         XContentBuilder mapping = jsonBuilder();
         mapping.startObject().startObject(TYPE).startObject("properties")
-                .startObject("suggest_field").field("type", "completion")
+                .startObject("suggest_field").field("type", "completion_old")
                 .startObject("context").startObject("color").field("type", "category").endObject().endObject()
                 .endObject()
                 .endObject().endObject().endObject();
@@ -442,7 +442,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
                 .startObject(TYPE)
                 .startObject("properties")
                 .startObject(FIELD)
-                .field("type", "completion")
+                .field("type", "completion_old")
                 .startObject("context")
                 .startObject("type_context")
                 .field("path", "_type")
@@ -585,7 +585,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
             .startObject("poi").startObject("properties").startObject("suggest")
-                .field("type", "completion")
+                .field("type", "completion_old")
                 .startObject("context").startObject("location")
                     .field("type", "geo")
                     .field("precision", "500m")
@@ -609,7 +609,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testThatMissingPrefixesForContextReturnException() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
             .startObject("service").startObject("properties").startObject("suggest")
-                .field("type", "completion")
+                .field("type", "completion_old")
                 .startObject("context").startObject("color")
                     .field("type", "category")
                     .field("path", "color")
@@ -636,7 +636,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testThatLocationVenueCanBeParsedAsDocumented() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
             .startObject("poi").startObject("properties").startObject("suggest")
-                .field("type", "completion")
+                .field("type", "completion_old")
                 .startObject("context").startObject("location")
                     .field("type", "geo")
                     .field("precision", "1m")
@@ -651,7 +651,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         XContentBuilder builder = jsonBuilder().startObject()
             .startObject("suggest")
                 .field("text", "m")
-                .startObject("completion")
+                .startObject("completion_old")
                     .field("field", "suggest")
                     .startObject("context").startObject("location").startObject("value").field("lat", 0).field("lon", 0).endObject().field("precision", "1km").endObject().endObject()
                 .endObject()
@@ -667,7 +667,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testThatCategoryDefaultWorks() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
-                .field("type", "completion")
+                .field("type", "completion_old")
                 .startObject("context").startObject("color")
                 .field("type", "category").field("default", "red")
                 .endObject().endObject()
@@ -690,7 +690,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testThatDefaultCategoryAndPathWorks() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
-                .field("type", "completion")
+                .field("type", "completion_old")
                 .startObject("context").startObject("color")
                 .field("type", "category")
                 .field("default", "red")
@@ -715,7 +715,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testThatGeoPrecisionIsWorking() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
-                .field("type", "completion")
+                .field("type", "completion_old")
                 .startObject("context").startObject("location")
                 .field("type", "geo")
                 .field("precision", 4) // this means geo hashes with a length of four are used, like u345
@@ -748,7 +748,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testThatNeighborsCanBeExcluded() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
-                .field("type", "completion")
+                .field("type", "completion_old")
                 .startObject("context").startObject("location")
                 .field("type", "geo")
                 .field("precision", 6)
@@ -778,7 +778,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testThatGeoPathCanBeSelected() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
-                .field("type", "completion")
+                .field("type", "completion_old")
                 .startObject("context").startObject("location")
                 .field("type", "geo")
                 .field("precision", "5m")
@@ -803,7 +803,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testThatPrecisionIsRequired() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("item").startObject("properties").startObject("suggest")
-                .field("type", "completion")
+                .field("type", "completion_old")
                 .startObject("context").startObject("location")
                 .field("type", "geo")
                 .field("path", "loc")
@@ -818,7 +818,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
     public void testThatLatLonParsingFromSourceWorks() throws Exception {
         XContentBuilder xContentBuilder = jsonBuilder().startObject()
                 .startObject("mappings").startObject("test").startObject("properties").startObject("suggest_geo")
-                .field("type", "completion")
+                .field("type", "completion_old")
                 .startObject("context").startObject("location")
                 .field("type", "geo")
                 .field("precision", "1km")
@@ -838,13 +838,13 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         index("test", "test", "2", doc2);
         refresh();
 
-        XContentBuilder source = jsonBuilder().startObject().startObject("suggestion").field("text", "h").startObject("completion").field("field", "suggest_geo").startObject("context").field("location", geohash).endObject().endObject().endObject().endObject();
+        XContentBuilder source = jsonBuilder().startObject().startObject("suggestion").field("text", "h").startObject("completion_old").field("field", "suggest_geo").startObject("context").field("location", geohash).endObject().endObject().endObject().endObject();
         SuggestRequest suggestRequest = new SuggestRequest(INDEX).suggest(source.bytes());
         SuggestResponse suggestResponse = client().suggest(suggestRequest).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Hotel Marriot in Amsterdam");
 
         // this is exact the same request, but using lat/lon instead of geohash
-        source = jsonBuilder().startObject().startObject("suggestion").field("text", "h").startObject("completion").field("field", "suggest_geo").startObject("context").startObject("location").field("lat", latitude).field("lon", longitude).endObject().endObject().endObject().endObject().endObject();
+        source = jsonBuilder().startObject().startObject("suggestion").field("text", "h").startObject("completion_old").field("field", "suggest_geo").startObject("context").startObject("location").field("lat", latitude).field("lon", longitude).endObject().endObject().endObject().endObject().endObject();
         suggestRequest = new SuggestRequest(INDEX).suggest(source.bytes());
         suggestResponse = client().suggest(suggestRequest).get();
         assertSuggestion(suggestResponse.getSuggest(), 0, "suggestion", "Hotel Marriot in Amsterdam");
@@ -1035,7 +1035,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
         mapping.startObject(type);
         mapping.startObject("properties");
         mapping.startObject(FIELD);
-        mapping.field("type", "completion");
+        mapping.field("type", "completion_old");
         mapping.field("analyzer", indexAnalyzer);
         mapping.field("search_analyzer", searchAnalyzer);
         mapping.field("payloads", payloads);

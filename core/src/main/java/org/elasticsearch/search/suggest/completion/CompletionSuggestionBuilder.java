@@ -32,7 +32,8 @@ import java.io.IOException;
 public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilder<CompletionSuggestionBuilder> {
 
     public CompletionSuggestionBuilder(String name) {
-        super(name, "completion");
+        // BREAKS back-compat
+        super(name, "completion_old");
     }
 
     @Override

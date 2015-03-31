@@ -101,11 +101,14 @@ public class SuggestBuilder extends ToXContentToBytes {
         private String name;
         private String suggester;
         private String text;
+        private String prefix;
+        private String regex;
         private String field;
         private String analyzer;
         private Integer size;
         private Integer shardSize;
-        
+
+        // TODO: remove
         private List<ContextQuery> contextQueries = new ArrayList<>();
 
         public SuggestionBuilder(String name, String suggester) {
@@ -113,6 +116,7 @@ public class SuggestBuilder extends ToXContentToBytes {
             this.suggester = suggester;
         }
 
+        // TODO: remove, these should be in CompletionSuggestionBuilder
         @SuppressWarnings("unchecked")
         private T addContextQuery(ContextQuery ctx) {
             this.contextQueries.add(ctx);
@@ -194,11 +198,25 @@ public class SuggestBuilder extends ToXContentToBytes {
             return (T) this;
         }
 
+        protected void setPrefix(String prefix) {
+            this.prefix = prefix;
+        }
+
+        protected void setRegex(String regex) {
+            this.regex = regex;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject(name);
             if (text != null) {
                 builder.field("text", text);
+            }
+            if (prefix != null) {
+                builder.field("prefix", prefix);
+            }
+            if (regex != null) {
+                builder.field("regex", regex);
             }
             builder.startObject(suggester);
             if (analyzer != null) {

@@ -175,7 +175,7 @@ public class MultiFieldsIntegrationTests extends ElasticsearchIntegrationTest {
     public void testCompletionMultiField() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("my-index")
-                        .addMapping("my-type", createMappingSource("completion"))
+                        .addMapping("my-type", createMappingSource("completion_old"))
         );
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("my-index").get();
@@ -184,7 +184,7 @@ public class MultiFieldsIntegrationTests extends ElasticsearchIntegrationTest {
         Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
         Map aField = ((Map) XContentMapValues.extractValue("properties.a", mappingSource));
         assertThat(aField.size(), equalTo(7));
-        assertThat(aField.get("type").toString(), equalTo("completion"));
+        assertThat(aField.get("type").toString(), equalTo("completion_old"));
         assertThat(aField.get("fields"), notNullValue());
 
         Map bField = ((Map) XContentMapValues.extractValue("properties.a.fields.b", mappingSource));

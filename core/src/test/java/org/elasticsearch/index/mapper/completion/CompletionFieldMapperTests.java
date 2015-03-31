@@ -34,13 +34,14 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
+// CHANGED type "completion" -> "completion_old"
 public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testDefaultConfiguration() throws IOException {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
-                .field("type", "completion")
+                .field("type", "completion_old")
                 .endObject().endObject()
                 .endObject().endObject().string();
 
@@ -57,7 +58,7 @@ public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
     public void testThatSerializationIncludesAllElements() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
-                .field("type", "completion")
+                .field("type", "completion_old")
                 .field("analyzer", "simple")
                 .field("search_analyzer", "standard")
                 .field("payloads", true)
@@ -94,7 +95,7 @@ public class CompletionFieldMapperTests extends ElasticsearchSingleNodeTest {
     public void testThatSerializationCombinesToOneAnalyzerFieldIfBothAreEqual() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
-                .field("type", "completion")
+                .field("type", "completion_old")
                 .field("analyzer", "simple")
                 .field("search_analyzer", "simple")
                 .endObject().endObject()

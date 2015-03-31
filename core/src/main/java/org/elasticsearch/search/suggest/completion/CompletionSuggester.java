@@ -103,7 +103,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
     @Override
     public String[] names() {
-        return new String[] { "completion" };
+        return new String[] { "completion_old" };
     }
 
     @Override

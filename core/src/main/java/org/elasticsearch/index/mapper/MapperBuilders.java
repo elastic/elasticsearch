@@ -107,4 +107,8 @@ public final class MapperBuilders {
     public static CompletionFieldMapper.Builder completionField(String name) {
         return new CompletionFieldMapper.Builder(name);
     }
+
+    public static CompletionV2FieldMapper.Builder completionV2Field(String name) {
+        return new CompletionV2FieldMapper.Builder(name);
+    }
 }

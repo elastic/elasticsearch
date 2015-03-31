@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.WeakHashMap;
 
@@ -119,8 +120,8 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
      * Validates only 1 vertex is tangential (shared) between the interior and exterior of a polygon
      */
     protected void validateHole(BaseLineStringBuilder shell, BaseLineStringBuilder hole) {
-        ArrayList exterior = Lists.newArrayList(Sets.newHashSet(shell.points));
-        ArrayList interior = Lists.newArrayList(Sets.newHashSet(hole.points));
+        HashSet exterior = Sets.newHashSet(shell.points);
+        HashSet interior = Sets.newHashSet(hole.points);
         exterior.retainAll(interior);
         if (exterior.size() >= 2) {
             throw new InvalidShapeException("Invalid polygon, interior cannot share more than one point");

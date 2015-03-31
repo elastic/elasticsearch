@@ -114,9 +114,6 @@ public class IndicesStoreIntegrationTests extends ElasticsearchIntegrationTest {
         assertThat(Files.exists(indexDirectory(node_2, "test")), equalTo(true));
         assertThat(Files.exists(shardDirectory(node_3, "test", 0)), equalTo(true));
         assertThat(Files.exists(indexDirectory(node_3, "test")), equalTo(true));
-        if (disruption != null) {
-            disruption.stopDisrupting();
-        }
     }
 
     @Test

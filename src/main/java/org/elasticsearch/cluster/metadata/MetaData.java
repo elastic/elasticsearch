@@ -102,6 +102,7 @@ public class MetaData implements Iterable<IndexMetaData> {
         registerFactory(RepositoriesMetaData.TYPE, RepositoriesMetaData.FACTORY);
         registerFactory(SnapshotMetaData.TYPE, SnapshotMetaData.FACTORY);
         registerFactory(RestoreMetaData.TYPE, RestoreMetaData.FACTORY);
+        registerFactory(BenchmarkMetaData.TYPE, BenchmarkMetaData.FACTORY);
     }
 
     /**
@@ -674,6 +675,16 @@ public class MetaData implements Iterable<IndexMetaData> {
 
             aliasesOrIndices = convertFromWildcards(aliasesOrIndices, indicesOptions);
         }
+
+        if (aliasesOrIndices == null || aliasesOrIndices.length == 0) {
+            if (!indicesOptions.allowNoIndices()) {
+                throw new ElasticsearchIllegalArgumentException("Null or zero length argument for list of index or alias names "
+                        + "not allowed for indices options with " + indicesOptions.toString());
+            } else {
+                return Strings.EMPTY_ARRAY;
+            }
+        }
+
         boolean failClosed = indicesOptions.forbidClosedIndices() && !indicesOptions.ignoreUnavailable();
 
         // optimize for single element index (common case)
@@ -1058,7 +1069,7 @@ public class MetaData implements Iterable<IndexMetaData> {
      * @param types the array containing index names
      * @return true if the provided array maps to all indices, false otherwise
      */
-    public boolean isAllTypes(String[] types) {
+    public static boolean isAllTypes(String[] types) {
         return types == null || types.length == 0 || isExplicitAllPattern(types);
     }
 

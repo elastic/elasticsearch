@@ -19,8 +19,6 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.base.Predicate;
-import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
@@ -213,8 +211,9 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         for (int i = 0; i < randomInt; i++) {
             assertScriptModesAllTypes(randomScriptModes[i], ALL_LANGS, randomScriptContexts[i]);
         }
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, allScriptContextsBut(randomScriptContexts));
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, allScriptContextsBut(randomScriptContexts));
+        EnumSet<ScriptContext> complementOf = EnumSet.complementOf(EnumSet.copyOf(Arrays.asList(randomScriptContexts)));
+        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, complementOf);
+        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, complementOf);
     }
 
     @Test
@@ -225,8 +224,9 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         //operations generic settings have precedence over script type generic settings
         this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
         assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, scriptContext);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE, ScriptType.INDEXED}, allScriptContextsBut(scriptContext));
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INLINE}, allScriptContextsBut(scriptContext));
+        EnumSet<ScriptContext> complementOf = EnumSet.complementOf(EnumSet.of(scriptContext));
+        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE, ScriptType.INDEXED}, complementOf);
+        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INLINE}, complementOf);
     }
 
     @Test
@@ -239,7 +239,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         allButGroovyLangSet.remove(GroovyScriptEngineService.NAME);
         this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
         assertScriptModes(ScriptMode.OFF, groovyLangSet, new ScriptType[]{ScriptType.INLINE}, ScriptContext.MAPPING, ScriptContext.UPDATE);
-        assertScriptModes(ScriptMode.SANDBOX, groovyLangSet, new ScriptType[]{ScriptType.INLINE}, allScriptContextsBut(ScriptContext.MAPPING, ScriptContext.UPDATE));
+        assertScriptModes(ScriptMode.SANDBOX, groovyLangSet, new ScriptType[]{ScriptType.INLINE}, EnumSet.complementOf(EnumSet.of(ScriptContext.MAPPING, ScriptContext.UPDATE)));
         assertScriptModesAllOps(ScriptMode.SANDBOX, allButGroovyLangSet, ScriptType.INLINE);
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
@@ -255,7 +255,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         allButMustacheLangSet.remove(MustacheScriptEngineService.NAME);
         this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
         assertScriptModes(ScriptMode.ON, mustacheLangSet, new ScriptType[]{ScriptType.INLINE}, ScriptContext.AGGS, ScriptContext.SEARCH);
-        assertScriptModes(ScriptMode.OFF, mustacheLangSet, new ScriptType[]{ScriptType.INLINE}, allScriptContextsBut(ScriptContext.AGGS, ScriptContext.SEARCH));
+        assertScriptModes(ScriptMode.OFF, mustacheLangSet, new ScriptType[]{ScriptType.INLINE}, EnumSet.complementOf(EnumSet.of(ScriptContext.AGGS, ScriptContext.SEARCH)));
         assertScriptModesAllOps(ScriptMode.OFF, allButMustacheLangSet, ScriptType.INLINE);
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
@@ -351,6 +351,10 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         assertScriptModes(expectedScriptMode, langs, ScriptType.values(), scriptContexts);
     }
 
+    private void assertScriptModes(ScriptMode expectedScriptMode, Set<String> langs, ScriptType[] scriptTypes, Set<ScriptContext> scriptContexts) {
+        assertScriptModes(expectedScriptMode, langs, scriptTypes, scriptContexts.toArray(new ScriptContext[scriptContexts.size()]));
+    }
+
     private void assertScriptModes(ScriptMode expectedScriptMode, Set<String> langs, ScriptType[] scriptTypes, ScriptContext... scriptContexts) {
         assert langs.size() > 0;
         assert scriptTypes.length > 0;
@@ -365,25 +369,8 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         }
     }
 
-
     private static String specificEngineOpSettings(String lang, ScriptType scriptType, ScriptContext scriptContext) {
         return ScriptModes.ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + scriptContext;
-    }
-
-    private static ScriptContext[] allScriptContextsBut(final ScriptContext... scriptContexts) {
-        Set<ScriptContext> allScriptContexts = Sets.newHashSet(ScriptContext.values());
-        Collection<ScriptContext> filteredScriptContexts = Collections2.filter(allScriptContexts, new Predicate<ScriptContext>() {
-            @Override
-            public boolean apply(@Nullable ScriptContext input) {
-                for (ScriptContext scriptContext : scriptContexts) {
-                    if (scriptContext == input) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-        });
-        return filteredScriptContexts.toArray(new ScriptContext[filteredScriptContexts.size()]);
     }
 
     static ImmutableMap<String, ScriptEngineService> buildScriptEnginesByLangMap(Set<ScriptEngineService> scriptEngines) {

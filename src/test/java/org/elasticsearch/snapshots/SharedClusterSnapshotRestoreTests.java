@@ -240,7 +240,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         NumShards numShards = getNumShards("test");
 
         cluster().wipeIndices("test");
-        assertAcked(prepareCreate("test", 2, ImmutableSettings.builder()
+        assertAcked(prepareCreate("test").setSettings(ImmutableSettings.builder()
                 .put(SETTING_NUMBER_OF_SHARDS, numShards.numPrimaries)));
         ensureGreen();
         String newIndexUUID = client().admin().indices().prepareGetSettings("test").get().getSetting("test", IndexMetaData.SETTING_UUID);

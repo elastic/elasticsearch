@@ -24,7 +24,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 
-import java.io.*;
+import java.io.IOException;
 
 /**
  *
@@ -43,35 +43,10 @@ public abstract class AbstractBlobContainer implements BlobContainer {
     }
 
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
-        ImmutableMap<String, BlobMetaData> allBlobs = listBlobs();
-        ImmutableMap.Builder<String, BlobMetaData> blobs = ImmutableMap.builder();
-        for (BlobMetaData blob : allBlobs.values()) {
-            if (blob.name().startsWith(blobNamePrefix)) {
-                blobs.put(blob.name(), blob);
-            }
-        }
-        return blobs.build();
-    }
-
-    @Override
     public void deleteBlobsByPrefix(final String blobNamePrefix) throws IOException {
-        deleteBlobsByFilter(new BlobNameFilter() {
-            @Override
-            public boolean accept(String blobName) {
-                return blobName.startsWith(blobNamePrefix);
-            }
-        });
-    }
-
-    @Override
-    public void deleteBlobsByFilter(BlobNameFilter filter) throws IOException {
-        ImmutableMap<String, BlobMetaData> blobs = listBlobs();
+        ImmutableMap<String, BlobMetaData> blobs = listBlobsByPrefix(blobNamePrefix);
         for (BlobMetaData blob : blobs.values()) {
-            if (filter.accept(blob.name())) {
-                deleteBlob(blob.name());
-            }
+            deleteBlob(blob.name());
         }
     }
-
 }

@@ -68,7 +68,7 @@ Or grab the latest nightly build from the [repository](http://oss.sonatype.org/c
 
 ## Configuration Properties
 
-Once installed, define the configuration for the +hdfs+ repository through +elasticsearch.yml+ or the REST API:
+Once installed, define the configuration for the `hdfs` repository through `elasticsearch.yml` or the [REST API](http://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html):
 
 ```
 repositories

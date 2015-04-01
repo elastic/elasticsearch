@@ -322,3 +322,14 @@ either the HTTP transport (enabled by default) or the node or transport Java cli
 The `count` search type has been deprecated. All benefits from this search type can
 now be achieved by using the `query_then_fetch` search type (which is the
 default) and setting `size` to `0`.
+
+=== JSONP support
+
+JSONP callback support has now been removed. CORS should be used to access Elasticsearch
+over AJAX instead:
+
+[source,yaml]
+---------------
+http.cors.enabled: true
+http.cors.allow-origin: /https?:\/\/localhost(:[0-9]+)?/
+---------------

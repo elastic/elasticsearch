@@ -178,7 +178,7 @@ public class BulkUdpService extends AbstractLifecycleComponent<BulkUdpService> {
             ChannelBuffer buffer = (ChannelBuffer) e.getMessage();
             logger.trace("received message size [{}]", buffer.readableBytes());
             try {
-                bulkProcessor.add(new ChannelBufferBytesReference(buffer), false, null, null);
+                bulkProcessor.add(new ChannelBufferBytesReference(buffer), null, null);
             } catch (Exception e1) {
                 logger.warn("failed to execute bulk request", e1);
             }

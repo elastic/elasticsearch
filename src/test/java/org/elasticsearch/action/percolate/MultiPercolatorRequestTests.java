@@ -36,7 +36,7 @@ public class MultiPercolatorRequestTests extends ElasticsearchTestCase {
     @Test
     public void testParseBulkRequests() throws Exception {
         byte[] data = Streams.copyToBytesFromClasspath("/org/elasticsearch/action/percolate/mpercolate1.json");
-        MultiPercolateRequest request = new MultiPercolateRequest().add(data, 0, data.length, false);
+        MultiPercolateRequest request = new MultiPercolateRequest().add(data, 0, data.length);
 
         assertThat(request.requests().size(), equalTo(6));
         PercolateRequest percolateRequest = request.requests().get(0);
@@ -123,7 +123,7 @@ public class MultiPercolatorRequestTests extends ElasticsearchTestCase {
         byte[] data = Streams.copyToBytesFromClasspath("/org/elasticsearch/action/percolate/mpercolate2.json");
         MultiPercolateRequest request = new MultiPercolateRequest();
         request.indices("my-index1").documentType("my-type1").indicesOptions(IndicesOptions.lenientExpandOpen());
-        request.add(data, 0, data.length, false);
+        request.add(data, 0, data.length);
 
         assertThat(request.requests().size(), equalTo(3));
         PercolateRequest percolateRequest = request.requests().get(0);

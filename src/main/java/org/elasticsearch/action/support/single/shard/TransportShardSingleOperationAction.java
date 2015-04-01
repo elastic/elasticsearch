@@ -187,7 +187,6 @@ public abstract class TransportShardSingleOperationAction<Request extends Single
                 }
                 try {
                     if (internalRequest.request().operationThreaded()) {
-                        internalRequest.request().beforeLocalFork();
                         threadPool.executor(executor).execute(new Runnable() {
                             @Override
                             public void run() {

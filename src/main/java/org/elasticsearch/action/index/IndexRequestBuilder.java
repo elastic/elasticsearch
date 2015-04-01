@@ -81,16 +81,8 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
     /**
      * Sets the source.
      */
-    public IndexRequestBuilder setSource(BytesReference source, boolean unsafe) {
-        request.source(source, unsafe);
-        return this;
-    }
-
-    /**
-     * Sets the source.
-     */
     public IndexRequestBuilder setSource(BytesReference source) {
-        request.source(source, false);
+        request.source(source);
         return this;
     }
 
@@ -151,19 +143,6 @@ public class IndexRequestBuilder extends ShardReplicationOperationRequestBuilder
      */
     public IndexRequestBuilder setSource(byte[] source, int offset, int length) {
         request.source(source, offset, length);
-        return this;
-    }
-
-    /**
-     * Sets the document to index in bytes form.
-     *
-     * @param source The source to index
-     * @param offset The offset in the byte array
-     * @param length The length of the data
-     * @param unsafe Is the byte array safe to be used form a different thread
-     */
-    public IndexRequestBuilder setSource(byte[] source, int offset, int length, boolean unsafe) {
-        request.source(source, offset, length, unsafe);
         return this;
     }
 

@@ -66,9 +66,9 @@ public class RestExplainAction extends BaseRestHandler {
         String sourceString = request.param("source");
         String queryString = request.param("q");
         if (request.hasContent()) {
-            explainRequest.source(request.content(), request.contentUnsafe());
+            explainRequest.source(request.content());
         } else if (sourceString != null) {
-            explainRequest.source(new BytesArray(request.param("source")), false);
+            explainRequest.source(new BytesArray(request.param("source")));
         } else if (queryString != null) {
             QueryStringQueryBuilder queryStringBuilder = QueryBuilders.queryStringQuery(queryString);
             queryStringBuilder.defaultField(request.param("df"));

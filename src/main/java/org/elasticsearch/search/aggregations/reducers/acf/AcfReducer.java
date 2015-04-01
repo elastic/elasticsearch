@@ -110,10 +110,9 @@ public class AcfReducer extends SiblingReducer {
                 }
 
 
-                int counter = 0;
-                for (int i = buckets.size() - window; i < window; i++) {
-                    values[counter] = resolveBucketValue(histo, buckets.get(i), bucketsPath.get(0), gapPolicy);
-                    counter += 1;
+                int offset = buckets.size() - window;
+                for (int i = 0; i < window; i++) {
+                    values[i] = resolveBucketValue(histo, buckets.get(offset + i), bucketsPath.get(0), gapPolicy);
                 }
 
                 // Consumes values and updates in place
@@ -145,7 +144,7 @@ public class AcfReducer extends SiblingReducer {
         fft.realForward(values);
 
         // calculate the power spectral density.  Autocovariance is the inverse FFT of the PSD
-        computePSD(values);
+        computePSD(values, settings.isZeroMean());
 
         // invert to get back to time-domain
         fft.realInverse(values, true);
@@ -158,7 +157,7 @@ public class AcfReducer extends SiblingReducer {
             Arrays.fill(mask, 0, window, 1.0);
 
             fft.realForward(mask);
-            computePSD(mask);
+            computePSD(mask, false);
             fft.realInverse(mask, true);
 
             for (int i = 0; i < window; i++) {
@@ -182,12 +181,12 @@ public class AcfReducer extends SiblingReducer {
      * @param values array containing a freq-domain series from an FFT.
      *               This is consumed and updated in-place!
      */
-    private void computePSD(double[] values){
+    private void computePSD(double[] values, boolean zeroMean){
         int length = values.length;
 
         // First FFT bin is 0Hz.
         // zeroing out the first bin is equivalent to "centering" the series.  E.g. dividing by the mean
-        if (settings.isZeroMean()) {
+        if (zeroMean) {
             values[0] = 0;
         } else {
             // Calculate the PSD if we don't want to zero it out

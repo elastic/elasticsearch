@@ -228,5 +228,7 @@ it's current version is equal to the specified one. This behavior is the same
 for all version types with the exception of version type `FORCE` which always
 retrieves the document.
 
-Note that Elasticsearch do not store older versions of documents. Only the current version can be retrieved.
-
+Internally, Elasticsearch has marked the old document as deleted and added an
+entirely new document. The old version of the document doesn’t disappear
+immediately, although you won’t be able to access it. Elasticsearch cleans up
+deleted documents in the background as you continue to index more data.

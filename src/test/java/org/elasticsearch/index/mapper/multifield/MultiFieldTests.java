@@ -26,18 +26,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
@@ -444,5 +446,38 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         for (String field : multiFields.keySet()) {
             assertThat(field, equalTo(multiFieldNames[i++]));
         }
+    }
+
+    @Test
+    // The fielddata settings need to be the same after deserializing/re-serialsing, else unneccesary mapping sync's can be triggered
+    public void testMultiFieldsFieldDataSettingsInConsistentOrder() throws Exception {
+        final String MY_MULTI_FIELD = "multi_field";
+
+        // Possible fielddata settings
+        Map<String, Object> possibleSettings = new TreeMap<String, Object>();
+        possibleSettings.put("filter.frequency.min", 1);
+        possibleSettings.put("filter.frequency.max", 2);
+        possibleSettings.put("filter.regex.pattern", ".*");
+        possibleSettings.put("format", "fst");
+        possibleSettings.put("loading", "eager");
+        possibleSettings.put("foo", "bar");
+        possibleSettings.put("zetting", "zValue");
+        possibleSettings.put("aSetting", "aValue");
+
+        // Generate a mapping with the a random subset of possible fielddata settings
+        XContentBuilder builder = jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("my_field").field("type", "string").startObject("fields").startObject(MY_MULTI_FIELD)
+                .field("type", "string").startObject("fielddata");
+        String[] keys = possibleSettings.keySet().toArray(new String[]{});
+        Collections.shuffle(Arrays.asList(keys));
+        for (int i = randomIntBetween(0, possibleSettings.size() - 1); i >= 0; --i)
+            builder.field(keys[i], possibleSettings.get(keys[i]));
+        builder.endObject().endObject().endObject().endObject().endObject().endObject().endObject();
+
+        // Check the mapping remains identical when deserialed/re-serialsed 
+        final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
+        DocumentMapper docMapper = parser.parse(builder.string());
+        DocumentMapper docMapper2 = parser.parse(docMapper.mappingSource().string());
+        assertThat(docMapper.mappingSource(), equalTo(docMapper2.mappingSource()));
     }
 }

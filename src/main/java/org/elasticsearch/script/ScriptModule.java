@@ -46,6 +46,8 @@ public class ScriptModule extends AbstractModule {
 
     private final Map<String, Class<? extends NativeScriptFactory>> scripts = Maps.newHashMap();
 
+    private final List<ScriptContext.Plugin> customScriptContexts = Lists.newArrayList();
+
     public ScriptModule(Settings settings) {
         this.settings = settings;
     }
@@ -56,6 +58,14 @@ public class ScriptModule extends AbstractModule {
 
     public void registerScript(String name, Class<? extends NativeScriptFactory> script) {
         scripts.put(name, script);
+    }
+
+    /**
+     * Registers a custom script context that can be used by plugins to categorize the different operations that they use scripts for.
+     * Fine-grained settings allow to enable/disable scripts per context.
+     */
+    public void registerScriptContext(ScriptContext.Plugin scriptContext) {
+        customScriptContexts.add(scriptContext);
     }
 
     @Override
@@ -105,6 +115,7 @@ public class ScriptModule extends AbstractModule {
             multibinder.addBinding().to(scriptEngine).asEagerSingleton();
         }
 
+        bind(ScriptContextRegistry.class).toInstance(new ScriptContextRegistry(customScriptContexts));
         bind(ScriptService.class).asEagerSingleton();
     }
 }

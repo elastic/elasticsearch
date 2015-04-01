@@ -23,9 +23,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.*;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -75,11 +74,11 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         }
         ScriptService scriptService = context.searchContext().scriptService();
         if (initScript != null) {
-            scriptService.executable(scriptLang, initScript, initScriptType, ScriptContext.AGGS, this.params).run();
+            scriptService.executable(scriptLang, initScript, initScriptType, ScriptContext.Standard.AGGS, this.params).run();
         }
-        this.mapScript = scriptService.search(context.searchContext().lookup(), scriptLang, mapScript, mapScriptType, ScriptContext.AGGS, this.params);
+        this.mapScript = scriptService.search(context.searchContext().lookup(), scriptLang, mapScript, mapScriptType, ScriptContext.Standard.AGGS, this.params);
         if (combineScript != null) {
-            this.combineScript = scriptService.executable(scriptLang, combineScript, combineScriptType, ScriptContext.AGGS, this.params);
+            this.combineScript = scriptService.executable(scriptLang, combineScript, combineScriptType, ScriptContext.Standard.AGGS, this.params);
         } else {
             this.combineScript = null;
         }

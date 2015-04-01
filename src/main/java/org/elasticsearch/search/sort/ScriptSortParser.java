@@ -118,7 +118,7 @@ public class ScriptSortParser implements SortParser {
         if (type == null) {
             throw new SearchParseException(context, "_script sorting requires setting the type of the script");
         }
-        final SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, ScriptContext.SEARCH, params);
+        final SearchScript searchScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, ScriptContext.Standard.SEARCH, params);
 
         if (STRING_SORT_TYPE.equals(type) && (sortMode == MultiValueMode.SUM || sortMode == MultiValueMode.AVG)) {
             throw new SearchParseException(context, "type [string] doesn't support mode [" + sortMode + "]");

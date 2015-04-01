@@ -872,7 +872,7 @@ public class RecoveryState implements ToXContent, Streamable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            final File[] files = fileDetails.values().toArray(new File[0]);
+            final File[] files = fileDetails().toArray(new File[0]);
             out.writeVInt(files.length);
             for (File file : files) {
                 file.writeTo(out);

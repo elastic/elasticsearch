@@ -27,14 +27,17 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState.*;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -480,5 +483,47 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
         } else {
             assertThat(lastRead.time(), lessThanOrEqualTo(start.time()));
         }
+    }
+
+    @Test
+    public void testConcurrentAccessToIndexFileDetails() throws InterruptedException {
+        final Index index = new Index();
+        final CountDownLatch latch = new CountDownLatch(1);
+        final BytesStreamOutput out = new BytesStreamOutput();
+        final AtomicBoolean stop = new AtomicBoolean(false);
+        Thread writeThread = new Thread() {
+            public void run() {
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    fail("interrupted while waiting to start write thread" + e.getMessage());
+                }
+                while (stop.get() == false) {
+                    try {
+                        index.writeTo(out);
+                    } catch (IOException e) {
+                        fail("could not write index " + e.getMessage());
+                    }
+                }
+            }
+        };
+        Thread modifyThread = new Thread() {
+            public void run() {
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    fail("interrupted while waiting to start modify thread" + e.getMessage());
+                }
+                for (int i = 0; i < 100; i++) {
+                    index.addFileDetail(randomAsciiOfLength(10), 100, true);
+                }
+                stop.set(true);
+            }
+        };
+        writeThread.start();
+        modifyThread.start();
+        latch.countDown();
+        writeThread.join();
+        modifyThread.join();
     }
 }

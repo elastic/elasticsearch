@@ -157,6 +157,7 @@ public class InternalEngine extends Engine {
                 }
             }
         }
+        logger.trace("created new InternalEngine");
     }
 
     private SearcherManager createSearcherManager() throws EngineException {

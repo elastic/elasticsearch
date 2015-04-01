@@ -116,4 +116,10 @@ public class FlushRequest extends BroadcastOperationRequest<FlushRequest> {
         }
     }
 
+    @Override
+    public String toString() {
+        return "FlushRequest{" +
+                "waitIfOngoing=" + waitIfOngoing +
+                ", force=" + force + "}";
+    }
 }

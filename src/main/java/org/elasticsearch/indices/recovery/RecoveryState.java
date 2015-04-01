@@ -858,7 +858,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
+        public synchronized void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {

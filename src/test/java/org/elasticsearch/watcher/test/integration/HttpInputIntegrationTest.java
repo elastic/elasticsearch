@@ -52,6 +52,7 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
     @Test
     public void testHttpInput() throws Exception {
         ScriptServiceProxy sc = scriptService();
+        createIndex("index");
         client().prepareIndex("index", "type", "id").setSource("{}").setRefresh(true).get();
 
         InetSocketAddress address = internalTestCluster().httpAddresses()[0];

@@ -486,44 +486,27 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testConcurrentAccessToIndexFileDetails() throws InterruptedException {
+    public void testConcurrentModificationIndexFileDetailsMap() throws InterruptedException {
         final Index index = new Index();
-        final CountDownLatch latch = new CountDownLatch(1);
-        final BytesStreamOutput out = new BytesStreamOutput();
         final AtomicBoolean stop = new AtomicBoolean(false);
-        Thread writeThread = new Thread() {
-            public void run() {
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    fail("interrupted while waiting to start write thread" + e.getMessage());
-                }
-                while (stop.get() == false) {
-                    try {
-                        index.writeTo(out);
-                    } catch (IOException e) {
-                        fail("could not write index " + e.getMessage());
-                    }
-                }
+        Streamer<Index> readWriteIndex = new Streamer<Index>(stop, index) {
+            @Override
+            Index createObj() {
+                return new Index();
             }
         };
         Thread modifyThread = new Thread() {
             public void run() {
-                try {
-                    latch.await();
-                } catch (InterruptedException e) {
-                    fail("interrupted while waiting to start modify thread" + e.getMessage());
-                }
-                for (int i = 0; i < 100; i++) {
+                for (int i = 0; i < 1000; i++) {
                     index.addFileDetail(randomAsciiOfLength(10), 100, true);
                 }
                 stop.set(true);
             }
         };
-        writeThread.start();
+        readWriteIndex.start();
         modifyThread.start();
-        latch.countDown();
-        writeThread.join();
         modifyThread.join();
+        readWriteIndex.join();
+        assertThat(readWriteIndex.error.get(), equalTo(null));
     }
 }

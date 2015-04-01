@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.string;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfo.DocValuesType;
 import org.apache.lucene.index.IndexableField;
@@ -31,7 +32,9 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -50,6 +53,7 @@ import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -214,6 +218,79 @@ public class SimpleStringMappingTests extends ElasticsearchSingleNodeTest {
         fieldType = doc.rootDoc().getField("field").fieldType();
         assertThat(fieldType.omitNorms(), equalTo(false));
         assertParseIdemPotent(fieldType, defaultMapper);
+    }
+    
+    @Test
+    public void testSearchQuoteAnalyzerSerialization() throws Exception {
+        // Cases where search_quote_analyzer should not be added to the mapping.
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("field1")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                .endObject()
+                .startObject("field2")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                    .field("analyzer", "standard")
+                .endObject()
+                .startObject("field3")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                    .field("index_analyzer", "standard")
+                    .field("search_analyzer", "simple")
+                .endObject()
+                .startObject("field4")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                    .field("index_analyzer", "standard")
+                    .field("search_analyzer", "simple")
+                    .field("search_quote_analyzer", "simple")
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper mapper = parser.parse(mapping);
+        for (String fieldName : Lists.newArrayList("field1", "field2", "field3", "field4")) {
+            Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
+            assertFalse(serializedMap.containsKey("search_quote_analyzer"));
+        }
+        
+        // Cases where search_quote_analyzer should be present.
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties")
+                .startObject("field1")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                    .field("search_quote_analyzer", "simple")
+                .endObject()
+                .startObject("field2")
+                    .field("type", "string")
+                    .field("position_offset_gap", 1000)
+                    .field("analyzer", "standard")
+                    .field("search_analyzer", "standard")
+                    .field("search_quote_analyzer", "simple")
+                .endObject()
+                .endObject()
+                .endObject().endObject().string();
+        
+        mapper = parser.parse(mapping);
+        for (String fieldName : Lists.newArrayList("field1", "field2")) {
+            Map<String, Object> serializedMap = getSerializedMap(fieldName, mapper);
+            assertEquals(serializedMap.get("search_quote_analyzer"), "simple");
+        }
+    }
+    
+    private Map<String, Object> getSerializedMap(String fieldName, DocumentMapper mapper) throws Exception {
+        FieldMapper<?> fieldMapper = mapper.mappers().smartNameFieldMapper(fieldName);
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        fieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
+        builder.close();
+        
+        Map<String, Object> fieldMap = JsonXContent.jsonXContent.createParser(builder.bytes()).mapAndClose();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> result = (Map<String, Object>) fieldMap.get(fieldName);
+        return result;
     }
 
     @Test

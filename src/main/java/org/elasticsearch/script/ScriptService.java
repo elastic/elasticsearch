@@ -97,6 +97,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     private final FileWatcher fileWatcher;
 
     private final ScriptModes scriptModes;
+    private final ScriptContextRegistry scriptContextRegistry;
 
     private Client client = null;
 
@@ -144,10 +145,11 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     @Inject
     public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines,
-                         ResourceWatcherService resourceWatcherService, NodeSettingsService nodeSettingsService) throws IOException {
+                         ResourceWatcherService resourceWatcherService, NodeSettingsService nodeSettingsService, ScriptContextRegistry scriptContextRegistry) throws IOException {
         super(settings);
 
         this.scriptEngines = scriptEngines;
+        this.scriptContextRegistry = scriptContextRegistry;
         int cacheMaxSize = settings.getAsInt(SCRIPT_CACHE_SIZE_SETTING, 100);
         TimeValue cacheExpire = settings.getAsTime(SCRIPT_CACHE_EXPIRE_SETTING, null);
         logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
@@ -176,7 +178,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         this.scriptEnginesByLang = enginesByLangBuilder.build();
         this.scriptEnginesByExt = enginesByExtBuilder.build();
 
-        this.scriptModes = new ScriptModes(this.scriptEnginesByLang, settings, logger);
+        this.scriptModes = new ScriptModes(this.scriptEnginesByLang, scriptContextRegistry, settings, logger);
 
         // add file watcher for static scripts
         scriptsDirectory = new File(env.configFile(), "scripts");
@@ -240,8 +242,20 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     /**
      * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
+     * Doesn't require to specify a script context in order to maintain backwards compatibility, internally uses
+     * the {@link ScriptContextRegistry#PLUGINS} default context, assuming that it can only be called from plugins.
+     *
+     * @deprecated use the method variant that accepts the scriptContext as argument too: {@link #compile(String, String, ScriptType, String)}
      */
-    public CompiledScript compile(String lang,  String script, ScriptType scriptType, ScriptContext scriptContext) {
+    @Deprecated
+    public CompiledScript compile(String lang,  String script, ScriptType scriptType) {
+        return compile(lang, script, scriptType, ScriptContextRegistry.PLUGINS);
+    }
+
+    /**
+     * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
+     */
+    public CompiledScript compile(String lang,  String script, ScriptType scriptType, String scriptContext) {
         assert scriptContext != null;
 
         //scriptType might not get serialized depending on the version of the node we talk to, if null treat as inline
@@ -421,9 +435,21 @@ public class ScriptService extends AbstractComponent implements Closeable {
     }
 
     /**
+     * Compiles (or retrieves from cache) and executes the provided script.
+     * Doesn't require to specify a script context in order to maintain backwards compatibility, internally uses
+     * the {@link ScriptContextRegistry#PLUGINS} default context, assuming that it can only be called from plugins.
+     *
+     * @deprecated use the method variant that accepts the scriptContext as argument too: {@link #executable(String, String, ScriptType, String, Map)}
+     */
+    @Deprecated
+    public ExecutableScript executable(String lang, String script, ScriptType scriptType, Map<String, Object> vars) {
+        return executable(lang, script, scriptType, ScriptContextRegistry.PLUGINS, vars);
+    }
+
+    /**
      * Compiles (or retrieves from cache) and executes the provided script
      */
-    public ExecutableScript executable(String lang, String script, ScriptType scriptType, ScriptContext scriptContext, Map<String, Object> vars) {
+    public ExecutableScript executable(String lang, String script, ScriptType scriptType, String scriptContext, Map<String, Object> vars) {
         return executable(compile(lang, script, scriptType, scriptContext), vars);
     }
 
@@ -436,14 +462,26 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     /**
      * Compiles (or retrieves from cache) and executes the provided search script
+     * Doesn't require to specify a script context in order to maintain backwards compatibility, internally uses
+     * the {@link ScriptContextRegistry#PLUGINS} default context, assuming that it can only be called from plugins.
+     *
+     * @deprecated use the method variant that accepts the scriptContext as argument too: {@link #search(SearchLookup, String, String, ScriptType, String, Map)}
      */
-    public SearchScript search(SearchLookup lookup, String lang, String script, ScriptType scriptType, ScriptContext scriptContext, @Nullable Map<String, Object> vars) {
+    @Deprecated
+    public SearchScript search(SearchLookup lookup, String lang, String script, ScriptType scriptType, @Nullable Map<String, Object> vars) {
+        return search(lookup, lang, script, scriptType, ScriptContextRegistry.PLUGINS, vars);
+    }
+
+    /**
+     * Compiles (or retrieves from cache) and executes the provided search script
+     */
+    public SearchScript search(SearchLookup lookup, String lang, String script, ScriptType scriptType, String scriptContext, @Nullable Map<String, Object> vars) {
             CompiledScript compiledScript = compile(lang, script, scriptType, scriptContext);
             return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript.compiled(), lookup, vars);
     }
 
     private boolean isAnyScriptContextEnabled(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType) {
-        for (ScriptContext scriptContext : ScriptContext.values()) {
+        for (String scriptContext : scriptContextRegistry.scriptContexts()) {
             if (canExecuteScript(lang, scriptEngineService, scriptType, scriptContext)) {
                 return true;
             }
@@ -451,8 +489,11 @@ public class ScriptService extends AbstractComponent implements Closeable {
         return false;
     }
 
-    private boolean canExecuteScript(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType, ScriptContext scriptContext) {
+    private boolean canExecuteScript(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType, String scriptContext) {
         assert lang != null;
+        if (scriptContextRegistry.scriptContexts().contains(scriptContext) == false) {
+            throw new ElasticsearchIllegalArgumentException("script context [" + scriptContext + "] not supported");
+        }
         ScriptMode mode = scriptModes.getScriptMode(lang, scriptType, scriptContext);
         switch (mode) {
             case ON:

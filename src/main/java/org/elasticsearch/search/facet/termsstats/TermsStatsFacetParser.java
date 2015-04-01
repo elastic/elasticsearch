@@ -28,7 +28,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.FacetParser;
@@ -143,7 +143,7 @@ public class TermsStatsFacetParser extends AbstractComponent implements FacetPar
             }
             valueIndexFieldData = context.fieldData().getForField(fieldMapper);
         } else {
-            valueScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, ScriptContext.AGGS, params);
+            valueScript = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, ScriptContextRegistry.AGGS, params);
         }
 
         if (keyIndexFieldData instanceof IndexNumericFieldData) {

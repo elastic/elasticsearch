@@ -21,6 +21,7 @@ package org.elasticsearch.script;
 
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
@@ -33,6 +34,7 @@ import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * An {@link org.elasticsearch.common.inject.Module} which manages {@link ScriptEngineService}s, as well
@@ -46,6 +48,8 @@ public class ScriptModule extends AbstractModule {
 
     private final Map<String, Class<? extends NativeScriptFactory>> scripts = Maps.newHashMap();
 
+    private final Set<String> customScriptContexts = Sets.newHashSet();
+
     public ScriptModule(Settings settings) {
         this.settings = settings;
     }
@@ -56,6 +60,14 @@ public class ScriptModule extends AbstractModule {
 
     public void registerScript(String name, Class<? extends NativeScriptFactory> script) {
         scripts.put(name, script);
+    }
+
+    /**
+     * Registers a custom script context that can be used by plugins to categorize the different operations that they use scripts for.
+     * Fine-grained settings allow to enable/disable scripts per context.
+     */
+    public void registerScriptContext(String scriptContext) {
+        this.customScriptContexts.add(scriptContext);
     }
 
     @Override
@@ -105,6 +117,7 @@ public class ScriptModule extends AbstractModule {
             multibinder.addBinding().to(scriptEngine).asEagerSingleton();
         }
 
+        bind(ScriptContextRegistry.class).toInstance(new ScriptContextRegistry(customScriptContexts));
         bind(ScriptService.class).asEagerSingleton();
     }
 }

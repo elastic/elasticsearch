@@ -71,7 +71,6 @@ on all data and master nodes. The following settings are supported:
  using size value notation, i.e. 1g, 10m, 5k. Defaults to `null` (unlimited chunk size).
 `max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `40mb` per second.
 `max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `40mb` per second.
-`verify`:: Verify repository upon creation. Defaults to `true`.
 
 [float]
 ===== Read-only URL Repository
@@ -95,8 +94,21 @@ Other repository backends are available in these official plugins:
 [float]
 ===== Repository Verification
 When a repository is registered, it's immediately verified on all master and data nodes to make sure that it is functional
-on all nodes currently present in the cluster. The verification process can also be executed manually by running the
-following command:
+on all nodes currently present in the cluster. The `verify` parameter can be used to explicitly disable the repository
+verification when registering or updating a repository:
+
+[source,js]
+-----------------------------------
+$ curl -XPUT 'http://localhost:9200/_snapshot/s3_repository?verify=false' -d '{
+    "type": "s3",
+    "settings": {
+        "bucket": "my_s3_bucket",
+        "region": "eu-west-1",
+    }
+}'
+-----------------------------------
+
+The verification process can also be executed manually by running the following command:
 
 [source,js]
 -----------------------------------

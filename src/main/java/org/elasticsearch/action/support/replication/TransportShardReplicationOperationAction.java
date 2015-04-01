@@ -387,7 +387,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 if (shard.currentNodeId().equals(observer.observedState().nodes().localNodeId())) {
                     try {
                         if (internalRequest.request().operationThreaded()) {
-                            internalRequest.request().beforeLocalFork();
                             threadPool.executor(executor).execute(new Runnable() {
                                 @Override
                                 public void run() {
@@ -457,7 +456,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 return;
             }
             // make it threaded operation so we fork on the discovery listener thread
-            internalRequest.request().beforeLocalFork();
             internalRequest.request().operationThreaded(true);
 
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
@@ -652,7 +650,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 });
             } else {
                 if (internalRequest.request().operationThreaded()) {
-                    internalRequest.request().beforeLocalFork();
                     try {
                         threadPool.executor(executor).execute(new AbstractRunnable() {
                             @Override

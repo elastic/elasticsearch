@@ -281,12 +281,12 @@ public class BulkProcessor implements Closeable {
         executeIfNeeded();
     }
 
-    public BulkProcessor add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
-        return add(data, contentUnsafe, defaultIndex, defaultType, null);
+    public BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
+        return add(data, defaultIndex, defaultType, null);
     }
 
-    public synchronized BulkProcessor add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable Object payload) throws Exception {
-        bulkRequest.add(data, contentUnsafe, defaultIndex, defaultType, null, payload, true);
+    public synchronized BulkProcessor add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable Object payload) throws Exception {
+        bulkRequest.add(data, defaultIndex, defaultType, null, payload, true);
         executeIfNeeded();
         return this;
     }

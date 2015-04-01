@@ -61,7 +61,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         String[] types = Strings.splitStringByCommaToArray(request.param("type"));
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, multiSearchRequest.indicesOptions());
-        multiSearchRequest.add(RestActions.getRestContent(request), request.contentUnsafe(), indices, types, request.param("search_type"), request.param("routing"), indicesOptions, allowExplicitIndex);
+        multiSearchRequest.add(RestActions.getRestContent(request), indices, types, request.param("search_type"), request.param("routing"), indicesOptions, allowExplicitIndex);
 
         client.multiSearch(multiSearchRequest, new RestToXContentListener<MultiSearchResponse>(channel));
     }

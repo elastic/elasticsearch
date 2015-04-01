@@ -228,5 +228,7 @@ it's current version is equal to the specified one. This behavior is the same
 for all version types with the exception of version type `FORCE` which always
 retrieves the document.
 
-Note that even though Elasticsearch does not delete versions of documents in an index to ensure constant sequential writes, older versions of documents are treated as unreachable. Only the current version can be retrieved.
+Note that even though Elasticsearch does not delete versions of documents in
+an index to ensure constant sequential writes, older versions of documents are
+unreachable. Only the current version can be retrieved.
 

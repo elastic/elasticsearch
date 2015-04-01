@@ -6,13 +6,12 @@
 package org.elasticsearch.shield.authc;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.rest.FakeRestRequest;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.shield.ShieldSettingsFilter;
 import org.elasticsearch.shield.User;
@@ -29,7 +28,6 @@ import org.junit.rules.ExpectedException;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.*;
@@ -57,7 +55,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
     public void init() throws Exception {
         token = mock(AuthenticationToken.class);
         message = new InternalMessage();
-        restRequest = new InternalRestRequest();
+        restRequest = new FakeRestRequest();
         firstRealm = mock(Realm.class);
         when(firstRealm.type()).thenReturn("first");
         secondRealm = mock(Realm.class);
@@ -173,7 +171,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
             service.authenticate(restRequest);
             fail("Authentication was successful but should not");
         } catch (AuthenticationException e) {
-            assertThat(e.getMessage(), containsString("unable to authenticate user [idonotexist] for REST request [_uri]"));
+            assertThat(e.getMessage(), containsString("unable to authenticate user [idonotexist] for REST request [/]"));
         }
     }
 
@@ -441,7 +439,7 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
         }
         service = new InternalAuthenticationService(builder.build(), realms, auditTrail, signatureService);
 
-        RestRequest request = new InternalRestRequest();
+        RestRequest request = new FakeRestRequest();
 
         User user = service.authenticate(request);
         assertThat(request.getFromContext(InternalAuthenticationService.USER_KEY), notNullValue());
@@ -483,74 +481,6 @@ public class InternalAuthenticationServiceTests extends ElasticsearchTestCase {
 
 
     private static class InternalMessage extends TransportMessage<InternalMessage> {
-    }
-
-    private static class InternalRestRequest extends RestRequest {
-
-        @Override
-        public Method method() {
-            return null;
-        }
-
-        @Override
-        public String uri() {
-            return "_uri";
-        }
-
-        @Override
-        public String rawPath() {
-            return "_path";
-        }
-
-        @Override
-        public boolean hasContent() {
-            return false;
-        }
-
-        @Override
-        public boolean contentUnsafe() {
-            return false;
-        }
-
-        @Override
-        public BytesReference content() {
-            return null;
-        }
-
-        @Override
-        public String header(String name) {
-            return null;
-        }
-
-        @Override
-        public Iterable<Map.Entry<String, String>> headers() {
-            return ImmutableMap.<String, String>of().entrySet();
-        }
-
-        @Override
-        public boolean hasParam(String key) {
-            return false;
-        }
-
-        @Override
-        public String param(String key) {
-            return null;
-        }
-
-        @Override
-        public Map<String, String> params() {
-            return ImmutableMap.of();
-        }
-
-        @Override
-        public String param(String key, String defaultValue) {
-            return null;
-        }
-
-        @Override
-        public String toString() {
-            return "rest_request";
-        }
     }
 
 }

@@ -64,8 +64,9 @@ import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -79,7 +80,6 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static com.google.common.collect.Lists.newArrayList;
-import static org.elasticsearch.script.ScriptService.*;
 
 /**
  *
@@ -760,7 +760,7 @@ public class DocumentMapper implements ToXContent {
         public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
             try {
                 // We use the ctx variable and the _source name to be consistent with the update api.
-                ExecutableScript executable = scriptService.executable(language, script, scriptType, ScriptContext.MAPPING, parameters);
+                ExecutableScript executable = scriptService.executable(language, script, scriptType, ScriptContext.Standard.MAPPING, parameters);
                 Map<String, Object> ctx = new HashMap<>(1);
                 ctx.put("_source", sourceAsMap);
                 executable.setNextVar("ctx", ctx);

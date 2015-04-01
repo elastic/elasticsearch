@@ -750,10 +750,13 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             builder.field("similarity", SimilarityLookupService.DEFAULT_SIMILARITY);
         }
 
+        TreeMap<String, Object> orderedFielddataSettings = new TreeMap<String, Object>();
         if (customFieldDataSettings != null) {
-            builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
+            orderedFielddataSettings.putAll(customFieldDataSettings.getAsMap());
+            builder.field("fielddata", orderedFielddataSettings);
         } else if (includeDefaults) {
-            builder.field("fielddata", (Map) fieldDataType.getSettings().getAsMap());
+            orderedFielddataSettings.putAll(fieldDataType.getSettings().getAsMap());
+            builder.field("fielddata", orderedFielddataSettings);
         }
         multiFields.toXContent(builder, params);
 

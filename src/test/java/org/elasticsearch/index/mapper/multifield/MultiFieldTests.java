@@ -38,7 +38,9 @@ import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Map;
+import java.util.TreeMap;
 
 import static org.elasticsearch.common.io.Streams.copyToBytesFromClasspath;
 import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
@@ -445,5 +447,46 @@ public class MultiFieldTests extends ElasticsearchSingleNodeTest {
         for (String field : multiFields.keySet()) {
             assertThat(field, equalTo(multiFieldNames[i++]));
         }
+    }
+    
+    @Test
+    @SuppressWarnings("unchecked")
+    // The fielddata settings need to be in consistent order, else unneccesary mapping sync's can be triggered
+    public void testMultiFieldsFieldDataSettingsInConsistentOrder() throws Exception {
+        final String MY_MULTI_FIELD = "multi_field";
+        
+        // Possible fielddata settings
+        Map<String, Object> possibleSettings = new TreeMap<String, Object>();
+        possibleSettings.put("filter.frequency.min", 1);
+        possibleSettings.put("filter.frequency.max", 2);
+        possibleSettings.put("filter.regex.pattern", ".*");
+        possibleSettings.put("format", "fst");
+        possibleSettings.put("loading", "eager");
+        
+        // Generate a mapping with the a random subset of possible fielddata settings
+        XContentBuilder builder = jsonBuilder().startObject().startObject("type").startObject("properties")
+            .startObject("my_field").field("type", "string").startObject("fields").startObject(MY_MULTI_FIELD)
+            .field("type", "string").startObject("fielddata");
+        String[] keys = possibleSettings.keySet().toArray(new String[]{});
+        Collections.shuffle(Arrays.asList(keys));
+        for(int i = randomIntBetween(0, 4); i >= 0; --i)
+            builder.field(keys[i], possibleSettings.get(keys[i]));
+        builder.endObject().endObject().endObject().endObject().endObject().endObject().endObject();
+        
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(builder.string());
+        
+        // Extract the fielddata settings of our field from the mapping
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(docMapper.mappingSource().compressed(), true).v2();
+        Map<String, Object> fieldDataSettings = (Map<String, Object>)
+        XContentMapValues.extractValue("type.properties.my_field.fields." + MY_MULTI_FIELD + ".fielddata", sourceAsMap);
+        
+        // Extract/sort the keys of field data settings
+        String[] actualKeys = fieldDataSettings.keySet().toArray(new String[]{});
+        String[] expectedKeys = actualKeys.clone();
+        Arrays.sort(expectedKeys);
+        
+        // The keySet of fieldDataSettings is in order of data that was in the XContent object,
+        // so we expect the keySet to be ordered just as our sorted array
+        assertArrayEquals(actualKeys, expectedKeys);
     }
 }

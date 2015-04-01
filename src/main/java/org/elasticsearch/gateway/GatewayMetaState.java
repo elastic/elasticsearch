@@ -284,6 +284,9 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
     public static Set<String> getRelevantIndicesOnDataOnlyNode(ClusterState state, Set<String> previouslyWrittenIndices) {
         RoutingNode newRoutingNode = state.getRoutingNodes().node(state.nodes().localNodeId());
+        if (newRoutingNode == null) {
+            throw new ElasticsearchIllegalStateException("cluster state does not contain this node - cannot write index meta state");
+        }
         Set<String> indices = new HashSet<>();
         for (MutableShardRouting routing : newRoutingNode) {
             indices.add(routing.index());

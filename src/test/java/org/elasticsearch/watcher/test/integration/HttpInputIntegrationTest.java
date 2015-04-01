@@ -14,6 +14,7 @@ import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.input.http.HttpInput;
+import org.elasticsearch.watcher.support.http.auth.BasicAuth;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.template.ScriptTemplate;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
@@ -48,26 +49,23 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
                 .build();
     }
 
-    @Override
-    protected boolean shieldEnabled() {
-        return false;
-    }
-
     @Test
     public void testHttpInput() throws Exception {
         ScriptServiceProxy sc = scriptService();
         client().prepareIndex("index", "type", "id").setSource("{}").setRefresh(true).get();
 
         InetSocketAddress address = internalTestCluster().httpAddresses()[0];
-        String body = jsonBuilder().startObject().field("size", 1).endObject().string();
+        HttpInput.SourceBuilder input = httpInput()
+                .setHost(address.getHostName())
+                .setPort(address.getPort())
+                .setPath(new ScriptTemplate(sc, "/index/_search"))
+                .setBody(new ScriptTemplate(sc, jsonBuilder().startObject().field("size", 1).endObject().string()));
+        if (shieldEnabled()) {
+            input.setAuth(new BasicAuth("test", "changeme"));
+        }
         WatchSourceBuilder source = watchSourceBuilder()
                 .trigger(TriggerBuilders.schedule(interval("5s")))
-                .input(httpInput()
-                                .setHost(address.getHostName())
-                                .setPort(address.getPort())
-                                .setPath(new ScriptTemplate(sc, "/index/_search"))
-                                .setBody(new ScriptTemplate(sc, body))
-                )
+                .input(input)
                 .condition(scriptCondition("ctx.payload.hits.total == 1"))
                 .addAction(indexAction("idx", "action"));
         watcherClient().preparePutWatch("_name")
@@ -100,6 +98,9 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
                 .setPath(new ScriptTemplate(sc, "/idx/_search"))
                 .setBody(new ScriptTemplate(sc, body))
                 .addExtractKey("hits.total");
+        if (shieldEnabled()) {
+            httpInputBuilder.setAuth(new BasicAuth("test", "changeme"));
+        }
 
         watcherClient.preparePutWatch("_name1")
                 .source(watchSourceBuilder()

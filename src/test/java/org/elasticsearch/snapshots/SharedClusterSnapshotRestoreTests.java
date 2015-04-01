@@ -221,7 +221,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         logger.info("-->  creating repository");
         assertAcked(client.admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(ImmutableSettings.settingsBuilder()
-                        .put("location", newTempDirPath())
+                        .put("location", newTempDir())
                         .put("compress", randomBoolean())
                         .put("chunk_size", randomIntBetween(100, 1000))));
 

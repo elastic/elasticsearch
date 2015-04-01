@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.test.integration;
 
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -28,12 +27,11 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilder.watchSourceBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.httpInput;
-import static org.elasticsearch.watcher.test.WatcherTestUtils.newInputSearchRequest;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
@@ -103,7 +101,6 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
                 .setBody(new ScriptTemplate(sc, body))
                 .addExtractKey("hits.total");
 
-        SearchRequest searchRequest = newInputSearchRequest("idx").source(searchSource().query(termQuery("field", "value")));
         watcherClient.preparePutWatch("_name1")
                 .source(watchSourceBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
@@ -129,11 +126,13 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
         assertWatchWithNoActionNeeded("_name2", 1);
 
         // Check that the input result payload has been filtered
+        refresh();
         SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(matchQuery("watch_name", "_name1"))
                 .setSize(1)
                 .get();
+        assertHitCount(searchResponse, 1);
         Map payload = (Map) ((Map)((Map)((Map) searchResponse.getHits().getAt(0).sourceAsMap().get("watch_execution")).get("input_result")).get("http")).get("payload");
         assertThat(payload.size(), equalTo(1));
         assertThat(((Map) payload.get("hits")).size(), equalTo(1));

@@ -293,11 +293,13 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         assertWatchWithNoActionNeeded("_name2", 1);
 
         // Check that the input result payload has been filtered
+        refresh();
         SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(matchQuery("watch_name", "_name1"))
                 .setSize(1)
                 .get();
+        assertHitCount(searchResponse, 1);
         Map payload = (Map) ((Map)((Map)((Map) searchResponse.getHits().getAt(0).sourceAsMap().get("watch_execution")).get("input_result")).get("search")).get("payload");
         assertThat(payload.size(), equalTo(1));
         assertThat(((Map) payload.get("hits")).size(), equalTo(1));

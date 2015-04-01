@@ -21,7 +21,9 @@ package org.elasticsearch.common.logging.log4j;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.log4j.PropertyConfigurator;
+import org.apache.log4j.rolling.SizeBasedTriggeringPolicy;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -69,6 +71,7 @@ public class LogConfigurator {
             .put("telnet", "org.apache.log4j.net.TelnetAppender")
                     // policies
             .put("timeBased", "org.apache.log4j.rolling.TimeBasedRollingPolicy")
+            .put("sizeBased", "org.apache.log4j.rolling.SizeBasedTriggeringPolicy")
                     // layouts
             .put("simple", "org.apache.log4j.SimpleLayout")
             .put("html", "org.apache.log4j.HTMLLayout")

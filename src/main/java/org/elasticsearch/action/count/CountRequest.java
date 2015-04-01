@@ -65,7 +65,6 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     private String preference;
 
     private BytesReference source;
-    private boolean sourceUnsafe;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -87,14 +86,6 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         return validationException;
-    }
-
-    @Override
-    protected void beforeStart() {
-        if (sourceUnsafe) {
-            source = source.copyBytesArray();
-            sourceUnsafe = false;
-        }
     }
 
     /**
@@ -125,7 +116,6 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
      */
     public CountRequest source(QuerySourceBuilder sourceBuilder) {
         this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        this.sourceUnsafe = false;
         return this;
     }
 
@@ -144,7 +134,6 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
 
     public CountRequest source(XContentBuilder builder) {
         this.source = builder.bytes();
-        this.sourceUnsafe = false;
         return this;
     }
 
@@ -154,7 +143,6 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
      */
     public CountRequest source(String querySource) {
         this.source = new BytesArray(querySource);
-        this.sourceUnsafe = false;
         return this;
     }
 
@@ -162,19 +150,18 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
      * The source to execute.
      */
     public CountRequest source(byte[] querySource) {
-        return source(querySource, 0, querySource.length, false);
+        return source(querySource, 0, querySource.length);
     }
 
     /**
      * The source to execute.
      */
-    public CountRequest source(byte[] querySource, int offset, int length, boolean unsafe) {
-        return source(new BytesArray(querySource, offset, length), unsafe);
+    public CountRequest source(byte[] querySource, int offset, int length) {
+        return source(new BytesArray(querySource, offset, length));
     }
 
-    public CountRequest source(BytesReference querySource, boolean unsafe) {
+    public CountRequest source(BytesReference querySource) {
         this.source = querySource;
-        this.sourceUnsafe = unsafe;
         return this;
     }
 
@@ -246,7 +233,6 @@ public class CountRequest extends BroadcastOperationRequest<CountRequest> {
         minScore = in.readFloat();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
-        sourceUnsafe = false;
         source = in.readBytesReference();
         types = in.readStringArray();
         terminateAfter = in.readVInt();

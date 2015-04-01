@@ -61,17 +61,7 @@ public class ValidateQueryRequestBuilder extends BroadcastOperationRequestBuilde
      * @see org.elasticsearch.index.query.QueryBuilders
      */
     public ValidateQueryRequestBuilder setSource(BytesReference source) {
-        request().source(source, false);
-        return this;
-    }
-
-    /**
-     * The source to validate.
-     *
-     * @see org.elasticsearch.index.query.QueryBuilders
-     */
-    public ValidateQueryRequestBuilder setSource(BytesReference source, boolean unsafe) {
-        request().source(source, unsafe);
+        request().source(source);
         return this;
     }
 

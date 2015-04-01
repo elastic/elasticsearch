@@ -134,7 +134,6 @@ public class MoreLikeThisRequestTests extends ElasticsearchTestCase {
             assertThat(mltRequest2.searchSource().length(), equalTo(0));
         } else {
             assertThat(mltRequest2.searchSource().length(), equalTo(mltRequest.searchSource().length()));
-            assertThat(mltRequest2.searchSourceUnsafe(), equalTo(mltRequest.searchSourceUnsafe()));
         }
 
         if (mltRequest.stopWords() != null && mltRequest.stopWords().length > 0) {

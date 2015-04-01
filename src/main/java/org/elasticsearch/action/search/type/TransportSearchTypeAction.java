@@ -137,7 +137,6 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, buildTookInMillis(), ShardSearchFailure.EMPTY_ARRAY));
                 return;
             }
-            request.beforeStart();
             int shardIndex = -1;
             for (final ShardIterator shardIt : shardsIts) {
                 shardIndex++;

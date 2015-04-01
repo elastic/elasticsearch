@@ -89,9 +89,9 @@ public class RestSearchAction extends BaseRestHandler {
         boolean isTemplateRequest = request.path().endsWith("/template");
         if (request.hasContent()) {
             if (isTemplateRequest) {
-                searchRequest.templateSource(request.content(), request.contentUnsafe());
+                searchRequest.templateSource(request.content());
             } else {
-                searchRequest.source(request.content(), request.contentUnsafe());
+                searchRequest.source(request.content());
             }
         } else {
             String source = request.param("source");

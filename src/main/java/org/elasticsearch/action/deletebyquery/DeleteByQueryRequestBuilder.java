@@ -113,23 +113,15 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
      * The source to execute.
      */
     public DeleteByQueryRequestBuilder setSource(BytesReference source) {
-        request().source(source, false);
+        request().source(source);
         return this;
     }
 
     /**
      * The source to execute.
      */
-    public DeleteByQueryRequestBuilder setSource(BytesReference source, boolean unsafe) {
-        request().source(source, unsafe);
-        return this;
-    }
-
-    /**
-     * The source to execute.
-     */
-    public DeleteByQueryRequestBuilder setSource(byte[] source, int offset, int length, boolean unsafe) {
-        request().source(source, offset, length, unsafe);
+    public DeleteByQueryRequestBuilder setSource(byte[] source, int offset, int length) {
+        request().source(source, offset, length);
         return this;
     }
 

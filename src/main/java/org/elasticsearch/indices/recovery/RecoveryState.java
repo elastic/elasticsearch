@@ -858,7 +858,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
         @Override
-        public void readFrom(StreamInput in) throws IOException {
+        public synchronized void readFrom(StreamInput in) throws IOException {
             super.readFrom(in);
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
@@ -870,7 +870,7 @@ public class RecoveryState implements ToXContent, Streamable {
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        public synchronized void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             final File[] files = fileDetails.values().toArray(new File[0]);
             out.writeVInt(files.length);

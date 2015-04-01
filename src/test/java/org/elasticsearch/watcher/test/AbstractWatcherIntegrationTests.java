@@ -82,7 +82,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
     private TimeWarp timeWarp;
 
-    boolean shieldEnabled = shieldEnabled();
+    boolean shieldEnabled = enableShield();
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -108,9 +108,16 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     }
 
     /**
-     * Override and returns {@code false} to force running without shield
+     * @return whether shield has been enabled
      */
     protected boolean shieldEnabled() {
+        return shieldEnabled;
+    }
+
+    /**
+     * Override and returns {@code false} to force running without shield
+     */
+    protected boolean enableShield() {
         return randomBoolean();
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Actions;
 import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.watcher.input.Input;
+import org.elasticsearch.watcher.input.InputBuilders;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.http.*;
@@ -108,6 +109,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
     @Repeat(iterations = 12)
     public void testParser() throws Exception {
         final String httpMethod = randomFrom("PUT", "POST", "GET", "DELETE", "HEAD", null);
+        String scheme = randomFrom("http", "https", null);
         String host = randomAsciiOfLength(3);
         int port = randomInt();
         Template path = new MockTemplate(randomAsciiOfLength(3));
@@ -115,7 +117,8 @@ public class HttpInputTests extends ElasticsearchTestCase {
         Map<String, Template> params = randomBoolean() ? new MapBuilder<String, Template>().put("a", new MockTemplate("b")).map() : null;
         Map<String, Template> headers = randomBoolean() ? new MapBuilder<String, Template>().put("c", new MockTemplate("d")).map() : null;
         HttpAuth auth = randomBoolean() ? new BasicAuth("username", "password") : null;
-        HttpInput.SourceBuilder sourceBuilder = new HttpInput.SourceBuilder()
+        TemplatedHttpRequest.SourceBuilder requestSource = new TemplatedHttpRequest.SourceBuilder()
+                .setScheme(scheme)
                 .setMethod(httpMethod)
                 .setHost(host)
                 .setPort(port)
@@ -124,11 +127,12 @@ public class HttpInputTests extends ElasticsearchTestCase {
                 .setParams(params)
                 .setHeaders(headers)
                 .setAuth(auth);
-        XContentParser parser = XContentHelper.createParser(jsonBuilder().value(sourceBuilder).bytes());
+        XContentParser parser = XContentHelper.createParser(jsonBuilder().value(InputBuilders.httpInput(requestSource)).bytes());
         parser.nextToken();
         HttpInput result = httpParser.parse(parser);
 
         assertThat(result.type(), equalTo(HttpInput.TYPE));
+        assertThat(result.getRequest().scheme().scheme(), equalTo(scheme != null ? scheme : "http")); // http is the default
         assertThat(result.getRequest().method().method(), equalTo(httpMethod != null ? httpMethod : "GET")); // get is the default
         assertThat(result.getRequest().host(), equalTo(host));
         assertThat(result.getRequest().port(), equalTo(port));
@@ -146,13 +150,13 @@ public class HttpInputTests extends ElasticsearchTestCase {
     @Test(expected = ElasticsearchIllegalArgumentException.class)
     public void testParser_invalidHttpMethod() throws Exception {
         Map<String, Template> headers = new MapBuilder<String, Template>().put("a", new MockTemplate("b")).map();
-        HttpInput.SourceBuilder sourceBuilder = new HttpInput.SourceBuilder()
+        TemplatedHttpRequest.SourceBuilder requestBuilder = new TemplatedHttpRequest.SourceBuilder()
                 .setMethod("_method")
                 .setHost("_host")
                 .setPort(123)
                 .setBody(new MockTemplate("_body"))
                 .setHeaders(headers);
-        XContentParser parser = XContentHelper.createParser(jsonBuilder().value(sourceBuilder).bytes());
+        XContentParser parser = XContentHelper.createParser(jsonBuilder().value(InputBuilders.httpInput(requestBuilder)).bytes());
         parser.nextToken();
         httpParser.parse(parser);
     }

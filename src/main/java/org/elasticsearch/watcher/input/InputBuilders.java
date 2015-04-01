@@ -10,6 +10,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.watcher.input.http.HttpInput;
 import org.elasticsearch.watcher.input.search.SearchInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
+import org.elasticsearch.watcher.support.http.TemplatedHttpRequest;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -38,7 +39,7 @@ public final class InputBuilders {
         return new SimpleInput.SourceBuilder(data);
     }
 
-    public static HttpInput.SourceBuilder httpInput() {
-        return new HttpInput.SourceBuilder();
+    public static HttpInput.SourceBuilder httpInput(TemplatedHttpRequest.SourceBuilder requestSource) {
+        return new HttpInput.SourceBuilder(requestSource);
     }
 }

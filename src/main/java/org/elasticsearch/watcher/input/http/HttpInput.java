@@ -23,8 +23,6 @@ import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpResponse;
 import org.elasticsearch.watcher.support.http.TemplatedHttpRequest;
-import org.elasticsearch.watcher.support.http.auth.HttpAuth;
-import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.WatchExecutionContext;
 
@@ -78,7 +76,7 @@ public class HttpInput extends Input<HttpInput.Result> {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Parser.REQUEST_FIELD.getPreferredName());
-        builder =  request.toXContent(builder, params);
+        builder = request.toXContent(builder, params);
         if (extractKeys != null) {
             builder.startArray(Parser.EXTRACT_FIELD.getPreferredName());
             for (String extractKey : extractKeys) {
@@ -232,54 +230,11 @@ public class HttpInput extends Input<HttpInput.Result> {
 
     public final static class SourceBuilder implements Input.SourceBuilder {
 
-        private String host;
-        private int port;
-        private String method;
-        private Template path;
-        private Map<String, Template> params;
-        private Map<String, Template> headers;
-        private HttpAuth auth;
-        private Template body;
+        private TemplatedHttpRequest.SourceBuilder request;
         private Set<String> extractKeys;
 
-        public SourceBuilder setHost(String host) {
-            this.host = host;
-            return this;
-        }
-
-        public SourceBuilder setPort(int port) {
-            this.port = port;
-            return this;
-        }
-
-        public SourceBuilder setMethod(String method) {
-            this.method = method;
-            return this;
-        }
-
-        public SourceBuilder setPath(Template path) {
-            this.path = path;
-            return this;
-        }
-
-        public SourceBuilder setParams(Map<String, Template> params) {
-            this.params = params;
-            return this;
-        }
-
-        public SourceBuilder setHeaders(Map<String, Template> headers) {
-            this.headers = headers;
-            return this;
-        }
-
-        public SourceBuilder setAuth(HttpAuth auth) {
-            this.auth = auth;
-            return this;
-        }
-
-        public SourceBuilder setBody(Template body) {
-            this.body = body;
-            return this;
+        public SourceBuilder(TemplatedHttpRequest.SourceBuilder request) {
+            this.request = request;
         }
 
         public SourceBuilder addExtractKey(String key) {
@@ -296,7 +251,7 @@ public class HttpInput extends Input<HttpInput.Result> {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params p) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (extractKeys != null) {
                 builder.startArray(Parser.EXTRACT_FIELD.getPreferredName());
@@ -305,28 +260,8 @@ public class HttpInput extends Input<HttpInput.Result> {
                 }
                 builder.endArray();
             }
-            builder.startObject(Parser.REQUEST_FIELD.getPreferredName());
-            builder.field(HttpRequest.Parser.HOST_FIELD.getPreferredName(), host);
-            builder.field(HttpRequest.Parser.PORT_FIELD.getPreferredName(), port);
-            if (method != null) {
-                builder.field(HttpRequest.Parser.METHOD_FIELD.getPreferredName(), method);
-            }
-            if (path != null) {
-                builder.field(HttpRequest.Parser.PATH_FIELD.getPreferredName(), path);
-            }
-            if (params != null) {
-                builder.field(HttpRequest.Parser.PARAMS_FIELD.getPreferredName(), params);
-            }
-            if (headers != null) {
-                builder.field(HttpRequest.Parser.HEADERS_FIELD.getPreferredName(), headers);
-            }
-            if (auth != null) {
-                builder.field(HttpRequest.Parser.AUTH_FIELD.getPreferredName(), auth);
-            }
-            if (body != null) {
-                builder.field(HttpRequest.Parser.BODY_FIELD.getPreferredName(), body);
-            }
-            builder.endObject();
+            builder.field(Parser.REQUEST_FIELD.getPreferredName());
+            request.toXContent(builder, params);
             return builder.endObject();
         }
     }

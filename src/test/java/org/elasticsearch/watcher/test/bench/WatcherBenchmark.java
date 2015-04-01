@@ -18,6 +18,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.watcher.WatcherPlugin;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.watcher.support.http.TemplatedHttpRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.watcher.trigger.TriggerModule;
@@ -168,7 +169,7 @@ public class WatcherBenchmark {
                 final String name = "_name" + i;
                 PutWatchRequest putAlertRequest = new PutWatchRequest(name, new WatchSourceBuilder()
                         .trigger(schedule(interval("5s")))
-                        .input(httpInput().setHost("localhost").setPort(9200))
+                        .input(httpInput(new TemplatedHttpRequest.SourceBuilder().setHost("localhost").setPort(9200)))
                         .condition(scriptCondition("ctx.payload.tagline == \"You Know, for Search\"")));
                 putAlertRequest.setName(name);
                 watcherClient.putWatch(putAlertRequest).actionGet();

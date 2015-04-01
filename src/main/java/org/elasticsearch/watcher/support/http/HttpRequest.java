@@ -21,6 +21,7 @@ import java.util.Map;
 
 public class HttpRequest implements ToXContent {
 
+    private Scheme scheme;
     private String host;
     private int port;
     private HttpMethod method;
@@ -31,7 +32,16 @@ public class HttpRequest implements ToXContent {
     private String body;
 
     public HttpRequest() {
+        scheme = Scheme.HTTP;
         method = HttpMethod.GET;
+    }
+
+    public Scheme scheme() {
+        return scheme;
+    }
+
+    public void scheme(Scheme scheme) {
+        this.scheme = scheme;
     }
 
     public String host() {
@@ -129,6 +139,7 @@ public class HttpRequest implements ToXContent {
 
         HttpRequest request = (HttpRequest) o;
 
+        if (scheme != request.scheme) return false;
         if (port != request.port) return false;
         if (auth != null ? !auth.equals(request.auth) : request.auth != null) return false;
         if (body != null ? !body.equals(request.body) : request.body != null) return false;
@@ -146,6 +157,7 @@ public class HttpRequest implements ToXContent {
         int result = host.hashCode();
         result = 31 * result + port;
         result = 31 * result + method.hashCode();
+        result = 31 * result + scheme.hashCode();
         result = 31 * result + (path != null ? path.hashCode() : 0);
         result = 31 * result + (params != null ? params.hashCode() : 0);
         result = 31 * result + (headers != null ? headers.hashCode() : 0);
@@ -156,6 +168,7 @@ public class HttpRequest implements ToXContent {
 
     public static class Parser {
 
+        public static final ParseField SCHEME_FIELD = new ParseField("scheme");
         public static final ParseField HOST_FIELD = new ParseField("host");
         public static final ParseField PORT_FIELD = new ParseField("port");
         public static final ParseField METHOD_FIELD = new ParseField("method");
@@ -192,7 +205,9 @@ public class HttpRequest implements ToXContent {
                         throw new ElasticsearchParseException("could not parse http request. unexpected field [" + currentFieldName + "]");
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
-                    if (METHOD_FIELD.match(currentFieldName)) {
+                    if (SCHEME_FIELD.match(currentFieldName)) {
+                        request.scheme(Scheme.parse(parser.text()));
+                    } else if (METHOD_FIELD.match(currentFieldName)) {
                         request.method(HttpMethod.parse(parser.text()));
                     } else if (HOST_FIELD.match(currentFieldName)) {
                         request.host(parser.text());
@@ -210,7 +225,7 @@ public class HttpRequest implements ToXContent {
                         throw new ElasticsearchParseException("could not parse http request. unexpected field [" + currentFieldName + "]");
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse http request. unexpected token [" + token + "]");
+                    throw new ElasticsearchParseException("could not parse http request. unexpected token [" + token + "] for field [" + currentFieldName + "]");
                 }
             }
             return request;
@@ -220,6 +235,7 @@ public class HttpRequest implements ToXContent {
 
     public final static class SourceBuilder implements ToXContent {
 
+        private String scheme;
         private String host;
         private int port;
         private String method;
@@ -228,6 +244,11 @@ public class HttpRequest implements ToXContent {
         private Map<String, Template> headers;
         private HttpAuth auth;
         private Template body;
+
+        public SourceBuilder setScheme(String scheme) {
+            this.scheme = scheme;
+            return this;
+        }
 
         public SourceBuilder setHost(String host) {
             this.host = host;
@@ -272,6 +293,9 @@ public class HttpRequest implements ToXContent {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params p) throws IOException {
             builder.startObject();
+            if (scheme != null) {
+                builder.field(Parser.SCHEME_FIELD.getPreferredName(), scheme);
+            }
             builder.field(HttpRequest.Parser.HOST_FIELD.getPreferredName(), host);
             builder.field(HttpRequest.Parser.PORT_FIELD.getPreferredName(), port);
             if (method != null) {

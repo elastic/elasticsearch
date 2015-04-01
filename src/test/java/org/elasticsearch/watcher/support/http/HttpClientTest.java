@@ -20,6 +20,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.net.BindException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -103,6 +105,31 @@ public class HttpClientTest extends ElasticsearchTestCase {
         assertThat(new String(response.body(), Charsets.UTF_8), equalTo("body"));
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getHeader("Authorization"), equalTo("Basic dXNlcjpwYXNz"));
+    }
+
+    @Test
+    public void testHttps() throws Exception {
+        Path resource = Paths.get(HttpClientTest.class.getResource("/org/elasticsearch/shield/keystore/testnode.jks").toURI());
+        HttpClient httpClient = new HttpClient(
+                ImmutableSettings.builder()
+                        .put(HttpClient.SETTINGS_SSL_TRUSTSTORE, resource.toString())
+                        .put(HttpClient.SETTINGS_SSL_TRUSTSTORE_PASSWORD, "testnode")
+                        .build()
+        );
+        webServer.useHttps(httpClient.sslSocketFactory, false);
+
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody("body"));
+        HttpRequest request = new HttpRequest();
+        request.scheme(Scheme.HTTPS);
+        request.host("localhost");
+        request.port(webPort);
+        request.path("/test");
+        request.body("body");
+        HttpResponse response = httpClient.execute(request);
+        assertThat(response.status(), equalTo(200));
+        assertThat(new String(response.body(), Charsets.UTF_8), equalTo("body"));
+        RecordedRequest recordedRequest = webServer.takeRequest();
+        assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("body"));
     }
 
 }

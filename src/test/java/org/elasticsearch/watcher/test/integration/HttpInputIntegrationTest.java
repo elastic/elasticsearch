@@ -13,7 +13,8 @@ import org.elasticsearch.node.internal.InternalNode;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.history.HistoryStore;
-import org.elasticsearch.watcher.input.http.HttpInput;
+import org.elasticsearch.watcher.input.InputBuilders;
+import org.elasticsearch.watcher.support.http.TemplatedHttpRequest;
 import org.elasticsearch.watcher.support.http.auth.BasicAuth;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.template.ScriptTemplate;
@@ -32,7 +33,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilder.watchSourceBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
-import static org.elasticsearch.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,17 +61,17 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
         client().prepareIndex("index", "type", "id").setSource("{}").setRefresh(true).get();
 
         InetSocketAddress address = internalTestCluster().httpAddresses()[0];
-        HttpInput.SourceBuilder input = httpInput()
+        TemplatedHttpRequest.SourceBuilder requestBuilder = new TemplatedHttpRequest.SourceBuilder()
                 .setHost(address.getHostName())
                 .setPort(address.getPort())
                 .setPath(new ScriptTemplate(sc, "/index/_search"))
                 .setBody(new ScriptTemplate(sc, jsonBuilder().startObject().field("size", 1).endObject().string()));
         if (shieldEnabled()) {
-            input.setAuth(new BasicAuth("test", "changeme"));
+            requestBuilder.setAuth(new BasicAuth("test", "changeme"));
         }
         WatchSourceBuilder source = watchSourceBuilder()
                 .trigger(TriggerBuilders.schedule(interval("5s")))
-                .input(input)
+                .input(InputBuilders.httpInput(requestBuilder))
                 .condition(scriptCondition("ctx.payload.hits.total == 1"))
                 .addAction(indexAction("idx", "action"));
         watcherClient().preparePutWatch("_name")
@@ -98,20 +98,19 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
         String body = jsonBuilder().prettyPrint().startObject()
                     .field("query").value(termQuery("field", "value"))
                 .endObject().string();
-        HttpInput.SourceBuilder httpInputBuilder = httpInput()
+        TemplatedHttpRequest.SourceBuilder requestBuilder = new TemplatedHttpRequest.SourceBuilder()
                 .setHost(address.getHostName())
                 .setPort(address.getPort())
                 .setPath(new ScriptTemplate(sc, "/idx/_search"))
-                .setBody(new ScriptTemplate(sc, body))
-                .addExtractKey("hits.total");
+                .setBody(new ScriptTemplate(sc, body));
         if (shieldEnabled()) {
-            httpInputBuilder.setAuth(new BasicAuth("test", "changeme"));
+            requestBuilder.setAuth(new BasicAuth("test", "changeme"));
         }
 
         watcherClient.preparePutWatch("_name1")
                 .source(watchSourceBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(httpInputBuilder)
+                        .input(InputBuilders.httpInput(requestBuilder).addExtractKey("hits.total"))
                         .condition(scriptCondition("ctx.payload.hits.total == 1")))
                 .get();
 
@@ -119,7 +118,7 @@ public class HttpInputIntegrationTest extends AbstractWatcherIntegrationTests {
         watcherClient.preparePutWatch("_name2")
                 .source(watchSourceBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
-                        .input(httpInputBuilder)
+                        .input(InputBuilders.httpInput(requestBuilder).addExtractKey("hits.total"))
                         .condition(scriptCondition("ctx.payload.hits.max_score >= 0")))
                 .get();
 

@@ -58,8 +58,10 @@ import org.elasticsearch.search.aggregations.metrics.sum.InternalSum;
 import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCount;
 import org.elasticsearch.search.aggregations.reducers.InternalSimpleValue;
+import org.elasticsearch.search.aggregations.reducers.acf.InternalAcfValues;
 import org.elasticsearch.search.aggregations.reducers.bucketmetrics.InternalBucketMetricValue;
 import org.elasticsearch.search.aggregations.reducers.bucketmetrics.MaxBucketReducer;
+import org.elasticsearch.search.aggregations.reducers.acf.AcfReducer;
 import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeReducer;
 
 /**
@@ -106,12 +108,14 @@ public class TransportAggregationModule extends AbstractModule implements SpawnM
         InternalTopHits.registerStreams();
         InternalGeoBounds.registerStream();
         InternalChildren.registerStream();
+        InternalAcfValues.registerStreams();        // Reducer, but output behaves as an agg (e.g. can be top-level)
 
         // Reducers
         DerivativeReducer.registerStreams();
         InternalSimpleValue.registerStreams();
         InternalBucketMetricValue.registerStreams();
         MaxBucketReducer.registerStreams();
+        AcfReducer.registerStreams();
     }
 
     @Override

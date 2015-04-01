@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
  */
 public abstract class AbstractAggregationBuilder implements ToXContent {
 
-    private final String name;
+    protected final String name;
     protected final String type;
 
     /**

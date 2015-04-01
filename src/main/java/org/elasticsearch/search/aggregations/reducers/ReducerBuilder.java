@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.reducers;
 
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 
 import java.io.IOException;
 import java.util.Map;
@@ -28,19 +29,17 @@ import java.util.Map;
 /**
  * A base class for all reducer builders.
  */
-public abstract class ReducerBuilder<B extends ReducerBuilder<B>> implements ToXContent {
+public abstract class ReducerBuilder<B extends ReducerBuilder<B>> extends AbstractAggregationBuilder implements ToXContent {
 
-    private final String name;
-    protected final String type;
     private String[] bucketsPaths;
     private Map<String, Object> metaData;
+
 
     /**
      * Sole constructor, typically used by sub-classes.
      */
     protected ReducerBuilder(String name, String type) {
-        this.name = name;
-        this.type = type;
+        super(name, type);
     }
 
     /**

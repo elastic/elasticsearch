@@ -201,6 +201,14 @@
         </dependency>
         <!-- Lucene spatial -->
 
+        <!-- Needed for ACF and FFT reducers -->
+        <dependency>
+            <groupId>com.github.wendykierp</groupId>
+            <artifactId>JTransforms</artifactId>
+            <version>3.0</version>
+        </dependency>
+        <!-- End Reducers -->
+
 
         <!-- START: dependencies that are shaded -->
         <dependency>

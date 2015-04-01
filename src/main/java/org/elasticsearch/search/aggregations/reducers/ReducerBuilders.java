@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.reducers;
 
+import org.elasticsearch.search.aggregations.reducers.acf.AcfBuilder;
 import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeBuilder;
 
 public final class ReducerBuilders {
@@ -28,5 +29,9 @@ public final class ReducerBuilders {
 
     public static final DerivativeBuilder derivative(String name) {
         return new DerivativeBuilder(name);
+    }
+
+    public static final AcfBuilder acf(String name) {
+        return new AcfBuilder(name);
     }
 }

@@ -302,12 +302,13 @@ supported operations are:
 | `mapping` |Mappings (script transform feature)
 | `search`  |Search api, Percolator api and Suggester api (e.g filters, script_fields)
 | `update`  |Update api
+| `plugins` |Any plugin that makes use of scripts
 |=======================================================================
 
 The following example disables scripting for `update` and `mapping` operations,
 regardless of the script source, for any engine. Scripts can still be
-executed from sandboxed languages as part of `aggregations` and `search`
-operations though, as the above defaults still get applied.
+executed from sandboxed languages as part of `aggregations`, `search`
+and `plugins` operations though, as the above defaults still get applied.
 
 [source,yaml]
 -----------------------------------
@@ -327,14 +328,17 @@ script.engine.groovy.file.aggs: on
 script.engine.groovy.file.mapping: on
 script.engine.groovy.file.search: on
 script.engine.groovy.file.update: on
+script.engine.groovy.file.plugins: on
 script.engine.groovy.indexed.aggs: on
 script.engine.groovy.indexed.mapping: off
 script.engine.groovy.indexed.search: on
 script.engine.groovy.indexed.update: off
+script.engine.groovy.indexed.plugins: off
 script.engine.groovy.inline.aggs: on
 script.engine.groovy.inline.mapping: off
 script.engine.groovy.inline.search: off
 script.engine.groovy.inline.update: off
+script.engine.groovy.inline.plugins: off
 
 -----------------------------------
 

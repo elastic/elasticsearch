@@ -29,7 +29,8 @@ public enum ScriptContext {
     MAPPING,
     UPDATE,
     SEARCH,
-    AGGS;
+    AGGS,
+    PLUGINS;
 
     @Override
     public String toString() {

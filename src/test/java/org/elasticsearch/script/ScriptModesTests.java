@@ -19,8 +19,11 @@
 
 package org.elasticsearch.script;
 
+import com.google.common.base.Predicate;
+import com.google.common.collect.Collections2;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
@@ -36,14 +39,9 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.CoreMatchers.*;
 
 public class ScriptModesTests extends ElasticsearchTestCase {
 
@@ -108,7 +106,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testDefaultSettingsEnableDynamicFalse() {
+    public void testDefaultSettingsDisableDynamicFalse() {
         //verify that disable_dynamic setting gets still read and applied, iff new settings are not present
         this.scriptModes = new ScriptModes(scriptEngines, ImmutableSettings.builder().put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, randomFrom("false", "none")).build(), Loggers.getLogger(ScriptModesTests.class));
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE, ScriptType.INDEXED, ScriptType.INLINE);
@@ -131,7 +129,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         int iterations = randomIntBetween(1, 5);
         for (int i = 0; i < iterations; i++) {
             if (randomBoolean()) {
-                builder.put("script." + randomFrom(ScriptType.values()), randomFrom(ScriptMode.values()));
+                builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + randomFrom(ScriptType.values()), randomFrom(ScriptMode.values()));
             } else {
                 if (randomBoolean()) {
                     builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + randomFrom(ScriptContext.values()), randomFrom(ScriptMode.values()));
@@ -161,221 +159,74 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testEnableInlineGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.inline", randomFrom(ENABLE_VALUES));
+    public void testScriptTypeGenericSettings() {
+        int randomInt = randomIntBetween(1, ScriptType.values().length - 1);
+        Set<ScriptType> randomScriptTypesSet = Sets.newHashSet();
+        ScriptMode[] randomScriptModes = new ScriptMode[randomInt];
+        for (int i = 0; i < randomInt; i++) {
+            boolean added = false;
+            while (added == false) {
+                added = randomScriptTypesSet.add(randomFrom(ScriptType.values()));
+            }
+            randomScriptModes[i] = randomFrom(ScriptMode.values());
+        }
+        ScriptType[] randomScriptTypes = randomScriptTypesSet.toArray(new ScriptType[randomScriptTypesSet.size()]);
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        for (int i = 0; i < randomInt; i++) {
+            builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + randomScriptTypes[i], randomScriptModes[i]);
+        }
         this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE, ScriptType.INLINE);
-        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
+
+        for (int i = 0; i < randomInt; i++) {
+            assertScriptModesAllOps(randomScriptModes[i], ALL_LANGS, randomScriptTypes[i]);
+        }
+        if (randomScriptTypesSet.contains(ScriptType.FILE) == false) {
+            assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
+        }
+        if (randomScriptTypesSet.contains(ScriptType.INDEXED) == false) {
+            assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
+        }
+        if (randomScriptTypesSet.contains(ScriptType.INLINE) == false) {
+            assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INLINE);
+        }
     }
 
     @Test
-    public void testDisableInlineGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.inline", randomFrom(DISABLE_VALUES));
+    public void testScriptContextGenericSettings() {
+        int randomInt = randomIntBetween(1, ScriptContext.values().length - 1);
+        Set<ScriptContext> randomScriptContextsSet = Sets.newHashSet();
+        ScriptMode[] randomScriptModes = new ScriptMode[randomInt];
+        for (int i = 0; i < randomInt; i++) {
+            boolean added = false;
+            while (added == false) {
+                added = randomScriptContextsSet.add(randomFrom(ScriptContext.values()));
+            }
+            randomScriptModes[i] = randomFrom(ScriptMode.values());
+        }
+        ScriptContext[] randomScriptContexts = randomScriptContextsSet.toArray(new ScriptContext[randomScriptContextsSet.size()]);
+        ImmutableSettings.Builder builder = ImmutableSettings.builder();
+        for (int i = 0; i < randomInt; i++) {
+            builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + randomScriptContexts[i], randomScriptModes[i]);
+        }
         this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
-        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
-        assertScriptModesAllOps(ScriptMode.OFF, ALL_LANGS, ScriptType.INLINE);
-    }
 
-    @Test
-    public void testSandboxInlineGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.inline", randomFrom(ScriptMode.SANDBOX));
-        //nothing changes if setting set is same as default
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
-        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED, ScriptType.INLINE);
-    }
-
-    @Test
-    public void testEnableIndexedGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.indexed", randomFrom(ENABLE_VALUES));
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE, ScriptType.INDEXED);
-        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INLINE);
-    }
-
-    @Test
-    public void testDisableIndexedGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.indexed", randomFrom(DISABLE_VALUES));
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
-        assertScriptModesAllOps(ScriptMode.OFF, ALL_LANGS, ScriptType.INDEXED);
-        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INLINE);
-    }
-
-    @Test
-    public void testSandboxIndexedGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.indexed", ScriptMode.SANDBOX);
-        //nothing changes if setting set is same as default
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
-        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED, ScriptType.INLINE);
-    }
-
-    @Test
-    public void testEnableFileGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.file", randomFrom(ENABLE_VALUES));
-        //nothing changes if setting set is same as default
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
-        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED, ScriptType.INLINE);
-    }
-
-    @Test
-    public void testDisableFileGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.file", randomFrom(DISABLE_VALUES));
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllOps(ScriptMode.OFF, ALL_LANGS, ScriptType.FILE);
-        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED, ScriptType.INLINE);
-    }
-
-    @Test
-    public void testSandboxFileGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.file", ScriptMode.SANDBOX);
-        //nothing changes if setting set is same as default
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.FILE, ScriptType.INDEXED, ScriptType.INLINE);
-    }
-
-    @Test
-    public void testMultipleScriptTypeGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.file", ScriptMode.SANDBOX).put("script.inline", randomFrom(DISABLE_VALUES));
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.FILE);
-        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
-        assertScriptModesAllOps(ScriptMode.OFF, ALL_LANGS, ScriptType.INLINE);
-    }
-
-    @Test
-    public void testEnableMappingGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.mapping", randomFrom(ENABLE_VALUES));
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllTypes(ScriptMode.ON, ALL_LANGS, ScriptContext.MAPPING);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptContext.AGGS, ScriptContext.SEARCH, ScriptContext.UPDATE);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, ScriptContext.AGGS, ScriptContext.SEARCH, ScriptContext.UPDATE);
-    }
-
-    @Test
-    public void testDisableMappingGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.mapping", randomFrom(DISABLE_VALUES));
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, ScriptContext.MAPPING);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptContext.AGGS, ScriptContext.SEARCH, ScriptContext.UPDATE);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, ScriptContext.AGGS, ScriptContext.SEARCH, ScriptContext.UPDATE);
-    }
-
-    @Test
-    public void testSandboxMappingGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.mapping", ScriptMode.SANDBOX);
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllTypes(ScriptMode.SANDBOX, ALL_LANGS, ScriptContext.MAPPING);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptContext.AGGS, ScriptContext.SEARCH, ScriptContext.UPDATE);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, ScriptContext.AGGS, ScriptContext.SEARCH, ScriptContext.UPDATE);
-    }
-
-    @Test
-    public void testEnableSearchGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.search", randomFrom(ENABLE_VALUES));
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllTypes(ScriptMode.ON, ALL_LANGS, ScriptContext.SEARCH);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptContext.AGGS, ScriptContext.MAPPING, ScriptContext.UPDATE);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, ScriptContext.AGGS, ScriptContext.MAPPING, ScriptContext.UPDATE);
-    }
-
-    @Test
-    public void testDisableSearchGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.search", randomFrom(DISABLE_VALUES));
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, ScriptContext.SEARCH);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptContext.AGGS, ScriptContext.MAPPING, ScriptContext.UPDATE);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, ScriptContext.AGGS, ScriptContext.MAPPING, ScriptContext.UPDATE);
-    }
-
-    @Test
-    public void testSandboxSearchGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.search", ScriptMode.SANDBOX);
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllTypes(ScriptMode.SANDBOX, ALL_LANGS, ScriptContext.SEARCH);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptContext.AGGS, ScriptContext.MAPPING, ScriptContext.UPDATE);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, ScriptContext.AGGS, ScriptContext.MAPPING, ScriptContext.UPDATE);
-    }
-
-    @Test
-    public void testEnableAggsGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.aggs", randomFrom(ENABLE_VALUES));
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllTypes(ScriptMode.ON, ALL_LANGS, ScriptContext.AGGS);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptContext.SEARCH, ScriptContext.MAPPING, ScriptContext.UPDATE);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, ScriptContext.SEARCH, ScriptContext.MAPPING, ScriptContext.UPDATE);
-    }
-
-    @Test
-    public void testDisableAggsGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.aggs", randomFrom(DISABLE_VALUES));
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, ScriptContext.AGGS);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptContext.SEARCH, ScriptContext.MAPPING, ScriptContext.UPDATE);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, ScriptContext.SEARCH, ScriptContext.MAPPING, ScriptContext.UPDATE);
-    }
-
-    @Test
-    public void testSandboxAggsGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.aggs", ScriptMode.SANDBOX);
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllTypes(ScriptMode.SANDBOX, ALL_LANGS, ScriptContext.AGGS);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptContext.SEARCH, ScriptContext.MAPPING, ScriptContext.UPDATE);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, ScriptContext.SEARCH, ScriptContext.MAPPING, ScriptContext.UPDATE);
-    }
-
-    @Test
-    public void testEnableUpdateGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.update", randomFrom(ENABLE_VALUES));
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllTypes(ScriptMode.ON, ALL_LANGS, ScriptContext.UPDATE);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptContext.SEARCH, ScriptContext.MAPPING, ScriptContext.AGGS);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, ScriptContext.SEARCH, ScriptContext.MAPPING, ScriptContext.AGGS);
-    }
-
-    @Test
-    public void testDisableUpdateGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.update", randomFrom(DISABLE_VALUES));
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, ScriptContext.UPDATE);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptContext.SEARCH, ScriptContext.MAPPING, ScriptContext.AGGS);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, ScriptContext.SEARCH, ScriptContext.MAPPING, ScriptContext.AGGS);
-    }
-
-    @Test
-    public void testSandboxUpdateGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.update", ScriptMode.SANDBOX);
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllTypes(ScriptMode.SANDBOX, ALL_LANGS, ScriptContext.UPDATE);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptContext.SEARCH, ScriptContext.MAPPING, ScriptContext.AGGS);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, ScriptContext.SEARCH, ScriptContext.MAPPING, ScriptContext.AGGS);
-    }
-
-    @Test
-    public void testMultipleScriptContextGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.update", ScriptMode.SANDBOX)
-                .put("script.aggs", randomFrom(DISABLE_VALUES))
-                .put("script.search", randomFrom(ENABLE_VALUES));
-        this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllTypes(ScriptMode.SANDBOX, ALL_LANGS, ScriptContext.UPDATE);
-        assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, ScriptContext.AGGS);
-        assertScriptModesAllTypes(ScriptMode.ON, ALL_LANGS, ScriptContext.SEARCH);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, ScriptContext.MAPPING);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, ScriptContext.MAPPING);
+        for (int i = 0; i < randomInt; i++) {
+            assertScriptModesAllTypes(randomScriptModes[i], ALL_LANGS, randomScriptContexts[i]);
+        }
+        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE}, allScriptContextsBut(randomScriptContexts));
+        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, allScriptContextsBut(randomScriptContexts));
     }
 
     @Test
     public void testConflictingScriptTypeAndOpGenericSettings() {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put("script.update", randomFrom(DISABLE_VALUES))
+        ScriptContext scriptContext = randomFrom(ScriptContext.values());
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptContext, randomFrom(DISABLE_VALUES))
                 .put("script.indexed", randomFrom(ENABLE_VALUES)).put("script.inline", ScriptMode.SANDBOX);
         //operations generic settings have precedence over script type generic settings
         this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
-        assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, ScriptContext.UPDATE);
-        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE, ScriptType.INDEXED}, ScriptContext.MAPPING, ScriptContext.AGGS, ScriptContext.SEARCH);
-        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INLINE}, ScriptContext.MAPPING, ScriptContext.AGGS, ScriptContext.SEARCH);
+        assertScriptModesAllTypes(ScriptMode.OFF, ALL_LANGS, scriptContext);
+        assertScriptModes(ScriptMode.ON, ALL_LANGS, new ScriptType[]{ScriptType.FILE, ScriptType.INDEXED}, allScriptContextsBut(scriptContext));
+        assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INLINE}, allScriptContextsBut(scriptContext));
     }
 
     @Test
@@ -388,7 +239,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         allButGroovyLangSet.remove(GroovyScriptEngineService.NAME);
         this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
         assertScriptModes(ScriptMode.OFF, groovyLangSet, new ScriptType[]{ScriptType.INLINE}, ScriptContext.MAPPING, ScriptContext.UPDATE);
-        assertScriptModes(ScriptMode.SANDBOX, groovyLangSet, new ScriptType[]{ScriptType.INLINE}, ScriptContext.SEARCH, ScriptContext.AGGS);
+        assertScriptModes(ScriptMode.SANDBOX, groovyLangSet, new ScriptType[]{ScriptType.INLINE}, allScriptContextsBut(ScriptContext.MAPPING, ScriptContext.UPDATE));
         assertScriptModesAllOps(ScriptMode.SANDBOX, allButGroovyLangSet, ScriptType.INLINE);
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
@@ -404,7 +255,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         allButMustacheLangSet.remove(MustacheScriptEngineService.NAME);
         this.scriptModes = new ScriptModes(scriptEngines, builder.build(), Loggers.getLogger(ScriptModesTests.class));
         assertScriptModes(ScriptMode.ON, mustacheLangSet, new ScriptType[]{ScriptType.INLINE}, ScriptContext.AGGS, ScriptContext.SEARCH);
-        assertScriptModes(ScriptMode.OFF, mustacheLangSet, new ScriptType[]{ScriptType.INLINE}, ScriptContext.MAPPING, ScriptContext.UPDATE);
+        assertScriptModes(ScriptMode.OFF, mustacheLangSet, new ScriptType[]{ScriptType.INLINE}, allScriptContextsBut(ScriptContext.AGGS, ScriptContext.SEARCH));
         assertScriptModesAllOps(ScriptMode.OFF, allButMustacheLangSet, ScriptType.INLINE);
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
@@ -415,64 +266,79 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         assertAllSettingsWereChecked = false;
         this.scriptModes = new ScriptModes(scriptEngines, ImmutableSettings.EMPTY, Loggers.getLogger(ScriptModesTests.class));
         assertThat(scriptModes.toString(), equalTo(
-                        "script.engine.custom.file.aggs: on\n" +
+                "script.engine.custom.file.aggs: on\n" +
                         "script.engine.custom.file.mapping: on\n" +
+                        "script.engine.custom.file.plugins: on\n" +
                         "script.engine.custom.file.search: on\n" +
                         "script.engine.custom.file.update: on\n" +
                         "script.engine.custom.indexed.aggs: sandbox\n" +
                         "script.engine.custom.indexed.mapping: sandbox\n" +
+                        "script.engine.custom.indexed.plugins: sandbox\n" +
                         "script.engine.custom.indexed.search: sandbox\n" +
                         "script.engine.custom.indexed.update: sandbox\n" +
                         "script.engine.custom.inline.aggs: sandbox\n" +
                         "script.engine.custom.inline.mapping: sandbox\n" +
+                        "script.engine.custom.inline.plugins: sandbox\n" +
                         "script.engine.custom.inline.search: sandbox\n" +
                         "script.engine.custom.inline.update: sandbox\n" +
                         "script.engine.expression.file.aggs: on\n" +
                         "script.engine.expression.file.mapping: on\n" +
+                        "script.engine.expression.file.plugins: on\n" +
                         "script.engine.expression.file.search: on\n" +
                         "script.engine.expression.file.update: on\n" +
                         "script.engine.expression.indexed.aggs: sandbox\n" +
                         "script.engine.expression.indexed.mapping: sandbox\n" +
+                        "script.engine.expression.indexed.plugins: sandbox\n" +
                         "script.engine.expression.indexed.search: sandbox\n" +
                         "script.engine.expression.indexed.update: sandbox\n" +
                         "script.engine.expression.inline.aggs: sandbox\n" +
                         "script.engine.expression.inline.mapping: sandbox\n" +
+                        "script.engine.expression.inline.plugins: sandbox\n" +
                         "script.engine.expression.inline.search: sandbox\n" +
                         "script.engine.expression.inline.update: sandbox\n" +
                         "script.engine.groovy.file.aggs: on\n" +
                         "script.engine.groovy.file.mapping: on\n" +
+                        "script.engine.groovy.file.plugins: on\n" +
                         "script.engine.groovy.file.search: on\n" +
                         "script.engine.groovy.file.update: on\n" +
                         "script.engine.groovy.indexed.aggs: sandbox\n" +
                         "script.engine.groovy.indexed.mapping: sandbox\n" +
+                        "script.engine.groovy.indexed.plugins: sandbox\n" +
                         "script.engine.groovy.indexed.search: sandbox\n" +
                         "script.engine.groovy.indexed.update: sandbox\n" +
                         "script.engine.groovy.inline.aggs: sandbox\n" +
                         "script.engine.groovy.inline.mapping: sandbox\n" +
+                        "script.engine.groovy.inline.plugins: sandbox\n" +
                         "script.engine.groovy.inline.search: sandbox\n" +
                         "script.engine.groovy.inline.update: sandbox\n" +
                         "script.engine.mustache.file.aggs: on\n" +
                         "script.engine.mustache.file.mapping: on\n" +
+                        "script.engine.mustache.file.plugins: on\n" +
                         "script.engine.mustache.file.search: on\n" +
                         "script.engine.mustache.file.update: on\n" +
                         "script.engine.mustache.indexed.aggs: sandbox\n" +
                         "script.engine.mustache.indexed.mapping: sandbox\n" +
+                        "script.engine.mustache.indexed.plugins: sandbox\n" +
                         "script.engine.mustache.indexed.search: sandbox\n" +
                         "script.engine.mustache.indexed.update: sandbox\n" +
                         "script.engine.mustache.inline.aggs: sandbox\n" +
                         "script.engine.mustache.inline.mapping: sandbox\n" +
+                        "script.engine.mustache.inline.plugins: sandbox\n" +
                         "script.engine.mustache.inline.search: sandbox\n" +
                         "script.engine.mustache.inline.update: sandbox\n" +
                         "script.engine.test.file.aggs: on\n" +
                         "script.engine.test.file.mapping: on\n" +
+                        "script.engine.test.file.plugins: on\n" +
                         "script.engine.test.file.search: on\n" +
                         "script.engine.test.file.update: on\n" +
                         "script.engine.test.indexed.aggs: sandbox\n" +
                         "script.engine.test.indexed.mapping: sandbox\n" +
+                        "script.engine.test.indexed.plugins: sandbox\n" +
                         "script.engine.test.indexed.search: sandbox\n" +
                         "script.engine.test.indexed.update: sandbox\n" +
                         "script.engine.test.inline.aggs: sandbox\n" +
                         "script.engine.test.inline.mapping: sandbox\n" +
+                        "script.engine.test.inline.plugins: sandbox\n" +
                         "script.engine.test.inline.search: sandbox\n" +
                         "script.engine.test.inline.update: sandbox\n"));
     }
@@ -499,8 +365,25 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         }
     }
 
+
     private static String specificEngineOpSettings(String lang, ScriptType scriptType, ScriptContext scriptContext) {
         return ScriptModes.ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + scriptContext;
+    }
+
+    private static ScriptContext[] allScriptContextsBut(final ScriptContext... scriptContexts) {
+        Set<ScriptContext> allScriptContexts = Sets.newHashSet(ScriptContext.values());
+        Collection<ScriptContext> filteredScriptContexts = Collections2.filter(allScriptContexts, new Predicate<ScriptContext>() {
+            @Override
+            public boolean apply(@Nullable ScriptContext input) {
+                for (ScriptContext scriptContext : scriptContexts) {
+                    if (scriptContext == input) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        });
+        return filteredScriptContexts.toArray(new ScriptContext[filteredScriptContexts.size()]);
     }
 
     static ImmutableMap<String, ScriptEngineService> buildScriptEnginesByLangMap(Set<ScriptEngineService> scriptEngines) {

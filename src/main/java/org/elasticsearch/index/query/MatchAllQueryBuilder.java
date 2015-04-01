@@ -23,6 +23,9 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -34,24 +37,14 @@ import java.io.IOException;
  *
  *
  */
-public class MatchAllQueryBuilder extends BaseQueryBuilder implements QueryParser, BoostableQueryBuilder<MatchAllQueryBuilder> {
+public class MatchAllQueryBuilder extends BaseQueryBuilder implements QueryParser, BoostableQueryBuilder<MatchAllQueryBuilder>, Streamable {
 
-    private String normsField;
-
-    private float boost = -1;
+    private float boost = 1.0f;
 
     public static final String NAME = "match_all";
 
     @Inject
     public MatchAllQueryBuilder() {
-    }
-
-    /**
-     * Field used for normalization factor (document boost). Defaults to no field.
-     */
-    public MatchAllQueryBuilder normsField(String normsField) {
-        this.normsField = normsField;
-        return this;
     }
 
     /**
@@ -64,14 +57,18 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements QueryParse
         return this;
     }
 
+    /**
+     * @return the boost for this query.
+     */
+    public float getBoost() {
+        return this.boost;
+    }
+
     @Override
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        if (boost != -1) {
+        if (boost != 1.0f) {
             builder.field("boost", boost);
-        }
-        if (normsField != null) {
-            builder.field("norms_field", normsField);
         }
         builder.endObject();
     }
@@ -83,9 +80,27 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements QueryParse
 
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        MatchAllQueryBuilder query = new MatchAllQueryBuilder();
+        query.fromXContent(parseContext);
+        return query.toQuery(parseContext);
+    }
+
+    public Query toQuery(QueryParseContext parseContext) {
+        if (boost == 1.0f) {
+            return Queries.newMatchAllQuery();
+        }
+
+        //LUCENE 4 UPGRADE norms field is not supported anymore need to find another way or drop the functionality
+        //MatchAllDocsQuery query = new MatchAllDocsQuery(normsField);
+        MatchAllDocsQuery query = new MatchAllDocsQuery();
+        query.setBoost(boost);
+        return query;
+    }
+
+    public void fromXContent(QueryParseContext parseContext) throws IOException, QueryParsingException {
         XContentParser parser = parseContext.parser();
 
-        float boost = 1.0f;
+        this.boost = 1.0f;
         String currentFieldName = null;
 
         XContentParser.Token token;
@@ -100,15 +115,15 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements QueryParse
                 }
             }
         }
+    }
 
-        if (boost == 1.0f) {
-            return Queries.newMatchAllQuery();
-        }
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        this.boost = in.readFloat();
+    }
 
-        //LUCENE 4 UPGRADE norms field is not supported anymore need to find another way or drop the functionality
-        //MatchAllDocsQuery query = new MatchAllDocsQuery(normsField);
-        MatchAllDocsQuery query = new MatchAllDocsQuery();
-        query.setBoost(boost);
-        return query;
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeFloat(this.boost);
     }
 }

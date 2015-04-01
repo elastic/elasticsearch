@@ -76,14 +76,6 @@ public abstract class BroadcastOperationRequest<T extends BroadcastOperationRequ
         return (T) this;
     }
 
-    protected void beforeStart() {
-
-    }
-
-    protected void beforeLocalFork() {
-
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

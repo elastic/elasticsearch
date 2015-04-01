@@ -72,11 +72,6 @@ public class RestRequestTests extends ElasticsearchTestCase {
         }
 
         @Override
-        public boolean contentUnsafe() {
-            return false;
-        }
-
-        @Override
         public BytesReference content() {
             return null;
         }

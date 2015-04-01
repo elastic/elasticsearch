@@ -42,7 +42,6 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
     private String routing;
     private String preference;
     private BytesReference source;
-    private boolean sourceUnsafe;
     private String[] fields;
     private FetchSourceContext fetchSourceContext;
 
@@ -107,19 +106,13 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
         return source;
     }
 
-    public boolean sourceUnsafe() {
-        return sourceUnsafe;
-    }
-
     public ExplainRequest source(QuerySourceBuilder sourceBuilder) {
         this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        this.sourceUnsafe = false;
         return this;
     }
 
-    public ExplainRequest source(BytesReference source, boolean unsafe) {
+    public ExplainRequest source(BytesReference source) {
         this.source = source;
-        this.sourceUnsafe = unsafe;
         return this;
     }
 
@@ -158,14 +151,6 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
     }
 
     @Override
-    protected void beforeLocalFork() {
-        if (sourceUnsafe) {
-            source = source.copyBytesArray();
-            sourceUnsafe = false;
-        }
-    }
-
-    @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         if (type == null) {
@@ -188,7 +173,6 @@ public class ExplainRequest extends SingleShardOperationRequest<ExplainRequest> 
         routing = in.readOptionalString();
         preference = in.readOptionalString();
         source = in.readBytesReference();
-        sourceUnsafe = false;
         filteringAlias = in.readStringArray();
         if (in.readBoolean()) {
             fields = in.readStringArray();

@@ -64,11 +64,6 @@ public class FakeRestRequest extends RestRequest {
     }
 
     @Override
-    public boolean contentUnsafe() {
-        return false;
-    }
-
-    @Override
     public BytesReference content() {
         return null;
     }

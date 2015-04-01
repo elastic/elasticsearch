@@ -61,7 +61,7 @@ public class RestSuggestAction extends BaseRestHandler {
         suggestRequest.indicesOptions(IndicesOptions.fromRequest(request, suggestRequest.indicesOptions()));
         suggestRequest.listenerThreaded(false);
         if (request.hasContent()) {
-            suggestRequest.suggest(request.content(), request.contentUnsafe());
+            suggestRequest.suggest(request.content());
         } else {
             String source = request.param("source");
             if (source != null) {

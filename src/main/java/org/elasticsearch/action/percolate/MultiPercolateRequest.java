@@ -81,14 +81,14 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
     /**
      * Embeds a percolate request which request body is defined as raw bytes to this multi percolate request
      */
-    public MultiPercolateRequest add(byte[] data, int from, int length, boolean contentUnsafe) throws Exception {
-        return add(new BytesArray(data, from, length), contentUnsafe, true);
+    public MultiPercolateRequest add(byte[] data, int from, int length) throws Exception {
+        return add(new BytesArray(data, from, length), true);
     }
 
     /**
      * Embeds a percolate request which request body is defined as raw bytes to this multi percolate request
      */
-    public MultiPercolateRequest add(BytesReference data, boolean contentUnsafe, boolean allowExplicitIndex) throws Exception {
+    public MultiPercolateRequest add(BytesReference data, boolean allowExplicitIndex) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
         int length = data.length();
@@ -153,7 +153,7 @@ public class MultiPercolateRequest extends ActionRequest<MultiPercolateRequest> 
                 break;
             }
 
-            percolateRequest.source(data.slice(from, nextMarker - from), contentUnsafe);
+            percolateRequest.source(data.slice(from, nextMarker - from));
             // move pointers
             from = nextMarker + 1;
 

@@ -21,15 +21,14 @@ package org.elasticsearch.snapshots.mockstore;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
-import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
@@ -49,7 +48,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.randomAsciiOfLength;
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 
 /**
@@ -289,12 +287,6 @@ public class MockRepository extends FsRepository {
             public void deleteBlobsByPrefix(String blobNamePrefix) throws IOException {
                 maybeIOExceptionOrBlock(blobNamePrefix);
                 super.deleteBlobsByPrefix(blobNamePrefix);
-            }
-
-            @Override
-            public void deleteBlobsByFilter(BlobNameFilter filter) throws IOException {
-                maybeIOExceptionOrBlock("");
-                super.deleteBlobsByFilter(filter);
             }
 
             @Override

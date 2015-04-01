@@ -30,13 +30,6 @@ import java.io.OutputStream;
  */
 public interface BlobContainer {
 
-    interface BlobNameFilter {
-        /**
-         * Return <tt>false</tt> if the blob should be filtered.
-         */
-        boolean accept(String blobName);
-    }
-
     BlobPath path();
 
     boolean blobExists(String blobName);
@@ -62,11 +55,6 @@ public interface BlobContainer {
      * Deletes all blobs in the container that match the specified prefix.
      */
     void deleteBlobsByPrefix(String blobNamePrefix) throws IOException;
-
-    /**
-     * Deletes all blobs in the container that match the supplied filter.
-     */
-    void deleteBlobsByFilter(BlobNameFilter filter) throws IOException;
 
     /**
      * Lists all blobs in the container

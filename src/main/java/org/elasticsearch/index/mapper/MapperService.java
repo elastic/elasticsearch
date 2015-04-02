@@ -26,7 +26,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
 import com.google.common.collect.Lists;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.IndexOptions;
@@ -72,12 +71,7 @@ import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
@@ -347,6 +341,7 @@ public class MapperService extends AbstractIndexComponent  {
                     }
                 }
                 fieldDataService.onMappingUpdate();
+                assert assertSerialization(oldMapper);
                 return oldMapper;
             } else {
                 FieldMapperListener.Aggregator fieldMappersAgg = new FieldMapperListener.Aggregator();
@@ -363,9 +358,23 @@ public class MapperService extends AbstractIndexComponent  {
                     typeListener.beforeCreate(mapper);
                 }
                 mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
+                assert assertSerialization(mapper);
                 return mapper;
             }
         }
+    }
+
+    private boolean assertSerialization(DocumentMapper mapper) {
+        // capture the source now, it may change due to concurrent parsing
+        final CompressedString mappingSource = mapper.mappingSource();
+        DocumentMapper newMapper = parse(mapper.type(), mappingSource, false);
+
+        if (newMapper.mappingSource().equals(mappingSource) == false) {
+            throw new IllegalStateException("DocumentMapper serialization result is different from source. \n--> Source ["
+                    + mappingSource + "]\n--> Result ["
+                    + newMapper.mappingSource() + "]");
+        }
+        return true;
     }
 
     private void addObjectMappers(ObjectMapper[] objectMappers) {

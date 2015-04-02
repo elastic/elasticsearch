@@ -267,6 +267,7 @@ public class MapperService extends AbstractIndexComponent  {
                     }
                 }
                 fieldDataService.onMappingUpdate();
+                assert assertSerialization(oldMapper);
                 return oldMapper;
             } else {
                 List<ObjectMapper> newObjectMappers = new ArrayList<>();
@@ -284,9 +285,23 @@ public class MapperService extends AbstractIndexComponent  {
                     typeListener.beforeCreate(mapper);
                 }
                 mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
+                assert assertSerialization(mapper);
                 return mapper;
             }
         }
+    }
+
+    private boolean assertSerialization(DocumentMapper mapper) {
+        // capture the source now, it may change due to concurrent parsing
+        final CompressedString mappingSource = mapper.mappingSource();
+        DocumentMapper newMapper = parse(mapper.type(), mappingSource, false);
+
+        if (newMapper.mappingSource().equals(mappingSource) == false) {
+            throw new IllegalStateException("DocumentMapper serialization result is different from source. \n--> Source ["
+                + mappingSource + "]\n--> Result ["
+                + newMapper.mappingSource() + "]");
+        }
+        return true;
     }
 
     protected void addObjectMappers(Collection<ObjectMapper> objectMappers) {

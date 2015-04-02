@@ -31,6 +31,7 @@ import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpMethod;
+import org.elasticsearch.watcher.support.http.TemplatedHttpRequest;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.template.ScriptTemplate;
@@ -124,10 +125,16 @@ public final class WatcherTestUtils {
 
         List<Action> actions = new ArrayList<>();
 
-        Template url = new ScriptTemplate(scriptService, "http://localhost/foobarbaz/{{watch_name}}");
-        Template body = new ScriptTemplate(scriptService, "{{watch_name}} executed with {{response.hits.total}} hits");
+        TemplatedHttpRequest httpRequest = new TemplatedHttpRequest();
 
-        actions.add(new WebhookAction(logger, null, httpClient, HttpMethod.GET, url, body));
+        Template path = new ScriptTemplate(scriptService, "/foobarbaz/{{ctx.watch_name}}");
+        httpRequest.path(path);
+        Template body = new ScriptTemplate(scriptService, "{{ctx.watch_name}} executed with {{ctx.payload.response.hits.total_hits}} hits");
+        httpRequest.body(body);
+        httpRequest.host("localhost");
+        httpRequest.method(HttpMethod.POST);
+
+        actions.add(new WebhookAction(logger, null, httpClient, httpRequest));
 
         Email.Address from = new Email.Address("from@test.com");
         List<Email.Address> emailAddressList = new ArrayList<>();

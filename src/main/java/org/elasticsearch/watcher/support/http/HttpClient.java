@@ -54,14 +54,6 @@ public class HttpClient extends AbstractComponent {
         }
     }
 
-    // TODO: Remove this when webhook action has been refactored to use this client properly
-    public HttpResponse execute(HttpMethod method, String urlString, String body) throws IOException {
-        URL url = new URL(urlString);
-        HttpRequest request = new HttpRequest();
-        request.method(method);
-        return doExecute(url, request);
-    }
-
     public HttpResponse execute(HttpRequest request) throws IOException {
         String queryString = null;
         if (request.params() != null) {
@@ -84,11 +76,7 @@ public class HttpClient extends AbstractComponent {
             throw ExceptionsHelper.convertToElastic(e);
         }
         URL url = uri.toURL();
-        return doExecute(url, request);
-    }
 
-    // TODO: Embed this method  in execute() when webhook action has been refactored to use this client properly
-    private HttpResponse doExecute(URL url, HttpRequest request) throws IOException {
         logger.debug("making [{}] request to [{}]", request.method().method(), url);
         logger.trace("sending [{}] as body of request", request.body());
         HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection();

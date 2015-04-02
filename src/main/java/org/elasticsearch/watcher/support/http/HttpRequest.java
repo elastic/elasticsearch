@@ -166,6 +166,18 @@ public class HttpRequest implements ToXContent {
         return result;
     }
 
+    @Override
+    public String toString() {
+        return "HttpRequest{" +
+                "auth=[" + (auth != null ? "******" : null) +
+                "], body=[" + body + '\'' +
+                "], path=[" + path + '\'' +
+                "], method=[" + method +
+                "], port=[" + port +
+                "], host=[" + host + '\'' +
+                "]}";
+    }
+
     public static class Parser {
 
         public static final ParseField SCHEME_FIELD = new ParseField("scheme");

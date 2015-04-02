@@ -40,6 +40,11 @@ import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpMethod;
+import org.elasticsearch.watcher.support.http.HttpRequest;
+import org.elasticsearch.watcher.support.http.TemplatedHttpRequest;
+import org.elasticsearch.watcher.support.http.auth.BasicAuth;
+import org.elasticsearch.watcher.support.http.auth.HttpAuth;
+import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.template.ScriptTemplate;
@@ -69,6 +74,7 @@ public class WatchTests extends ElasticsearchTestCase {
     private HttpClient httpClient;
     private EmailService emailService;
     private Template.Parser templateParser;
+    private HttpAuthRegistry authRegistry;
     private ESLogger logger;
     private Settings settings = ImmutableSettings.EMPTY;
 
@@ -79,6 +85,7 @@ public class WatchTests extends ElasticsearchTestCase {
         httpClient = mock(HttpClient.class);
         emailService = mock(EmailService.class);
         templateParser = new ScriptTemplate.Parser(settings, scriptService);
+        authRegistry = new HttpAuthRegistry(ImmutableMap.of("basic", (HttpAuth.Parser) new BasicAuth.Parser()));
         logger = Loggers.getLogger(WatchTests.class);
     }
 
@@ -260,7 +267,11 @@ public class WatchTests extends ElasticsearchTestCase {
             list.add(new IndexAction(logger, randomTransform(), client, "_index", "_type"));
         }
         if (randomBoolean()) {
-            list.add(new WebhookAction(logger, randomTransform(), httpClient, randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT), new ScriptTemplate(scriptService, "_url"), null));
+            TemplatedHttpRequest httpRequest = new TemplatedHttpRequest();
+            httpRequest.method(randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT));
+            httpRequest.host("test.host");
+            httpRequest.path(new ScriptTemplate(scriptService, "_url"));
+            list.add(new WebhookAction(logger, randomTransform(), httpClient, httpRequest));
         }
         return new Actions(list.build());
     }
@@ -276,7 +287,9 @@ public class WatchTests extends ElasticsearchTestCase {
                     parsers.put(IndexAction.TYPE, new IndexAction.Parser(settings, client, transformRegistry));
                     break;
                 case WebhookAction.TYPE:
-                    parsers.put(WebhookAction.TYPE, new WebhookAction.Parser(settings, templateParser, httpClient, transformRegistry));
+                    parsers.put(WebhookAction.TYPE, new WebhookAction.Parser(settings,  httpClient, transformRegistry,
+                            new HttpRequest.Parser(authRegistry),
+                            new TemplatedHttpRequest.Parser(new ScriptTemplate.Parser(settings, scriptService), authRegistry)));
                     break;
             }
         }

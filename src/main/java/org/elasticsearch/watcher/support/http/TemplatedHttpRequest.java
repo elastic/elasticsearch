@@ -32,6 +32,7 @@ public class TemplatedHttpRequest implements ToXContent {
     private Map<String, Template> params;
     private Map<String, Template> headers;
     private HttpAuth auth;
+
     private Template body;
 
     public TemplatedHttpRequest() {
@@ -162,6 +163,38 @@ public class TemplatedHttpRequest implements ToXContent {
             builder.field(Parser.BODY_FIELD.getPreferredName(), body);
         }
         return builder.endObject();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        TemplatedHttpRequest that = (TemplatedHttpRequest) o;
+
+        if (port != that.port) return false;
+        if (auth != null ? !auth.equals(that.auth) : that.auth != null) return false;
+        if (body != null ? !body.equals(that.body) : that.body != null) return false;
+        if (headers != null ? !headers.equals(that.headers) : that.headers != null) return false;
+        if (host != null ? !host.equals(that.host) : that.host != null) return false;
+        if (method != that.method) return false;
+        if (params != null ? !params.equals(that.params) : that.params != null) return false;
+        if (path != null ? !path.equals(that.path) : that.path != null) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = host != null ? host.hashCode() : 0;
+        result = 31 * result + port;
+        result = 31 * result + (method != null ? method.hashCode() : 0);
+        result = 31 * result + (path != null ? path.hashCode() : 0);
+        result = 31 * result + (params != null ? params.hashCode() : 0);
+        result = 31 * result + (headers != null ? headers.hashCode() : 0);
+        result = 31 * result + (auth != null ? auth.hashCode() : 0);
+        result = 31 * result + (body != null ? body.hashCode() : 0);
+        return result;
     }
 
     public static class Parser {

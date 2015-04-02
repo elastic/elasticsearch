@@ -27,7 +27,7 @@ public class HttpResponse implements Closeable {
     }
 
     public byte[] body() {
-        if (body == null) {
+        if (body == null && inputStream != null) {
             try {
                 body = ByteStreams.toByteArray(inputStream);
                 inputStream.close();

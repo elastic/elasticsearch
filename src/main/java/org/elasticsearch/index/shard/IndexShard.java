@@ -561,7 +561,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void refresh(String source) throws ElasticsearchException {
         verifyNotClosed();
         if (logger.isTraceEnabled()) {
-            logger.trace("refresh with soruce: {}", source);
+            logger.trace("refresh with source: {}", source);
         }
         long time = System.nanoTime();
         engine().refresh(source);

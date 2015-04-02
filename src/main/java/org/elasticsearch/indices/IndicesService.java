@@ -291,7 +291,11 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
         indicesLifecycle.beforeIndexCreated(index, settings);
 
-        logger.debug("creating Index [{}], shards [{}]/[{}]", sIndexName, settings.get(SETTING_NUMBER_OF_SHARDS), settings.get(SETTING_NUMBER_OF_REPLICAS));
+        logger.debug("creating Index [{}], shards [{}]/[{}{}]",
+                sIndexName,
+                settings.get(SETTING_NUMBER_OF_SHARDS),
+                settings.get(SETTING_NUMBER_OF_REPLICAS),
+                IndexMetaData.isIndexUsingShadowReplicas(settings) ? "s" : "");
 
         Settings indexSettings = settingsBuilder()
                 .put(this.settings)

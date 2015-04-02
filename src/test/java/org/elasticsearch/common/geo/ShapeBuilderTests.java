@@ -592,4 +592,16 @@ public class ShapeBuilderTests extends ElasticsearchTestCase {
 
         assertMultiPolygon(shape);
      }
+
+    @Test(expected = InvalidShapeException.class)
+    public void testInvalidShapeWithConsecutiveDuplicatePoints() {
+        PolygonBuilder builder = ShapeBuilder.newPolygon()
+                .point(180, 0)
+                .point(176, 4)
+                .point(176, 4)
+                .point(-176, 4)
+                .point(180, 0);
+        Shape shape = builder.close().build();
+        assertPolygon(shape);
+    }
 }

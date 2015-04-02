@@ -239,6 +239,11 @@ def generate_index(client, version):
   assert health['timed_out'] == False, 'cluster health timed out %s' % health
 
   num_docs = random.randint(2000, 3000)
+  if version == "1.1.0":
+    # 1.1.0 is buggy and creates lots and lots of segments, so we create a
+    # lighter index for it to keep bw tests reasonable
+    # see https://github.com/elastic/elasticsearch/issues/5817
+    num_docs = num_docs / 10
   index_documents(client, 'test', 'doc', num_docs)
   logging.info('Running basic asserts on the data added')
   run_basic_asserts(client, 'test', 'doc', num_docs)

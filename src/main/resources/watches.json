@@ -5,7 +5,8 @@
     "index.number_of_shards": 1,
     "index.number_of_replicas": 1,
     "index.watcher.template_version": 1,
-    "index.mapper.dynamic" : false
+    "index.mapper.dynamic" : false,
+    "index.refresh_interval" : "5m"
   },
   "mappings": {
     "watch": {

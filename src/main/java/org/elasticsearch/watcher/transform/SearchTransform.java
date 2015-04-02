@@ -40,7 +40,7 @@ public class SearchTransform extends Transform<SearchTransform.Result> {
 
     public static final String TYPE = "search";
 
-    public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.DFS_QUERY_AND_FETCH;
+    public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.QUERY_THEN_FETCH;
 
     protected final ESLogger logger;
     protected final ScriptServiceProxy scriptService;

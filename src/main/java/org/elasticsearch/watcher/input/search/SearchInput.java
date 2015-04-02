@@ -47,7 +47,7 @@ public class SearchInput extends Input<SearchInput.Result> {
 
     public static final String TYPE = "search";
 
-    public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.COUNT;
+    public static final SearchType DEFAULT_SEARCH_TYPE = SearchType.QUERY_THEN_FETCH;
 
     private final Set<String> extractKeys;
     private final SearchRequest searchRequest;

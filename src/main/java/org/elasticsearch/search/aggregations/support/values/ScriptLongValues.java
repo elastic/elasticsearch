@@ -22,9 +22,8 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.LongValues;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.SortingNumericDocValues;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.support.ScriptValues;
 
 import java.lang.reflect.Array;
 import java.util.Collection;
@@ -33,23 +32,18 @@ import java.util.Iterator;
 /**
  * {@link LongValues} implementation which is based on a script
  */
-public class ScriptLongValues extends SortingNumericDocValues implements ScriptValues, ScorerAware {
+public class ScriptLongValues extends SortingNumericDocValues implements ScorerAware {
 
-    final SearchScript script;
+    final LeafSearchScript script;
 
-    public ScriptLongValues(SearchScript script) {
+    public ScriptLongValues(LeafSearchScript script) {
         super();
         this.script = script;
     }
 
     @Override
-    public SearchScript script() {
-        return script;
-    }
-
-    @Override
     public void setDocument(int docId) {
-        script.setNextDocId(docId);
+        script.setDocument(docId);
         final Object value = script.run();
 
         if (value == null) {

@@ -46,7 +46,7 @@ public class IndexField extends MinimalMap<String, IndexFieldTerm> {
      * The holds the current reader. We need it to populate the field
      * statistics. We just delegate all requests there
      */
-    private IndexLookup indexLookup;
+    private final LeafIndexLookup indexLookup;
 
     /*
      * General field statistics such as number of documents containing the
@@ -55,20 +55,11 @@ public class IndexField extends MinimalMap<String, IndexFieldTerm> {
     private final CollectionStatistics fieldStats;
 
     /*
-     * Uodate posting lists in all TermInfo objects
-     */
-    void setReader(LeafReader reader) {
-        for (IndexFieldTerm ti : terms.values()) {
-            ti.setNextReader(reader);
-        }
-    }
-
-    /*
      * Represents a field in a document. Can be used to return information on
      * statistics of this field. Information on specific terms in this field can
      * be accessed by calling get(String term).
      */
-    public IndexField(String fieldName, IndexLookup indexLookup) throws IOException {
+    public IndexField(String fieldName, LeafIndexLookup indexLookup) throws IOException {
 
         assert fieldName != null;
         this.fieldName = fieldName;
@@ -131,7 +122,7 @@ public class IndexField extends MinimalMap<String, IndexFieldTerm> {
 
     public void setDocIdInTerms(int docId) {
         for (IndexFieldTerm ti : terms.values()) {
-            ti.setNextDoc(docId);
+            ti.setDocument(docId);
         }
     }
 

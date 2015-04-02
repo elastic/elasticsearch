@@ -42,11 +42,11 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -276,7 +276,7 @@ public class UpdateHelper extends AbstractComponent {
         Map<String, GetField> fields = null;
         if (request.fields() != null && request.fields().length > 0) {
             SourceLookup sourceLookup = new SourceLookup();
-            sourceLookup.setNextSource(source);
+            sourceLookup.setSource(source);
             for (String field : request.fields()) {
                 if (field.equals("_source")) {
                     sourceRequested = true;

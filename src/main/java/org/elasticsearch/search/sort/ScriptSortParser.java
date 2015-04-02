@@ -34,6 +34,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
+import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.SearchScript;
@@ -146,15 +147,16 @@ public class ScriptSortParser implements SortParser {
         switch (type) {
             case STRING_SORT_TYPE:
                 fieldComparatorSource = new BytesRefFieldComparatorSource(null, null, sortMode, nested) {
+                    LeafSearchScript leafScript;
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
-                        searchScript.setNextReader(context);
+                        leafScript = searchScript.getLeafSearchScript(context);
                         final BinaryDocValues values = new BinaryDocValues() {
                             final BytesRefBuilder spare = new BytesRefBuilder();
                             @Override
                             public BytesRef get(int docID) {
-                                searchScript.setNextDocId(docID);
-                                spare.copyChars(searchScript.run().toString());
+                                leafScript.setDocument(docID);
+                                spare.copyChars(leafScript.run().toString());
                                 return spare.get();
                             }
                         };
@@ -162,28 +164,29 @@ public class ScriptSortParser implements SortParser {
                     }
                     @Override
                     protected void setScorer(Scorer scorer) {
-                        searchScript.setScorer(scorer);
+                        leafScript.setScorer(scorer);
                     }
                 };
                 break;
             case NUMBER_SORT_TYPE:
                 // TODO: should we rather sort missing values last?
                 fieldComparatorSource = new DoubleValuesComparatorSource(null, Double.MAX_VALUE, sortMode, nested) {
+                    LeafSearchScript leafScript;
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
-                        searchScript.setNextReader(context);
+                        leafScript = searchScript.getLeafSearchScript(context);
                         final NumericDoubleValues values = new NumericDoubleValues() {
                             @Override
                             public double get(int docID) {
-                                searchScript.setNextDocId(docID);
-                                return searchScript.runAsDouble();
+                                leafScript.setDocument(docID);
+                                return leafScript.runAsDouble();
                             }
                         };
                         return FieldData.singleton(values, null);
                     }
                     @Override
                     protected void setScorer(Scorer scorer) {
-                        searchScript.setScorer(scorer);
+                        leafScript.setScorer(scorer);
                     }
                 };
                 break;

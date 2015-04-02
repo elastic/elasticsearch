@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,11 +57,10 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
     @Override
     protected Field[] getFields(IndexReader reader, int docId, String fieldName) throws IOException {
         // we know its low level reader, and matching docId, since that's how we call the highlighter with
-        SearchLookup lookup = searchContext.lookup();
-        lookup.setNextReader((LeafReaderContext) reader.getContext());
-        lookup.setNextDocId(docId);
+        SourceLookup sourceLookup = searchContext.lookup().source();
+        sourceLookup.setSegmentAndDocument((LeafReaderContext) reader.getContext(), docId);
 
-        List<Object> values = lookup.source().extractRawValues(hitContext.getSourcePath(mapper.names().sourcePath()));
+        List<Object> values = sourceLookup.extractRawValues(hitContext.getSourcePath(mapper.names().sourcePath()));
         Field[] fields = new Field[values.size()];
         for (int i = 0; i < values.size(); i++) {
             fields[i] = new Field(mapper.names().indexName(), values.get(i).toString(), TextField.TYPE_NOT_STORED);

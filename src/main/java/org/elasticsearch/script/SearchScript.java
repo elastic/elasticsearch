@@ -18,23 +18,15 @@
  */
 package org.elasticsearch.script;
 
-import org.elasticsearch.common.lucene.ReaderContextAware;
-import org.elasticsearch.common.lucene.ScorerAware;
+import org.apache.lucene.index.LeafReaderContext;
 
-import java.util.Map;
+import java.io.IOException;
 
 /**
  * A search script.
  */
-public interface SearchScript extends ExecutableScript, ReaderContextAware, ScorerAware {
+public interface SearchScript {
 
-    void setNextDocId(int doc);
+    LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException;
 
-    void setNextSource(Map<String, Object> source);
-
-    float runAsFloat();
-
-    long runAsLong();
-
-    double runAsDouble();
 }

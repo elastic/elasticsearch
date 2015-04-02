@@ -16,15 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.script.SearchScript;
+package org.elasticsearch.common.lucene.search.function;
 
-/**
- *
- */
-public interface ScriptValues {
+import org.apache.lucene.search.Explanation;
 
-    SearchScript script();
+import java.io.IOException;
+
+/** Per-leaf {@link ScoreFunction}. */
+public abstract class LeafScoreFunction {
+
+    public abstract double score(int docId, float subQueryScore);
+
+    public abstract Explanation explainScore(int docId, Explanation subQueryScore) throws IOException;
 
 }

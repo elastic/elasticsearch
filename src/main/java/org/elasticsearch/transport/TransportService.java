@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -331,22 +330,25 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             if (handler == null) {
                 throw new ActionNotFoundTransportException("Action [" + action + "] not found");
             }
-            threadPool.executor(handler.executor()).execute(new AbstractRunnable() {
-                @Override
-                protected void doRun() throws Exception {
-                    //noinspection unchecked
-                    handler.messageReceived(request, channel);
-                }
+            final String executor = handler.executor();
+            if (ThreadPool.Names.SAME.equals(executor)) {
+                //noinspection unchecked
+                handler.messageReceived(request, channel);
+            } else {
+                threadPool.executor(executor).execute(new AbstractRunnable() {
+                    @Override
+                    protected void doRun() throws Exception {
+                        //noinspection unchecked
+                        handler.messageReceived(request, channel);
+                    }
 
-                @Override
-                public boolean isForceExecution() {
-                    return handler.isForceExecution();
-                }
+                    @Override
+                    public boolean isForceExecution() {
+                        return handler.isForceExecution();
+                    }
 
-                @Override
-                public void onFailure(Throwable e) {
-                    if (lifecycleState() == Lifecycle.State.STARTED) {
-                        // we can only send a response transport is started....
+                    @Override
+                    public void onFailure(Throwable e) {
                         try {
                             channel.sendResponse(e);
                         } catch (Throwable e1) {
@@ -354,8 +356,9 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                             logger.warn("actual exception", e);
                         }
                     }
-                }
-            });
+                });
+            }
+
         } catch (Throwable e) {
             try {
                 channel.sendResponse(e);
@@ -711,17 +714,26 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             final TransportResponseHandler handler = adapter.onResponseReceived(requestId);
             // ignore if its null, the adapter logs it
             if (handler != null) {
-                threadPool.executor(handler.executor()).execute(new Runnable() {
-                    @SuppressWarnings({"unchecked"})
-                    @Override
-                    public void run() {
-                        try {
-                            handler.handleResponse(response);
-                        } catch (Throwable e) {
-                            handler.handleException(new ResponseHandlerFailureTransportException(e));
+                final String executor = handler.executor();
+                if (ThreadPool.Names.SAME.equals(executor)) {
+                    processResponse(handler, response);
+                } else {
+                    threadPool.executor(executor).execute(new Runnable() {
+                        @SuppressWarnings({"unchecked"})
+                        @Override
+                        public void run() {
+                            processResponse(handler, response);
                         }
-                    }
-                });
+                    });
+                }
+            }
+        }
+
+        protected void processResponse(TransportResponseHandler handler, TransportResponse response) {
+            try {
+                handler.handleResponse(response);
+            } catch (Throwable e) {
+                handler.handleException(new ResponseHandlerFailureTransportException(e));
             }
         }
 
@@ -734,17 +746,26 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                     error = new RemoteTransportException(error.getMessage(), error);
                 }
                 final RemoteTransportException rtx = (RemoteTransportException) error;
-                threadPool.executor(handler.executor()).execute(new Runnable() {
-                    @SuppressWarnings({"unchecked"})
-                    @Override
-                    public void run() {
-                        try {
-                            handler.handleException(rtx);
-                        } catch (Throwable e) {
-                            handler.handleException(new ResponseHandlerFailureTransportException(e));
+                final String executor = handler.executor();
+                if (ThreadPool.Names.SAME.equals(executor)) {
+                    processException(handler, rtx);
+                } else {
+                    threadPool.executor(handler.executor()).execute(new Runnable() {
+                        @SuppressWarnings({"unchecked"})
+                        @Override
+                        public void run() {
+                            processException(handler, rtx);
                         }
-                    }
-                });
+                    });
+                }
+            }
+        }
+
+        protected void processException(final TransportResponseHandler handler, final RemoteTransportException rtx) {
+            try {
+                handler.handleException(rtx);
+            } catch (Throwable e) {
+                handler.handleException(new ResponseHandlerFailureTransportException(e));
             }
         }
     }

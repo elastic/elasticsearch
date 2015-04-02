@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
@@ -57,22 +59,23 @@ import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
-public class MatchAllQueryBuilderTest extends ElasticsearchTestCase {
-
-    private static final String MATCH_ALL_BOOST_1_5 = "{\"match_all\":{\"boost\":1.5}}";
+public class IdsQueryBuilderTest extends ElasticsearchTestCase {
 
     protected QueryParseContext context;
-
     protected Injector injector;
+
+    private static final String QUERY = "{\"ids\":{\"types\":[\"typeA\",\"typeB\"],\"values\":[\"1\",\"11\",\"abcd\"],\"boost\":1.5,\"_name\":\"aName\"}}";
 
     private XContentParser parser;
 
-    private MatchAllQueryBuilder testQuery;
+    private IdsQueryBuilder testQuery;
 
     @Before
-    public void setup() throws IOException {
+    public void initContext() throws IOException {
         Settings settings = ImmutableSettings.settingsBuilder()
                 .put("path.conf", this.getResourcePath("config"))
                 .put("name", getClass().getName())
@@ -104,7 +107,6 @@ public class MatchAllQueryBuilderTest extends ElasticsearchTestCase {
 
         IndexQueryParserService queryParserService = injector.getInstance(IndexQueryParserService.class);
         context = new QueryParseContext(index, queryParserService);
-
         testQuery = createTestQuery();
         String contentString = createXContent(testQuery).string();
         parser = XContentFactory.xContent(contentString).createParser(contentString);
@@ -125,47 +127,65 @@ public class MatchAllQueryBuilderTest extends ElasticsearchTestCase {
 
     @Test
     public void testToXContent() throws IOException {
-        XContentBuilder content = createXContent(new MatchAllQueryBuilder().boost(1.5f));
-        assertEquals(content.string(), MATCH_ALL_BOOST_1_5);
+        XContentBuilder content = createXContent(new IdsQueryBuilder("typeA", "typeB").boost(1.5f).addIds("1", "11", "abcd")
+                .queryName("aName"));
+        assertEquals(content.string(), QUERY);
     }
 
     @Test
     public void testFromXContent() throws IOException {
         context.reset(parser);
-        MatchAllQueryBuilder newMatchAllQuery = injector.getInstance(MatchAllQueryBuilder.class);
-        newMatchAllQuery.fromXContent(context);
+        IdsQueryBuilder newQuery = injector.getInstance(IdsQueryBuilder.class);
+        newQuery.fromXContent(context);
         // compare these
-        assertThat(testQuery.getBoost(), is(newMatchAllQuery.getBoost()));
+        assertEquals(testQuery, newQuery);
     }
 
     @Test
     public void testToQuery() throws IOException {
         context.reset(parser);
-        MatchAllQueryBuilder newMatchAllQuery = injector.getInstance(MatchAllQueryBuilder.class);
-        newMatchAllQuery.fromXContent(context);
-        Query query = newMatchAllQuery.toQuery(context);
-        // compare these
-        assertThat(query.getBoost(), is(testQuery.getBoost()));
+        IdsQueryBuilder newQuery = injector.getInstance(IdsQueryBuilder.class);
+        newQuery.fromXContent(context);
+        Query query = newQuery.toQuery(context);
+        if (newQuery.getIds().size() == 0) {
+            assertThat(query, is(instanceOf(MatchNoDocsQuery.class)));
+        } else {
+            assertThat(query, is(instanceOf(ConstantScoreQuery.class)));
+            ConstantScoreQuery csQuery = (ConstantScoreQuery) query;
+            // compare these
+            assertThat(csQuery.getBoost(), is(testQuery.getBoost()));
+            // TODO how to extract more info from lucene query?
+        }
     }
 
-    @Test
+    @Test()
     public void testSerialization() throws IOException {
-        context.reset(parser);
-
         BytesStreamOutput output = new BytesStreamOutput();
         testQuery.writeTo(output);
 
         BytesStreamInput bytesStreamInput = new BytesStreamInput(output.bytes());
-        MatchAllQueryBuilder deserializedQuery = new MatchAllQueryBuilder();
+        IdsQueryBuilder deserializedQuery = new IdsQueryBuilder();
         deserializedQuery.readFrom(bytesStreamInput);
 
-        assertEquals(deserializedQuery, testQuery);
         assertNotSame(deserializedQuery, testQuery);
+        assertThat(deserializedQuery.getBoost(), equalTo(testQuery.getBoost()));
         assertThat(createXContent(testQuery).string(), is(createXContent(deserializedQuery).string()));
     }
 
-    MatchAllQueryBuilder createTestQuery() {
-        MatchAllQueryBuilder query = new MatchAllQueryBuilder();
+    IdsQueryBuilder createTestQuery() {
+        IdsQueryBuilder query = new IdsQueryBuilder();
+        int numberOfTypes = randomIntBetween(1, 10);
+        String[] types = new String[numberOfTypes];
+        for (int i = 0; i < numberOfTypes; i++) {
+            types[i] = randomAsciiOfLength(8);
+        }
+        query = new IdsQueryBuilder(types);
+        if (randomBoolean()) {
+            int numberOfIds = randomIntBetween(1, 10);
+            for (int i = 0; i < numberOfIds; i++) {
+                query.addIds(randomAsciiOfLength(8));
+            }
+        }
         if (randomBoolean()) {
             query.boost(2.0f / randomIntBetween(1, 20));
         }

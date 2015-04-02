@@ -58,15 +58,17 @@ import org.junit.Test;
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
 
 public class TermQueryBuilderTest extends ElasticsearchTestCase {
 
-    private QueryParseContext context;
-    private Injector injector;
     private TermQueryBuilder testQuery;
+
     private XContentParser parser;
+
+    protected QueryParseContext context;
+
+    protected Injector injector;
 
     @Before
     public void setup() throws IOException {
@@ -113,6 +115,12 @@ public class TermQueryBuilderTest extends ElasticsearchTestCase {
         terminate(injector.getInstance(ThreadPool.class));
     }
 
+    XContentBuilder createXContent(BaseQueryBuilder query) throws IOException {
+        XContentBuilder content = XContentFactory.jsonBuilder();
+        query.toXContent(content, null);
+        return content;
+    }
+
     @Test
     public void testToXContent() throws IOException {
         XContentBuilder content = createXContent(new TermQueryBuilder("user", "christoph").boost(1.5f).queryName("theName"));
@@ -124,6 +132,7 @@ public class TermQueryBuilderTest extends ElasticsearchTestCase {
         context.reset(parser);
         assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
         assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), is(TermQueryBuilder.NAME));
         assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
         TermQueryBuilder newQuery = injector.getInstance(TermQueryBuilder.class);
         newQuery.fromXContent(context);
@@ -136,6 +145,7 @@ public class TermQueryBuilderTest extends ElasticsearchTestCase {
         context.reset(parser);
         assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
         assertThat(parser.nextToken(), is(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), is(TermQueryBuilder.NAME));
         assertThat(parser.nextToken(), is(XContentParser.Token.START_OBJECT));
         TermQueryBuilder newQuery = injector.getInstance(TermQueryBuilder.class);
         newQuery.fromXContent(context);
@@ -166,14 +176,5 @@ public class TermQueryBuilderTest extends ElasticsearchTestCase {
             query.queryName(randomAsciiOfLength(8));
         }
         return query;
-    }
-
-    private XContentBuilder createXContent(BaseQueryBuilder query) throws IOException {
-        XContentBuilder content = XContentFactory.jsonBuilder();
-        content.startObject();
-        query.doXContent(content, null);
-        content.endObject();
-        content.close();
-        return content;
     }
 }

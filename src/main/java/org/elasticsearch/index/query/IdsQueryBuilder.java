@@ -27,6 +27,9 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -37,18 +40,18 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
+import java.util.Objects;
 
 /**
  * A query that will return only documents matching specific ids (and a type).
  */
-public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, BoostableQueryBuilder<IdsQueryBuilder> {
+public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, BoostableQueryBuilder<IdsQueryBuilder>, Streamable {
 
-    private final List<String> types;
+    private Collection<String> types = new ArrayList<String>();
 
-    private List<String> values = new ArrayList<>();
+    private Collection<String> values = new ArrayList<String>();
 
-    private float boost = -1;
+    private float boost = 1.0f;
 
     private String queryName;
 
@@ -56,11 +59,10 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, Bo
 
     @Inject
     public IdsQueryBuilder() {
-        this.types = null;
     }
 
     public IdsQueryBuilder(String... types) {
-        this.types = types == null ? null : Arrays.asList(types);
+        this.types = types == null ? new ArrayList<String>() : Arrays.asList(types);
     }
 
     /**
@@ -78,6 +80,10 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, Bo
         return addIds(ids);
     }
 
+    Collection<String> getIds() {
+        return this.values;
+    }
+
     /**
      * Sets the boost for this query.  Documents matching this query will (in addition to the normal
      * weightings) have their score multiplied by the boost provided.
@@ -86,6 +92,10 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, Bo
     public IdsQueryBuilder boost(float boost) {
         this.boost = boost;
         return this;
+    }
+
+    public float getBoost() {
+        return this.boost;
     }
 
     /**
@@ -101,7 +111,7 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, Bo
         builder.startObject(IdsQueryBuilder.NAME);
         if (types != null) {
             if (types.size() == 1) {
-                builder.field("type", types.get(0));
+                builder.field("type", types.iterator().next());
             } else {
                 builder.startArray("types");
                 for (Object type : types) {
@@ -115,7 +125,7 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, Bo
             builder.value(value);
         }
         builder.endArray();
-        if (boost != -1) {
+        if (boost !=  1.0f) {
             builder.field("boost", boost);
         }
         if (queryName != null) {
@@ -128,16 +138,18 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, Bo
     public String[] names() {
         return new String[]{NAME};
     }
-
+    
     @Override
     public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        IdsQueryBuilder query = new IdsQueryBuilder();
+        query.fromXContent(parseContext);
+        return query.toQuery(parseContext);
+    }
+
+    public void fromXContent(QueryParseContext parseContext) throws IOException {
         XContentParser parser = parseContext.parser();
 
-        List<BytesRef> ids = new ArrayList<>();
-        Collection<String> types = null;
         String currentFieldName = null;
-        float boost = 1.0f;
-        String queryName = null;
         XContentParser.Token token;
         boolean idsProvided = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -149,18 +161,17 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, Bo
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if ((token == XContentParser.Token.VALUE_STRING) ||
                                 (token == XContentParser.Token.VALUE_NUMBER)) {
-                            BytesRef value = parser.utf8BytesOrNull();
-                            if (value == null) {
+                            String id = parser.textOrNull();
+                            if (id == null) {
                                 throw new QueryParsingException(parseContext.index(), "No value specified for term filter");
                             }
-                            ids.add(value);
+                            values.add(id);
                         } else {
                             throw new QueryParsingException(parseContext.index(),
                                     "Illegal value for id, expecting a string or number, got: " + token);
                         }
                     }
                 } else if ("types".equals(currentFieldName) || "type".equals(currentFieldName)) {
-                    types = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String value = parser.textOrNull();
                         if (value == null) {
@@ -187,7 +198,16 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, Bo
         if (!idsProvided) {
             throw new QueryParsingException(parseContext.index(), "[ids] query, no ids values provided");
         }
+    }
 
+    public Query toQuery(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        ArrayList<BytesRef> ids = new ArrayList<BytesRef>();
+        
+        for (String value : this.values) {
+            BytesRef ref = new BytesRef(value);
+            ids.add(ref);
+        }
+        
         if (ids.isEmpty()) {
             return Queries.newMatchNoDocsQuery();
         }
@@ -206,5 +226,65 @@ public class IdsQueryBuilder extends BaseQueryBuilder implements QueryParser, Bo
             parseContext.addNamedQuery(queryName, query);
         }
         return query;
+    }
+
+    @Override
+    public void readFrom(StreamInput in) throws IOException {
+        int typeSize = in.readInt();
+        for (int i = 0; i < typeSize; i++) {
+            types.add(in.readString());
+        }
+        int valueSize = in.readInt();
+        for (int i = 0; i < valueSize; i++) {
+            values.add(in.readString());
+        }
+        queryName = in.readOptionalString();
+        boost = in.readFloat();
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeInt(types.size());
+        for (String type : types) {
+            out.writeString(type);
+        }
+        out.writeInt(values.size());
+        for (String value : values) {
+            out.writeString(value);
+        }
+        out.writeOptionalString(queryName);
+        out.writeFloat(boost);
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = super.hashCode();
+        hash = maybeHashcode(hash, values);
+        hash = maybeHashcode(hash, types);
+        hash = maybeHashcode(hash, queryName);
+        hash = maybeHashcode(hash, boost);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        IdsQueryBuilder other = (IdsQueryBuilder) obj;
+        return Objects.equals(values, other.values) &&
+               Objects.equals(types, other.types) &&
+               Objects.equals(boost, other.boost)&&
+               Objects.equals(queryName, other.queryName);
+    }
+
+    /**
+     * Return a prime (31) times the staring hash and object's hash, if non-null
+     */
+    private int maybeHashcode(int startingHash, Object obj) {
+        return 31 * startingHash + ((obj == null) ? 0 : obj.hashCode());
     }
 }

@@ -31,11 +31,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A query that matches on all documents.
- *
- *
  */
 public class MatchAllQueryBuilder extends BaseQueryBuilder implements QueryParser, BoostableQueryBuilder<MatchAllQueryBuilder>, Streamable {
 
@@ -125,5 +124,32 @@ public class MatchAllQueryBuilder extends BaseQueryBuilder implements QueryParse
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeFloat(this.boost);
+    }
+    
+    @Override
+    public int hashCode() {
+        int hash = super.hashCode();
+        hash = maybeHashcode(hash, boost);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+
+        MatchAllQueryBuilder other = (MatchAllQueryBuilder) obj;
+        return Objects.equals(boost, other.boost);
+    }
+    
+    /**
+     * Return a prime (31) times the staring hash and object's hash, if non-null
+     */
+    private int maybeHashcode(int startingHash, Object obj) {
+        return 31 * startingHash + ((obj == null) ? 0 : obj.hashCode());
     }
 }

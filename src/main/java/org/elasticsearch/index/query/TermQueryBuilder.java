@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * A Query that matches documents containing a term.
@@ -273,5 +274,38 @@ public class TermQueryBuilder extends BaseQueryBuilder implements QueryParser, S
         out.writeGenericValue(value);
         out.writeFloat(boost);
         out.writeOptionalString(queryName);
+    }
+    
+    @Override
+    public int hashCode() {
+        int hash = super.hashCode();
+        hash = maybeHashcode(hash, fieldName);
+        hash = maybeHashcode(hash, value);
+        hash = maybeHashcode(hash, boost);
+        hash = maybeHashcode(hash, queryName);
+        return hash;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+
+        TermQueryBuilder other = (TermQueryBuilder) obj;
+        return Objects.equals(fieldName, other.fieldName) &&
+               Objects.equals(value, other.value) &&
+               Objects.equals(boost, other.boost)&&
+               Objects.equals(queryName, other.queryName);
+    }
+    
+    /**
+     * Return a prime (31) times the staring hash and object's hash, if non-null
+     */
+    private int maybeHashcode(int startingHash, Object obj) {
+        return 31 * startingHash + ((obj == null) ? 0 : obj.hashCode());
     }
 }

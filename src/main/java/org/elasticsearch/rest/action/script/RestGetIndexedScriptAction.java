@@ -18,34 +18,23 @@
  */
 package org.elasticsearch.rest.action.script;
 
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptRequest;
 import org.elasticsearch.action.indexedscripts.get.GetIndexedScriptResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestResponseListener;
-
-import java.io.IOException;
+import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
-import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
-import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
  */
 public class RestGetIndexedScriptAction extends BaseRestHandler {
-
-    private final static String LANG_FIELD = "lang";
-    private final static String ID_FIELD = "_id";
-    private final static String VERSION_FIELD = "_version";
-    private final static String SCRIPT_FIELD = "script";
 
     @Inject
     public RestGetIndexedScriptAction(Settings settings, RestController controller, Client client) {
@@ -59,41 +48,43 @@ public class RestGetIndexedScriptAction extends BaseRestHandler {
         }
     }
 
-    protected String getScriptFieldName() {
-        return SCRIPT_FIELD;
+    protected XContentBuilderString getScriptFieldName() {
+        return Fields.SCRIPT;
     }
 
     protected String getScriptLang(RestRequest request) {
-        return request.param(LANG_FIELD);
+        return request.param("lang");
     }
-
 
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, Client client) {
         final GetIndexedScriptRequest getRequest = new GetIndexedScriptRequest(getScriptLang(request), request.param("id"));
         getRequest.version(request.paramAsLong("version", getRequest.version()));
         getRequest.versionType(VersionType.fromString(request.param("version_type"), getRequest.versionType()));
-        client.getIndexedScript(getRequest, new RestResponseListener<GetIndexedScriptResponse>(channel) {
+        client.getIndexedScript(getRequest, new RestBuilderListener<GetIndexedScriptResponse>(channel) {
             @Override
-            public RestResponse buildResponse(GetIndexedScriptResponse response) throws Exception {
-                XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-                if (!response.isExists()) {
-                    return new BytesRestResponse(NOT_FOUND, builder);
-                } else {
-                    try{
-                        String script = response.getScript();
-                        builder.startObject();
-                        builder.field(getScriptFieldName(), script);
-                        builder.field(VERSION_FIELD, response.getVersion());
-                        builder.field(LANG_FIELD, response.getScriptLang());
-                        builder.field(ID_FIELD, response.getId());
-                        builder.endObject();
-                        return new BytesRestResponse(OK, builder);
-                    } catch( IOException|ClassCastException e ){
-                        throw new ElasticsearchIllegalStateException("Unable to parse "  + response.getScript() + " as json",e);
-                    }
+            public RestResponse buildResponse(GetIndexedScriptResponse response, XContentBuilder builder) throws Exception {
+                builder.startObject();
+                builder.field(Fields.LANG, response.getScriptLang());
+                builder.field(Fields._ID, response.getId());
+                builder.field(Fields.FOUND, response.isExists());
+                RestStatus status = RestStatus.NOT_FOUND;
+                if (response.isExists()) {
+                    builder.field(Fields._VERSION, response.getVersion());
+                    builder.field(getScriptFieldName(), response.getScript());
+                    status = RestStatus.OK;
                 }
+                builder.endObject();
+                return new BytesRestResponse(status, builder);
             }
         });
+    }
+
+    private static final class Fields {
+        private static final XContentBuilderString SCRIPT = new XContentBuilderString("script");
+        private static final XContentBuilderString LANG = new XContentBuilderString("lang");
+        private static final XContentBuilderString _ID = new XContentBuilderString("_id");
+        private static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
+        private static final XContentBuilderString FOUND = new XContentBuilderString("found");
     }
 }

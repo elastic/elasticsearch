@@ -177,9 +177,7 @@ public class SimpleQueryStringBuilderTests extends ElasticsearchTestCase {
 
     private XContentBuilder createXContent(BaseQueryBuilder query) throws IOException {
         XContentBuilder content = XContentFactory.jsonBuilder();
-        content.startObject();
-        query.doXContent(content, null);
-        content.endObject();
+        query.toXContent(content, null);
         content.close();
         return content;
     }

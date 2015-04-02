@@ -244,7 +244,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     public void disconnectFromNode(DiscoveryNode node) {
         if (node.id().equals(localNodeId)) {
-            throw new UnsupportedOperationException("can not disconnect from local node");
+            return;
         }
         transport.disconnectFromNode(node);
     }

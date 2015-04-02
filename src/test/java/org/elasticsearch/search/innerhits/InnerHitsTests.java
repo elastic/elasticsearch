@@ -191,22 +191,23 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, requestBuilders);
 
+        int size = randomIntBetween(0, numDocs);
         SearchResponse searchResponse;
         if (randomBoolean()) {
             searchResponse = client().prepareSearch("idx")
                     .setSize(numDocs)
                     .addSort("_uid", SortOrder.ASC)
-                    .addInnerHit("a", new InnerHitsBuilder.InnerHit().setPath("field1").addSort("_doc", SortOrder.DESC).setSize(numDocs)) // Sort order is DESC, because we reverse the inner objects during indexing!
-                    .addInnerHit("b", new InnerHitsBuilder.InnerHit().setPath("field2").addSort("_doc", SortOrder.DESC).setSize(numDocs))
+                    .addInnerHit("a", new InnerHitsBuilder.InnerHit().setPath("field1").addSort("_doc", SortOrder.DESC).setSize(size)) // Sort order is DESC, because we reverse the inner objects during indexing!
+                    .addInnerHit("b", new InnerHitsBuilder.InnerHit().setPath("field2").addSort("_doc", SortOrder.DESC).setSize(size))
                     .get();
         } else {
             BoolQueryBuilder boolQuery = new BoolQueryBuilder();
             if (randomBoolean()) {
-                boolQuery.should(nestedQuery("field1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_doc", SortOrder.DESC).setSize(numDocs)));
-                boolQuery.should(nestedQuery("field2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_doc", SortOrder.DESC).setSize(numDocs)));
+                boolQuery.should(nestedQuery("field1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_doc", SortOrder.DESC).setSize(size)));
+                boolQuery.should(nestedQuery("field2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_doc", SortOrder.DESC).setSize(size)));
             } else {
-                boolQuery.should(constantScoreQuery(nestedFilter("field1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_doc", SortOrder.DESC).setSize(numDocs))));
-                boolQuery.should(constantScoreQuery(nestedFilter("field2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_doc", SortOrder.DESC).setSize(numDocs))));
+                boolQuery.should(constantScoreQuery(nestedFilter("field1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_doc", SortOrder.DESC).setSize(size))));
+                boolQuery.should(constantScoreQuery(nestedFilter("field2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_doc", SortOrder.DESC).setSize(size))));
             }
             searchResponse = client().prepareSearch("idx")
                     .setQuery(boolQuery)
@@ -215,13 +216,14 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
                     .get();
         }
 
+        assertNoFailures(searchResponse);
         assertHitCount(searchResponse, numDocs);
         assertThat(searchResponse.getHits().getHits().length, equalTo(numDocs));
         for (int i = 0; i < numDocs; i++) {
             SearchHit searchHit = searchResponse.getHits().getAt(i);
             SearchHits inner = searchHit.getInnerHits().get("a");
             assertThat(inner.totalHits(), equalTo((long) field1InnerObjects[i]));
-            for (int j = 0; j < field1InnerObjects[i]; j++) {
+            for (int j = 0; j < field1InnerObjects[i] && j < size; j++) {
                 SearchHit innerHit =  inner.getAt(j);
                 assertThat(innerHit.getNestedIdentity().getField().string(), equalTo("field1"));
                 assertThat(innerHit.getNestedIdentity().getOffset(), equalTo(j));
@@ -230,7 +232,7 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
 
             inner = searchHit.getInnerHits().get("b");
             assertThat(inner.totalHits(), equalTo((long) field2InnerObjects[i]));
-            for (int j = 0; j < field2InnerObjects[i]; j++) {
+            for (int j = 0; j < field2InnerObjects[i] && j < size; j++) {
                 SearchHit innerHit =  inner.getAt(j);
                 assertThat(innerHit.getNestedIdentity().getField().string(), equalTo("field2"));
                 assertThat(innerHit.getNestedIdentity().getOffset(), equalTo(j));
@@ -373,23 +375,24 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
         }
         indexRandom(true, requestBuilders);
 
+        int size = randomIntBetween(0, numDocs);
         SearchResponse searchResponse;
         if (randomBoolean()) {
             searchResponse = client().prepareSearch("idx")
                     .setSize(numDocs)
                     .setTypes("parent")
                     .addSort("_uid", SortOrder.ASC)
-                    .addInnerHit("a", new InnerHitsBuilder.InnerHit().setType("child1").addSort("_uid", SortOrder.ASC).setSize(numDocs))
-                    .addInnerHit("b", new InnerHitsBuilder.InnerHit().setType("child2").addSort("_uid", SortOrder.ASC).setSize(numDocs))
+                    .addInnerHit("a", new InnerHitsBuilder.InnerHit().setType("child1").addSort("_uid", SortOrder.ASC).setSize(size))
+                    .addInnerHit("b", new InnerHitsBuilder.InnerHit().setType("child2").addSort("_uid", SortOrder.ASC).setSize(size))
                     .get();
         } else {
             BoolQueryBuilder boolQuery = new BoolQueryBuilder();
             if (randomBoolean()) {
-                boolQuery.should(hasChildQuery("child1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_uid", SortOrder.ASC).setSize(numDocs)));
-                boolQuery.should(hasChildQuery("child2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_uid", SortOrder.ASC).setSize(numDocs)));
+                boolQuery.should(hasChildQuery("child1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_uid", SortOrder.ASC).setSize(size)));
+                boolQuery.should(hasChildQuery("child2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_uid", SortOrder.ASC).setSize(size)));
             } else {
-                boolQuery.should(constantScoreQuery(hasChildFilter("child1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_uid", SortOrder.ASC).setSize(numDocs))));
-                boolQuery.should(constantScoreQuery(hasChildFilter("child2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_uid", SortOrder.ASC).setSize(numDocs))));
+                boolQuery.should(constantScoreQuery(hasChildFilter("child1", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("a").addSort("_uid", SortOrder.ASC).setSize(size))));
+                boolQuery.should(constantScoreQuery(hasChildFilter("child2", matchAllQuery()).innerHit(new QueryInnerHitBuilder().setName("b").addSort("_uid", SortOrder.ASC).setSize(size))));
             }
             searchResponse = client().prepareSearch("idx")
                     .setSize(numDocs)
@@ -399,6 +402,7 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
                     .get();
         }
 
+        assertNoFailures(searchResponse);
         assertHitCount(searchResponse, numDocs);
         assertThat(searchResponse.getHits().getHits().length, equalTo(numDocs));
 
@@ -411,7 +415,7 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
 
             SearchHits inner = searchHit.getInnerHits().get("a");
             assertThat(inner.totalHits(), equalTo((long) child1InnerObjects[parent]));
-            for (int child = 0; child < child1InnerObjects[parent]; child++) {
+            for (int child = 0; child < child1InnerObjects[parent] && child < size; child++) {
                 SearchHit innerHit =  inner.getAt(child);
                 assertThat(innerHit.getType(), equalTo("child1"));
                 String childId = String.format(Locale.ENGLISH, "%04d", offset1 + child);
@@ -422,7 +426,7 @@ public class InnerHitsTests extends ElasticsearchIntegrationTest {
 
             inner = searchHit.getInnerHits().get("b");
             assertThat(inner.totalHits(), equalTo((long) child2InnerObjects[parent]));
-            for (int child = 0; child < child2InnerObjects[parent]; child++) {
+            for (int child = 0; child < child2InnerObjects[parent] && child < size; child++) {
                 SearchHit innerHit = inner.getAt(child);
                 assertThat(innerHit.getType(), equalTo("child2"));
                 String childId = String.format(Locale.ENGLISH, "%04d", offset2 + child);

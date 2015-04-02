@@ -52,6 +52,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -92,6 +93,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
 import org.elasticsearch.cluster.settings.DynamicSettings;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -865,7 +867,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
             ((InterceptingTransportService) transportService).clearInterceptedActions();
         }
     }
-    
+
     private static void interceptTransportActions(String... actions) {
         Iterable<TransportService> transportServices = internalCluster().getInstances(TransportService.class);
         for (TransportService transportService : transportServices) {
@@ -892,8 +894,7 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         private final Map<String, List<TransportRequest>> requests = new HashMap<>();
 
         @Inject
-        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool,
-                                            NodeSettingsService nodeSettingsService, @ClusterDynamicSettings DynamicSettings dynamicSettings) {
+        public InterceptingTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
             super(settings, transport, threadPool);
         }
 

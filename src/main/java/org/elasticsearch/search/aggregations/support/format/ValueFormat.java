@@ -28,6 +28,7 @@ public class ValueFormat {
 
     public static final ValueFormat RAW = new ValueFormat(ValueFormatter.RAW, ValueParser.RAW);
     public static final ValueFormat IPv4 = new ValueFormat(ValueFormatter.IPv4, ValueParser.IPv4);
+    public static final ValueFormat BOOLEAN = new ValueFormat(ValueFormatter.BOOLEAN, ValueParser.BOOLEAN);
 
     private final ValueFormatter formatter;
     private final ValueParser parser;

@@ -41,6 +41,7 @@ public interface ValueParser {
 
     static final ValueParser IPv4 = new IPv4();
     static final ValueParser RAW = new Raw();
+    static final ValueParser BOOLEAN = new Boolean();
 
     long parseLong(String value, SearchContext searchContext);
 
@@ -181,6 +182,22 @@ public interface ValueParser {
                     throw new AggregationExecutionException("Invalid number format [" + ((DecimalFormat) format).toPattern() + "]");
                 }
             }
+        }
+    }
+
+    static class Boolean implements ValueParser {
+
+        private Boolean() {
+        }
+
+        @Override
+        public long parseLong(String value, SearchContext searchContext) {
+            return java.lang.Boolean.parseBoolean(value) ? 1 : 0;
+        }
+
+        @Override
+        public double parseDouble(String value, SearchContext searchContext) {
+            return parseLong(value, searchContext);
         }
     }
 

@@ -99,7 +99,7 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
                                      CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
         Preconditions.checkNotNull(numericType);
-        Preconditions.checkArgument(EnumSet.of(NumericType.BYTE, NumericType.SHORT, NumericType.INT, NumericType.LONG).contains(numericType), getClass().getSimpleName() + " only supports integer types, not " + numericType);
+        Preconditions.checkArgument(EnumSet.of(NumericType.BOOLEAN, NumericType.BYTE, NumericType.SHORT, NumericType.INT, NumericType.LONG).contains(numericType), getClass().getSimpleName() + " only supports integer types, not " + numericType);
         this.numericType = numericType;
         this.breakerService = breakerService;
     }
@@ -127,16 +127,13 @@ public class PackedArrayIndexFieldData extends AbstractIndexFieldData<AtomicNume
 
         final float acceptableTransientOverheadRatio = fieldDataType.getSettings().getAsFloat("acceptable_transient_overhead_ratio", OrdinalsBuilder.DEFAULT_ACCEPTABLE_OVERHEAD_RATIO);
         TermsEnum termsEnum = estimator.beforeLoad(terms);
+        assert !getNumericType().isFloatingPoint();
         boolean success = false;
         try (OrdinalsBuilder builder = new OrdinalsBuilder(-1, reader.maxDoc(), acceptableTransientOverheadRatio)) {
             BytesRefIterator iter = builder.buildFromTerms(termsEnum);
             BytesRef term;
-            assert !getNumericType().isFloatingPoint();
-            final boolean indexedAsLong = getNumericType().requiredBits() > 32;
             while ((term = iter.next()) != null) {
-                final long value = indexedAsLong
-                        ? NumericUtils.prefixCodedToLong(term)
-                        : NumericUtils.prefixCodedToInt(term);
+                final long value = numericType.toLong(term);
                 valuesBuilder.add(value);
             }
             final PackedLongValues values = valuesBuilder.build();

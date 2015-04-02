@@ -273,6 +273,38 @@ to provide special features.  They now have limited configuration options.
 * `_field_names` configuration is limited to disabling the field.
 * `_size` configuration is limited to enabling the field.
 
+=== Boolean fields
+
+Boolean fields used to have a string fielddata with `F` meaning `false` and `T`
+meaning `true`. They have been refactored to use numeric fielddata, with `0`
+for `false` and `1` for `true`. As a consequence, the format of the responses of
+the following APIs changed when applied to boolean fields: `0`/`1` is returned
+instead of `F`/`T`:
+
+ - <<search-request-fielddata-fields,fielddata fields>>
+ - <<search-request-sort,sort values>>
+ - <<search-aggregations-bucket-terms-aggregation,terms aggregations>>
+
+In addition, terms aggregations use a custom formatter for boolean (like for
+dates and ip addresses, which are also backed by numbers) in order to return
+the user-friendly representation of boolean fields: `false`/`true`:
+
+[source,json]
+---------------
+"buckets": [
+  {
+     "key": 0,
+     "key_as_string": "false",
+     "doc_count": 42
+  },
+  {
+     "key": 1,
+     "key_as_string": "true",
+     "doc_count": 12
+  }
+]
+---------------
+
 === Codecs
 
 It is no longer possible to specify per-field postings and doc values formats

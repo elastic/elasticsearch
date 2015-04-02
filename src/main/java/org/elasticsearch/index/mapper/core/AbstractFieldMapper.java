@@ -82,6 +82,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TreeMap;
 
 /**
  *
@@ -750,7 +751,7 @@ public abstract class AbstractFieldMapper<T> implements FieldMapper<T> {
             builder.field("similarity", SimilarityLookupService.DEFAULT_SIMILARITY);
         }
 
-        TreeMap<String, Object> orderedFielddataSettings = new TreeMap<String, Object>();
+        TreeMap<String, Object> orderedFielddataSettings = new TreeMap<>();
         if (customFieldDataSettings != null) {
             orderedFielddataSettings.putAll(customFieldDataSettings.getAsMap());
             builder.field("fielddata", orderedFielddataSettings);

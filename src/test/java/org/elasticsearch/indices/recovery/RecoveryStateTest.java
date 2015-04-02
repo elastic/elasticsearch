@@ -30,6 +30,7 @@ import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.recovery.RecoveryState.*;
 import org.elasticsearch.test.ElasticsearchTestCase;
+import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -480,5 +481,30 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
         } else {
             assertThat(lastRead.time(), lessThanOrEqualTo(start.time()));
         }
+    }
+
+    @Test
+    public void testConcurrentModificationIndexFileDetailsMap() throws InterruptedException {
+        final Index index = new Index();
+        final AtomicBoolean stop = new AtomicBoolean(false);
+        Streamer<Index> readWriteIndex = new Streamer<Index>(stop, index) {
+            @Override
+            Index createObj() {
+                return new Index();
+            }
+        };
+        Thread modifyThread = new Thread() {
+            public void run() {
+                for (int i = 0; i < 1000; i++) {
+                    index.addFileDetail(randomAsciiOfLength(10), 100, true);
+                }
+                stop.set(true);
+            }
+        };
+        readWriteIndex.start();
+        modifyThread.start();
+        modifyThread.join();
+        readWriteIndex.join();
+        assertThat(readWriteIndex.error.get(), equalTo(null));
     }
 }

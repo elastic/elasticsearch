@@ -20,7 +20,7 @@ $ curl -XDELETE 'http://localhost:9200/twitter/tweet/_query' -d '{
 --------------------------------------------------
 
 NOTE: The query being sent in the body must be nested in a `query` key, same as
-the <<search-search,search api>> works
+the <<search-search,search api>>
 
 Both above examples end up doing the same thing, which is delete all
 tweets from the twitter index for a certain user. The result of the
@@ -43,7 +43,11 @@ commands is:
 
 Note, delete by query bypasses versioning support. Also, it is not
 recommended to delete "large chunks of the data in an index", many
-times, it's better to simply reindex into a new index.
+times, it's better to simply reindex into a new index.  Finally,
+under the hood, delete by query runs a query using the most recently
+refreshed near-real-time searcher.  This means it is not real-time and
+will not delete documents that were just indexed but not yet visible
+in the current near-real-time searcher.
 
 [float]
 [[multiple-indices]]

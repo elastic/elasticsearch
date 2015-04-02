@@ -405,20 +405,33 @@ public class IndexAliasesTests extends ElasticsearchIntegrationTest {
         assertThat(client().prepareCount("bars").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(1L));
 
         logger.info("--> delete by query from a single alias");
+
+        // Must refresh before DBQ so the query sees all docs we just indexed:
+        refresh();
         client().prepareDeleteByQuery("bars").setQuery(QueryBuilders.termQuery("name", "test")).get();
+        // Must refresh after DBQ so we see the deletes:
+        refresh();
 
         logger.info("--> verify that only one record was deleted");
         assertThat(client().prepareCount("test1").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(3L));
 
         logger.info("--> delete by query from an aliases pointing to two indices");
+        // Must refresh before DBQ so the query sees all docs we just indexed:
+        refresh();
         client().prepareDeleteByQuery("foos").setQuery(QueryBuilders.matchAllQuery()).get();
+        // Must refresh after DBQ so we see the deletes:
+        refresh();
 
         logger.info("--> verify that proper records were deleted");
         SearchResponse searchResponse = client().prepareSearch("aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "3", "4", "6", "7", "8");
 
         logger.info("--> delete by query from an aliases and an index");
+        // Must refresh before DBQ so the query sees all docs we just indexed:
+        refresh();
         client().prepareDeleteByQuery("tests", "test2").setQuery(QueryBuilders.matchAllQuery()).get();
+        // Must refresh after DBQ so we see the deletes:
+        refresh();
 
         logger.info("--> verify that proper records were deleted");
         searchResponse = client().prepareSearch("aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get();

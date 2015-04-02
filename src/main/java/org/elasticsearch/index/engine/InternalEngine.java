@@ -39,9 +39,12 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.math.MathUtils;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.deletionpolicy.SnapshotIndexCommit;
 import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
+import org.elasticsearch.index.mapper.internal.UidFieldMapper;
+import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.merge.policy.ElasticsearchMergePolicy;
 import org.elasticsearch.index.merge.policy.MergePolicyProvider;
@@ -531,17 +534,89 @@ public class InternalEngine extends Engine {
                 query = delete.query();
             }
 
-            indexWriter.deleteDocuments(query);
+            Filter filter = new QueryWrapperFilter(query);
+
+            // #7052: pull the current NRT searcher, execute the query, and delete the hits.  We do not use IndexWriter's
+            // delete-by-query because then we lose track of the latest per-ID versions and forcing a refresh per
+            // delete-by-query is too costly:
+
+            try (final Searcher searcher = acquireSearcher("delete_by_query")) {
+                for(LeafReaderContext context : searcher.reader().leaves()) {
+                    LeafReader leafReader = context.reader();
+                    DocIdSet dis = filter.getDocIdSet(context, leafReader.getLiveDocs());
+                    if (dis != null) {
+                        // This segment has hits matching the query:
+                        DocIdSetIterator disi = dis.iterator();
+
+                        if (disi != null) {
+
+                            // nocommit what about older indices that used payloads...?  let's see if BWC test fails!
+                            NumericDocValues versions = leafReader.getNumericDocValues(VersionFieldMapper.NAME);
+
+                            final String[] theUid = new String[1];
+                            StoredFieldVisitor loadJustUid = new StoredFieldVisitor() {
+                                    @Override
+                                    public Status needsField(FieldInfo fieldInfo) throws IOException {
+                                        if (theUid[0] != null) {
+                                            // We found the ID, now stop:
+                                            return Status.STOP;
+                                        } else if (fieldInfo.name.equals(UidFieldMapper.NAME)) {
+                                            return Status.YES;
+                                        } else {
+                                            return Status.NO;
+                                        }
+                                    }
+
+                                    @Override
+                                    public void stringField(FieldInfo fieldInfo, String value) throws IOException {
+                                        assert fieldInfo.name.equals(UidFieldMapper.NAME);
+                                        theUid[0] = value;
+                                    }
+                                };
+
+                            Uid lastUid = null;
+
+                            while (true) {
+                                int doc = disi.nextDoc();
+                                if (doc == DocIdSetIterator.NO_MORE_DOCS) {
+                                    break;
+                                }
+
+                                theUid[0] = null;
+
+                                leafReader.document(doc, loadJustUid);
+
+                                if (theUid[0] == null) {
+                                    // nocommit how to handle nested docs....?  does the Delete op for the parent always delete the children
+                                    // too?  can we somewhow "assert this is a nested doc" here?
+                                    continue;
+                                }
+
+                                Uid uid = Uid.createUid(theUid[0]);
+
+                                // TODO: we can further optimize this, e.g. short circuit here, use IndexWriter.tryDeleteDocument
+                                delete(new Delete(uid.type(),
+                                                  uid.id(),
+                                                  // nocommit isn't this redundant w/ type and id...?
+                                                  new Term(UidFieldMapper.NAME, theUid[0]),
+                                                  versions.get(doc),
+                                                  // nocommit: we must add this to DBQRequest?
+                                                  VersionType.INTERNAL,
+                                                  // nocommit: what to pass here...
+                                                  Operation.Origin.PRIMARY,
+                                                  System.nanoTime(),
+                                                  false));
+                            }
+                        }
+                    }
+                }
+             };
+
             translog.add(new Translog.DeleteByQuery(delete));
-            flushNeeded = true;
         } catch (Throwable t) {
             maybeFailEngine("delete_by_query", t);
             throw new DeleteByQueryFailedEngineException(shardId, delete, t);
         }
-
-        // TODO: This is heavy, since we refresh, but we must do this because we don't know which documents were in fact deleted (i.e., our
-        // versionMap isn't updated), so we must force a cutover to a new reader to "see" the deletions:
-        refresh("delete_by_query");
     }
 
     @Override

@@ -48,8 +48,10 @@ public class InternalEmailServiceTests extends ElasticsearchTestCase {
         when(account.name()).thenReturn("account1");
         when(accounts.account("account1")).thenReturn(account);
         Email email = mock(Email.class);
+
         Authentication auth = new Authentication("user", "passwd");
         Profile profile = randomFrom(Profile.values());
+        when(account.send(email, auth, profile)).thenReturn(email);
         EmailService.EmailSent sent = service.send(email, auth, profile, "account1");
         verify(account).send(email, auth, profile);
         assertThat(sent, notNullValue());

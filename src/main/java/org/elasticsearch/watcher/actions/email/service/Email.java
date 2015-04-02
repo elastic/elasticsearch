@@ -128,7 +128,9 @@ public class Email implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ID_FIELD.getPreferredName(), id);
-        builder.field(FROM_FIELD.getPreferredName(), from);
+        if (from != null) {
+            builder.field(FROM_FIELD.getPreferredName(), from);
+        }
         if (replyTo != null) {
             builder.field(REPLY_TO_FIELD.getPreferredName(), (ToXContent) replyTo);
         }
@@ -136,7 +138,9 @@ public class Email implements ToXContent {
             builder.field(PRIORITY_FIELD.getPreferredName(), priority);
         }
         builder.field(SENT_DATE_FIELD.getPreferredName(), sentDate);
-        builder.field(TO_FIELD.getPreferredName(), (ToXContent) to);
+        if (to != null) {
+            builder.field(TO_FIELD.getPreferredName(), (ToXContent) to);
+        }
         if (cc != null) {
             builder.field(CC_FIELD.getPreferredName(), (ToXContent) cc);
         }

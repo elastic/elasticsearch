@@ -63,7 +63,7 @@ public class InternalEmailService extends AbstractLifecycleComponent<InternalEma
     EmailSent send(Email email, Authentication auth, Profile profile, Account account) {
         assert account != null;
         try {
-            account.send(email, auth, profile);
+            email = account.send(email, auth, profile);
         } catch (MessagingException me) {
             throw new EmailException("failed to send email [" + email + "] via account [" + account.name() + "]", me);
         }

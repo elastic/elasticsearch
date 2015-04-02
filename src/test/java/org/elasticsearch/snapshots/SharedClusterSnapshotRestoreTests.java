@@ -56,6 +56,7 @@ import org.elasticsearch.index.store.support.AbstractIndexStore;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.snapshots.mockstore.MockRepositoryModule;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.nio.channels.SeekableByteChannel;
@@ -80,6 +81,7 @@ import static org.hamcrest.Matchers.*;
 public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Test
+    @TestLogging("action:TRACE")
     public void basicWorkFlowTest() throws Exception {
         Client client = client();
 
@@ -100,9 +102,9 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
             index("test-idx-3", "doc", Integer.toString(i), "foo", "baz" + i);
         }
         refresh();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-3").get().getCount(), equalTo(100L));
+        assertHitCount(client.prepareCount("test-idx-1").get(), 100L);
+        assertHitCount(client.prepareCount("test-idx-2").get(), 100L);
+        assertHitCount(client.prepareCount("test-idx-3").get(), 100L);
 
         ListenableActionFuture<FlushResponse> flushResponseFuture = null;
         if (randomBoolean()) {
@@ -136,9 +138,9 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
             client.prepareDelete("test-idx-3", "doc", Integer.toString(i)).get();
         }
         refresh();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(50L));
-        assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(50L));
-        assertThat(client.prepareCount("test-idx-3").get().getCount(), equalTo(50L));
+        assertHitCount(client.prepareCount("test-idx-1").get(), 50L);
+        assertHitCount(client.prepareCount("test-idx-2").get(), 50L);
+        assertHitCount(client.prepareCount("test-idx-3").get(), 50L);
 
         logger.info("--> close indices");
         client.admin().indices().prepareClose("test-idx-1", "test-idx-2").get();
@@ -148,9 +150,9 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         for (int i=0; i<5; i++) {
-            assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
-            assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(100L));
-            assertThat(client.prepareCount("test-idx-3").get().getCount(), equalTo(50L));
+            assertHitCount(client.prepareCount("test-idx-1").get(), 100L);
+            assertHitCount(client.prepareCount("test-idx-2").get(), 100L);
+            assertHitCount(client.prepareCount("test-idx-3").get(), 50L);
         }
 
         // Test restore after index deletion
@@ -161,7 +163,7 @@ public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         for (int i=0; i<5; i++) {
-            assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
+            assertHitCount(client.prepareCount("test-idx-1").get(), 100L);
         }
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));

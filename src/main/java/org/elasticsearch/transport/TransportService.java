@@ -244,7 +244,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     public void disconnectFromNode(DiscoveryNode node) {
-        if (node.id().equals(localNodeId) && localNodeId != null) {
+        if (node.id().equals(localNodeId)) {
             throw new UnsupportedOperationException("can not disconnect from local node");
         }
         transport.disconnectFromNode(node);
@@ -350,8 +350,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                         try {
                             channel.sendResponse(e);
                         } catch (Throwable e1) {
-                            logger.warn("Failed to send error message back to client for action [" + action + "]", e1);
-                            logger.warn("Actual Exception", e);
+                            logger.warn("failed to notify channel of error message for action [" + action + "]", e1);
+                            logger.warn("actual exception", e);
                         }
                     }
                 }
@@ -360,8 +360,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             try {
                 channel.sendResponse(e);
             } catch (Throwable e1) {
-                logger.warn("Failed to send error message back to client for action [" + action + "]", e);
-                logger.warn("Actual Exception", e1);
+                logger.warn("failed to notify channel of error message for action [" + action + "]", e1);
+                logger.warn("actual exception", e1);
             }
         }
 

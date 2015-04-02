@@ -385,6 +385,17 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                         .endObject()
                         .endObject()
                         .endObject()
+                        .startObject()
+                    .startObject("template-booleans")
+                    .field("match_mapping_type", "boolean")
+                    .startObject("mapping")
+                    .startObject("fielddata")
+                    .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
+                    .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
                         .endArray();
                 mappings.endObject().endObject();
             }

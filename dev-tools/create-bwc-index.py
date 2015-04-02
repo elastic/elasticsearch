@@ -61,7 +61,8 @@ def index_documents(es, index_name, type, num_docs):
   for id in range(0, num_docs):
     es.index(index=index_name, doc_type=type, id=id, body={'string': str(random.randint(0, 100)),
                                                            'long_sort': random.randint(0, 100),
-                                                           'double_sort' : float(random.randint(0, 100))})
+                                                           'double_sort' : float(random.randint(0, 100)),
+                                                           'bool' : random.choice([True, False])})
     if rarely():
       es.indices.refresh(index=index_name)
     if rarely():
@@ -238,6 +239,11 @@ def generate_index(client, version):
   assert health['timed_out'] == False, 'cluster health timed out %s' % health
 
   num_docs = random.randint(2000, 3000)
+  if version == "1.1.0":
+    # 1.1.0 is buggy and creates lots and lots of segments, so we create a
+    # lighter index for it to keep bw tests reasonable
+    # see https://github.com/elastic/elasticsearch/issues/5817
+    num_docs = num_docs / 10
   index_documents(client, 'test', 'doc', num_docs)
   logging.info('Running basic asserts on the data added')
   run_basic_asserts(client, 'test', 'doc', num_docs)

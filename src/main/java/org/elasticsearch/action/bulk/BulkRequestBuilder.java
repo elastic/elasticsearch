@@ -96,16 +96,16 @@ public class BulkRequestBuilder extends ActionRequestBuilder<BulkRequest, BulkRe
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequestBuilder add(byte[] data, int from, int length, boolean contentUnsafe) throws Exception {
-        request.add(data, from, length, contentUnsafe, null, null);
+    public BulkRequestBuilder add(byte[] data, int from, int length) throws Exception {
+        request.add(data, from, length, null, null);
         return this;
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequestBuilder add(byte[] data, int from, int length, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
-        request.add(data, from, length, contentUnsafe, defaultIndex, defaultType);
+    public BulkRequestBuilder add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
+        request.add(data, from, length, defaultIndex, defaultType);
         return this;
     }
 

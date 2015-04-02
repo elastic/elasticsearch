@@ -47,10 +47,7 @@ import java.util.concurrent.ExecutionException;
 import static com.google.common.collect.Lists.newArrayList;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  * Tests for indices that use shadow replicas and a shared filesystem
@@ -120,7 +117,7 @@ public class IndexWithShadowReplicasTests extends ElasticsearchIntegrationTest {
 
     }
 
-        @Test
+    @Test
     public void testIndexWithFewDocuments() throws Exception {
         Settings nodeSettings = ImmutableSettings.builder()
                 .put("node.add_id_to_custom_path", false)

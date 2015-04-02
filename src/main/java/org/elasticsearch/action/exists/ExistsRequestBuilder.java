@@ -91,15 +91,7 @@ public class ExistsRequestBuilder extends BroadcastOperationRequestBuilder<Exist
      * The source to execute.
      */
     public ExistsRequestBuilder setSource(BytesReference source) {
-        request().source(source, false);
-        return this;
-    }
-
-    /**
-     * The source to execute.
-     */
-    public ExistsRequestBuilder setSource(BytesReference source, boolean unsafe) {
-        request().source(source, unsafe);
+        request().source(source);
         return this;
     }
 

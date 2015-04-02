@@ -112,15 +112,7 @@ public class CountRequestBuilder extends BroadcastOperationRequestBuilder<CountR
      * The source to execute.
      */
     public CountRequestBuilder setSource(BytesReference source) {
-        request().source(source, false);
-        return this;
-    }
-
-    /**
-     * The source to execute.
-     */
-    public CountRequestBuilder setSource(BytesReference source, boolean unsafe) {
-        request().source(source, unsafe);
+        request().source(source);
         return this;
     }
 

@@ -141,7 +141,6 @@ public abstract class TransportBroadcastOperationAction<Request extends Broadcas
                 }
                 return;
             }
-            request.beforeStart();
             // count the local operations, and perform the non local ones
             int shardIndex = -1;
             for (final ShardIterator shardIt : shardsIts) {

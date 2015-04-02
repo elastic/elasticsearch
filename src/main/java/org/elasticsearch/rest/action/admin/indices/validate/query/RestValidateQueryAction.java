@@ -60,7 +60,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
         validateQueryRequest.listenerThreaded(false);
         validateQueryRequest.indicesOptions(IndicesOptions.fromRequest(request, validateQueryRequest.indicesOptions()));
         if (request.hasContent()) {
-            validateQueryRequest.source(request.content(), request.contentUnsafe());
+            validateQueryRequest.source(request.content());
         } else {
             String source = request.param("source");
             if (source != null) {

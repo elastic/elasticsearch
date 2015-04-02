@@ -336,11 +336,11 @@ public class ScriptService extends AbstractComponent implements Closeable {
     public void putScriptToIndex(PutIndexedScriptRequest request, ActionListener<IndexResponse> listener) {
         String scriptLang = validateScriptLanguage(request.scriptLang());
         //verify that the script compiles
-        validate(request.safeSource(), scriptLang);
+        validate(request.source(), scriptLang);
 
         IndexRequest indexRequest = new IndexRequest(request).index(SCRIPT_INDEX).type(scriptLang).id(request.id())
                 .version(request.version()).versionType(request.versionType())
-                .source(request.safeSource(), true).opType(request.opType()).refresh(true); //Always refresh after indexing a template
+                .source(request.source()).opType(request.opType()).refresh(true); //Always refresh after indexing a template
         client.index(indexRequest, listener);
     }
 

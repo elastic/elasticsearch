@@ -104,12 +104,10 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
      * (for example, if no id is provided, one will be generated, or usage of the create flag).
      */
     public BulkRequest add(IndexRequest request) {
-        request.beforeLocalFork();
         return internalAdd(request, null);
     }
 
     public BulkRequest add(IndexRequest request, @Nullable Object payload) {
-        request.beforeLocalFork();
         return internalAdd(request, payload);
     }
 
@@ -222,32 +220,32 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(byte[] data, int from, int length, boolean contentUnsafe) throws Exception {
-        return add(data, from, length, contentUnsafe, null, null);
+    public BulkRequest add(byte[] data, int from, int length) throws Exception {
+        return add(data, from, length, null, null);
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(byte[] data, int from, int length, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
-        return add(new BytesArray(data, from, length), contentUnsafe, defaultIndex, defaultType);
+    public BulkRequest add(byte[] data, int from, int length, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
+        return add(new BytesArray(data, from, length), defaultIndex, defaultType);
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
-        return add(data, contentUnsafe, defaultIndex, defaultType, null, null, true);
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType) throws Exception {
+        return add(data, defaultIndex, defaultType, null, null, true);
     }
 
     /**
      * Adds a framed data in binary format
      */
-    public BulkRequest add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex) throws Exception {
-        return add(data, contentUnsafe, defaultIndex, defaultType, null, null, allowExplicitIndex);
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, boolean allowExplicitIndex) throws Exception {
+        return add(data, defaultIndex, defaultType, null, null, allowExplicitIndex);
     }
 
-    public BulkRequest add(BytesReference data, boolean contentUnsafe, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultRouting, @Nullable Object payload, boolean allowExplicitIndex) throws Exception {
+    public BulkRequest add(BytesReference data, @Nullable String defaultIndex, @Nullable String defaultType, @Nullable String defaultRouting, @Nullable Object payload, boolean allowExplicitIndex) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
         int length = data.length();
@@ -336,20 +334,20 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                     }
                     // order is important, we set parent after routing, so routing will be set to parent if not set explicitly
                     // we use internalAdd so we don't fork here, this allows us not to copy over the big byte array to small chunks
-                    // of index request. All index requests are still unsafe if applicable.
+                    // of index request.
                     if ("index".equals(action)) {
                         if (opType == null) {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
-                                    .source(data.slice(from, nextMarker - from), contentUnsafe), payload);
+                                    .source(data.slice(from, nextMarker - from)), payload);
                         } else {
                             internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
                                     .create("create".equals(opType))
-                                    .source(data.slice(from, nextMarker - from), contentUnsafe), payload);
+                                    .source(data.slice(from, nextMarker - from)), payload);
                         }
                     } else if ("create".equals(action)) {
                         internalAdd(new IndexRequest(index, type, id).routing(routing).parent(parent).timestamp(timestamp).ttl(ttl).version(version).versionType(versionType)
                                 .create(true)
-                                .source(data.slice(from, nextMarker - from), contentUnsafe), payload);
+                                .source(data.slice(from, nextMarker - from)), payload);
                     } else if ("update".equals(action)) {
                         UpdateRequest updateRequest = new UpdateRequest(index, type, id).routing(routing).parent(parent).retryOnConflict(retryOnConflict)
                                 .version(version).versionType(versionType)

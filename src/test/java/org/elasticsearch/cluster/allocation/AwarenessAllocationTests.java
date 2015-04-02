@@ -32,6 +32,8 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
@@ -116,10 +118,10 @@ public class AwarenessAllocationTests extends ElasticsearchIntegrationTest {
 
         logger.info("--> starting 4 nodes on different zones");
         List<String> nodes = internalCluster().startNodesAsync(
-                ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "a").build(),
-                ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b").build(),
-                ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b").build(),
-                ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "a").build()
+                ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "a").put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 3).build(),
+                ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b").put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 3).build(),
+                ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "b").put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 3).build(),
+                ImmutableSettings.settingsBuilder().put(commonSettings).put("node.zone", "a").put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 3).build()
         ).get();
         String A_0 = nodes.get(0);
         String B_0 = nodes.get(1);

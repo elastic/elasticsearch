@@ -77,7 +77,7 @@ public class RestMoreLikeThisAction extends BaseRestHandler {
             mltRequest.searchScroll(new Scroll(parseTimeValue(searchScroll, null)));
         }
         if (request.hasContent()) {
-            mltRequest.searchSource(request.content(), request.contentUnsafe());
+            mltRequest.searchSource(request.content());
         } else {
             String searchSource = request.param("search_source");
             if (searchSource != null) {

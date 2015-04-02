@@ -43,7 +43,6 @@ import static org.elasticsearch.rest.RestStatus.*;
  */
 public class RestController extends AbstractLifecycleComponent<RestController> {
 
-    public static final String HTTP_JSON_ENABLE = "http.jsonp.enable";
     private ImmutableSet<String> relevantHeaders = ImmutableSet.of();
 
     private final PathTrie<RestHandler> getHandlers = new PathTrie<>(RestUtils.REST_DECODER);
@@ -182,26 +181,12 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     }
 
     /**
-     * Checks the request parameters against enabled settings for JSONP and error trace support
+     * Checks the request parameters against enabled settings for error trace support
      * @param request
      * @param channel
      * @return true if the request does not have any parameters that conflict with system settings
      */
     boolean checkRequestParameters(final RestRequest request, final RestChannel channel) {
-        // If JSONP is disabled and someone sends a callback parameter we should bail out before querying
-        if (!settings.getAsBoolean(HTTP_JSON_ENABLE, false) && request.hasParam("callback")) {
-            try {
-                XContentBuilder builder = channel.newBuilder();
-                builder.startObject().field("error","JSONP is disabled.").endObject().string();
-                RestResponse response = new BytesRestResponse(FORBIDDEN, builder);
-                response.addHeader("Content-Type", "application/javascript");
-                channel.sendResponse(response);
-            } catch (IOException e) {
-                logger.warn("Failed to send response", e);
-            }
-            return false;
-        }
-
         // error_trace cannot be used when we disable detailed errors
         if (channel.detailedErrorsEnabled() == false && request.paramAsBoolean("error_trace", false)) {
             try {

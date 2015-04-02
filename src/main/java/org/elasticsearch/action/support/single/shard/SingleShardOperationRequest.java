@@ -104,9 +104,6 @@ public abstract class SingleShardOperationRequest<T extends SingleShardOperation
         return (T) this;
     }
 
-    protected void beforeLocalFork() {
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);

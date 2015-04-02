@@ -64,7 +64,6 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
     private String id;
 
     private BytesReference source;
-    private boolean sourceUnsafe;
 
     private IndexRequest.OpType opType = IndexRequest.OpType.INDEX;
 
@@ -171,14 +170,6 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
         return source;
     }
 
-    public BytesReference safeSource() {
-        if (sourceUnsafe) {
-            source = source.copyBytesArray();
-            sourceUnsafe = false;
-        }
-        return source;
-    }
-
     public Map<String, Object> sourceAsMap() {
         return XContentHelper.convertToMap(source, false).v2();
     }
@@ -215,7 +206,6 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
      */
     public PutIndexedScriptRequest source(String source) {
         this.source = new BytesArray(source.getBytes(Charsets.UTF_8));
-        this.sourceUnsafe = false;
         return this;
     }
 
@@ -224,7 +214,6 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
      */
     public PutIndexedScriptRequest source(XContentBuilder sourceBuilder) {
         source = sourceBuilder.bytes();
-        sourceUnsafe = false;
         return this;
     }
 
@@ -248,9 +237,8 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
     /**
      * Sets the document to index in bytes form.
      */
-    public PutIndexedScriptRequest source(BytesReference source, boolean unsafe) {
+    public PutIndexedScriptRequest source(BytesReference source) {
         this.source = source;
-        this.sourceUnsafe = unsafe;
         return this;
     }
 
@@ -270,21 +258,7 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
      * @param length The length of the data
      */
     public PutIndexedScriptRequest source(byte[] source, int offset, int length) {
-        return source(source, offset, length, false);
-    }
-
-    /**
-     * Sets the document to index in bytes form.
-     *
-     * @param source The source to index
-     * @param offset The offset in the byte array
-     * @param length The length of the data
-     * @param unsafe Is the byte array safe to be used form a different thread
-     */
-    public PutIndexedScriptRequest source(byte[] source, int offset, int length, boolean unsafe) {
-        this.source = new BytesArray(source, offset, length);
-        this.sourceUnsafe = unsafe;
-        return this;
+        return source(new BytesArray(source, offset, length));
     }
 
     /**
@@ -344,7 +318,6 @@ public class PutIndexedScriptRequest extends ActionRequest<PutIndexedScriptReque
         scriptLang = in.readString();
         id = in.readOptionalString();
         source = in.readBytesReference();
-        sourceUnsafe = false;
 
         opType = IndexRequest.OpType.fromId(in.readByte());
         version = in.readLong();

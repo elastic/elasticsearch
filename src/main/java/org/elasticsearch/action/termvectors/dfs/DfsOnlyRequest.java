@@ -79,11 +79,6 @@ public class DfsOnlyRequest extends BroadcastOperationRequest<DfsOnlyRequest> {
     }
 
     @Override
-    protected void beforeStart() {
-        searchRequest.beforeStart();
-    }
-
-    @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         this.searchRequest.readFrom(in);

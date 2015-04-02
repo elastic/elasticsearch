@@ -186,11 +186,4 @@ public abstract class ShardReplicationOperationRequest<T extends ShardReplicatio
         out.writeString(index);
         out.writeBoolean(canHaveDuplicates);
     }
-
-    /**
-     * Called before the request gets forked into a local thread.
-     */
-    public void beforeLocalFork() {
-
-    }
 }

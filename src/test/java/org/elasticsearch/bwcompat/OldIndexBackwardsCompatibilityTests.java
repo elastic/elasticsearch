@@ -20,6 +20,7 @@
 package org.elasticsearch.bwcompat;
 
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetResponse;
@@ -34,6 +35,9 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.action.admin.indices.upgrade.UpgradeTest;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
+import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
@@ -47,7 +51,12 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -114,6 +123,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         loadIndex(index, settings);
         logMemoryStats();
         assertBasicSearchWorks();
+        assertBasicAggregationWorks();
         assertRealtimeGetWorks();
         assertNewReplicasWork();
         Version version = extractVersion(index);
@@ -145,6 +155,28 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
         searchRsp = searchReq.get();
         ElasticsearchAssertions.assertNoFailures(searchRsp);
         assertThat(numDocs, equalTo(searchRsp.getHits().getTotalHits()));
+    }
+
+    void assertBasicAggregationWorks() {
+        // histogram on a long
+        SearchResponse searchRsp = client().prepareSearch("test").addAggregation(AggregationBuilders.histogram("histo").field("long_sort").interval(10)).get();
+        ElasticsearchAssertions.assertSearchResponse(searchRsp);
+        Histogram histo = searchRsp.getAggregations().get("histo");
+        assertNotNull(histo);
+        long totalCount = 0;
+        for (Histogram.Bucket bucket : histo.getBuckets()) {
+            totalCount += bucket.getDocCount();
+        }
+        assertEquals(totalCount, searchRsp.getHits().getTotalHits());
+
+        // terms on a boolean
+        searchRsp = client().prepareSearch("test").addAggregation(AggregationBuilders.terms("bool_terms").field("bool")).get();
+        Terms terms = searchRsp.getAggregations().get("bool_terms");
+        totalCount = 0;
+        for (Terms.Bucket bucket : terms.getBuckets()) {
+            totalCount += bucket.getDocCount();
+        }
+        assertEquals(totalCount, searchRsp.getHits().getTotalHits());
     }
 
     void assertRealtimeGetWorks() {

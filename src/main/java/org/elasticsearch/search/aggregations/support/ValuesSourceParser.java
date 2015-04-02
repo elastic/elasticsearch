@@ -25,6 +25,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
@@ -208,6 +209,9 @@ public class ValuesSourceParser<VS extends ValuesSource> {
         }
         if (mapper instanceof IpFieldMapper) {
             return ValueFormat.IPv4;
+        }
+        if (mapper instanceof BooleanFieldMapper) {
+            return ValueFormat.BOOLEAN;
         }
         if (mapper instanceof NumberFieldMapper) {
             return format != null ? ValueFormat.Number.format(format) : ValueFormat.RAW;

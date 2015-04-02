@@ -50,7 +50,6 @@ public class ExistsRequest extends BroadcastOperationRequest<ExistsRequest> {
     private String preference;
 
     private BytesReference source;
-    private boolean sourceUnsafe;
 
     private String[] types = Strings.EMPTY_ARRAY;
 
@@ -72,14 +71,6 @@ public class ExistsRequest extends BroadcastOperationRequest<ExistsRequest> {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         return validationException;
-    }
-
-    @Override
-    protected void beforeStart() {
-        if (sourceUnsafe) {
-            source = source.copyBytesArray();
-            sourceUnsafe = false;
-        }
     }
 
     /**
@@ -145,7 +136,6 @@ public class ExistsRequest extends BroadcastOperationRequest<ExistsRequest> {
      */
     public ExistsRequest source(QuerySourceBuilder sourceBuilder) {
         this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        this.sourceUnsafe = false;
         return this;
     }
 
@@ -164,7 +154,6 @@ public class ExistsRequest extends BroadcastOperationRequest<ExistsRequest> {
 
     public ExistsRequest source(XContentBuilder builder) {
         this.source = builder.bytes();
-        this.sourceUnsafe = false;
         return this;
     }
 
@@ -174,7 +163,6 @@ public class ExistsRequest extends BroadcastOperationRequest<ExistsRequest> {
      */
     public ExistsRequest source(String querySource) {
         this.source = new BytesArray(querySource);
-        this.sourceUnsafe = false;
         return this;
     }
 
@@ -182,19 +170,18 @@ public class ExistsRequest extends BroadcastOperationRequest<ExistsRequest> {
      * The source to execute.
      */
     public ExistsRequest source(byte[] querySource) {
-        return source(querySource, 0, querySource.length, false);
+        return source(querySource, 0, querySource.length);
     }
 
     /**
      * The source to execute.
      */
-    public ExistsRequest source(byte[] querySource, int offset, int length, boolean unsafe) {
-        return source(new BytesArray(querySource, offset, length), unsafe);
+    public ExistsRequest source(byte[] querySource, int offset, int length) {
+        return source(new BytesArray(querySource, offset, length));
     }
 
-    public ExistsRequest source(BytesReference querySource, boolean unsafe) {
+    public ExistsRequest source(BytesReference querySource) {
         this.source = querySource;
-        this.sourceUnsafe = unsafe;
         return this;
     }
 
@@ -219,7 +206,6 @@ public class ExistsRequest extends BroadcastOperationRequest<ExistsRequest> {
         minScore = in.readFloat();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
-        sourceUnsafe = false;
         source = in.readBytesReference();
         types = in.readStringArray();
 

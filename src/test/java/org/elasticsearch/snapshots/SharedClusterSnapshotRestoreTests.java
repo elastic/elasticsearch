@@ -81,7 +81,7 @@ import static org.hamcrest.Matchers.*;
 public class SharedClusterSnapshotRestoreTests extends AbstractSnapshotTests {
 
     @Test
-    @TestLogging("action:TRACE")
+    @TestLogging("action.count:TRACE")
     public void basicWorkFlowTest() throws Exception {
         Client client = client();
 

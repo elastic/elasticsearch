@@ -133,6 +133,7 @@ Note that unlike the `custom_score` query, the
 score of the query is multiplied with the result of the script scoring. If
 you wish to inhibit this, set `"boost_mode": "replace"`
 
+[[function-score-weight]]
 ===== Weight
 
 added[1.4.0.Beta1]
@@ -149,10 +150,7 @@ not.
 
 ===== Boost factor
 
-deprecated[1.4.0.Beta1]
-
-Same as `weight`. Use `weight` instead.
-
+deprecated[1.4.0.Beta1,The `boost_factor` function has been replaced by the `weight` keyword.  Use <<function-score-weight,`weight`>> instead]
 
 ===== Random
 
@@ -258,13 +256,13 @@ The `offset` and `decay` parameters are optional.
 
 [horizontal]
 `origin`::
-    The point of origin used for calculating distance. Must be given as a 
-    number for numeric field, date for date fields and geo point for geo fields. 
+    The point of origin used for calculating distance. Must be given as a
+    number for numeric field, date for date fields and geo point for geo fields.
     Required for geo and numeric field. For date fields the default is `now`. Date
     math (for example `now-1h`) is supported for origin.
 
 `scale`::
-    Required for all types. Defines the distance from origin at which the computed 
+    Required for all types. Defines the distance from origin at which the computed
     score will equal `decay` parameter. For geo fields: Can be defined as number+unit (1km, 12m,...).
     Default unit is meters. For date fields: Can to be defined as a number+unit ("1h", "10d",...).
     Default unit is milliseconds. For numeric field: Any number.

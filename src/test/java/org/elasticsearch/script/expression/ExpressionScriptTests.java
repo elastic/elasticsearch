@@ -38,6 +38,7 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -80,6 +81,7 @@ public class ExpressionScriptTests extends ElasticsearchIntegrationTest {
         req.setQuery(QueryBuilders.functionScoreQuery(QueryBuilders.termQuery("text", "hello"), score).boostMode("replace"));
         req.setSearchType(SearchType.DFS_QUERY_THEN_FETCH); // make sure DF is consistent
         SearchResponse rsp = req.get();
+        assertSearchResponse(rsp);
         SearchHits hits = rsp.getHits();
         assertEquals(3, hits.getTotalHits());
         assertEquals("1", hits.getAt(0).getId());

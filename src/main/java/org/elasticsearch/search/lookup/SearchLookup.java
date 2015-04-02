@@ -35,9 +35,9 @@ public class SearchLookup {
     final SourceLookup sourceLookup;
 
     final FieldsLookup fieldsLookup;
-    
+
     final IndexLookup indexLookup;
-    
+
     final ImmutableMap<String, Object> asMap;
 
     public SearchLookup(MapperService mapperService, IndexFieldDataService fieldDataService, @Nullable String[] types) {
@@ -46,46 +46,23 @@ public class SearchLookup {
         sourceLookup = new SourceLookup();
         fieldsLookup = new FieldsLookup(mapperService, types);
         indexLookup = new IndexLookup(builder);
-        
-        builder.put("doc", docMap);
-        builder.put("_doc", docMap);
-        builder.put("_source", sourceLookup);
-        builder.put("_fields", fieldsLookup);
-        builder.put("_index", indexLookup);
         asMap = builder.build();
     }
 
-    public ImmutableMap<String, Object> asMap() {
-        return this.asMap;
-    }
-
-    public SourceLookup source() {
-        return this.sourceLookup;
-    }
-    
-    public IndexLookup indexLookup() {
-        return this.indexLookup;
-    }
-
-    public FieldsLookup fields() {
-        return this.fieldsLookup;
+    public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
+        return new LeafSearchLookup(context,
+                docMap.getLeafDocLookup(context),
+                sourceLookup,
+                fieldsLookup.getLeafFieldsLookup(context),
+                indexLookup.getLeafIndexLookup(context),
+                asMap);
     }
 
     public DocLookup doc() {
-        return this.docMap;
+        return docMap;
     }
 
-    public void setNextReader(LeafReaderContext context) {
-        docMap.setNextReader(context);
-        sourceLookup.setNextReader(context);
-        fieldsLookup.setNextReader(context);
-        indexLookup.setNextReader(context);
-    }
-
-    public void setNextDocId(int docId) {
-        docMap.setNextDocId(docId);
-        sourceLookup.setNextDocId(docId);
-        fieldsLookup.setNextDocId(docId);
-        indexLookup.setNextDocId(docId);
+    public SourceLookup source() {
+        return sourceLookup;
     }
 }

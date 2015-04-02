@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.search.lookup.*;
@@ -36,16 +35,16 @@ import java.util.Map;
  * <p/>
  * <p>The use is required to implement the {@link #run()} method.
  */
-public abstract class AbstractSearchScript extends AbstractExecutableScript implements SearchScript {
+public abstract class AbstractSearchScript extends AbstractExecutableScript implements LeafSearchScript {
 
-    private SearchLookup lookup;
+    private LeafSearchLookup lookup;
     private Scorer scorer;
 
     /**
      * Returns the doc lookup allowing to access field data (cached) values as well as the current document score
      * (where applicable).
      */
-    protected final DocLookup doc() {
+    protected final LeafDocLookup doc() {
         return lookup.doc();
     }
 
@@ -87,18 +86,18 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
     /**
      * Allows to access statistics on terms and fields.
      */
-    protected final IndexLookup indexLookup() {
+    protected final LeafIndexLookup indexLookup() {
         return lookup.indexLookup();
     }
 
     /**
      * Allows to access the *stored* fields.
      */
-    protected final FieldsLookup fields() {
+    protected final LeafFieldsLookup fields() {
         return lookup.fields();
     }
 
-    void setLookup(SearchLookup lookup) {
+    void setLookup(LeafSearchLookup lookup) {
         this.lookup = lookup;
     }
 
@@ -108,18 +107,13 @@ public abstract class AbstractSearchScript extends AbstractExecutableScript impl
     }
 
     @Override
-    public void setNextReader(LeafReaderContext context) {
-        lookup.setNextReader(context);
+    public void setDocument(int doc) {
+        lookup.setDocument(doc);
     }
 
     @Override
-    public void setNextDocId(int doc) {
-        lookup.setNextDocId(doc);
-    }
-
-    @Override
-    public void setNextSource(Map<String, Object> source) {
-        lookup.source().setNextSource(source);
+    public void setSource(Map<String, Object> source) {
+        lookup.source().setSource(source);
     }
 
     @Override

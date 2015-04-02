@@ -20,6 +20,8 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableMap;
+
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -27,6 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.io.IOException;
 import java.util.Map;
 
 /**
@@ -75,11 +78,16 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-        NativeScriptFactory scriptFactory = (NativeScriptFactory) compiledScript;
-        AbstractSearchScript script = (AbstractSearchScript) scriptFactory.newScript(vars);
-        script.setLookup(lookup);
-        return script;
+    public SearchScript search(Object compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
+        final NativeScriptFactory scriptFactory = (NativeScriptFactory) compiledScript;
+        return new SearchScript() {
+            @Override
+            public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+                AbstractSearchScript script = (AbstractSearchScript) scriptFactory.newScript(vars);
+                script.setLookup(lookup.getLeafSearchLookup(context));
+                return script;
+            }
+        };
     }
 
     @Override

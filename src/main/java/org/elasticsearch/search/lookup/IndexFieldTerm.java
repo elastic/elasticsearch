@@ -65,7 +65,7 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
 
     // when the reader changes, we have to get the posting list for this term
     // and reader
-    void setNextReader(LeafReader reader) {
+    private void setReader(LeafReader reader) {
         try {
             postings = getPostings(convertToLuceneFlags(flags), reader);
 
@@ -153,7 +153,7 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
 
     private int freq = 0;
 
-    public void setNextDoc(int docId) {
+    public void setDocument(int docId) {
         assert (postings != null);
         try {
             // we try to advance to the current document.
@@ -172,7 +172,7 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
         }
     }
 
-    public IndexFieldTerm(String term, String fieldName, IndexLookup indexLookup, int flags) {
+    public IndexFieldTerm(String term, String fieldName, LeafIndexLookup indexLookup, int flags) {
         assert fieldName != null;
         this.fieldName = fieldName;
         assert term != null;
@@ -186,8 +186,8 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
         } else {
             iterator = new CachedPositionIterator(this);
         }
-        setNextReader(indexLookup.getReader());
-        setNextDoc(indexLookup.getDocId());
+        setReader(indexLookup.getReader());
+        setDocument(indexLookup.getDocId());
         try {
             termStats = indexLookup.getIndexSearcher().termStatistics(identifier,
                     TermContext.build(indexLookup.getReaderContext(), identifier));

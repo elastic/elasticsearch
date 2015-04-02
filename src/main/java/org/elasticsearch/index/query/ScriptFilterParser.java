@@ -168,23 +168,23 @@ public class ScriptFilterParser implements FilterParser {
 
         @Override
         public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
-            searchScript.setNextReader(context);
+            final LeafSearchScript leafScript = searchScript.getLeafSearchScript(context);
             // LUCENE 4 UPGRADE: we can simply wrap this here since it is not cacheable and if we are not top level we will get a null passed anyway 
-            return BitsFilteredDocIdSet.wrap(new ScriptDocSet(context.reader().maxDoc(), acceptDocs, searchScript), acceptDocs);
+            return BitsFilteredDocIdSet.wrap(new ScriptDocSet(context.reader().maxDoc(), acceptDocs, leafScript), acceptDocs);
         }
 
         static class ScriptDocSet extends DocValuesDocIdSet {
 
-            private final SearchScript searchScript;
+            private final LeafSearchScript searchScript;
 
-            public ScriptDocSet(int maxDoc, @Nullable Bits acceptDocs, SearchScript searchScript) {
+            public ScriptDocSet(int maxDoc, @Nullable Bits acceptDocs, LeafSearchScript searchScript) {
                 super(maxDoc, acceptDocs);
                 this.searchScript = searchScript;
             }
 
             @Override
             protected boolean matchDoc(int doc) {
-                searchScript.setNextDocId(doc);
+                searchScript.setDocument(doc);
                 Object val = searchScript.run();
                 if (val == null) {
                     return false;

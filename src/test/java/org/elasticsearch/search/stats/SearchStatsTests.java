@@ -151,6 +151,7 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testOpenContexts() {
         createIndex("test1");
+        ensureGreen("test1");
         final int docs = scaledRandomIntBetween(20, 50);
         for (int i = 0; i < docs; i++) {
             client().prepareIndex("test1", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();

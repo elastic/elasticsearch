@@ -3,6 +3,8 @@
 
 == Intro
 
+WARNING: Rivers have been deprecated. Refer to the github issue https://github.com/elastic/elasticsearch/issues/10345
+
 A river is a pluggable service running within elasticsearch cluster
 pulling data (or being pushed with data) that is then indexed into the
 cluster.

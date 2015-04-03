@@ -16,3 +16,6 @@
 * https://github.com/Aconex/scrutineer[Scrutineer]:
   A high performance consistency checker to compare what you've indexed 
   with your source of truth content (e.g. DB)
+
+* https://github.com/kodcu/pes[Pes]:
+  A pluggable impressive elastic query DSL builder for Elasticsearch

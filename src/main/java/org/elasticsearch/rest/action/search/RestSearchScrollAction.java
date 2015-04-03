@@ -19,15 +19,26 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
 import org.elasticsearch.search.Scroll;
+
+import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.common.unit.TimeValue.parseTimeValue;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -51,11 +62,19 @@ public class RestSearchScrollAction extends BaseRestHandler {
     @Override
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String scrollId = request.param("scroll_id");
-        if (scrollId == null) {
-            scrollId = RestActions.getRestContent(request).toUtf8();
+        SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
+        if (scrollId == null && request.hasContent()) {
+            XContentType type = XContentFactory.xContentType(request.content());
+            if (type == null) {
+                scrollId = RestActions.getRestContent(request).toUtf8();
+            } else {
+                // NOTE: if rest request with xcontent body has request parameters, these parameters override xcontent values
+                searchScrollRequest = buildFromContent(request.content(), searchScrollRequest);
+            }
         }
-        SearchScrollRequest searchScrollRequest = new SearchScrollRequest(scrollId);
+
         searchScrollRequest.listenerThreaded(false);
+        searchScrollRequest.scrollId(scrollId);
         String scroll = request.param("scroll");
         if (scroll != null) {
             searchScrollRequest.scroll(new Scroll(parseTimeValue(scroll, null)));
@@ -63,4 +82,27 @@ public class RestSearchScrollAction extends BaseRestHandler {
 
         client.searchScroll(searchScrollRequest, new RestStatusToXContentListener<SearchResponse>(channel));
     }
+
+    public static SearchScrollRequest buildFromContent(BytesReference content, SearchScrollRequest searchScrollRequest) throws ElasticsearchIllegalArgumentException {
+        try (XContentParser parser = XContentHelper.createParser(content)) {
+            XContentParser.Token token;
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.VALUE_STRING) {
+                    if ("scroll_id".equals(currentFieldName)) {
+                        searchScrollRequest.scrollId(parser.text());
+                    } else if ("scroll".equals(currentFieldName)) {
+                        searchScrollRequest.scroll(new Scroll(TimeValue.parseTimeValue(parser.text(), null)));
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new ElasticsearchIllegalArgumentException("Failed to parse request body", e);
+        }
+
+        return searchScrollRequest;
+    }
+
 }

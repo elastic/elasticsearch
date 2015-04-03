@@ -76,6 +76,11 @@ public class AnalyzeRequest extends SingleCustomOperationRequest<AnalyzeRequest>
         return this.text;
     }
 
+    public AnalyzeRequest text(String text) {
+        this.text = text;
+        return this;
+    }
+
     public AnalyzeRequest analyzer(String analyzer) {
         this.analyzer = analyzer;
         return this;

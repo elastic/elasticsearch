@@ -180,7 +180,8 @@ public class IndicesRequestTests extends ElasticsearchIntegrationTest {
         String analyzeShardAction = AnalyzeAction.NAME + "[s]";
         interceptTransportActions(analyzeShardAction);
 
-        AnalyzeRequest analyzeRequest = new AnalyzeRequest(randomIndexOrAlias(), "text");
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest(randomIndexOrAlias());
+        analyzeRequest.text("text");
         internalCluster().clientNodeClient().admin().indices().analyze(analyzeRequest).actionGet();
 
         clearInterceptedActions();

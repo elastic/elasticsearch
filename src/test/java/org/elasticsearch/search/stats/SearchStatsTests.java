@@ -164,6 +164,7 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
                 .setSize(5)
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .execute().actionGet();
+        assertSearchResponse(searchResponse);
 
         indicesStats = client().admin().indices().prepareStats().execute().actionGet();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo((long)numAssignedShards("test1")));

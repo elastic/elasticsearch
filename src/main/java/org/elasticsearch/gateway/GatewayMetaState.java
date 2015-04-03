@@ -103,7 +103,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         if (state.blocks().disableStatePersistence()) {
             // reset the current metadata, we need to start fresh...
             this.previousMetaData = null;
-            previouslyWrittenIndices= ImmutableSet.of();
+            previouslyWrittenIndices = ImmutableSet.of();
             return;
         }
 
@@ -162,7 +162,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
 
         if (success) {
             previousMetaData = newMetaData;
-            ImmutableSet.Builder<String> builder= ImmutableSet.builder();
+            ImmutableSet.Builder<String> builder = ImmutableSet.builder();
             previouslyWrittenIndices = builder.addAll(relevantIndices).build();
         }
     }

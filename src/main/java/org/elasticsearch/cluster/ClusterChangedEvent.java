@@ -105,6 +105,14 @@ public class ClusterChangedEvent {
      * Returns the indices deleted in this event
      */
     public List<String> indicesDeleted() {
+
+        // if the new cluster state has a new master then we cannot know if an index which is not in the cluster state
+        // is actually supposed to be deleted or imported as dangling instead. for example a new master might not have
+        // the index in its cluster state because it was started with an empty data folder and in this case we want to
+        // import as dangling. we check here for new master too to be on the safe side in this case.
+        if (newMaster()) {
+            return ImmutableList.of();
+        }
         if (previousState == null) {
             return ImmutableList.of();
         }
@@ -164,5 +172,17 @@ public class ClusterChangedEvent {
 
     public boolean nodesChanged() {
         return nodesRemoved() || nodesAdded();
+    }
+
+    public boolean newMaster() {
+        String oldMaster = previousState().getNodes().masterNodeId();
+        String newMaster = state().getNodes().masterNodeId();
+        if (oldMaster == null && newMaster == null) {
+            return false;
+        }
+        if (oldMaster == null && newMaster != null) {
+            return true;
+        }
+        return oldMaster.equals(newMaster) == false;
     }
 }

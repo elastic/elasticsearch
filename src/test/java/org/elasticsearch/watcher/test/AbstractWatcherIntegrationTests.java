@@ -338,6 +338,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                     assertThat(routingTable.allPrimaryShardsActive(), is(true));
                 }
 
+                refresh();
                 SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                         .setQuery(boolQuery().must(matchQuery("watch_name", watchName)).must(matchQuery("state", WatchRecord.State.EXECUTED.id())))
@@ -351,6 +352,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     }
 
     protected long findNumberOfPerformedActions(String watchName) {
+        refresh();
         SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setQuery(boolQuery().must(matchQuery("watch_name", watchName)).must(matchQuery("state", WatchRecord.State.EXECUTED.id())))
@@ -372,6 +374,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                     assertThat(routingTable.allPrimaryShardsActive(), is(true));
                 }
 
+                refresh();
                 SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
                         .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                         .setQuery(boolQuery().must(matchQuery("watch_name", watchName)).must(matchQuery("state", WatchRecord.State.EXECUTION_NOT_NEEDED.id())))

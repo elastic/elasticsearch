@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.date;
 
 import org.apache.lucene.analysis.NumericTokenStream.NumericTermAttribute;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -36,6 +37,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.elasticsearch.test.TestSearchContext;
@@ -374,5 +376,38 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         assertThat(dateFieldMapperMap, hasKey("field"));
         assertThat(dateFieldMapperMap.get("field"), is(instanceOf(Map.class)));
         return (Map<String, String>) dateFieldMapperMap.get("field");
+    }
+
+    private static long getDateAsMillis(ParseContext.Document doc, String field) {
+        for (IndexableField f : doc.getFields(field)) {
+            if (f.numericValue() != null) {
+                return f.numericValue().longValue();
+            }
+        }
+        throw new AssertionError("missing");
+    }
+
+    public void testNumericResolution() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("date_field").field("type", "date").field("format", "date_time").field("numeric_resolution", "seconds").endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = mapper(mapping);
+
+        // provided as an int
+        ParsedDocument doc = defaultMapper.parse("type", "1", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("date_field", 42)
+                .endObject()
+                .bytes());
+        assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(42000L));
+
+        // provided as a string
+        doc = defaultMapper.parse("type", "2", XContentFactory.jsonBuilder()
+                .startObject()
+                .field("date_field", "43")
+                .endObject()
+                .bytes());
+        assertThat(getDateAsMillis(doc.rootDoc(), "date_field"), equalTo(43000L));
     }
 }

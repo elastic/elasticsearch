@@ -92,6 +92,7 @@ abstract class QueryCollector extends SimpleCollector {
             context.aggregations().aggregators(aggregators);
         }
         aggregatorCollector = BucketCollector.wrap(aggregatorCollectors);
+        aggregatorCollector.preCollection();
     }
 
     public void postMatch(int doc) throws IOException {

@@ -73,7 +73,7 @@ public final class DeferringBucketCollector extends BucketCollector {
         if (collector == null) {
             throw new ElasticsearchIllegalStateException();
         }
-        return collector.needsScores();
+        return false;
     }
 
     /** Set the deferred collectors. */
@@ -138,6 +138,9 @@ public final class DeferringBucketCollector extends BucketCollector {
         this.selectedBuckets = hash;
 
         collector.preCollection();
+        if (collector.needsScores()) {
+            throw new ElasticsearchIllegalStateException("Cannot defer if scores are needed");
+        }
 
         for (Entry entry : entries) {
             final LeafBucketCollector leafCollector = collector.getLeafCollector(entry.context);

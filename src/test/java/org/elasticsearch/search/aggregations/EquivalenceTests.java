@@ -42,7 +42,10 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -67,7 +70,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
  * the growth of dynamic arrays is tested.
  */
 @Slow
-public class RandomTests extends ElasticsearchIntegrationTest {
+public class EquivalenceTests extends ElasticsearchIntegrationTest {
 
     // Make sure that unordered, reversed, disjoint and/or overlapping ranges are supported
     // Duel with filters
@@ -378,6 +381,58 @@ public class RandomTests extends ElasticsearchIntegrationTest {
         assertThat(bucket.getDocCount(), equalTo(value >= 6 ? 1L : 0L));
         sum = bucket.getAggregations().get("sum");
         assertEquals(value >= 6 ? value : 0, sum.getValue(), 0d);
+    }
+
+    private void assertEquals(Terms t1, Terms t2) {
+        List<Terms.Bucket> t1Buckets = t1.getBuckets();
+        List<Terms.Bucket> t2Buckets = t1.getBuckets();
+        assertEquals(t1Buckets.size(), t2Buckets.size());
+        for (Iterator<Terms.Bucket> it1 = t1Buckets.iterator(), it2 = t2Buckets.iterator(); it1.hasNext(); ) {
+            final Terms.Bucket b1 = it1.next();
+            final Terms.Bucket b2 = it2.next();
+            assertEquals(b1.getDocCount(), b2.getDocCount());
+            assertEquals(b1.getKey(), b2.getKey());
+        }
+    }
+
+    public void testDuelDepthBreadthFirst() throws Exception {
+        createIndex("idx");
+        final int numDocs = randomIntBetween(100, 500);
+        List<IndexRequestBuilder> reqs = new ArrayList<>();
+        for (int i = 0; i < numDocs; ++i) {
+            final int v1 = randomInt(1 << randomInt(7));
+            final int v2 = randomInt(1 << randomInt(7));
+            final int v3 = randomInt(1 << randomInt(7));
+            reqs.add(client().prepareIndex("idx", "type").setSource("f1", v1, "f2", v2, "f3", v3));
+        }
+        indexRandom(true, reqs);
+
+        final SearchResponse r1 = client().prepareSearch("idx").addAggregation(
+                terms("f1").field("f1").collectMode(SubAggCollectionMode.DEPTH_FIRST)
+                .subAggregation(terms("f2").field("f2").collectMode(SubAggCollectionMode.DEPTH_FIRST)
+                .subAggregation(terms("f3").field("f3").collectMode(SubAggCollectionMode.DEPTH_FIRST)))).get();
+        assertSearchResponse(r1);
+        final SearchResponse r2 = client().prepareSearch("idx").addAggregation(
+                terms("f1").field("f1").collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                .subAggregation(terms("f2").field("f2").collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                .subAggregation(terms("f3").field("f3").collectMode(SubAggCollectionMode.BREADTH_FIRST)))).get();
+        assertSearchResponse(r2);
+
+        final Terms t1 = r1.getAggregations().get("f1");
+        final Terms t2 = r2.getAggregations().get("f1");
+        assertEquals(t1, t2);
+        for (Terms.Bucket b1 : t1.getBuckets()) {
+            final Terms.Bucket b2 = t2.getBucketByKey(b1.getKeyAsString());
+            final Terms sub1 = b1.getAggregations().get("f2");
+            final Terms sub2 = b2.getAggregations().get("f2");
+            assertEquals(sub1, sub2);
+            for (Terms.Bucket subB1 : sub1.getBuckets()) {
+                final Terms.Bucket subB2 = sub2.getBucketByKey(subB1.getKeyAsString());
+                final Terms subSub1 = subB1.getAggregations().get("f3");
+                final Terms subSub2 = subB2.getAggregations().get("f3");
+                assertEquals(subSub1, subSub2);
+            }
+        }
     }
 
 }

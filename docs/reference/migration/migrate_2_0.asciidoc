@@ -139,6 +139,9 @@ equivalent to the former `pre_zone` option. Setting `time_zone` to a value like 
 being applied in the specified time zone but In addition to this, also the `pre_zone_adjust_large_interval` is removed because we
 now always return dates and bucket keys in UTC.
 
+`include`/`exclude` filtering on the `terms` aggregation now uses the same syntax as regexp queries instead of the Java syntax. While simple
+regexps should still work, more complex ones might need some rewriting. Also, the `flags` parameter is not supported anymore.
+
 === Terms filter lookup caching
 
 The terms filter lookup mechanism does not support the `cache` option anymore

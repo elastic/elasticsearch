@@ -22,6 +22,7 @@ package org.elasticsearch.gateway;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -33,6 +34,8 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.elasticsearch.client.Requests.clusterHealthRequest;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -174,7 +177,7 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
     public void testMetaWrittenWhenIndexIsClosed() throws Exception {
         String masterNode = startMasterNode();
         String blueNode = startDataNode("blue");
-        String redNodeDataPath = newTempDirPath().toString();
+        String redNodeDataPath = createTempDir().toString();
         String redNode = startDataNode("red", redNodeDataPath);
 
         // create red_index on red_node and same for red
@@ -234,39 +237,72 @@ public class MetaDataWriteDataNodesTests extends ElasticsearchIntegrationTest {
         assertThat(clusterStateResponse.getState().getMetaData().index("red_index").getState().name(), equalTo(IndexMetaData.State.OPEN.name()));
         assertTrue(client().prepareGet("red_index", "doc", "1").get().isExists());
     }
+    @Test
+    public void testMetaWrittenWhenIndexIsClosedAndMetaUpdated() throws Exception {
+        String masterNode = startMasterNode();
+        String redNodeDataPath = createTempDir().toString();
+        String redNode = startDataNode("red", redNodeDataPath);
+
+        // create red_index on red_node and same for red
+        client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForNodes("3")).get();
+        assertAcked(prepareCreate("red_index").setSettings(ImmutableSettings.builder().put("index.number_of_replicas", 0).put(FilterAllocationDecider.INDEX_ROUTING_INCLUDE_GROUP + "color", "red")));
+        index("red_index", "doc", "1", jsonBuilder().startObject().field("text", "some text").endObject());
+
+        ensureGreen();
+        assertIndexInMetaState(redNode, "red_index");
+        assertIndexInMetaState(masterNode, "red_index");
+
+        waitForConcreteMappingsOnAll("red_index", "doc", "text");
+        client().admin().indices().prepareClose("red_index").get();
+        // close the index
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
+        assertThat(clusterStateResponse.getState().getMetaData().index("red_index").getState().name(), equalTo(IndexMetaData.State.CLOSE.name()));
+
+        stopNode(redNode);
+        redNode = startDataNode("red", redNodeDataPath);
+        client().admin().indices().preparePutMapping("red_index").setType("doc").setSource(jsonBuilder().startObject()
+                .startObject("properties")
+                .startObject("integer_field")
+                .field("type", "integer")
+                .endObject()
+                .endObject()
+                .endObject()).get();
+
+        GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("red_index").addTypes("doc").get();
+        Map<String, Object> sourceAsMap = getMappingsResponse.getMappings().get("red_index").get("doc").getSourceAsMap();
+        assertNotNull(((LinkedHashMap)(getMappingsResponse.getMappings().get("red_index").get("doc").getSourceAsMap().get("properties"))).get("integer_field"));
+        // restart master with empty data folder and maybe red node
+        ((InternalTestCluster) cluster()).stopCurrentMasterNode();
+        masterNode = startMasterNode();
+
+        ensureGreen("red_index");
+        assertIndexInMetaState(redNode, "red_index");
+        assertIndexInMetaState(masterNode, "red_index");
+        clusterStateResponse = client().admin().cluster().prepareState().get();
+        assertThat(clusterStateResponse.getState().getMetaData().index("red_index").getState().name(), equalTo(IndexMetaData.State.CLOSE.name()));
+        getMappingsResponse = client().admin().indices().prepareGetMappings("red_index").addTypes("doc").get();
+        assertNotNull(((LinkedHashMap)(getMappingsResponse.getMappings().get("red_index").get("doc").getSourceAsMap().get("properties"))).get("integer_field"));
+
+    }
 
     private String startDataNode(String color) {
-        return startDataNode(color, newTempDirPath().toString());
+        return startDataNode(color, createTempDir().toString());
     }
 
     private String startDataNode(String color, String newDataPath) {
         ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder()
                 .put("node.data", true)
                 .put("node.master", false)
-<<<<<<< HEAD
-                .put("node.color", color);
-        if (newDataPath) {
-            settingsBuilder.put("path.data", createTempDir().toString());
-        }
-=======
                 .put("node.color", color)
                 .put("path.data", newDataPath);
->>>>>>> maintain list of indices that we wrote
         return internalCluster().startNode(settingsBuilder.build());
     }
 
     private String startMasterNode() {
         ImmutableSettings.Builder settingsBuilder = ImmutableSettings.builder()
                 .put("node.data", false)
-<<<<<<< HEAD
-                .put("node.master", true);
-        if (newDataPath) {
-            settingsBuilder.put("path.data", createTempDir().toString());
-        }
-=======
                 .put("node.master", true)
-                .put("path.data", newTempDirPath().toString());
->>>>>>> maintain list of indices that we wrote
+                .put("path.data", createTempDir().toString());
         return internalCluster().startNode(settingsBuilder.build());
     }
 

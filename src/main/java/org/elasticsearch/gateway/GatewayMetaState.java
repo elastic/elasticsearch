@@ -20,6 +20,7 @@
 package org.elasticsearch.gateway;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MultiDataPathUpgrader;
 import org.elasticsearch.env.NodeEnvironment;
 
+import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -115,6 +117,27 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
             if (previousMetaData == null || !MetaData.isGlobalStateEquals(previousMetaData, newMetaData)) {
                 try {
                     metaStateService.writeGlobalState("changed", newMetaData);
+                    // we determine if or if not we write meta data on data only nodes by looking at the shard routing
+                    // and only write if a shard of this index is allocated on this node
+                    // however, closed indices do not appear in the shard routing. if the meta data for a closed index is
+                    // updated it will therefore not be written in case the list of previouslyWrittenIndices is empty (because state
+                    // persistence was disabled or the node was restarted), see getRelevantIndicesOnDataOnlyNode().
+                    // we therefore have to check here if we have shards on disk and add their indices to the previouslyWrittenIndices list
+                    if (isDataOnlyNode(state)) {
+                        for (IndexMetaData indexMetaData : newMetaData) {
+                            IndexMetaData indexMetaDataOnDisk = null;
+                            if (indexMetaData.state().equals(IndexMetaData.State.CLOSE)) {
+                                try {
+                                    indexMetaDataOnDisk = metaStateService.loadIndexState(indexMetaData.index());
+                                } catch (IOException ex) {
+                                    throw new ElasticsearchException("failed to load index state", ex);
+                                }
+                            }
+                            if (indexMetaDataOnDisk != null) {
+                                previouslyWrittenIndices.add(indexMetaDataOnDisk.index());
+                            }
+                        }
+                    }
                 } catch (Throwable e) {
                     success = false;
                 }
@@ -285,13 +308,13 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
     public static Set<String> getRelevantIndicesOnDataOnlyNode(ClusterState state, Set<String> previouslyWrittenIndices) {
         RoutingNode newRoutingNode = state.getRoutingNodes().node(state.nodes().localNodeId());
         if (newRoutingNode == null) {
-            throw new ElasticsearchIllegalStateException("cluster state does not contain this node - cannot write index meta state");
+            throw new IllegalStateException("cluster state does not contain this node - cannot write index meta state");
         }
         Set<String> indices = new HashSet<>();
         for (MutableShardRouting routing : newRoutingNode) {
             indices.add(routing.index());
         }
-        // we have to check the meta data also: closed indices will not appear in the routing table, but we must still write the state if we have it written on disk
+        // we have to check the meta data also: closed indices will not appear in the routing table, but we must still write the state if we have it written on disk previously
         for (ObjectCursor<String> index : state.metaData().indices().keys()) {
             if (previouslyWrittenIndices.contains(index.value) && state.metaData().getIndices().get(index.value).state().equals(IndexMetaData.State.CLOSE)) {
                 indices.add(index.value);
@@ -299,6 +322,7 @@ public class GatewayMetaState extends AbstractComponent implements ClusterStateL
         }
         return indices;
     }
+
     public static Set<String> getRelevantIndicesForMasterEligibleNode(ClusterState state) {
         Set<String> relevantIndices;
         relevantIndices = new HashSet<>();

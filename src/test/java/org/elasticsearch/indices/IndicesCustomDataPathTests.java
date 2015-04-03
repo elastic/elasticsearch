@@ -25,11 +25,15 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.nio.file.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -53,6 +57,7 @@ public class IndicesCustomDataPathTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    @TestLogging("_root:DEBUG,index:TRACE")
     public void testDataPathCanBeChanged() throws Exception {
         final String INDEX = "idx";
         Path root = newTempDirPath();

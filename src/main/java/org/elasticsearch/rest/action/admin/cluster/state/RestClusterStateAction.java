@@ -72,7 +72,7 @@ public class RestClusterStateAction extends BaseRestHandler {
             EnumSet<ClusterState.Metric> metrics = ClusterState.Metric.parseString(request.param("metric"), true);
             // do not ask for what we do not need.
             clusterStateRequest.nodes(metrics.contains(ClusterState.Metric.NODES) || metrics.contains(ClusterState.Metric.MASTER_NODE));
-            clusterStateRequest.routingTable(metrics.contains(ClusterState.Metric.ROUTING_TABLE));
+            clusterStateRequest.routingTable(metrics.contains(ClusterState.Metric.ROUTING_TABLE) || metrics.contains(ClusterState.Metric.ROUTING_NODES));
             clusterStateRequest.metaData(metrics.contains(ClusterState.Metric.METADATA));
             clusterStateRequest.blocks(metrics.contains(ClusterState.Metric.BLOCKS));
         }

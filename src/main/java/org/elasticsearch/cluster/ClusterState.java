@@ -261,6 +261,7 @@ public class ClusterState implements ToXContent {
         NODES("nodes"),
         METADATA("metadata"),
         ROUTING_TABLE("routing_table"),
+        ROUTING_NODES("routing_nodes"),
         CUSTOMS("customs");
 
         private static Map<String, Metric> valueToEnum;
@@ -465,7 +466,8 @@ public class ClusterState implements ToXContent {
         }
 
         // routing nodes
-        if (metrics.contains(Metric.ROUTING_TABLE)) {
+        // keep ROUTING_TABLE for backward compatibility
+        if (metrics.contains(Metric.ROUTING_TABLE) || metrics.contains(Metric.ROUTING_NODES)) {
             builder.startObject("routing_nodes");
             builder.startArray("unassigned");
             for (ShardRouting shardRouting : readOnlyRoutingNodes().unassigned()) {

@@ -87,7 +87,7 @@ The following table lists all the attributes that can be used with the
 Defaults to the property/field name.
 
 |`store` |Set to `true` to actually store the field in the index, `false` to not
-store it. Since by default ElasticSearch stores all fields of the source
+store it. Since by default Elasticsearch stores all fields of the source
 document in the special `_source` field, this option is primarily useful when
 the `_source` field has been disabled in the type definition. Defaults to
 `false`.

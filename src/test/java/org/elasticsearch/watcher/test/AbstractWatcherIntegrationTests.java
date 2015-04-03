@@ -188,6 +188,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     }
 
     protected long docCount(String index, String type, QueryBuilder query) {
+        refresh();
         return docCount(index, type, SearchSourceBuilder.searchSource().query(query));
     }
 

@@ -198,7 +198,7 @@ public class OldIndexBackwardsCompatibilityTests extends StaticIndexBackwardComp
     }
 
     void assertNewReplicasWork() throws Exception {
-        final int numReplicas = randomIntBetween(2, 3);
+        final int numReplicas = randomIntBetween(1, 2);
         logger.debug("Creating [{}] nodes for replicas", numReplicas);
         internalCluster().startNodesAsync(numReplicas, ImmutableSettings.builder()
                 .put("data.node", true)

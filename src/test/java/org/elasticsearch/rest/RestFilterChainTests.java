@@ -254,11 +254,6 @@ public class RestFilterChainTests extends ElasticsearchTestCase {
         }
 
         @Override
-        public boolean contentThreadSafe() {
-            return false;
-        }
-
-        @Override
         public BytesReference content() {
             return null;
         }

@@ -66,7 +66,7 @@
         <repository>
             <id>lucene-snapshots</id>
             <name>Lucene Snapshots</name>
-            <url>https://download.elastic.co/lucenesnapshots/1662607</url>
+            <url>https://download.elastic.co/lucenesnapshots/1671277</url>
         </repository>
     </repositories>
 

@@ -93,7 +93,7 @@ public class RestTable {
             out.append("\n");
         }
         out.close();
-        return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes(), true);
+        return new BytesRestResponse(RestStatus.OK, BytesRestResponse.TEXT_CONTENT_TYPE, bytesOut.bytes());
     }
 
     private static List<DisplayHeader> buildDisplayHeaders(Table table, RestRequest request) {

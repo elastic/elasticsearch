@@ -144,11 +144,7 @@ public class NettyHttpChannel extends HttpChannel {
         ChannelBuffer buffer;
         boolean addedReleaseListener = false;
         try {
-            if (response.contentThreadSafe()) {
-                buffer = content.toChannelBuffer();
-            } else {
-                buffer = content.copyBytesArray().toChannelBuffer();
-            }
+            buffer = content.toChannelBuffer();
             // handle JSONP
             String callback = request.param("callback");
             if (callback != null) {
@@ -201,7 +197,7 @@ public class NettyHttpChannel extends HttpChannel {
                 future = channel.write(resp);
             }
 
-            if (response.contentThreadSafe() && content instanceof Releasable) {
+            if (content instanceof Releasable) {
                 future.addListener(new ReleaseChannelFutureListener((Releasable) content));
                 addedReleaseListener = true;
             }

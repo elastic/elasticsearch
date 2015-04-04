@@ -203,13 +203,16 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     }
 
     void assertOldIndexWorks(String index) throws Exception {
+        Version version = extractVersion(index);
         String indexName = loadIndex(index);
         assertIndexSanity(indexName);
         assertBasicSearchWorks(indexName);
         assertBasicAggregationWorks(indexName);
         assertRealtimeGetWorks(indexName);
-        assertNewReplicasWork(indexName);
-        Version version = extractVersion(index);
+        if (version.equals(Version.V_0_90_13) == false) {
+            // norelease: 0.90.13 can take too long to create replicas, see https://github.com/elastic/elasticsearch/issues/10434
+            assertNewReplicasWork(indexName);
+        }
         assertUpgradeWorks(indexName, isLatestLuceneVersion(version));
         assertDeleteByQueryWorked(indexName, version);
         unloadIndex(indexName);

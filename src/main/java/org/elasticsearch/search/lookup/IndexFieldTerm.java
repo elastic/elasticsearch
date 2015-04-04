@@ -72,7 +72,7 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
             if (!shouldRetrieveFrequenciesOnly()) {
                 postings = getPostings(getLucenePositionsFlags(flags), reader);
             }
-            
+
             if (postings == null) {
                 postings = getPostings(getLuceneFrequencyFlag(flags), reader);
                 if (postings != null) {
@@ -149,7 +149,7 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
                     public long cost() {
                         return empty.cost();
                     }
-                    
+
                     @Override
                     public int freq() throws IOException {
                         return 1;
@@ -245,14 +245,10 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
         identifier = new Term(fieldName, (String) term);
         this.flags = flags;
         boolean doRecord = ((flags & IndexLookup.FLAG_CACHE) > 0);
-        if (withPositions()) {
-            if (!doRecord) {
-                iterator = new PositionIterator(this);
-            } else {
-                iterator = new CachedPositionIterator(this);
-            }
-        } else {
+        if (!doRecord) {
             iterator = new PositionIterator(this);
+        } else {
+            iterator = new CachedPositionIterator(this);
         }
         setNextReader(indexLookup.getReader());
         setNextDoc(indexLookup.getDocId());
@@ -262,22 +258,6 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
         } catch (IOException e) {
             throw new ElasticsearchException("Cannot get term statistics: ", e);
         }
-    }
-
-    private boolean withPositions() {
-        return shouldRetrievePositions() || shouldRetrieveOffsets() || shouldRetrievePayloads();
-    }
-
-    protected boolean shouldRetrievePositions() {
-        return (flags & IndexLookup.FLAG_POSITIONS) > 0;
-    }
-
-    protected boolean shouldRetrieveOffsets() {
-        return (flags & IndexLookup.FLAG_OFFSETS) > 0;
-    }
-
-    protected boolean shouldRetrievePayloads() {
-        return (flags & IndexLookup.FLAG_PAYLOADS) > 0;
     }
 
     public int tf() throws IOException {

@@ -137,11 +137,7 @@ public class NettyHttpChannel extends HttpChannel {
         ChannelBuffer buffer;
         boolean addedReleaseListener = false;
         try {
-            if (response.contentThreadSafe()) {
-                buffer = content.toChannelBuffer();
-            } else {
-                buffer = content.copyBytesArray().toChannelBuffer();
-            }
+            buffer = content.toChannelBuffer();
             resp.setContent(buffer);
 
             // If our response doesn't specify a content-type header, set one
@@ -180,7 +176,7 @@ public class NettyHttpChannel extends HttpChannel {
                 future = channel.write(resp);
             }
 
-            if (response.contentThreadSafe() && content instanceof Releasable) {
+            if (content instanceof Releasable) {
                 future.addListener(new ReleaseChannelFutureListener((Releasable) content));
                 addedReleaseListener = true;
             }

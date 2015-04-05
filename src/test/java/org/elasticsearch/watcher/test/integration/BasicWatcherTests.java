@@ -35,7 +35,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
-import static org.elasticsearch.watcher.client.WatchSourceBuilder.watchSourceBuilder;
+import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.newInputSearchRequest;
@@ -56,7 +56,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         refresh();
         SearchRequest searchRequest = newInputSearchRequest("idx").source(searchSource().query(termQuery("field", "value")));
         watcherClient.preparePutWatch("_name")
-                .source(watchSourceBuilder()
+                .source(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest))
                         .condition(scriptCondition("ctx.payload.hits.total == 1")))
@@ -79,7 +79,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         WatcherClient watcherClient = watcherClient();
         SearchRequest searchRequest = newInputSearchRequest("idx").source(searchSource().query(termQuery("field", "value")));
         watcherClient.preparePutWatch("_name")
-                .source(watchSourceBuilder()
+                .source(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest))
                         .condition(scriptCondition("ctx.payload.hits.total == 1")))
@@ -110,7 +110,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         WatcherClient watcherClient = watcherClient();
         SearchRequest searchRequest = newInputSearchRequest("idx").source(searchSource().query(matchAllQuery()));
         PutWatchResponse indexResponse = watcherClient.preparePutWatch("_name")
-                .source(watchSourceBuilder()
+                .source(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest))
                         .condition(scriptCondition("ctx.payload.hits.total == 1")))
@@ -178,10 +178,10 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         SearchRequest searchRequest = newInputSearchRequest("idx")
                 .source(searchSource().query(matchAllQuery()));
 
-        WatchSourceBuilder source = watchSourceBuilder()
+        WatchSourceBuilder source = watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(searchInput(searchRequest))
-                .addAction(indexAction("idx", "action"));
+                .addAction(indexAction("_id", "idx", "action"));
 
         watcherClient().preparePutWatch("_name")
                 .source(source.condition(scriptCondition("ctx.payload.hits.total == 1")))
@@ -270,14 +270,14 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         refresh();
         SearchRequest searchRequest = newInputSearchRequest("idx").source(searchSource().query(termQuery("field", "value")));
         watcherClient.preparePutWatch("_name1")
-                .source(watchSourceBuilder()
+                .source(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest).addExtractKey("hits.total"))
                         .condition(scriptCondition("ctx.payload.hits.total == 1")))
                 .get();
         // in this watcher the condition will fail, because max_score isn't extracted, only total:
         watcherClient.preparePutWatch("_name2")
-                .source(watchSourceBuilder()
+                .source(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest).addExtractKey("hits.total"))
                         .condition(scriptCondition("ctx.payload.hits.max_score >= 0")))

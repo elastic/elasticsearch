@@ -5,9 +5,15 @@
  */
 package org.elasticsearch.watcher.watch;
 
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionRegistry;
+import org.elasticsearch.watcher.actions.Actions;
+import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionRegistry;
 import org.elasticsearch.watcher.input.Input;
@@ -15,15 +21,8 @@ import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.transform.TransformRegistry;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
 *
@@ -34,13 +33,13 @@ public class WatchExecution implements ToXContent {
     private final Condition.Result conditionResult;
     private final Throttler.Result throttleResult;
     private final @Nullable Transform.Result transformResult;
-    private final Map<String, Action.Result> actionsResults;
+    private final Actions.Results actionsResults;
 
     public WatchExecution(WatchExecutionContext context) {
         this(context.inputResult(), context.conditionResult(), context.throttleResult(), context.transformResult(), context.actionsResults());
     }
 
-    WatchExecution(Input.Result inputResult, Condition.Result conditionResult, Throttler.Result throttleResult, @Nullable Transform.Result transformResult, Map<String, Action.Result> actionsResults) {
+    WatchExecution(Input.Result inputResult, Condition.Result conditionResult, Throttler.Result throttleResult, @Nullable Transform.Result transformResult, Actions.Results actionsResults) {
         this.inputResult = inputResult;
         this.conditionResult = conditionResult;
         this.throttleResult = throttleResult;
@@ -64,7 +63,7 @@ public class WatchExecution implements ToXContent {
         return transformResult;
     }
 
-    public Map<String, Action.Result> actionsResults() {
+    public Actions.Results actionsResults() {
         return actionsResults;
     }
 
@@ -86,13 +85,11 @@ public class WatchExecution implements ToXContent {
         if (transformResult != null) {
             builder.startObject(Transform.Parser.TRANSFORM_RESULT_FIELD.getPreferredName()).field(transformResult.type(), transformResult).endObject();
         }
-        builder.startArray(Parser.ACTIONS_RESULTS.getPreferredName());
-        for (Map.Entry<String, Action.Result> actionResult : actionsResults.entrySet()) {
-            builder.startObject();
-            builder.field(actionResult.getKey(), actionResult.getValue());
-            builder.endObject();
+        builder.startObject(Parser.ACTIONS_RESULTS.getPreferredName());
+        for (ActionWrapper.Result actionResult : actionsResults) {
+            builder.field(actionResult.id(), actionResult);
         }
-        builder.endArray();
+        builder.endObject();
         builder.endObject();
         return builder;
     }
@@ -109,7 +106,7 @@ public class WatchExecution implements ToXContent {
                                            InputRegistry inputRegistry, TransformRegistry transformRegistry) throws IOException {
             boolean throttled = false;
             String throttleReason = null;
-            Map<String, Action.Result> actionResults = new HashMap<>();
+            Actions.Results actionResults = null;
             Input.Result inputResult = null;
             Condition.Result conditionResult = null;
             Transform.Result transformResult = null;
@@ -134,12 +131,8 @@ public class WatchExecution implements ToXContent {
                         conditionResult = conditionRegistry.parseResult(parser);
                     } else if (Transform.Parser.TRANSFORM_RESULT_FIELD.match(currentFieldName)) {
                         transformResult = transformRegistry.parseResult(parser);
-                    } else {
-                        throw new WatcherException("unable to parse watch execution. unexpected field [" + currentFieldName + "]");
-                    }
-                } else if (token == XContentParser.Token.START_ARRAY) {
-                    if (ACTIONS_RESULTS.match(currentFieldName)) {
-                        actionResults = parseActionResults(parser, actionRegistry);
+                    } else if (ACTIONS_RESULTS.match(currentFieldName)) {
+                        actionResults = actionRegistry.parseResults(parser);
                     } else {
                         throw new WatcherException("unable to parse watch execution. unexpected field [" + currentFieldName + "]");
                     }
@@ -151,16 +144,6 @@ public class WatchExecution implements ToXContent {
             Throttler.Result throttleResult = throttled ? Throttler.Result.throttle(throttleReason) : Throttler.Result.NO;
             return new WatchExecution(inputResult, conditionResult, throttleResult, transformResult, actionResults);
 
-        }
-
-        private static Map<String, Action.Result> parseActionResults(XContentParser parser, ActionRegistry actionRegistry) throws IOException {
-            Map<String, Action.Result> actionResults = new HashMap<>();
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                Action.Result actionResult = actionRegistry.parseResult(parser);
-                actionResults.put(actionResult.type(), actionResult);
-            }
-            return actionResults;
         }
     }
 }

@@ -127,7 +127,7 @@ public class WatcherBenchmark {
                                         .addExtractKey("hits.total")
                         )
                         .condition(scriptCondition("1 == 1"))
-                        .addAction(indexAction("index", "type")));
+                        .addAction(indexAction("_id", "index", "type")));
                 putAlertRequest.setName(name);
                 watcherClient.putWatch(putAlertRequest).actionGet();
             }
@@ -169,7 +169,7 @@ public class WatcherBenchmark {
                 final String name = "_name" + i;
                 PutWatchRequest putAlertRequest = new PutWatchRequest(name, new WatchSourceBuilder()
                         .trigger(schedule(interval("5s")))
-                        .input(httpInput(new TemplatedHttpRequest.SourceBuilder().setHost("localhost").setPort(9200)))
+                        .input(httpInput(new TemplatedHttpRequest.SourceBuilder("localhost", 9200)))
                         .condition(scriptCondition("ctx.payload.tagline == \"You Know, for Search\"")));
                 putAlertRequest.setName(name);
                 watcherClient.putWatch(putAlertRequest).actionGet();

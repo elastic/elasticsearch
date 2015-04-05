@@ -6,7 +6,8 @@
 package org.elasticsearch.watcher.watch;
 
 import org.elasticsearch.common.joda.time.DateTime;
-import org.elasticsearch.watcher.actions.Action;
+import org.elasticsearch.watcher.actions.Actions;
+import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.throttle.Throttler;
@@ -30,7 +31,7 @@ public class WatchExecutionContext {
     private Condition.Result conditionResult;
     private Throttler.Result throttleResult;
     private Transform.Result transformResult;
-    private Map<String, Action.Result> actionsResults = new HashMap<>();
+    private Map<String, ActionWrapper.Result> actionsResults = new HashMap<>();
 
     private Payload payload;
 
@@ -101,12 +102,12 @@ public class WatchExecutionContext {
         return transformResult;
     }
 
-    public void onActionResult(Action.Result result) {
-        actionsResults.put(result.type(), result);
+    public void onActionResult(ActionWrapper.Result result) {
+        actionsResults.put(result.id(), result);
     }
 
-    public Map<String, Action.Result> actionsResults() {
-        return actionsResults;
+    public Actions.Results actionsResults() {
+        return new Actions.Results(actionsResults);
     }
 
     public WatchExecution finish() {

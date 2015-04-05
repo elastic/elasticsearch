@@ -19,8 +19,8 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Actions;
+import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputException;
@@ -74,7 +74,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                         new SimpleInput(logger, new Payload.Simple()),
                         new AlwaysTrueCondition(logger),
                         null,
-                        new Actions(new ArrayList<Action>()),
+                        new Actions(new ArrayList<ActionWrapper>()),
                         null,
                         null,
                         new Watch.Status()),
@@ -111,7 +111,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
                         new SimpleInput(logger, new Payload.Simple()),
                         new AlwaysTrueCondition(logger),
                         null,
-                        new Actions(new ArrayList<Action>()),
+                        new Actions(new ArrayList<ActionWrapper>()),
                         null,
                         null,
                         new Watch.Status()),

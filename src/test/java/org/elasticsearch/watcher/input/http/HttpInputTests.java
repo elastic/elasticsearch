@@ -16,8 +16,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Actions;
+import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputBuilders;
@@ -34,18 +34,18 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyMap;
 import static org.mockito.Mockito.mock;
@@ -82,8 +82,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
         request.body(mockBody);
         HttpInput input = new HttpInput(logger, httpClient, request, null);
 
-        HttpResponse response = new HttpResponse(123);
-        response.inputStream(new ByteArrayInputStream("{\"key\" : \"value\"}".getBytes(UTF8)));
+        HttpResponse response = new HttpResponse(123, "{\"key\" : \"value\"}".getBytes(UTF8));
         when(httpClient.execute(any(HttpRequest.class))).thenReturn(response);
 
         Watch watch = new Watch("test-watch",
@@ -92,7 +91,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
                 new SimpleInput(logger, new Payload.Simple()),
                 new AlwaysTrueCondition(logger),
                 null,
-                new Actions(new ArrayList<Action>()),
+                new Actions(new ArrayList<ActionWrapper>()),
                 null,
                 null,
                 new Watch.Status());
@@ -105,40 +104,48 @@ public class HttpInputTests extends ElasticsearchTestCase {
         assertThat(result.payload().data(), equalTo(MapBuilder.<String, Object>newMapBuilder().put("key", "value").map()));
     }
 
-    @Test
-    @Repeat(iterations = 12)
+    @Test @Repeat(iterations = 20)
     public void testParser() throws Exception {
-        final String httpMethod = randomFrom("PUT", "POST", "GET", "DELETE", "HEAD", null);
+        final HttpMethod httpMethod = rarely() ? null : randomFrom(HttpMethod.values());
         String scheme = randomFrom("http", "https", null);
         String host = randomAsciiOfLength(3);
-        int port = randomInt();
-        Template path = new MockTemplate(randomAsciiOfLength(3));
+        int port = randomIntBetween(8000, 9000);
+        String path = randomAsciiOfLength(3);
+        Template.SourceBuilder pathTemplate = mockTemplateSourceBuilder(path);
         String body = randomBoolean() ? randomAsciiOfLength(3) : null;
-        Map<String, Template> params = randomBoolean() ? new MapBuilder<String, Template>().put("a", new MockTemplate("b")).map() : null;
-        Map<String, Template> headers = randomBoolean() ? new MapBuilder<String, Template>().put("c", new MockTemplate("d")).map() : null;
+        Map<String, Template.SourceBuilder> params = randomBoolean() ? new MapBuilder<String, Template.SourceBuilder>().put("a", mockTemplateSourceBuilder("b")).map() : null;
+        Map<String, Template.SourceBuilder> headers = randomBoolean() ? new MapBuilder<String, Template.SourceBuilder>().put("c", mockTemplateSourceBuilder("d")).map() : null;
         HttpAuth auth = randomBoolean() ? new BasicAuth("username", "password") : null;
-        TemplatedHttpRequest.SourceBuilder requestSource = new TemplatedHttpRequest.SourceBuilder()
+        TemplatedHttpRequest.SourceBuilder requestSource = new TemplatedHttpRequest.SourceBuilder(host, port)
                 .setScheme(scheme)
                 .setMethod(httpMethod)
-                .setHost(host)
-                .setPort(port)
-                .setPath(path)
+                .setPath(pathTemplate)
                 .setBody(body != null ? new MockTemplate(body) : null)
-                .setParams(params)
-                .setHeaders(headers)
                 .setAuth(auth);
+
+        if (params != null) {
+            requestSource.putParams(params);
+        }
+        if (headers != null) {
+            requestSource.putHeaders(headers);
+        }
+
         XContentParser parser = XContentHelper.createParser(jsonBuilder().value(InputBuilders.httpInput(requestSource)).bytes());
         parser.nextToken();
         HttpInput result = httpParser.parse(parser);
 
         assertThat(result.type(), equalTo(HttpInput.TYPE));
         assertThat(result.getRequest().scheme().scheme(), equalTo(scheme != null ? scheme : "http")); // http is the default
-        assertThat(result.getRequest().method().method(), equalTo(httpMethod != null ? httpMethod : "GET")); // get is the default
+        assertThat(result.getRequest().method(), equalTo(httpMethod != null ? httpMethod : HttpMethod.GET)); // get is the default
         assertThat(result.getRequest().host(), equalTo(host));
         assertThat(result.getRequest().port(), equalTo(port));
-        assertThat(result.getRequest().path(), equalTo(path));
-        assertThat(result.getRequest().params(), equalTo(params));
-        assertThat(result.getRequest().headers(), equalTo(headers));
+        assertThat(result.getRequest().path(), isTemplate(path));
+        if (params != null) {
+            assertThat(result.getRequest().params(), hasEntry(is("a"), isTemplate("b")));
+        }
+        if (headers != null) {
+            assertThat(result.getRequest().headers(), hasEntry(is("c"), isTemplate("d")));
+        }
         assertThat(result.getRequest().auth(), equalTo(auth));
         if (body != null) {
             assertThat(result.getRequest().body().render(Collections.<String, Object>emptyMap()), equalTo(body));
@@ -149,14 +156,13 @@ public class HttpInputTests extends ElasticsearchTestCase {
 
     @Test(expected = ElasticsearchIllegalArgumentException.class)
     public void testParser_invalidHttpMethod() throws Exception {
-        Map<String, Template> headers = new MapBuilder<String, Template>().put("a", new MockTemplate("b")).map();
-        TemplatedHttpRequest.SourceBuilder requestBuilder = new TemplatedHttpRequest.SourceBuilder()
-                .setMethod("_method")
-                .setHost("_host")
-                .setPort(123)
-                .setBody(new MockTemplate("_body"))
-                .setHeaders(headers);
-        XContentParser parser = XContentHelper.createParser(jsonBuilder().value(InputBuilders.httpInput(requestBuilder)).bytes());
+        XContentBuilder builder = jsonBuilder().startObject()
+                .startObject("request")
+                    .field("method", "_method")
+                    .field("body", "_body")
+                .endObject()
+                .endObject();
+        XContentParser parser = XContentHelper.createParser(builder.bytes());
         parser.nextToken();
         httpParser.parse(parser);
     }
@@ -165,7 +171,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
     public void testParseResult() throws Exception {
         String httpMethod = "get";
         String body = "_body";
-        Map<String, Template> headers = new MapBuilder<String, Template>().put("a", new MockTemplate("b")).map();
+        Map<String, Template.SourceBuilder> headers = new MapBuilder<String, Template.SourceBuilder>().put("a", mockTemplateSourceBuilder("b")).map();
         HttpRequest.SourceBuilder sourceBuilder = new HttpRequest.SourceBuilder()
                 .setMethod(httpMethod)
                 .setHost("_host")
@@ -189,12 +195,18 @@ public class HttpInputTests extends ElasticsearchTestCase {
         assertThat(result.statusCode(), equalTo(123));
         assertThat(result.request().method().method(), equalTo("GET"));
         assertThat(result.request().headers().size(), equalTo(headers.size()));
-        for (Map.Entry<String, Template> entry : headers.entrySet()) {
-            assertThat(entry.getValue().render(Collections.<String, Object>emptyMap()), equalTo(result.request().headers().get(entry.getKey())));
-        }
+        assertThat(result.request().headers(), hasEntry("a", (Object) "b"));
         assertThat(result.request().host(), equalTo("_host"));
         assertThat(result.request().port(), equalTo(123));
         assertThat(result.request().body(), equalTo("_body"));
+    }
+
+    private static Template mockTemplate(String value) {
+        return new MockTemplate(value);
+    }
+
+    private static Template.SourceBuilder mockTemplateSourceBuilder(String value) {
+        return new Template.InstanceSourceBuilder(new MockTemplate(value));
     }
 
     private static class MockTemplate implements Template {
@@ -240,7 +252,29 @@ public class HttpInputTests extends ElasticsearchTestCase {
                 return new MockTemplate(value);
             }
         }
+    }
 
+    static MockTemplateMatcher isTemplate(String value) {
+        return new MockTemplateMatcher(value);
+    }
+
+    static class MockTemplateMatcher extends BaseMatcher<Template> {
+
+        private final String value;
+
+        public MockTemplateMatcher(String value) {
+            this.value = value;
+        }
+
+        @Override
+        public boolean matches(Object item) {
+            return item instanceof MockTemplate && ((MockTemplate) item).value.equals(value);
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("is mock template [" + value + "]");
+        }
     }
 
 }

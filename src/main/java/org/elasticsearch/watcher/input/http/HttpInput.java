@@ -56,20 +56,19 @@ public class HttpInput extends Input<HttpInput.Result> {
     @Override
     public Result execute(WatchExecutionContext ctx) throws IOException {
         Map<String, Object> model = Variables.createCtxModel(ctx, null);
-        HttpRequest httpRequest = request.render(model);
-        try (HttpResponse response = client.execute(httpRequest)) {
-            byte[] bytes = response.body();
-            final Payload payload;
-            if (extractKeys != null) {
-                XContentParser parser = XContentHelper.createParser(bytes, 0, bytes.length);
-                Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(extractKeys, parser);
-                payload = new Payload.Simple(filteredKeys);
-            } else {
-                Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(bytes, true);
-                payload = new Payload.Simple(result.v2());
-            }
-            return new Result(TYPE, payload, httpRequest, response.status());
+        HttpRequest request = this.request.render(model);
+
+        HttpResponse response = client.execute(request);
+        Payload payload;
+        if (extractKeys != null) {
+            XContentParser parser = XContentHelper.createParser(response.body());
+            Map<String, Object> filteredKeys = XContentFilterKeysUtils.filterMapOrdered(extractKeys, parser);
+            payload = new Payload.Simple(filteredKeys);
+        } else {
+            Tuple<XContentType, Map<String, Object>> result = XContentHelper.convertToMap(response.body(), true);
+            payload = new Payload.Simple(result.v2());
         }
+        return new Result(payload, request, response.status());
     }
 
     @Override
@@ -113,8 +112,8 @@ public class HttpInput extends Input<HttpInput.Result> {
         private final HttpRequest request;
         private final int statusCode;
 
-        public Result(String type, Payload payload, HttpRequest request, int statusCode) {
-            super(type, payload);
+        public Result(Payload payload, HttpRequest request, int statusCode) {
+            super(TYPE, payload);
             this.request = request;
             this.statusCode = statusCode;
         }
@@ -223,7 +222,7 @@ public class HttpInput extends Input<HttpInput.Result> {
                     }
                 }
             }
-            return new Result(TYPE, payload, request, statusCode);
+            return new Result(payload, request, statusCode);
         }
 
     }
@@ -260,8 +259,7 @@ public class HttpInput extends Input<HttpInput.Result> {
                 }
                 builder.endArray();
             }
-            builder.field(Parser.REQUEST_FIELD.getPreferredName());
-            request.toXContent(builder, params);
+            builder.field(Parser.REQUEST_FIELD.getPreferredName(), request);
             return builder.endObject();
         }
     }

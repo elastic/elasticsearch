@@ -10,7 +10,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.watcher.actions.ActionBuilders;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
@@ -25,7 +24,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.watcher.client.WatchSourceBuilder.watchSourceBuilder;
+import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
+import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.matchAllRequest;
@@ -54,12 +54,12 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
 
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch()
                 .watchName("_name")
-                .source(watchSourceBuilder()
+                .source(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? *")))
                         .input(searchInput(matchAllRequest().indices("events")))
                         .condition(scriptCondition("ctx.payload.hits.total > 0"))
                         .transform(searchTransform(matchAllRequest().indices("events")))
-                        .addAction(ActionBuilders.indexAction("actions", "action")))
+                        .addAction(indexAction("_id", "actions", "action")))
                 .get();
 
         assertThat(putWatchResponse.indexResponse().isCreated(), is(true));
@@ -125,12 +125,12 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
 
         PutWatchResponse putWatchResponse = watcherClient.preparePutWatch()
                 .watchName("_name")
-                .source(watchSourceBuilder()
+                .source(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(searchInput(matchAllRequest().indices("events")))
                         .condition(scriptCondition("ctx.payload.hits.total > 0"))
                         .transform(searchTransform(matchAllRequest().indices("events")))
-                        .addAction(ActionBuilders.indexAction("actions", "action"))
+                        .addAction(indexAction("_id", "actions", "action"))
                         .throttlePeriod(TimeValue.timeValueSeconds(10)))
                 .get();
         assertThat(putWatchResponse.indexResponse().isCreated(), is(true));

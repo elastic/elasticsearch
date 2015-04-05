@@ -16,7 +16,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.watcher.client.WatchSourceBuilder.watchSourceBuilder;
+import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -43,7 +43,7 @@ public class WatchMetadataTests extends AbstractWatcherIntegrationTests {
 
         metadata.put("baz", metaList);
         watcherClient().preparePutWatch("_name")
-                .source(watchSourceBuilder()
+                .source(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? *")))
                         .input(searchInput(WatcherTestUtils.newInputSearchRequest("my-index").source(searchSource().query(matchAllQuery()))))
                         .condition(scriptCondition("ctx.payload.hits.total == 1"))

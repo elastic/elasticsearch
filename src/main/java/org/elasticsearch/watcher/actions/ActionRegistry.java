@@ -8,9 +8,11 @@ package org.elasticsearch.watcher.actions;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.transform.TransformRegistry;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -19,68 +21,50 @@ import java.util.Map;
 public class ActionRegistry  {
 
     private final ImmutableMap<String, Action.Parser> parsers;
+    private final TransformRegistry transformRegistry;
 
     @Inject
-    public ActionRegistry(Map<String, Action.Parser> parsers) {
+    public ActionRegistry(Map<String, Action.Parser> parsers, TransformRegistry transformRegistry) {
         this.parsers = ImmutableMap.copyOf(parsers);
+        this.transformRegistry = transformRegistry;
     }
 
-    /**
-     * Reads the contents of parser to create the correct Action
-     */
-    public Action parse(XContentParser parser) throws IOException {
-        String type = null;
+    Action.Parser parser(String type) {
+        return parsers.get(type);
+    }
+
+    public Actions.Results parseResults(XContentParser parser) throws IOException {
+        Map<String, ActionWrapper.Result> results = new HashMap<>();
+
+        String id = null;
         XContentParser.Token token;
-        Action action = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
-                type = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT && type != null) {
-                Action.Parser actionParser = parsers.get(type);
-                if (actionParser == null) {
-                    throw new ActionException("unknown action type [" + type + "]");
-                }
-                action = actionParser.parse(parser);
+                id = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT && id != null) {
+                ActionWrapper.Result result = ActionWrapper.Result.parse(parser, id, this, transformRegistry);
+                results.put(id, result);
             }
         }
-        return action;
+        return new Actions.Results(results);
     }
-
-    /**
-     * Reads the contents of parser to create the correct Action.Result
-     *
-     * @param parser    The parser containing the action definition
-     * @return          A new Action.Result instance from the parser
-     * @throws IOException
-     */
-    public Action.Result parseResult(XContentParser parser) throws IOException {
-        String type = null;
-        XContentParser.Token token;
-        Action.Result result = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                type = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT && type != null) {
-                Action.Parser actionParser = parsers.get(type);
-                if (actionParser == null) {
-                    throw new ActionException("unknown action type [" + type + "]");
-                }
-                result = actionParser.parseResult(parser);
-            }
-        }
-        return result;
-    }
-
 
     public Actions parseActions(XContentParser parser) throws IOException {
-        List<Action> actions = new ArrayList<>();
+        List<ActionWrapper> actions = new ArrayList<>();
 
-        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            actions.add(parse(parser));
+        String id = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                id = parser.currentName();
+            } else if (token == XContentParser.Token.START_OBJECT && id != null) {
+                ActionWrapper action = ActionWrapper.parse(parser, id, this, transformRegistry);
+                actions.add(action);
+            }
         }
-
         return new Actions(actions);
     }
+
 
 
 }

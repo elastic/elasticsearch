@@ -5,15 +5,6 @@
  */
 package org.elasticsearch.watcher.actions.email;
 
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
-import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.actions.ActionSettingsException;
-import org.elasticsearch.watcher.actions.email.service.*;
-import org.elasticsearch.watcher.support.Variables;
-import org.elasticsearch.watcher.support.template.Template;
-import org.elasticsearch.watcher.transform.Transform;
-import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -23,6 +14,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.actions.Action;
+import org.elasticsearch.watcher.actions.ActionSettingsException;
+import org.elasticsearch.watcher.actions.email.service.*;
+import org.elasticsearch.watcher.support.Variables;
+import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.watcher.watch.WatchExecutionContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -45,11 +43,11 @@ public class EmailAction extends Action<EmailAction.Result> {
 
     final EmailService emailService;
 
-    public EmailAction(ESLogger logger, @Nullable Transform transform, EmailService emailService, Email emailPrototype,
+    public EmailAction(ESLogger logger, EmailService emailService, Email emailPrototype,
                        Authentication auth, Profile profile, String account, @Nullable Template subject,
                        @Nullable Template textBody, @Nullable Template htmlBody, boolean attachPayload) {
 
-        super(logger, transform);
+        super(logger);
         this.emailService = emailService;
         this.emailPrototype = emailPrototype;
         this.auth = auth;
@@ -67,7 +65,7 @@ public class EmailAction extends Action<EmailAction.Result> {
     }
 
     @Override
-    protected Result execute(WatchExecutionContext ctx, Payload payload) throws IOException {
+    protected Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws IOException {
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
         Email.Builder email = Email.builder()
@@ -91,14 +89,14 @@ public class EmailAction extends Action<EmailAction.Result> {
             EmailService.EmailSent sent = emailService.send(email.build(), auth, profile, account);
             return new Result.Success(sent);
         } catch (EmailException ee) {
-            logger.error("could not send email for watch [{}]", ee, ctx.watch().name());
-            return new Result.Failure("could not send email for watch [" + ctx.watch().name() + "]. error: " + ee.getMessage());
+            logger.error("could not send email [{}] for watch [{}]", ee, actionId, ctx.watch().name());
+            return new Result.Failure("could not send email. error: " + ee.getMessage());
         }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(emailPrototype, auth, profile, account, subject, textBody, htmlBody, attachPayload, transform);
+        return Objects.hash(emailPrototype, auth, profile, account, subject, textBody, htmlBody, attachPayload);
     }
 
     @Override
@@ -117,18 +115,12 @@ public class EmailAction extends Action<EmailAction.Result> {
                 && Objects.equals(this.subject, other.subject)
                 && Objects.equals(this.textBody, other.textBody)
                 && Objects.equals(this.htmlBody, other.htmlBody)
-                && Objects.equals(this.attachPayload, other.attachPayload)
-                && Objects.equals(this.transform, other.transform);
+                && Objects.equals(this.attachPayload, other.attachPayload);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (transform != null) {
-            builder.startObject(Transform.Parser.TRANSFORM_FIELD.getPreferredName())
-                    .field(transform.type(), transform)
-                    .endObject();
-        }
         if (account != null) {
             builder.field(Parser.ACCOUNT_FIELD.getPreferredName(), account);
         }
@@ -182,14 +174,12 @@ public class EmailAction extends Action<EmailAction.Result> {
 
         private final Template.Parser templateParser;
         private final EmailService emailService;
-        private final TransformRegistry transformRegistry;
 
         @Inject
-        public Parser(Settings settings, EmailService emailService, Template.Parser templateParser, TransformRegistry transformRegistry) {
+        public Parser(Settings settings, EmailService emailService, Template.Parser templateParser) {
             super(settings);
             this.emailService = emailService;
             this.templateParser = templateParser;
-            this.transformRegistry = transformRegistry;
         }
 
         @Override
@@ -199,7 +189,6 @@ public class EmailAction extends Action<EmailAction.Result> {
 
         @Override
         public EmailAction parse(XContentParser parser) throws IOException {
-            Transform transform = null;
             String user = null;
             String password = null;
             String account = null;
@@ -264,12 +253,6 @@ public class EmailAction extends Action<EmailAction.Result> {
                         } else {
                             throw new ActionSettingsException("could not parse email action. unrecognized boolean field [" + currentFieldName + "]");
                         }
-                    } else if (token == XContentParser.Token.START_OBJECT) {
-                        if (Transform.Parser.TRANSFORM_FIELD.match(currentFieldName)) {
-                            transform = transformRegistry.parse(parser);
-                        } else {
-                            throw new ActionSettingsException("could not parse email action. unexpected object field [" + currentFieldName + "]");
-                        }
                     } else {
                         throw new ActionSettingsException("could not parse email action. unexpected token [" + token + "]");
                     }
@@ -278,12 +261,11 @@ public class EmailAction extends Action<EmailAction.Result> {
 
             Authentication auth = user != null ? new Authentication(user, password) : null;
 
-            return new EmailAction(logger, transform, emailService, email.build(), auth, profile, account, subject, textBody, htmlBody, attachPayload);
+            return new EmailAction(logger, emailService, email.build(), auth, profile, account, subject, textBody, htmlBody, attachPayload);
         }
 
         @Override
         public EmailAction.Result parseResult(XContentParser parser) throws IOException {
-            Transform.Result transformResult = null;
             Boolean success = null;
             Email email = null;
             String account = null;
@@ -311,8 +293,6 @@ public class EmailAction extends Action<EmailAction.Result> {
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (EMAIL_FIELD.match(currentFieldName)) {
                         email = Email.parse(parser);
-                    } else if (Transform.Parser.TRANSFORM_RESULT_FIELD.match(currentFieldName)) {
-                        transformResult = transformRegistry.parseResult(parser);
                     } else {
                         throw new EmailException("could not parse email result. unexpected field [" + currentFieldName + "]");
                     }
@@ -325,11 +305,7 @@ public class EmailAction extends Action<EmailAction.Result> {
                 throw new EmailException("could not parse email result. expected field [success]");
             }
 
-            Result result = success ? new Result.Success(new EmailService.EmailSent(account, email)) : new Result.Failure(reason);
-            if (transformResult != null) {
-                result.transformResult(transformResult);
-            }
-            return result;
+            return success ? new Result.Success(new EmailService.EmailSent(account, email)) : new Result.Failure(reason);
         }
     }
 
@@ -337,10 +313,6 @@ public class EmailAction extends Action<EmailAction.Result> {
 
         public Result(String type, boolean success) {
             super(type, success);
-        }
-
-        void transformResult(Transform.Result result) {
-            this.transformResult = result;
         }
 
         public static class Success extends Result {
@@ -387,7 +359,7 @@ public class EmailAction extends Action<EmailAction.Result> {
         }
     }
 
-    public static class SourceBuilder implements Action.SourceBuilder {
+    public static class SourceBuilder extends Action.SourceBuilder<SourceBuilder> {
 
         private Email.Address from;
         private Email.AddressList replyTo;
@@ -402,13 +374,17 @@ public class EmailAction extends Action<EmailAction.Result> {
         private Template htmlBody;
         private Boolean attachPayload;
 
+        public SourceBuilder(String id) {
+            super(id);
+        }
+
         @Override
         public String type() {
             return TYPE;
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder actionXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (from != null) {
                 builder.field(Email.FROM_FIELD.getPreferredName(), from);

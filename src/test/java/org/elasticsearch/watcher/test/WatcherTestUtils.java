@@ -15,8 +15,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Actions;
+import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.email.EmailAction;
 import org.elasticsearch.watcher.actions.email.service.Authentication;
 import org.elasticsearch.watcher.actions.email.service.Email;
@@ -123,7 +123,7 @@ public final class WatcherTestUtils {
         transformRequest.searchType(SearchTransform.DEFAULT_SEARCH_TYPE);
         conditionRequest.searchType(SearchInput.DEFAULT_SEARCH_TYPE);
 
-        List<Action> actions = new ArrayList<>();
+        List<ActionWrapper> actions = new ArrayList<>();
 
         TemplatedHttpRequest httpRequest = new TemplatedHttpRequest();
 
@@ -134,7 +134,7 @@ public final class WatcherTestUtils {
         httpRequest.host("localhost");
         httpRequest.method(HttpMethod.POST);
 
-        actions.add(new WebhookAction(logger, null, httpClient, httpRequest));
+        actions.add(new ActionWrapper("_webhook", new WebhookAction(logger, httpClient, httpRequest)));
 
         Email.Address from = new Email.Address("from@test.com");
         List<Email.Address> emailAddressList = new ArrayList<>();
@@ -147,10 +147,10 @@ public final class WatcherTestUtils {
         emailBuilder.to(to);
 
 
-        EmailAction emailAction = new EmailAction(logger, null, emailService, emailBuilder.build(),
+        EmailAction emailAction = new EmailAction(logger, emailService, emailBuilder.build(),
                 new Authentication("testname", "testpassword"), Profile.STANDARD, "testaccount", body, body, null, true);
 
-        actions.add(emailAction);
+        actions.add(new ActionWrapper("_email", emailAction));
 
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("foo", "bar");

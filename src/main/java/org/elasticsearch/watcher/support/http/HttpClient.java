@@ -10,6 +10,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 
 import javax.net.ssl.*;
@@ -103,11 +104,12 @@ public class HttpClient extends AbstractComponent {
             urlConnection.getOutputStream().write(bytes);
             urlConnection.getOutputStream().close();
         }
+        urlConnection.connect();
 
-        HttpResponse response = new HttpResponse(urlConnection.getResponseCode());
-        response.inputStream(urlConnection.getInputStream());
+        byte[] body = Streams.copyToByteArray(urlConnection.getInputStream());
+
+        HttpResponse response = new HttpResponse(urlConnection.getResponseCode(), body);
         logger.debug("http status code: {}", response.status());
-        response.inputStream(urlConnection.getInputStream());
         return response;
     }
 

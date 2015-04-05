@@ -8,15 +8,6 @@ package org.elasticsearch.watcher.actions.index;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
-import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.actions.ActionException;
-import org.elasticsearch.watcher.actions.ActionSettingsException;
-import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
-import org.elasticsearch.watcher.transform.Transform;
-import org.elasticsearch.watcher.transform.TransformRegistry;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -25,6 +16,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.actions.Action;
+import org.elasticsearch.watcher.actions.ActionException;
+import org.elasticsearch.watcher.actions.ActionSettingsException;
+import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
+import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.watcher.watch.WatchExecutionContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -41,8 +38,8 @@ public class IndexAction extends Action<IndexAction.Result> {
     final String index;
     final String type;
 
-    public IndexAction(ESLogger logger, @Nullable Transform transform, ClientProxy client, String index, String type) {
-        super(logger, transform);
+    public IndexAction(ESLogger logger, ClientProxy client, String index, String type) {
+        super(logger);
         this.client = client;
         this.index = index;
         this.type = type;
@@ -54,7 +51,7 @@ public class IndexAction extends Action<IndexAction.Result> {
     }
 
     @Override
-    protected Result execute(WatchExecutionContext ctx, Payload payload) throws IOException {
+    protected Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws IOException {
         IndexRequest indexRequest = new IndexRequest();
         indexRequest.index(index);
         indexRequest.type(type);
@@ -66,8 +63,8 @@ public class IndexAction extends Action<IndexAction.Result> {
             resultBuilder.endObject();
             indexRequest.source(resultBuilder);
         } catch (IOException ioe) {
-            logger.error("failed to index result for watch [{}]", ioe, ctx.watch().name());
-            return new Result(null, "failed to build index request. " + ioe.getMessage(), false);
+            logger.error("failed to execute index action [{}] for watch [{}]", ioe, actionId, ctx.watch().name());
+            return new Result(null, "failed to index payload. " + ioe.getMessage(), false);
         }
 
         try {
@@ -87,16 +84,10 @@ public class IndexAction extends Action<IndexAction.Result> {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (transform != null) {
-            builder.startObject(Transform.Parser.TRANSFORM_FIELD.getPreferredName())
-                    .field(transform.type(), transform)
-                    .endObject();
-        }
-        builder.field(Parser.INDEX_FIELD.getPreferredName(), index);
-        builder.field(Parser.TYPE_FIELD.getPreferredName(), type);
-        builder.endObject();
-        return builder;
+        return builder.startObject()
+                .field(Parser.INDEX_FIELD.getPreferredName(), index)
+                .field(Parser.TYPE_FIELD.getPreferredName(), type)
+                .endObject();
     }
 
     @Override
@@ -108,7 +99,6 @@ public class IndexAction extends Action<IndexAction.Result> {
 
         if (index != null ? !index.equals(that.index) : that.index != null) return false;
         if (type != null ? !type.equals(that.type) : that.type != null) return false;
-        if (transform != null ? !transform.equals(that.transform) : that.transform != null) return false;
 
         return true;
     }
@@ -117,7 +107,6 @@ public class IndexAction extends Action<IndexAction.Result> {
     public int hashCode() {
         int result = index != null ? index.hashCode() : 0;
         result = 31 * result + (type != null ? type.hashCode() : 0);
-        result = 31 * result + (transform != null ? transform.hashCode() : 0);
         return result;
     }
 
@@ -129,13 +118,11 @@ public class IndexAction extends Action<IndexAction.Result> {
         public static final ParseField RESPONSE_FIELD = new ParseField("response");
 
         private final ClientProxy client;
-        private final TransformRegistry transformRegistry;
 
         @Inject
-        public Parser(Settings settings, ClientProxy client, TransformRegistry transformRegistry) {
+        public Parser(Settings settings, ClientProxy client) {
             super(settings);
             this.client = client;
-            this.transformRegistry = transformRegistry;
         }
 
         @Override
@@ -147,7 +134,6 @@ public class IndexAction extends Action<IndexAction.Result> {
         public IndexAction parse(XContentParser parser) throws IOException {
             String index = null;
             String type = null;
-            Transform transform = null;
 
             String currentFieldName = null;
             XContentParser.Token token;
@@ -162,31 +148,24 @@ public class IndexAction extends Action<IndexAction.Result> {
                     } else {
                         throw new ActionSettingsException("could not parse index action. unexpected field [" + currentFieldName + "]");
                     }
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (Transform.Parser.TRANSFORM_FIELD.match(currentFieldName)) {
-                        transform = transformRegistry.parse(parser);
-                    } else {
-                        throw new ActionSettingsException("could not parse index action. unexpected field [" + currentFieldName + "]");
-                    }
                 } else {
                     throw new ActionSettingsException("could not parse index action. unexpected token [" + token + "]");
                 }
             }
 
             if (index == null) {
-                throw new ActionSettingsException("could not parse index action [index] is required");
+                throw new ActionSettingsException("could not parse index action. [index] is required");
             }
 
             if (type == null) {
-                throw new ActionSettingsException("could not parse index action [type] is required");
+                throw new ActionSettingsException("could not parse index action. [type] is required");
             }
 
-            return new IndexAction(logger, transform, client, index, type);
+            return new IndexAction(logger, client, index, type);
         }
 
         @Override
         public Result parseResult(XContentParser parser) throws IOException {
-            Transform.Result transformResult = null;
             Boolean success = null;
             Payload payload = null;
             String reason = null;
@@ -211,8 +190,6 @@ public class IndexAction extends Action<IndexAction.Result> {
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (RESPONSE_FIELD.match(currentFieldName)) {
                         payload = new Payload.Simple(parser.map());
-                    } else if (Transform.Parser.TRANSFORM_RESULT_FIELD.match(currentFieldName)) {
-                        transformResult = transformRegistry.parseResult(parser);
                     } else {
                         throw new ActionException("could not parse index result. unexpected object field [" + currentFieldName + "]");
                     }
@@ -225,11 +202,7 @@ public class IndexAction extends Action<IndexAction.Result> {
                 throw new ActionException("could not parse index result. expected boolean field [success]");
             }
 
-            Result result = new Result(payload, reason, success);
-            if (transformResult != null) {
-                result.transformResult(transformResult);
-            }
-            return result;
+            return new Result(payload, reason, success);
         }
     }
 
@@ -242,10 +215,6 @@ public class IndexAction extends Action<IndexAction.Result> {
             super(TYPE, isCreated);
             this.response = response;
             this.reason = reason;
-        }
-
-        void transformResult(Transform.Result result) {
-            this.transformResult = result;
         }
 
         public Payload response() {
@@ -264,12 +233,13 @@ public class IndexAction extends Action<IndexAction.Result> {
         }
     }
 
-    public static class SourceBuilder implements Action.SourceBuilder {
+    public static class SourceBuilder extends Action.SourceBuilder<SourceBuilder> {
 
         private final String index;
         private final String type;
 
-        public SourceBuilder(String index, String type) {
+        public SourceBuilder(String id, String index, String type) {
+            super(id);
             this.index = index;
             this.type = type;
         }
@@ -280,7 +250,7 @@ public class IndexAction extends Action<IndexAction.Result> {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder actionXContent(XContentBuilder builder, Params params) throws IOException {
             return builder.startObject()
                     .field(Parser.INDEX_FIELD.getPreferredName(), index)
                     .field(Parser.TYPE_FIELD.getPreferredName(), type)

@@ -21,6 +21,7 @@ import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionRegistry;
 import org.elasticsearch.watcher.actions.Actions;
+import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.actions.email.EmailAction;
 import org.elasticsearch.watcher.actions.email.service.Email;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
@@ -258,42 +259,43 @@ public class WatchTests extends ElasticsearchTestCase {
     }
 
     private Actions randomActions() {
-        ImmutableList.Builder<Action> list = ImmutableList.builder();
+        ImmutableList.Builder<ActionWrapper> list = ImmutableList.builder();
         if (randomBoolean()) {
             Transform transform = randomTransform();
-            list.add(new EmailAction(logger, transform, emailService, Email.builder().id("prototype").build(), null, Profile.STANDARD, null, null, null, null, randomBoolean()));
+            list.add(new ActionWrapper("_email_" + randomAsciiOfLength(8), transform, new EmailAction(logger, emailService, Email.builder().id("prototype").build(), null, Profile.STANDARD, null, null, null, null, randomBoolean())));
         }
         if (randomBoolean()) {
-            list.add(new IndexAction(logger, randomTransform(), client, "_index", "_type"));
+            list.add(new ActionWrapper("_index_" + randomAsciiOfLength(8), randomTransform(), new IndexAction(logger, client, "_index", "_type")));
         }
         if (randomBoolean()) {
             TemplatedHttpRequest httpRequest = new TemplatedHttpRequest();
             httpRequest.method(randomFrom(HttpMethod.GET, HttpMethod.POST, HttpMethod.PUT));
             httpRequest.host("test.host");
+            httpRequest.port(randomIntBetween(8000, 9000));
             httpRequest.path(new ScriptTemplate(scriptService, "_url"));
-            list.add(new WebhookAction(logger, randomTransform(), httpClient, httpRequest));
+            list.add(new ActionWrapper("_webhook_" + randomAsciiOfLength(8), randomTransform(), new WebhookAction(logger, httpClient, httpRequest)));
         }
         return new Actions(list.build());
     }
 
     private ActionRegistry registry(Actions actions, TransformRegistry transformRegistry) {
         ImmutableMap.Builder<String, Action.Parser> parsers = ImmutableMap.builder();
-        for (Action action : actions) {
-            switch (action.type()) {
+        for (ActionWrapper action : actions) {
+            switch (action.action().type()) {
                 case EmailAction.TYPE:
-                    parsers.put(EmailAction.TYPE, new EmailAction.Parser(settings, emailService, templateParser, transformRegistry));
+                    parsers.put(EmailAction.TYPE, new EmailAction.Parser(settings, emailService, templateParser));
                     break;
                 case IndexAction.TYPE:
-                    parsers.put(IndexAction.TYPE, new IndexAction.Parser(settings, client, transformRegistry));
+                    parsers.put(IndexAction.TYPE, new IndexAction.Parser(settings, client));
                     break;
                 case WebhookAction.TYPE:
-                    parsers.put(WebhookAction.TYPE, new WebhookAction.Parser(settings,  httpClient, transformRegistry,
+                    parsers.put(WebhookAction.TYPE, new WebhookAction.Parser(settings,  httpClient,
                             new HttpRequest.Parser(authRegistry),
                             new TemplatedHttpRequest.Parser(new ScriptTemplate.Parser(settings, scriptService), authRegistry)));
                     break;
             }
         }
-        return new ActionRegistry(parsers.build());
+        return new ActionRegistry(parsers.build(), transformRegistry);
     }
 
 

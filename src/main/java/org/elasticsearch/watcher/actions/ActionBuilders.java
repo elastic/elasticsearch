@@ -18,16 +18,16 @@ public final class ActionBuilders {
     private ActionBuilders() {
     }
 
-    public static EmailAction.SourceBuilder emailAction() {
-        return new EmailAction.SourceBuilder();
+    public static EmailAction.SourceBuilder emailAction(String id) {
+        return new EmailAction.SourceBuilder(id);
     }
 
-    public static IndexAction.SourceBuilder indexAction(String index, String type) {
-        return new IndexAction.SourceBuilder(index, type);
+    public static IndexAction.SourceBuilder indexAction(String id, String index, String type) {
+        return new IndexAction.SourceBuilder(id, index, type);
     }
 
-    public static WebhookAction.SourceBuilder webhookAction(TemplatedHttpRequest request) {
-        return new WebhookAction.SourceBuilder(request);
+    public static WebhookAction.SourceBuilder webhookAction(String id, TemplatedHttpRequest.SourceBuilder httpRequest) {
+        return new WebhookAction.SourceBuilder(id, httpRequest);
     }
 
 }

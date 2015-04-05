@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.watcher.support.template;
 
-import org.elasticsearch.watcher.support.Script;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -16,10 +14,13 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.watcher.support.Script;
+import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -100,7 +101,7 @@ public class ScriptTemplate implements ToXContent, Template {
                 return new ScriptTemplate(scriptService, parser.text());
             }
             try {
-                Script script = Script.parse(parser);
+                Script script = Script.parse(parser, DEFAULT_LANG);
                 return new ScriptTemplate(scriptService, script);
             } catch (Script.ParseException pe) {
                 throw new ParseException("could not parse script template", pe);
@@ -109,4 +110,49 @@ public class ScriptTemplate implements ToXContent, Template {
         }
     }
 
+    public static class SourceBuilder implements Template.SourceBuilder {
+
+        private final String script;
+        private String lang;
+        private ScriptService.ScriptType type;
+        private Map<String, Object> params;
+
+        public SourceBuilder(String script) {
+            this.script = script;
+        }
+
+        public SourceBuilder lang(String lang) {
+            this.lang = lang;
+            return this;
+        }
+
+        public SourceBuilder setType(ScriptService.ScriptType type) {
+            this.type = type;
+            return this;
+        }
+
+        public SourceBuilder setParams(Map<String, Object> params) {
+            this.params = params;
+            return this;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (lang == null && type == null && params == null) {
+                return builder.value(script);
+            }
+            builder.startObject();
+            builder.field(Script.SCRIPT_FIELD.getPreferredName(), script);
+            if (lang != null) {
+                builder.field(Script.LANG_FIELD.getPreferredName(), lang);
+            }
+            if (type != null) {
+                builder.field(Script.TYPE_FIELD.getPreferredName(), type.name().toLowerCase(Locale.ROOT));
+            }
+            if (this.params != null) {
+                builder.field(Script.PARAMS_FIELD.getPreferredName(), this.params);
+            }
+            return builder.endObject();
+        }
+    }
 }

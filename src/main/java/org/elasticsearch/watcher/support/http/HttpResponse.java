@@ -5,47 +5,125 @@
  */
 package org.elasticsearch.watcher.support.http;
 
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.io.ByteStreams;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.WatcherException;
 
-import java.io.Closeable;
 import java.io.IOException;
-import java.io.InputStream;
 
-public class HttpResponse implements Closeable {
+public class HttpResponse implements ToXContent {
 
-    private int status;
-    private InputStream inputStream;
-    private byte[] body;
+    public static final ParseField STATUS_FIELD = new ParseField("status");
+    public static final ParseField BODY_FIELD = new ParseField("body");
+
+    private final int status;
+    private final BytesReference body;
 
     public HttpResponse(int status) {
+        this(status, BytesArray.EMPTY);
+    }
+
+    public HttpResponse(int status, String body) {
+        this(status, new BytesArray(body));
+    }
+
+    public HttpResponse(int status, byte[] body) {
+        this(status, new BytesArray(body));
+    }
+
+    public HttpResponse(int status, BytesReference body) {
         this.status = status;
+        this.body = body;
     }
 
     public int status() {
         return status;
     }
 
-    public byte[] body() {
-        if (body == null && inputStream != null) {
-            try {
-                body = ByteStreams.toByteArray(inputStream);
-                inputStream.close();
-            } catch (IOException e) {
-                throw ExceptionsHelper.convertToElastic(e);
-            }
-        }
+    public BytesReference body() {
         return body;
     }
 
-    public void inputStream(InputStream inputStream) {
-        this.inputStream = inputStream;
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        HttpResponse response = (HttpResponse) o;
+
+        if (status != response.status) return false;
+        return body.equals(response.body);
+
     }
 
     @Override
-    public void close() throws IOException {
-        if (inputStream != null) {
-            inputStream.close();
+    public int hashCode() {
+        int result = status;
+        result = 31 * result + body.hashCode();
+        return result;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject()
+                .field(STATUS_FIELD.getPreferredName(), status)
+                .field(BODY_FIELD.getPreferredName(), body.toUtf8())
+                .endObject();
+    }
+
+    public static HttpResponse parse(XContentParser parser) throws IOException {
+        assert parser.currentToken() == XContentParser.Token.START_OBJECT;
+
+        int status = -1;
+        String body = null;
+
+        String currentFieldName = null;
+        XContentParser.Token token;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else {
+                if (token == XContentParser.Token.VALUE_NUMBER) {
+                    if (STATUS_FIELD.match(currentFieldName)) {
+                        status = parser.intValue();
+                    } else {
+                        throw new ParseException("could not parse http response. unknown numeric field [" + currentFieldName + "]");
+                    }
+                } else if (token == XContentParser.Token.VALUE_STRING) {
+                    if (BODY_FIELD.match(currentFieldName)) {
+                        body = parser.text();
+                    } else {
+                        throw new ParseException("could not parse http response. unknown string field [" + currentFieldName + "]");
+                    }
+                } else {
+                    throw new ParseException("could not parse http response. unknown unexpected token [" + token + "]");
+                }
+            }
+        }
+
+        if (status < 0) {
+            throw new ParseException("could not parse http response. missing [status] numeric field holding the response's http status code");
+        }
+
+        if (body == null) {
+            throw new ParseException("could not parse http response. missing [status] string field holding the response's body");
+        }
+
+        return new HttpResponse(status, body);
+    }
+
+    public static class ParseException extends WatcherException {
+
+        public ParseException(String msg) {
+            super(msg);
+        }
+
+        public ParseException(String msg, Throwable cause) {
+            super(msg, cause);
         }
     }
 }

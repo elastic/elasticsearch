@@ -7,38 +7,39 @@ package org.elasticsearch.watcher.support.http;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
+import org.elasticsearch.watcher.support.template.ScriptTemplate;
 import org.elasticsearch.watcher.support.template.Template;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  */
 public class TemplatedHttpRequest implements ToXContent {
 
-    private Scheme scheme;
+    private Scheme scheme = Scheme.HTTP;
     private String host;
-    private int port;
-    private HttpMethod method;
+    private int port = -1;
+    private HttpMethod method = HttpMethod.GET;
     private Template path;
-    private Map<String, Template> params;
-    private Map<String, Template> headers;
+    private Map<String, Template> params = Collections.emptyMap();
+    private Map<String, Template> headers = Collections.emptyMap();
     private HttpAuth auth;
-
     private Template body;
-
-    public TemplatedHttpRequest() {
-        scheme = Scheme.HTTP;
-        method = HttpMethod.GET;
-    }
 
     public Scheme scheme() {
         return scheme;
@@ -151,10 +152,10 @@ public class TemplatedHttpRequest implements ToXContent {
             builder.field(Parser.PATH_FIELD.getPreferredName(), path);
         }
         if (this.params != null) {
-            builder.startObject(Parser.PARAMS_FIELD.getPreferredName()).value(this.params).endObject();
+            builder.field(Parser.PARAMS_FIELD.getPreferredName(), this.params);
         }
         if (headers != null) {
-            builder.startObject(Parser.HEADERS_FIELD.getPreferredName()).value(headers).endObject();
+            builder.field(Parser.HEADERS_FIELD.getPreferredName(), headers);
         }
         if (auth != null) {
             builder.field(Parser.AUTH_FIELD.getPreferredName(), auth);
@@ -197,6 +198,10 @@ public class TemplatedHttpRequest implements ToXContent {
         return result;
     }
 
+    public static SourceBuilder sourceBuilder(String host, int port) {
+        return new SourceBuilder(host, port);
+    }
+
     public static class Parser {
 
         public static final ParseField SCHEME_FIELD = new ParseField("scheme");
@@ -219,6 +224,8 @@ public class TemplatedHttpRequest implements ToXContent {
         }
 
         public TemplatedHttpRequest parse(XContentParser parser) throws IOException {
+            assert parser.currentToken() == XContentParser.Token.START_OBJECT;
+
             TemplatedHttpRequest request = new TemplatedHttpRequest();
             XContentParser.Token token;
             String currentFieldName = null;
@@ -237,7 +244,7 @@ public class TemplatedHttpRequest implements ToXContent {
                     } else if (BODY_FIELD.match(currentFieldName)) {
                         request.body(templateParser.parse(parser));
                     } else {
-                        throw new ElasticsearchParseException("could not parse templated http request. unexpected field [" + currentFieldName + "]");
+                        throw new ParseException("could not parse templated http request. unexpected field [" + currentFieldName + "]");
                     }
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (SCHEME_FIELD.match(currentFieldName)) {
@@ -251,18 +258,26 @@ public class TemplatedHttpRequest implements ToXContent {
                     } else if (BODY_FIELD.match(currentFieldName)) {
                         request.body(templateParser.parse(parser));
                     } else {
-                        throw new ElasticsearchParseException("could not parse templated http request. unexpected field [" + currentFieldName + "]");
+                        throw new ParseException("could not parse templated http request. unexpected field [" + currentFieldName + "]");
                     }
                 } else if (token == XContentParser.Token.VALUE_NUMBER) {
                     if (PORT_FIELD.match(currentFieldName)) {
                         request.port(parser.intValue());
                     } else {
-                        throw new ElasticsearchParseException("could not parse templated http request. unexpected field [" + currentFieldName + "]");
+                        throw new ParseException("could not parse templated http request. unexpected field [" + currentFieldName + "]");
                     }
                 } else {
-                    throw new ElasticsearchParseException("could not parse templated http request. unexpected token [" + token + "] for field [" + currentFieldName + "]");
+                    throw new ParseException("could not parse templated http request. unexpected token [" + token + "] for field [" + currentFieldName + "]");
                 }
             }
+
+            if (request.host == null) {
+                throw new ParseException("could not parse templated http request. missing required [host] string field");
+            }
+            if (request.port < 0) {
+                throw new ParseException("could not parse templated http request. missing required [port] numeric field");
+            }
+
             return request;
         }
 
@@ -287,50 +302,65 @@ public class TemplatedHttpRequest implements ToXContent {
 
     }
 
+
+
     public final static class SourceBuilder implements ToXContent {
 
         private String scheme;
-        private String host;
-        private int port;
-        private String method;
-        private Template path;
-        private Map<String, Template> params;
-        private Map<String, Template> headers;
+        private final String host;
+        private final int port;
+        private HttpMethod method;
+        private Template.SourceBuilder path;
+        private final ImmutableMap.Builder<String, Template.SourceBuilder> params = ImmutableMap.builder();
+        private final ImmutableMap.Builder<String, Template.SourceBuilder> headers = ImmutableMap.builder();
         private HttpAuth auth;
-        private Template body;
+        private Template.SourceBuilder body;
+
+        public SourceBuilder(String host, int port) {
+            this.host = host;
+            this.port = port;
+        }
 
         public SourceBuilder setScheme(String scheme) {
             this.scheme = scheme;
             return this;
         }
 
-        public SourceBuilder setHost(String host) {
-            this.host = host;
-            return this;
-        }
-
-        public SourceBuilder setPort(int port) {
-            this.port = port;
-            return this;
-        }
-
-        public SourceBuilder setMethod(String method) {
+        public SourceBuilder setMethod(HttpMethod method) {
             this.method = method;
             return this;
         }
 
+        public SourceBuilder setPath(String path) {
+            return setPath(new ScriptTemplate.SourceBuilder(path));
+        }
+
         public SourceBuilder setPath(Template path) {
+            return path != null ? setPath(new Template.InstanceSourceBuilder(path)) : setPath((Template.SourceBuilder) null);
+        }
+
+        public SourceBuilder setPath(Template.SourceBuilder path) {
             this.path = path;
             return this;
         }
 
-        public SourceBuilder setParams(Map<String, Template> params) {
-            this.params = params;
+        public SourceBuilder putParams(Map<String, Template.SourceBuilder> params) {
+            this.params.putAll(params);
             return this;
         }
 
-        public SourceBuilder setHeaders(Map<String, Template> headers) {
-            this.headers = headers;
+        public SourceBuilder putParam(String key, Template.SourceBuilder value) {
+            this.params.put(key, value);
+            return this;
+        }
+
+        public SourceBuilder putHeaders(Map<String, Template.SourceBuilder> headers) {
+            this.headers.putAll(headers);
+            return this;
+        }
+
+        public SourceBuilder putHeader(String key, Template.SourceBuilder value) {
+            this.headers.put(key, value);
             return this;
         }
 
@@ -339,7 +369,27 @@ public class TemplatedHttpRequest implements ToXContent {
             return this;
         }
 
+        public SourceBuilder setBody(String body) {
+            return setBody(new ScriptTemplate.SourceBuilder(body));
+        }
+
+        public SourceBuilder setBody(ToXContent content) {
+            try {
+                return setBody(jsonBuilder().value(content));
+            } catch (IOException ioe) {
+                throw new WatcherException("could not set http input body to given xcontent", ioe);
+            }
+        }
+
+        public SourceBuilder setBody(XContentBuilder content) {
+            return setBody(new ScriptTemplate.SourceBuilder(content.bytes().toUtf8()));
+        }
+
         public SourceBuilder setBody(Template body) {
+            return body != null ? setBody(new Template.InstanceSourceBuilder(body)) : setBody((Template.SourceBuilder) null);
+        }
+
+        public SourceBuilder setBody(Template.SourceBuilder body) {
             this.body = body;
             return this;
         }
@@ -353,16 +403,18 @@ public class TemplatedHttpRequest implements ToXContent {
             builder.field(Parser.HOST_FIELD.getPreferredName(), host);
             builder.field(Parser.PORT_FIELD.getPreferredName(), port);
             if (method != null) {
-                builder.field(Parser.METHOD_FIELD.getPreferredName(), method);
+                builder.field(Parser.METHOD_FIELD.getPreferredName(), method.name().toLowerCase(Locale.ROOT));
             }
             if (path != null) {
                 builder.field(Parser.PATH_FIELD.getPreferredName(), path);
             }
-            if (params != null) {
-                builder.field(Parser.PARAMS_FIELD.getPreferredName(), params);
+            Map<String, Template.SourceBuilder> paramsMap = params.build();
+            if (!paramsMap.isEmpty()) {
+                builder.field(Parser.PARAMS_FIELD.getPreferredName(), paramsMap);
             }
-            if (headers != null) {
-                builder.field(Parser.HEADERS_FIELD.getPreferredName(), headers);
+            Map<String, Template.SourceBuilder> headersMap = headers.build();
+            if (!headersMap.isEmpty()) {
+                builder.field(Parser.HEADERS_FIELD.getPreferredName(), headersMap);
             }
             if (auth != null) {
                 builder.field(Parser.AUTH_FIELD.getPreferredName(), auth);
@@ -370,8 +422,18 @@ public class TemplatedHttpRequest implements ToXContent {
             if (body != null) {
                 builder.field(Parser.BODY_FIELD.getPreferredName(), body);
             }
-            builder.endObject();
-            return builder;
+            return builder.endObject();
+        }
+    }
+
+    public static class ParseException extends WatcherException {
+
+        public ParseException(String msg) {
+            super(msg);
+        }
+
+        public ParseException(String msg, Throwable cause) {
+            super(msg, cause);
         }
     }
 

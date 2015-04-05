@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Actions;
+import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.simple.AlwaysFalseCondition;
 import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
@@ -67,6 +68,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         when(transformResult.payload()).thenReturn(payload);
         Action.Result actionResult = mock(Action.Result.class);
         when(actionResult.type()).thenReturn("_action_type");
+        ActionWrapper.Result watchActionResult = new ActionWrapper.Result("_id", null, actionResult);
 
         Condition condition = mock(Condition.class);
         when(condition.execute(any(WatchExecutionContext.class))).thenReturn(conditionResult);
@@ -74,8 +76,8 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         when(throttler.throttle(any(WatchExecutionContext.class))).thenReturn(throttleResult);
         Transform transform = mock(Transform.class);
         when(transform.apply(any(WatchExecutionContext.class), same(payload))).thenReturn(transformResult);
-        Action action = mock(Action.class);
-        when(action.execute(any(WatchExecutionContext.class))).thenReturn(actionResult);
+        ActionWrapper action = mock(ActionWrapper.class);
+        when(action.execute(any(WatchExecutionContext.class))).thenReturn(watchActionResult);
         Actions actions = new Actions(Arrays.asList(action));
 
         Watch.Status watchStatus = new Watch.Status();
@@ -95,7 +97,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         assertThat(watchExecution.conditionResult(), sameInstance(conditionResult));
         assertThat(watchExecution.transformResult(), sameInstance(transformResult));
         assertThat(watchExecution.throttleResult(), sameInstance(throttleResult));
-        assertThat(watchExecution.actionsResults().get("_action_type"), sameInstance(actionResult));
+        assertThat(watchExecution.actionsResults().get("_id"), sameInstance(watchActionResult));
 
         verify(condition, times(1)).execute(any(WatchExecutionContext.class));
         verify(throttler, times(1)).throttle(any(WatchExecutionContext.class));
@@ -111,8 +113,8 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
 
         Transform.Result transformResult = mock(Transform.Result.class);
         when(transformResult.payload()).thenReturn(payload);
-        Action.Result actionResult = mock(Action.Result.class);
-        when(actionResult.type()).thenReturn("_action_type");
+        ActionWrapper.Result actionResult = mock(ActionWrapper.Result.class);
+        when(actionResult.id()).thenReturn("_id");
 
         Condition condition = mock(Condition.class);
         when(condition.execute(any(WatchExecutionContext.class))).thenReturn(conditionResult);
@@ -120,7 +122,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         when(throttler.throttle(any(WatchExecutionContext.class))).thenReturn(throttleResult);
         Transform transform = mock(Transform.class);
         when(transform.apply(any(WatchExecutionContext.class), same(payload))).thenReturn(transformResult);
-        Action action = mock(Action.class);
+        ActionWrapper action = mock(ActionWrapper.class);
         when(action.execute(any(WatchExecutionContext.class))).thenReturn(actionResult);
         Actions actions = new Actions(Arrays.asList(action));
 
@@ -141,7 +143,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         assertThat(watchExecution.inputResult(), sameInstance(inputResult));
         assertThat(watchExecution.conditionResult(), sameInstance(conditionResult));
         assertThat(watchExecution.throttleResult(), sameInstance(throttleResult));
-        assertThat(watchExecution.actionsResults().isEmpty(), is(true));
+        assertThat(watchExecution.actionsResults().count(), is(0));
         assertThat(watchExecution.transformResult(), nullValue());
 
         verify(condition, times(1)).execute(any(WatchExecutionContext.class));
@@ -157,8 +159,8 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         when(throttleResult.throttle()).thenReturn(true);
 
         Transform.Result transformResult = mock(Transform.Result.class);
-        Action.Result actionResult = mock(Action.Result.class);
-        when(actionResult.type()).thenReturn("_action_type");
+        ActionWrapper.Result actionResult = mock(ActionWrapper.Result.class);
+        when(actionResult.id()).thenReturn("_id");
 
         Condition condition = mock(Condition.class);
         when(condition.execute(any(WatchExecutionContext.class))).thenReturn(conditionResult);
@@ -166,7 +168,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         when(throttler.throttle(any(WatchExecutionContext.class))).thenReturn(throttleResult);
         Transform transform = mock(Transform.class);
         when(transform.apply(any(WatchExecutionContext.class), same(payload))).thenReturn(transformResult);
-        Action action = mock(Action.class);
+        ActionWrapper action = mock(ActionWrapper.class);
         when(action.execute(any(WatchExecutionContext.class))).thenReturn(actionResult);
         Actions actions = new Actions(Arrays.asList(action));
 
@@ -188,7 +190,7 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         assertThat(watchExecution.conditionResult(), sameInstance(conditionResult));
         assertThat(watchExecution.throttleResult(), nullValue());
         assertThat(watchExecution.transformResult(), nullValue());
-        assertThat(watchExecution.actionsResults().isEmpty(), is(true));
+        assertThat(watchExecution.actionsResults().count(), is(0));
 
         verify(condition, times(1)).execute(any(WatchExecutionContext.class));
         verify(throttler, never()).throttle(any(WatchExecutionContext.class));

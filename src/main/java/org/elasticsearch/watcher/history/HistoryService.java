@@ -14,7 +14,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-import org.elasticsearch.watcher.actions.Action;
+import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.support.Callback;
@@ -32,6 +32,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 
 /**
  */
@@ -154,8 +156,8 @@ public class HistoryService extends AbstractComponent {
                     Transform.Result result = watch.transform().apply(ctx, inputResult.payload());
                     ctx.onTransformResult(result);
                 }
-                for (Action action : watch.actions()) {
-                    Action.Result actionResult = action.execute(ctx);
+                for (ActionWrapper action : watch.actions()) {
+                    ActionWrapper.Result actionResult = action.execute(ctx);
                     ctx.onActionResult(actionResult);
                 }
             }

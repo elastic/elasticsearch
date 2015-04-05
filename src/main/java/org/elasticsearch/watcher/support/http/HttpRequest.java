@@ -17,6 +17,7 @@ import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.template.Template;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 public class HttpRequest implements ToXContent {
@@ -118,10 +119,10 @@ public class HttpRequest implements ToXContent {
             builder.field(Parser.PATH_FIELD.getPreferredName(), path);
         }
         if (this.params != null) {
-            builder.startObject(Parser.PARAMS_FIELD.getPreferredName()).value(this.params).endObject();
+            builder.field(Parser.PARAMS_FIELD.getPreferredName(), this.params);
         }
         if (headers != null) {
-            builder.startObject(Parser.HEADERS_FIELD.getPreferredName()).value(headers).endObject();
+            builder.field(Parser.HEADERS_FIELD.getPreferredName(), headers);
         }
         if (auth != null) {
             builder.field(Parser.AUTH_FIELD.getPreferredName(), auth);
@@ -252,8 +253,8 @@ public class HttpRequest implements ToXContent {
         private int port;
         private String method;
         private Template path;
-        private Map<String, Template> params;
-        private Map<String, Template> headers;
+        private Map<String, Template.SourceBuilder> params = new HashMap<>();
+        private Map<String, Template.SourceBuilder> headers = new HashMap<>();
         private HttpAuth auth;
         private Template body;
 
@@ -282,13 +283,33 @@ public class HttpRequest implements ToXContent {
             return this;
         }
 
-        public SourceBuilder setParams(Map<String, Template> params) {
+        public SourceBuilder setParams(Map<String, Template.SourceBuilder> params) {
             this.params = params;
             return this;
         }
 
-        public SourceBuilder setHeaders(Map<String, Template> headers) {
+        public SourceBuilder putParams(Map<String, Template.SourceBuilder> params) {
+            this.params.putAll(params);
+            return this;
+        }
+
+        public SourceBuilder putParam(String key, Template.SourceBuilder value) {
+            this.params.put(key, value);
+            return this;
+        }
+
+        public SourceBuilder setHeaders(Map<String, Template.SourceBuilder> headers) {
             this.headers = headers;
+            return this;
+        }
+
+        public SourceBuilder putHeaders(Map<String, Template.SourceBuilder> headers) {
+            this.headers.putAll(headers);
+            return this;
+        }
+
+        public SourceBuilder putHeader(String key, Template.SourceBuilder value) {
+            this.headers.put(key, value);
             return this;
         }
 

@@ -20,7 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
-import static org.elasticsearch.watcher.client.WatchSourceBuilder.watchSourceBuilder;
+import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.transform.TransformBuilders.searchTransform;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -50,11 +50,11 @@ public class TransformSearchTests extends AbstractWatcherIntegrationTests {
         metadata.put("list", "baz");
 
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("test-payload")
-                .source(watchSourceBuilder()
+                .source(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(inputRequest))
                         .transform(searchTransform(transformRequest))
-                        .addAction(indexAction("my-payload-output", "result"))
+                        .addAction(indexAction("_id", "my-payload-output", "result"))
                         .metadata(metadata)
                         .throttlePeriod(TimeValue.timeValueSeconds(0)))
                         .get();

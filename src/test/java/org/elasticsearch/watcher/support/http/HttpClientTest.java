@@ -82,7 +82,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
         RecordedRequest recordedRequest = webServer.takeRequest();
 
         assertThat(response.status(), equalTo(responseCode));
-        assertThat(new String(response.body(), Charsets.UTF_8), equalTo(body));
+        assertThat(response.body().toUtf8(), equalTo(body));
         assertThat(webServer.getRequestCount(), equalTo(1));
         assertThat(recordedRequest.getBody().readString(Charsets.UTF_8), equalTo(request.body()));
         assertThat(recordedRequest.getPath().split("\\?")[0], equalTo(request.path()));
@@ -102,7 +102,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
         request.body("body");
         HttpResponse response = httpClient.execute(request);
         assertThat(response.status(), equalTo(200));
-        assertThat(new String(response.body(), Charsets.UTF_8), equalTo("body"));
+        assertThat(response.body().toUtf8(), equalTo("body"));
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getHeader("Authorization"), equalTo("Basic dXNlcjpwYXNz"));
     }
@@ -127,7 +127,7 @@ public class HttpClientTest extends ElasticsearchTestCase {
         request.body("body");
         HttpResponse response = httpClient.execute(request);
         assertThat(response.status(), equalTo(200));
-        assertThat(new String(response.body(), Charsets.UTF_8), equalTo("body"));
+        assertThat(response.body().toUtf8(), equalTo("body"));
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getBody().readUtf8Line(), equalTo("body"));
     }

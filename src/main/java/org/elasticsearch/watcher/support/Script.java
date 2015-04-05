@@ -5,12 +5,12 @@
  */
 package org.elasticsearch.watcher.support;
 
-import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.watcher.WatcherException;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -98,6 +98,10 @@ public class Script implements ToXContent {
     }
 
     public static Script parse(XContentParser parser) throws IOException {
+        return parse(parser, ScriptService.DEFAULT_LANG);
+    }
+
+    public static Script parse(XContentParser parser, String defaultLang) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_STRING) {
             return new Script(parser.text());
@@ -108,7 +112,7 @@ public class Script implements ToXContent {
 
         String script = null;
         ScriptService.ScriptType type = ScriptService.ScriptType.INLINE;
-        String lang = ScriptService.DEFAULT_LANG;
+        String lang = defaultLang;
         Map<String, Object> params = Collections.emptyMap();
 
         String currentFieldName = null;

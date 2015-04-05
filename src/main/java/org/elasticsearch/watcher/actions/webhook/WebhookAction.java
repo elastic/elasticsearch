@@ -5,34 +5,25 @@
  */
 package org.elasticsearch.watcher.actions.webhook;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.base.Charsets;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionException;
-import org.elasticsearch.watcher.actions.ActionSettingsException;
 import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpResponse;
 import org.elasticsearch.watcher.support.http.TemplatedHttpRequest;
-import org.elasticsearch.watcher.transform.Transform;
-import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.WatchExecutionContext;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -45,8 +36,8 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
     private final TemplatedHttpRequest templatedHttpRequest;
 
-    public WebhookAction(ESLogger logger, @Nullable Transform transform, HttpClient httpClient, TemplatedHttpRequest templatedHttpRequest) {
-        super(logger, transform);
+    public WebhookAction(ESLogger logger, HttpClient httpClient, TemplatedHttpRequest templatedHttpRequest) {
+        super(logger);
         this.httpClient = httpClient;
         this.templatedHttpRequest = templatedHttpRequest;
     }
@@ -61,38 +52,26 @@ public class WebhookAction extends Action<WebhookAction.Result> {
     }
 
     @Override
-    protected Result execute(WatchExecutionContext ctx, Payload payload) throws IOException {
+    protected Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws IOException {
         Map<String, Object> model = Variables.createCtxModel(ctx, payload);
 
-        HttpRequest httpRequest = templatedHttpRequest.render(model);
+        HttpRequest request = templatedHttpRequest.render(model);
         try {
-            try (HttpResponse response = httpClient.execute(httpRequest)) {
-                int status = response.status();
-                if (status >= 400) {
-                    logger.warn("got status [" + status + "] when connecting to [" + httpRequest.host() + "] [" + httpRequest.path() + "]");
-                } else {
-                    if (status >= 300) {
-                        logger.warn("a 200 range return code was expected, but got [" + status + "]");
-                    }
-                }
-                return new Result.Executed(status, httpRequest, response.body());
+            HttpResponse response = httpClient.execute(request);
+            int status = response.status();
+            if (status >= 300) {
+                logger.warn("received http status [{}] when connecting to [{}] [{}]", status, request.host(), request.path());
             }
+            return new Result.Executed(request, response);
         } catch (IOException ioe) {
-            logger.error("failed to connect to [{}] for watch [{}]", ioe, httpRequest.toString(), ctx.watch().name());
+            logger.error("failed to execute webhook action [{}]. could not connect to [{}]", ioe, actionId, ctx.watch().name(), request.toString());
             return new Result.Failure("failed to send http request. " + ioe.getMessage());
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        if (transform != null) {
-            builder.startObject(Transform.Parser.TRANSFORM_FIELD.getPreferredName())
-                    .field(transform.type(), transform)
-                    .endObject();
-        }
-        builder.field(Parser.REQUEST_FIELD.getPreferredName(), templatedHttpRequest);
-        return builder.endObject();
+        return templatedHttpRequest.toXContent(builder, params);
     }
 
     @Override
@@ -119,41 +98,29 @@ public class WebhookAction extends Action<WebhookAction.Result> {
             super(type, success);
         }
 
-        void transformResult(Transform.Result result) {
-            this.transformResult = result;
-        }
-
         public static class Executed extends Result {
 
-            private final int httpStatus;
-            private final byte[] responseBody;
-            private final HttpRequest httpRequest;
+            private final HttpRequest request;
+            private final HttpResponse response;
 
-            public Executed(int httpStatus, HttpRequest httpRequest, byte[] responseBody) {
-                super(TYPE, httpStatus < 400);
-                this.httpStatus = httpStatus;
-                this.responseBody = responseBody;
-                this.httpRequest = httpRequest;
+            public Executed(HttpRequest request, HttpResponse response) {
+                super(TYPE, response.status() < 400);
+                this.request = request;
+                this.response = response;
             }
 
-            public int httpStatus() {
-                return httpStatus;
+            public HttpResponse response() {
+                return response;
             }
 
-            public byte[] responseBody() {
-                return responseBody;
-            }
-
-            public HttpRequest httpRequest() {
-                return httpRequest;
+            public HttpRequest request() {
+                return request;
             }
 
             @Override
             protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-                return builder.field(SUCCESS_FIELD.getPreferredName(), success())
-                        .field(WebhookAction.Parser.HTTP_STATUS_FIELD.getPreferredName(), httpStatus)
-                        .field(Parser.REQUEST_FIELD.getPreferredName(), httpRequest)
-                        .field(Parser.RESPONSE_BODY.getPreferredName(), responseBody);
+                return builder.field(Parser.REQUEST_FIELD.getPreferredName(), request)
+                        .field(Parser.RESPONSE_FIELD.getPreferredName(), response);
             }
         }
 
@@ -181,25 +148,22 @@ public class WebhookAction extends Action<WebhookAction.Result> {
     public static class Parser extends AbstractComponent implements Action.Parser<Result, WebhookAction> {
 
         public static final ParseField REQUEST_FIELD = new ParseField("request");
-        public static final ParseField HTTP_STATUS_FIELD = new ParseField("http_status");
-        public static final ParseField RESPONSE_BODY = new ParseField("response_body");
+        public static final ParseField RESPONSE_FIELD = new ParseField("response");
         public static final ParseField REASON_FIELD = new ParseField("reason");
 
         private final HttpClient httpClient;
-        private final TransformRegistry transformRegistry;
         private final HttpRequest.Parser requestParser;
         private final TemplatedHttpRequest.Parser templatedRequestParser;
-
+        private final ESLogger actionLogger;
 
         @Inject
-        public Parser(Settings settings, HttpClient httpClient,
-                      TransformRegistry transformRegistry, HttpRequest.Parser requestParser,
+        public Parser(Settings settings, HttpClient httpClient, HttpRequest.Parser requestParser,
                       TemplatedHttpRequest.Parser templatedRequestParser) {
             super(settings);
             this.httpClient = httpClient;
-            this.transformRegistry = transformRegistry;
             this.requestParser = requestParser;
             this.templatedRequestParser = templatedRequestParser;
+            this.actionLogger = Loggers.getLogger(WebhookAction.class, settings);
         }
 
         @Override
@@ -209,74 +173,47 @@ public class WebhookAction extends Action<WebhookAction.Result> {
 
         @Override
         public WebhookAction parse(XContentParser parser) throws IOException {
-            Transform transform = null;
-            TemplatedHttpRequest templatedHttpRequest = null;
-
-            String currentFieldName = null;
-            XContentParser.Token token;
-
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if ((token == XContentParser.Token.START_OBJECT) && currentFieldName != null ) {
-                    if (REQUEST_FIELD.match(currentFieldName)) {
-                        templatedHttpRequest = templatedRequestParser.parse(parser);
-                    } else if (Transform.Parser.TRANSFORM_FIELD.match(currentFieldName)) {
-                        transform = transformRegistry.parse(parser);
-                    }  else {
-                        throw new ActionSettingsException("could not parse webhook action. unexpected field [" + currentFieldName + "]");
-                    }
-                } else {
-                    throw new ActionSettingsException("could not parse webhook action. unexpected token [" + token + "]");
-                }
+            try {
+                TemplatedHttpRequest request = templatedRequestParser.parse(parser);
+                return new WebhookAction(actionLogger, httpClient, request);
+            } catch (TemplatedHttpRequest.ParseException pe) {
+                throw new ActionException("could not parse webhook action", pe);
             }
-
-            if (templatedHttpRequest == null) {
-                throw new ActionSettingsException("could not parse webhook action. [" + REQUEST_FIELD.getPreferredName() + "] is required");
-            }
-
-            return new WebhookAction(logger, transform, httpClient, templatedHttpRequest);
         }
 
         @Override
         public Result parseResult(XContentParser parser) throws IOException {
-            Transform.Result transformResult = null;
             String currentFieldName = null;
             XContentParser.Token token;
             Boolean success = null;
             String reason = null;
             HttpRequest request = null;
-            byte[] responseBody = null;
-            int httpStatus = -1;
+            HttpResponse response = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (token.isValue()) {
-                    if (HTTP_STATUS_FIELD.match(currentFieldName)) {
-                        httpStatus = parser.intValue();
-                    } else if (REASON_FIELD.match(currentFieldName)) {
-                        reason = parser.text();
-                    } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
-                        if (Action.Result.SUCCESS_FIELD.match(currentFieldName)) {
-                            success = parser.booleanValue();
-                        } else {
-                            throw new ActionException("could not parse webhook result. unexpected boolean field [" + currentFieldName + "]");
-                        }
-                    } else if (RESPONSE_BODY.match(currentFieldName)) {
-                        responseBody = parser.binaryValue();
-                    }else {
-                        throw new ActionException("unable to parse webhook action result. unexpected field [" + currentFieldName + "]");
-                    }
                 } else if (token == XContentParser.Token.START_OBJECT) {
-                    if (Transform.Parser.TRANSFORM_RESULT_FIELD.match(currentFieldName)) {
-                        transformResult = transformRegistry.parseResult(parser);
-                    } else if (REQUEST_FIELD.match(currentFieldName)) {
+                    if (REQUEST_FIELD.match(currentFieldName)) {
                         request = requestParser.parse(parser);
+                    } else if (RESPONSE_FIELD.match(currentFieldName)) {
+                        response = HttpResponse.parse(parser);
                     } else {
-                        throw new ActionException("unable to parse webhook action result. unexpected field [" + currentFieldName + "]" );
+                        throw new ActionException("unable to parse webhook action result. unexpected object field [" + currentFieldName + "]");
+                    }
+                } else if (token == XContentParser.Token.VALUE_STRING) {
+                    if (REASON_FIELD.match(currentFieldName)) {
+                        reason = parser.text();
+                    } else {
+                        throw new ActionException("unable to parse webhook action result. unexpected string field [" + currentFieldName + "]");
+                    }
+                } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
+                    if (Action.Result.SUCCESS_FIELD.match(currentFieldName)) {
+                        success = parser.booleanValue();
+                    } else {
+                        throw new ActionException("unable to parse webhook action result. unexpected boolean field [" + currentFieldName + "]");
                     }
                 } else {
-                    throw new ActionException("unable to parse webhook action result. unexpected field [" + currentFieldName + "]" );
+                    throw new ActionException("unable to parse webhook action result. unexpected token [" + token + "]" );
                 }
             }
 
@@ -284,42 +221,16 @@ public class WebhookAction extends Action<WebhookAction.Result> {
                 throw new ActionException("could not parse webhook result. expected boolean field [success]");
             }
 
-
-            Result result = (reason == null) ? new Result.Executed(httpStatus, request, responseBody) : new Result.Failure(reason);
-            if (transformResult != null) {
-                result.transformResult(transformResult);
-            }
-            return result;
+            return (reason == null) ? new Result.Executed(request, response) : new Result.Failure(reason);
         }
     }
 
-    private Object makeURLSafe(Object toSafe) throws UnsupportedEncodingException {
-        if (toSafe instanceof List) {
-            List<Object> returnObject = new ArrayList<>(((List) toSafe).size());
-            for (Object o : (List)toSafe) {
-                returnObject.add(makeURLSafe(o));
-            }
-            return returnObject;
-        } else if (toSafe instanceof Map) {
-            Map<Object, Object> returnObject = new HashMap<>(((Map) toSafe).size());
-            for (Object key : ((Map) toSafe).keySet()) {
-                returnObject.put(key, makeURLSafe(((Map) toSafe).get(key)));
-            }
-            return returnObject;
-        } else if (toSafe instanceof String) {
-            return URLEncoder.encode(toSafe.toString(), Charsets.UTF_8.name());
-        } else {
-            //Don't know how to convert anything else
-            return toSafe;
-        }
-    }
+    public static class SourceBuilder extends Action.SourceBuilder<SourceBuilder> {
 
+        private final TemplatedHttpRequest.SourceBuilder httpRequest;
 
-    public static class SourceBuilder implements Action.SourceBuilder {
-
-        private final TemplatedHttpRequest httpRequest;
-
-        public SourceBuilder(TemplatedHttpRequest httpRequest) {
+        public SourceBuilder(String id, TemplatedHttpRequest.SourceBuilder httpRequest) {
+            super(id);
             this.httpRequest = httpRequest;
         }
 
@@ -329,10 +240,9 @@ public class WebhookAction extends Action<WebhookAction.Result> {
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(Parser.REQUEST_FIELD.getPreferredName(), httpRequest);
-            return builder.endObject();
+        public XContentBuilder actionXContent(XContentBuilder builder, Params params) throws IOException {
+            return httpRequest.toXContent(builder, params);
+
         }
     }
 }

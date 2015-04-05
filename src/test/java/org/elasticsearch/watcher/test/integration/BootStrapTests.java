@@ -15,8 +15,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.Actions;
+import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
@@ -88,7 +88,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 new SearchInput(logger, scriptService(), ClientProxy.of(client()), searchRequest, null),
                 new ScriptCondition(logger, scriptService(), new Script("return true")),
                 new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
-                new Actions(new ArrayList<Action>()),
+                new Actions(new ArrayList<ActionWrapper>()),
                 null, // metadata
                 new TimeValue(0),
                 new Watch.Status());
@@ -149,7 +149,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                                 searchRequest, null),
                         new ScriptCondition(logger, scriptService(), new Script("return true")),
                         new SearchTransform(logger, scriptService(), ClientProxy.of(client()), searchRequest),
-                        new Actions(new ArrayList<Action>()),
+                        new Actions(new ArrayList<ActionWrapper>()),
                         null, // metatdata
                         new TimeValue(0),
                         new Watch.Status());

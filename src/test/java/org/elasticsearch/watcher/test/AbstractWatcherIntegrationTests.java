@@ -244,18 +244,18 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
             builder.endObject();
 
 
-            builder.startArray("actions");
+            builder.startObject("actions");
             {
-                builder.startObject();
+                builder.startObject("_action_id");
                 {
-                    builder.startObject("index");
-                    builder.field("index", "my-index");
-                    builder.field("type", "trail");
-                    builder.endObject();
+                    builder.startObject("index")
+                            .field("index", "my-index")
+                            .field("type", "trail")
+                            .endObject();
                 }
                 builder.endObject();
             }
-            builder.endArray();
+            builder.endObject();
         }
         builder.endObject();
 

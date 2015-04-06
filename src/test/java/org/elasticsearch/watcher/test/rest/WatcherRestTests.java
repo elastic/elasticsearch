@@ -73,6 +73,8 @@ public class WatcherRestTests extends ElasticsearchRestTests {
         return ImmutableSettings.builder()
                 .put("plugin.types", WatcherPlugin.class.getName())
                 .put(InternalNode.HTTP_ENABLED, true)
+                .put("plugin.types", WatcherPlugin.class.getName() + ","
+                        + "," + LicensePlugin.class.getName())
                 .build();
     }
 
@@ -93,6 +95,8 @@ public class WatcherRestTests extends ElasticsearchRestTests {
         return ImmutableSettings.builder()
                 .put("plugin.types", WatcherPlugin.class.getName())
                 .put(InternalNode.HTTP_ENABLED, true)
+                .put("plugin.types", WatcherPlugin.class.getName() + ","
+                        + "," + LicensePlugin.class.getName())
                 .build();
     }
 
@@ -139,7 +143,7 @@ public class WatcherRestTests extends ElasticsearchRestTests {
                     .put("shield.user", "test:changeme")
                     .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
                     .put("shield.authc.anonymous.username","anonymous_user")
-                    .put("shield.authc.anonymous.roles", "monitor")
+                    .put("shield.authc.anonymous.roles", "admin")
                     .put("shield.authc.realms.esusers.order", 0)
                     .put("shield.authc.realms.esusers.files.users", writeFile(folder, "users", USERS))
                     .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))

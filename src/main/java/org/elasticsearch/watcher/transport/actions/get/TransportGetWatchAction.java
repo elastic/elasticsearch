@@ -7,7 +7,6 @@ package org.elasticsearch.watcher.transport.actions.get;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -60,21 +59,27 @@ public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequ
 
     @Override
     protected void masterOperation(GetWatchRequest request, ClusterState state, ActionListener<GetWatchResponse> listener) throws ElasticsearchException {
-        Watch watch = watchService.getWatch(request.watchName());
-        GetResult getResult;
-        if (watch != null) {
-            BytesReference watchSource = null;
-            try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-                builder.value(watch);
-                watchSource = builder.bytes();
-            } catch (IOException e) {
-                listener.onFailure(e);
+        try {
+            Watch watch = watchService.getWatch(request.watchName());
+            GetResult getResult;
+            if (watch != null) {
+                BytesReference watchSource = null;
+                try (XContentBuilder builder = JsonXContent.contentBuilder()) {
+                    builder.value(watch);
+                    watchSource = builder.bytes();
+                } catch (IOException e) {
+                    listener.onFailure(e);
+                    return;
+                }
+                getResult = new GetResult(WatchStore.INDEX, WatchStore.DOC_TYPE, watch.name(), watch.status().version(), true, watchSource, null);
+            } else {
+                getResult = new GetResult(WatchStore.INDEX, WatchStore.DOC_TYPE, request.watchName(), -1, false, null, null);
             }
-            getResult = new GetResult(WatchStore.INDEX, WatchStore.DOC_TYPE, watch.name(), watch.status().version(), true, watchSource, null);
-        } else {
-            getResult = new GetResult(WatchStore.INDEX, WatchStore.DOC_TYPE, request.watchName(), -1, false, null, null);
+            listener.onResponse(new GetWatchResponse(getResult.isExists(), getResult.getId(), getResult.getVersion(), getResult.sourceRef()));
+        } catch (Throwable t) {
+            logger.error("failed to get watch [{}]", t, request.watchName());
+            throw t;
         }
-        listener.onResponse(new GetWatchResponse(new GetResponse(getResult)));
     }
 
     @Override

@@ -5,49 +5,85 @@
  */
 package org.elasticsearch.watcher.transport.actions.get;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class GetWatchResponse extends ActionResponse {
 
-    private GetResponse getResponse;
+    private boolean exists = false;
+    private String id;
+    private long version;
+    private BytesReference source;
+
+    private Map<String, Object> sourceAsMap;
+
+    public GetWatchResponse(boolean found, String id, long version, BytesReference source) {
+        this.exists = found;
+        this.id = id;
+        this.version = version;
+        this.source = source;
+        GetResponse foo;
+    }
 
     public GetWatchResponse() {
     }
 
-    public GetWatchResponse(GetResponse getResponse) {
-        this.getResponse = getResponse;
+    public BytesReference source() {
+        return source;
     }
 
-    /**
-     * Sets the GetResponse containing the watch source
-     */
-    public void getResponse(GetResponse getResponse) {
-        this.getResponse = getResponse;
+    public Map<String, Object> sourceAsMap() throws ElasticsearchParseException {
+        if (source == null) {
+            return null;
+        }
+        if (sourceAsMap != null) {
+            return sourceAsMap;
+        }
+
+        sourceAsMap = SourceLookup.sourceAsMap(source);
+        return sourceAsMap;
     }
 
-    public GetResponse getResponse() {
-        return this.getResponse;
+
+    public boolean exists() {
+        return exists;
+    }
+
+    public String id() {
+        return id;
+    }
+
+    public long version() {
+        return version;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        if (in.readBoolean()) {
-            getResponse = GetResponse.readGetResponse(in);
+        exists = in.readBoolean();
+        if (exists) {
+            id = in.readString();
+            version = in.readLong();
+            source = in.readBytesReference();
         }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeBoolean(getResponse != null);
-        if (getResponse != null) {
-            getResponse.writeTo(out);
+        out.writeBoolean(exists);
+        if (exists) {
+            out.writeString(id);
+            out.writeLong(version);
+            out.writeBytesReference(source);
         }
     }
 }

@@ -100,10 +100,10 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
         }
 
         GetWatchResponse getWatchResponse = watcherClient.prepareGetWatch("_name").get();
-        assertThat(getWatchResponse.getResponse().isExists(), is(true));
+        assertThat(getWatchResponse.exists(), is(true));
 
-        Watch parsedWatch = watchParser().parse(getWatchResponse.getResponse().getId(), true,
-                getWatchResponse.getResponse().getSourceAsBytesRef());
+        Watch parsedWatch = watchParser().parse(getWatchResponse.id(), true,
+                getWatchResponse.source());
         assertThat(parsedWatch.status().ackStatus().state(), is(Watch.Status.AckStatus.State.AWAITS_EXECUTION));
 
         long throttledCount = docCount(HistoryStore.INDEX_PREFIX + "*", null,

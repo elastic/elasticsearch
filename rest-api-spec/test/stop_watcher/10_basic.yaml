@@ -1,0 +1,11 @@
+---
+"Test stop watcher api":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do: {stop_watcher: {}}
+  - match: { acknowledged: true }
+
+  - do: {start_watcher: {}}
+  - match: { acknowledged: true }

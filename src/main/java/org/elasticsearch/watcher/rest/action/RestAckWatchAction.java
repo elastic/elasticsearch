@@ -26,6 +26,7 @@ public class RestAckWatchAction extends WatcherRestHandler {
     protected RestAckWatchAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
         controller.registerHandler(RestRequest.Method.PUT, URI_BASE + "/watch/{name}/_ack", this);
+        controller.registerHandler(RestRequest.Method.POST, URI_BASE + "/watch/{name}/_ack", this);
     }
 
     @Override
@@ -35,7 +36,7 @@ public class RestAckWatchAction extends WatcherRestHandler {
             @Override
             public RestResponse buildResponse(AckWatchResponse response, XContentBuilder builder) throws Exception {
                 return new BytesRestResponse(RestStatus.OK, builder.startObject()
-                        .field(Watch.Parser.STATUS_FIELD.getPreferredName(), response.getStatus().toString())
+                        .field(Watch.Parser.STATUS_FIELD.getPreferredName(), response.getStatus())
                         .endObject());
 
             }

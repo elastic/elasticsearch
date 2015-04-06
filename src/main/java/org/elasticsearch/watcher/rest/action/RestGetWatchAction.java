@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.rest.action;
 
-import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -35,15 +34,14 @@ public class RestGetWatchAction extends WatcherRestHandler {
         client.getWatch(getWatchRequest, new RestBuilderListener<GetWatchResponse>(channel) {
             @Override
             public RestResponse buildResponse(GetWatchResponse response, XContentBuilder builder) throws Exception {
-                GetResponse getResponse = response.getResponse();
                 builder.startObject()
-                        .field("found", getResponse.isExists())
-                        .field("_id", getResponse.getId())
-                        .field("_version", getResponse.getVersion())
-                        .field("watch", getResponse.getSource())
+                        .field("found", response.exists())
+                        .field("_id", response.id())
+                        .field("_version", response.version())
+                        .field("watch", response.sourceAsMap())
                         .endObject();
 
-                RestStatus status = getResponse.isExists() ? OK : NOT_FOUND;
+                RestStatus status = response.exists() ? OK : NOT_FOUND;
                 return new BytesRestResponse(status, builder);
             }
         });

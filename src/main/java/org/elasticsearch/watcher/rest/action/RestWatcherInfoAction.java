@@ -35,12 +35,13 @@ public class RestWatcherInfoAction extends WatcherRestHandler {
         watcherClient.watcherStats(new WatcherStatsRequest(), new RestBuilderListener<WatcherStatsResponse>(restChannel) {
             @Override
             public RestResponse buildResponse(WatcherStatsResponse watcherStatsResponse, XContentBuilder builder) throws Exception {
+                builder.startObject();
                 builder.startObject("version")
                         .field("number", watcherStatsResponse.getVersion().number())
                         .field("build_hash", watcherStatsResponse.getBuild().hash())
                         .field("build_timestamp", watcherStatsResponse.getBuild().timestamp())
                         .field("build_snapshot", watcherStatsResponse.getVersion().snapshot)
-                        .endObject();
+                        .endObject().endObject();
 
                 return new BytesRestResponse(OK, builder);
 

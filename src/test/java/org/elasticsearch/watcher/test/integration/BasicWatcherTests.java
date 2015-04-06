@@ -77,8 +77,8 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         assertWatchWithMinimumPerformedActionsCount("_name", 1);
 
         GetWatchResponse getWatchResponse = watcherClient().prepareGetWatch().setWatchName("_name").get();
-        assertThat(getWatchResponse.getResponse().isExists(), is(true));
-        assertThat(getWatchResponse.getResponse().isSourceEmpty(), is(false));
+        assertThat(getWatchResponse.exists(), is(true));
+        assertThat(getWatchResponse.source().length(), greaterThan(0));
     }
 
     @Test

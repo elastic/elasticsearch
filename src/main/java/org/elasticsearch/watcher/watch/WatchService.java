@@ -8,14 +8,14 @@ package org.elasticsearch.watcher.watch;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.history.HistoryService;
-import org.elasticsearch.watcher.support.Callback;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.watcher.WatcherException;
+import org.elasticsearch.watcher.history.HistoryService;
+import org.elasticsearch.watcher.support.Callback;
 import org.elasticsearch.watcher.trigger.TriggerService;
 
 import java.io.IOException;
@@ -109,6 +109,9 @@ public class WatchService extends AbstractComponent {
                 triggerService.add(result.current());
             }
             return result.indexResponse();
+        } catch (Exception e) {
+            logger.warn("failed to put watch [{}]", e, name);
+            throw new WatcherException("failed to put [" + watchSource.toUtf8() + "]", e);
         } finally {
             lock.release();
         }

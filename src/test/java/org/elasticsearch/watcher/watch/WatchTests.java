@@ -20,8 +20,8 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionRegistry;
-import org.elasticsearch.watcher.actions.Actions;
 import org.elasticsearch.watcher.actions.ActionWrapper;
+import org.elasticsearch.watcher.actions.Actions;
 import org.elasticsearch.watcher.actions.email.EmailAction;
 import org.elasticsearch.watcher.actions.email.service.Email;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
@@ -36,6 +36,7 @@ import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.input.search.SearchInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
+import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.SystemClock;
@@ -118,11 +119,11 @@ public class WatchTests extends ElasticsearchTestCase {
 
         TimeValue throttlePeriod = randomBoolean() ? null : TimeValue.timeValueSeconds(randomIntBetween(5, 10));
 
-        Watch watch = new Watch("_name", SystemClock.INSTANCE, trigger, input, condition, transform, actions, metadata, throttlePeriod, status);
+        Watch watch = new Watch("_name", SystemClock.INSTANCE, mock(LicenseService.class), trigger, input, condition, transform, actions, metadata, throttlePeriod, status);
 
         BytesReference bytes = XContentFactory.jsonBuilder().value(watch).bytes();
         logger.info(bytes.toUtf8());
-        Watch.Parser watchParser = new Watch.Parser(settings, conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, SystemClock.INSTANCE);
+        Watch.Parser watchParser = new Watch.Parser(settings, mock(LicenseService.class), conditionRegistry, triggerService, transformRegistry, actionRegistry, inputRegistry, SystemClock.INSTANCE);
 
         boolean includeStatus = randomBoolean();
         Watch parsedWatch = watchParser.parse("_name", includeStatus, bytes);

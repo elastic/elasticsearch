@@ -8,6 +8,7 @@ package org.elasticsearch.watcher;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
+import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.init.InitializingService;
 import org.elasticsearch.common.collect.ImmutableList;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -58,6 +59,7 @@ public class WatcherPlugin extends AbstractPlugin {
                 // as other services may depend on one of the initialized
                 // constructs
                 InitializingService.class,
+                LicenseService.class,
                 InternalEmailService.class);
     }
 

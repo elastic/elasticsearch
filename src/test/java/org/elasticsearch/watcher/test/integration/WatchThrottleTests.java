@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.test.integration;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.joda.time.DateTime;
@@ -111,7 +112,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
     }
 
 
-    @Test
+    @Test @Repeat(iterations = 10)
     public void testTimeThrottle() throws Exception {
         WatcherClient watcherClient = watcherClient();
         createIndex("actions", "events");

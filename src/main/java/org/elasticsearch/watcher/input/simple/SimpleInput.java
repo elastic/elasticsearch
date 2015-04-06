@@ -5,16 +5,16 @@
  */
 package org.elasticsearch.watcher.input.simple;
 
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
-import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.input.InputException;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.watcher.input.Input;
+import org.elasticsearch.watcher.input.InputException;
+import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.watcher.watch.WatchExecutionContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -46,9 +46,7 @@ public class SimpleInput extends Input<SimpleInput.Result> {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(Input.Result.PAYLOAD_FIELD.getPreferredName(), payload);
-        return builder.endObject();
+        return payload.toXContent(builder, params);
     }
 
     @Override
@@ -66,6 +64,11 @@ public class SimpleInput extends Input<SimpleInput.Result> {
         }
         final SimpleInput other = (SimpleInput) obj;
         return Objects.equals(this.payload.data(), other.payload.data());
+    }
+
+    @Override
+    public String toString() {
+        return payload.toString();
     }
 
     public static class Result extends Input.Result {
@@ -94,26 +97,10 @@ public class SimpleInput extends Input<SimpleInput.Result> {
 
         @Override
         public SimpleInput parse(XContentParser parser) throws IOException {
-            Payload payload = null;
-
-            String currentFieldName = null;
-            XContentParser.Token token;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
-                    if (Input.Result.PAYLOAD_FIELD.match(currentFieldName)) {
-                        payload = new Payload.XContent(parser);
-                    } else {
-                        throw new InputException("unable to parse [" + TYPE + "] input. unexpected field [" + currentFieldName + "]");
-                    }
-                }
+            if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+                throw new InputException("could not parse simple input. expected an object but found [" + parser.currentToken() + "]");
             }
-
-            if (payload == null) {
-                throw new InputException("unable to parse [" + TYPE + "] input [payload] is a required field");
-            }
-
+            Payload payload = new Payload.Simple(parser.map());
             return new SimpleInput(logger, payload);
         }
 

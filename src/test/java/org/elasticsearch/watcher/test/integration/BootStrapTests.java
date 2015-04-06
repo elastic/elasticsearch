@@ -84,6 +84,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
         Watch watch = new Watch(
                 "test-serialization",
                 SystemClock.INSTANCE,
+                licenseService(),
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? 2035")), //Set this into the future so we don't get any extra runs
                 new SearchInput(logger, scriptService(), ClientProxy.of(client()), searchRequest, null),
                 new ScriptCondition(logger, scriptService(), new Script("return true")),
@@ -144,6 +145,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 Watch watch = new Watch(
                         "action-test-" + i + " " + j,
                         SystemClock.INSTANCE,
+                        licenseService(),
                         new ScheduleTrigger(new CronSchedule("0/5 * * * * ? 2035")), //Set a cron schedule far into the future so this watch is never scheduled
                         new SearchInput(logger, scriptService(), ClientProxy.of(client()),
                                 searchRequest, null),

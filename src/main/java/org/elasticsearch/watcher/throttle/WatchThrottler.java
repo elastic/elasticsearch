@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.throttle;
 
+import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.watch.WatchExecutionContext;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.common.Nullable;
@@ -17,20 +18,25 @@ public class WatchThrottler implements Throttler {
 
     private static final AckThrottler ACK_THROTTLER = new AckThrottler();
 
+    private final LicenseService licenseService;
     private final PeriodThrottler periodThrottler;
     private final AckThrottler ackThrottler;
 
-    public WatchThrottler(Clock clock, @Nullable TimeValue throttlePeriod) {
-        this(throttlePeriod != null ? new PeriodThrottler(clock, throttlePeriod) : null, ACK_THROTTLER);
+    public WatchThrottler(Clock clock, @Nullable TimeValue throttlePeriod, LicenseService licenseService) {
+        this(throttlePeriod != null ? new PeriodThrottler(clock, throttlePeriod) : null, ACK_THROTTLER, licenseService);
     }
 
-    WatchThrottler(PeriodThrottler periodThrottler, AckThrottler ackThrottler) {
+    WatchThrottler(PeriodThrottler periodThrottler, AckThrottler ackThrottler, LicenseService licenseService) {
         this.periodThrottler = periodThrottler;
         this.ackThrottler = ackThrottler;
+        this.licenseService = licenseService;
     }
 
     @Override
     public Result throttle(WatchExecutionContext ctx) {
+        if (!licenseService.enabled()) {
+            return Result.throttle("watcher license expired");
+        }
         if (periodThrottler != null) {
             Result throttleResult = periodThrottler.throttle(ctx);
             if (throttleResult.throttle()) {

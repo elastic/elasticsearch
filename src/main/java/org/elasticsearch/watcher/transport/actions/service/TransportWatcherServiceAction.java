@@ -9,8 +9,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
-import org.elasticsearch.watcher.WatcherLifeCycleService;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -19,16 +17,19 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.watcher.WatcherLifeCycleService;
+import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
 
 /**
  */
-public class TransportWatcherServiceAction extends TransportMasterNodeOperationAction<WatcherServiceRequest, WatcherServiceResponse> {
+public class TransportWatcherServiceAction extends WatcherTransportAction<WatcherServiceRequest, WatcherServiceResponse> {
 
     private final WatcherLifeCycleService lifeCycleService;
 
     @Inject
-    public TransportWatcherServiceAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters, WatcherLifeCycleService lifeCycleService) {
-        super(settings, WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters);
+    public TransportWatcherServiceAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters, WatcherLifeCycleService lifeCycleService, LicenseService licenseService) {
+        super(settings, WatcherServiceAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService);
         this.lifeCycleService = lifeCycleService;
     }
 
@@ -57,8 +58,8 @@ public class TransportWatcherServiceAction extends TransportMasterNodeOperationA
                 lifeCycleService.stop();
                 break;
             case RESTART:
-                lifeCycleService.start();
                 lifeCycleService.stop();
+                lifeCycleService.start();
                 break;
             default:
                 listener.onFailure(new ElasticsearchIllegalArgumentException("Command [" + request.getCommand() + "] is undefined"));

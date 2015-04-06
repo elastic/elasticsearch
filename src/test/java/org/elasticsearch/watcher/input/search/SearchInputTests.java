@@ -25,6 +25,7 @@ import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputException;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
+import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
@@ -48,6 +49,7 @@ import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 
 /**
@@ -70,6 +72,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         WatchExecutionContext ctx = new WatchExecutionContext("test-watch",
                 new Watch("test-alert",
                         new ClockMock(),
+                        mock(LicenseService.class),
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                         new SimpleInput(logger, new Payload.Simple()),
                         new AlwaysTrueCondition(logger),
@@ -107,6 +110,7 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         WatchExecutionContext ctx = new WatchExecutionContext("test-watch",
                 new Watch("test-alert",
                         new ClockMock(),
+                        mock(LicenseService.class),
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                         new SimpleInput(logger, new Payload.Simple()),
                         new AlwaysTrueCondition(logger),

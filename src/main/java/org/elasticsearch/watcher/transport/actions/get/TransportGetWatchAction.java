@@ -9,10 +9,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
-import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchService;
-import org.elasticsearch.watcher.watch.WatchStore;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -25,20 +21,25 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
+import org.elasticsearch.watcher.watch.Watch;
+import org.elasticsearch.watcher.watch.WatchService;
+import org.elasticsearch.watcher.watch.WatchStore;
 
 import java.io.IOException;
 
 /**
  * Performs the get operation.
  */
-public class TransportGetWatchAction extends TransportMasterNodeOperationAction<GetWatchRequest, GetWatchResponse> {
+public class TransportGetWatchAction extends WatcherTransportAction<GetWatchRequest, GetWatchResponse> {
 
     private final WatchService watchService;
 
     @Inject
     public TransportGetWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                   ThreadPool threadPool, ActionFilters actionFilters, WatchService watchService) {
-        super(settings, GetWatchAction.NAME, transportService, clusterService, threadPool, actionFilters);
+                                   ThreadPool threadPool, ActionFilters actionFilters, WatchService watchService, LicenseService licenseService) {
+        super(settings, GetWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService);
         this.watchService = watchService;
     }
 

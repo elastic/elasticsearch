@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.watcher.input.simple;
 
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputException;
@@ -43,15 +45,13 @@ public class SimpleInputTests extends ElasticsearchTestCase {
     public void testParser_Valid() throws Exception {
         Map<String, Object> data = new HashMap<>();
         data.put("foo", "bar");
-        data.put("baz", new ArrayList<String>() );
+        data.put("baz", new ArrayList<String>());
 
-        XContentBuilder jsonBuilder = jsonBuilder();
-        jsonBuilder.startObject();
-        jsonBuilder.field(Input.Result.PAYLOAD_FIELD.getPreferredName(), data);
-        jsonBuilder.endObject();
-
+        XContentBuilder jsonBuilder = jsonBuilder().value(data);
         Input.Parser parser = new SimpleInput.Parser(ImmutableSettings.builder().build());
-        Input input = parser.parse(XContentFactory.xContent(jsonBuilder.bytes()).createParser(jsonBuilder.bytes()));
+        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
+        xContentParser.nextToken();
+        Input input = parser.parse(xContentParser);
         assertEquals(input.type(), SimpleInput.TYPE);
 
 
@@ -65,15 +65,14 @@ public class SimpleInputTests extends ElasticsearchTestCase {
     @Test(expected = InputException.class)
     public void testParser_Invalid() throws Exception {
 
-        XContentBuilder jsonBuilder = jsonBuilder();
-        jsonBuilder.startObject();
-        jsonBuilder.endObject();
+        XContentBuilder jsonBuilder = jsonBuilder().value("just a string");
 
         Input.Parser parser = new SimpleInput.Parser(ImmutableSettings.builder().build());
-        parser.parse(XContentFactory.xContent(jsonBuilder.bytes()).createParser(jsonBuilder.bytes()));
+        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(jsonBuilder.bytes());
+        xContentParser.nextToken();
+        parser.parse(xContentParser);
         fail("[simple] input parse should fail with an InputException for an empty json object");
     }
-
 
     @Test
     public void testResultParser_Valid() throws Exception {

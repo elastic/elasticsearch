@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.plugin.LicensePlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
@@ -43,6 +44,7 @@ import org.elasticsearch.watcher.actions.email.service.Profile;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
+import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.http.HttpClient;
@@ -92,7 +94,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                 .put("plugin.types",
                         (timeWarped() ? TimeWarpedWatcherPlugin.class.getName() : WatcherPlugin.class.getName()) + "," +
                                 (shieldEnabled ? ShieldPlugin.class.getName() + "," : "") +
-                                LicensePlugin.class.getName())
+                                licensePluginClass().getName())
                 .put(ShieldSettings.settings(shieldEnabled));
         return builder.build();
     }
@@ -119,6 +121,10 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
      */
     protected boolean enableShield() {
         return randomBoolean();
+    }
+
+    protected Class<? extends Plugin> licensePluginClass() {
+        return LicensePlugin.class;
     }
 
     @Before
@@ -300,6 +306,10 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         return new NoopEmailService();
     }
 
+    protected LicenseService licenseService() {
+        return getInstanceFromMaster(LicenseService.class);
+    }
+
     protected WatchRecord.Parser watchRecordParser() {
         return internalTestCluster().getInstance(WatchRecord.Parser.class);
     }
@@ -352,6 +362,16 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         });
     }
 
+    protected long historyRecordsCount(String watchName) {
+        refresh();
+        SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
+                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                .setSearchType(SearchType.COUNT)
+                .setQuery(matchQuery("watch_name", watchName))
+                .get();
+        return searchResponse.getHits().getTotalHits();
+    }
+
     protected long findNumberOfPerformedActions(String watchName) {
         refresh();
         SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
@@ -386,19 +406,35 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
     }
 
     protected void ensureWatcherStarted() throws Exception {
+        ensureWatcherStarted(true);
+    }
+
+    protected void ensureWatcherStarted(final boolean useClient) throws Exception {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(watcherClient().prepareWatcherStats().get().getWatchServiceState(), is(WatchService.State.STARTED));
+                if (useClient) {
+                    assertThat(watcherClient().prepareWatcherStats().get().getWatchServiceState(), is(WatchService.State.STARTED));
+                } else {
+                    assertThat(getInstanceFromMaster(WatchService.class).state(), is(WatchService.State.STARTED));
+                }
             }
         });
     }
 
     protected void ensureWatcherStopped() throws Exception {
+        ensureWatcherStopped(true);
+    }
+
+    protected void ensureWatcherStopped(final boolean useClient) throws Exception {
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                assertThat(watcherClient().prepareWatcherStats().get().getWatchServiceState(), is(WatchService.State.STOPPED));
+                if (useClient) {
+                    assertThat(watcherClient().prepareWatcherStats().get().getWatchServiceState(), is(WatchService.State.STOPPED));
+                } else {
+                    assertThat(getInstanceFromMaster(WatchService.class).state(), is(WatchService.State.STOPPED));
+                }
             }
         });
     }

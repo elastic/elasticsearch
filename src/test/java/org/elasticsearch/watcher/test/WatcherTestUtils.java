@@ -26,6 +26,7 @@ import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.input.search.SearchInput;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
+import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.SystemClock;
@@ -158,9 +159,13 @@ public final class WatcherTestUtils {
         Map<String, Object> inputData = new LinkedHashMap<>();
         inputData.put("bar", "foo");
 
+        LicenseService licenseService = mock(LicenseService.class);
+        when(licenseService.enabled()).thenReturn(true);
+
         return new Watch(
                 watchName,
                 SystemClock.INSTANCE,
+                licenseService,
                 new ScheduleTrigger(new CronSchedule("0/5 * * * * ? *")),
                 new SimpleInput(logger, new Payload.Simple(inputData)),
                 new ScriptCondition(logger, scriptService, new Script("return true")),

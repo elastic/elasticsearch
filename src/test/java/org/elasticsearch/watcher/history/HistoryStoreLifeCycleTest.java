@@ -29,7 +29,7 @@ public class HistoryStoreLifeCycleTest extends AbstractWatcherIntegrationTests {
     public void testPutLoadUpdate() throws Exception {
         Condition condition = new AlwaysTrueCondition(logger);
         HistoryStore historyStore = getInstanceFromMaster(HistoryStore.class);
-        Watch watch = new Watch("_name", SystemClock.INSTANCE, null, null, condition, null, null, null, null, null);
+        Watch watch = new Watch("_name", SystemClock.INSTANCE, licenseService(), null, null, condition, null, null, null, null, null);
 
         // Put watch records and verify that these are stored
         WatchRecord[] watchRecords = new WatchRecord[randomIntBetween(1, 50)];

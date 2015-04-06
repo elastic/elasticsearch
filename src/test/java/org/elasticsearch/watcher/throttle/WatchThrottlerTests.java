@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.throttle;
 
+import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.watch.WatchExecutionContext;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
@@ -28,7 +29,9 @@ public class WatchThrottlerTests extends ElasticsearchTestCase {
         when(periodThrottler.throttle(ctx)).thenReturn(Throttler.Result.NO);
         Throttler.Result expectedResult = Throttler.Result.throttle("_reason");
         when(ackThrottler.throttle(ctx)).thenReturn(expectedResult);
-        WatchThrottler throttler = new WatchThrottler(periodThrottler, ackThrottler);
+        LicenseService licenseService = mock(LicenseService.class);
+        when(licenseService.enabled()).thenReturn(true);
+        WatchThrottler throttler = new WatchThrottler(periodThrottler, ackThrottler, licenseService);
         Throttler.Result result = throttler.throttle(ctx);
         assertThat(result, notNullValue());
         assertThat(result, is(expectedResult));
@@ -42,14 +45,16 @@ public class WatchThrottlerTests extends ElasticsearchTestCase {
         Throttler.Result expectedResult = Throttler.Result.throttle("_reason");
         when(periodThrottler.throttle(ctx)).thenReturn(expectedResult);
         when(ackThrottler.throttle(ctx)).thenReturn(Throttler.Result.NO);
-        WatchThrottler throttler = new WatchThrottler(periodThrottler, ackThrottler);
+        LicenseService licenseService = mock(LicenseService.class);
+        when(licenseService.enabled()).thenReturn(true);
+        WatchThrottler throttler = new WatchThrottler(periodThrottler, ackThrottler, licenseService);
         Throttler.Result result = throttler.throttle(ctx);
         assertThat(result, notNullValue());
         assertThat(result, is(expectedResult));
     }
 
     @Test
-    public void testThrottle_DueBoth() throws Exception {
+    public void testThrottle_DueAckAndPeriod() throws Exception {
         PeriodThrottler periodThrottler = mock(PeriodThrottler.class);
         AckThrottler ackThrottler = mock(AckThrottler.class);
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
@@ -57,7 +62,9 @@ public class WatchThrottlerTests extends ElasticsearchTestCase {
         when(periodThrottler.throttle(ctx)).thenReturn(periodResult);
         Throttler.Result ackResult = Throttler.Result.throttle("_reason_ack");
         when(ackThrottler.throttle(ctx)).thenReturn(ackResult);
-        WatchThrottler throttler = new WatchThrottler(periodThrottler, ackThrottler);
+        LicenseService licenseService = mock(LicenseService.class);
+        when(licenseService.enabled()).thenReturn(true);
+        WatchThrottler throttler = new WatchThrottler(periodThrottler, ackThrottler, licenseService);
         Throttler.Result result = throttler.throttle(ctx);
         assertThat(result, notNullValue());
         // we always check the period first... so the result will come for the period throttler
@@ -71,7 +78,9 @@ public class WatchThrottlerTests extends ElasticsearchTestCase {
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
         when(periodThrottler.throttle(ctx)).thenReturn(Throttler.Result.NO);
         when(ackThrottler.throttle(ctx)).thenReturn(Throttler.Result.NO);
-        WatchThrottler throttler = new WatchThrottler(periodThrottler, ackThrottler);
+        LicenseService licenseService = mock(LicenseService.class);
+        when(licenseService.enabled()).thenReturn(true);
+        WatchThrottler throttler = new WatchThrottler(periodThrottler, ackThrottler, licenseService);
         Throttler.Result result = throttler.throttle(ctx);
         assertThat(result, notNullValue());
         assertThat(result, is(Throttler.Result.NO));
@@ -83,7 +92,9 @@ public class WatchThrottlerTests extends ElasticsearchTestCase {
         WatchExecutionContext ctx = mock(WatchExecutionContext.class);
         Throttler.Result ackResult = mock(Throttler.Result.class);
         when(ackThrottler.throttle(ctx)).thenReturn(ackResult);
-        WatchThrottler throttler = new WatchThrottler(null, ackThrottler);
+        LicenseService licenseService = mock(LicenseService.class);
+        when(licenseService.enabled()).thenReturn(true);
+        WatchThrottler throttler = new WatchThrottler(null, ackThrottler, licenseService);
         Throttler.Result result = throttler.throttle(ctx);
         assertThat(result, notNullValue());
         assertThat(result, sameInstance(ackResult));

@@ -8,9 +8,6 @@ package org.elasticsearch.watcher.transport.actions.delete;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
-import org.elasticsearch.watcher.watch.WatchService;
-import org.elasticsearch.watcher.watch.WatchStore;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -19,18 +16,22 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
+import org.elasticsearch.watcher.watch.WatchService;
+import org.elasticsearch.watcher.watch.WatchStore;
 
 /**
  * Performs the delete operation.
  */
-public class TransportDeleteWatchAction extends TransportMasterNodeOperationAction<DeleteWatchRequest, DeleteWatchResponse> {
+public class TransportDeleteWatchAction extends WatcherTransportAction<DeleteWatchRequest, DeleteWatchResponse> {
 
     private final WatchService watchService;
 
     @Inject
     public TransportDeleteWatchAction(Settings settings, TransportService transportService, ClusterService clusterService,
-                                      ThreadPool threadPool, ActionFilters actionFilters, WatchService watchService) {
-        super(settings, DeleteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters);
+                                      ThreadPool threadPool, ActionFilters actionFilters, WatchService watchService, LicenseService licenseService) {
+        super(settings, DeleteWatchAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService);
         this.watchService = watchService;
     }
 

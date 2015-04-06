@@ -18,7 +18,6 @@
         },
         "trigger_event" : {
           "type" : "object",
-          "enabled" : false,
           "dynamic" : true
         },
         "state": {
@@ -30,12 +29,10 @@
         },
         "condition" : {
           "type" : "object",
-          "enabled" : false,
           "dynamic" : true
         },
         "watch_execution" : {
           "type" : "object",
-          "enabled" : false,
           "dynamic" : true
         },
         "meta" : {

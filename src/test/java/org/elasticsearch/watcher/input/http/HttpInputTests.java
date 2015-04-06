@@ -22,6 +22,7 @@ import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputBuilders;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
+import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.http.*;
 import org.elasticsearch.watcher.support.http.auth.BasicAuth;
@@ -87,6 +88,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
 
         Watch watch = new Watch("test-watch",
                 new ClockMock(),
+                mock(LicenseService.class),
                 new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
                 new SimpleInput(logger, new Payload.Simple()),
                 new AlwaysTrueCondition(logger),

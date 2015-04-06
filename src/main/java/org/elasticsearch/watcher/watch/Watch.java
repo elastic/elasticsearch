@@ -31,6 +31,7 @@ import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.input.NoneInput;
+import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.throttle.WatchThrottler;
@@ -63,7 +64,8 @@ public class Watch implements TriggerEngine.Job, ToXContent {
     @Nullable
     private final Transform transform;
 
-    public Watch(String name, Clock clock, Trigger trigger, Input input, Condition condition, @Nullable Transform transform, Actions actions, @Nullable Map<String, Object> metadata, @Nullable TimeValue throttlePeriod, @Nullable Status status) {
+    public Watch(String name, Clock clock, LicenseService licenseService, Trigger trigger, Input input, Condition condition, @Nullable Transform transform,
+                 Actions actions, @Nullable Map<String, Object> metadata, @Nullable TimeValue throttlePeriod, @Nullable Status status) {
         this.name = name;
         this.trigger = trigger;
         this.input = input;
@@ -73,7 +75,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         this.throttlePeriod = throttlePeriod;
         this.metadata = metadata;
         this.transform = transform;
-        throttler = new WatchThrottler(clock, throttlePeriod);
+        throttler = new WatchThrottler(clock, throttlePeriod, licenseService);
     }
 
     public String name() {
@@ -173,6 +175,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         public static final ParseField STATUS_FIELD = new ParseField("status");
         public static final ParseField THROTTLE_PERIOD_FIELD = new ParseField("throttle_period");
 
+        private final LicenseService licenseService;
         private final ConditionRegistry conditionRegistry;
         private final TriggerService triggerService;
         private final TransformRegistry transformRegistry;
@@ -184,11 +187,12 @@ public class Watch implements TriggerEngine.Job, ToXContent {
         private final Condition defaultCondition;
 
         @Inject
-        public Parser(Settings settings, ConditionRegistry conditionRegistry, TriggerService triggerService,
+        public Parser(Settings settings, LicenseService licenseService, ConditionRegistry conditionRegistry, TriggerService triggerService,
                       TransformRegistry transformRegistry, ActionRegistry actionRegistry,
                       InputRegistry inputRegistry, Clock clock) {
 
             super(settings);
+            this.licenseService = licenseService;
             this.conditionRegistry = conditionRegistry;
             this.transformRegistry = transformRegistry;
             this.triggerService = triggerService;
@@ -261,7 +265,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
                 throw new WatcherSettingsException("could not parse watch [" + name + "]. missing watch actions");
             }
 
-            return new Watch(name, clock, trigger, input, condition, transform, actions, metatdata, throttlePeriod, status);
+            return new Watch(name, clock, licenseService, trigger, input, condition, transform, actions, metatdata, throttlePeriod, status);
         }
 
     }

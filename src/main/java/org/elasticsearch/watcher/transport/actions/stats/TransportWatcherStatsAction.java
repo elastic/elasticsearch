@@ -8,11 +8,6 @@ package org.elasticsearch.watcher.transport.actions.stats;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeOperationAction;
-import org.elasticsearch.watcher.WatcherBuild;
-import org.elasticsearch.watcher.watch.WatchService;
-import org.elasticsearch.watcher.WatcherVersion;
-import org.elasticsearch.watcher.history.HistoryService;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -21,11 +16,17 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.watcher.WatcherBuild;
+import org.elasticsearch.watcher.WatcherVersion;
+import org.elasticsearch.watcher.history.HistoryService;
+import org.elasticsearch.watcher.license.LicenseService;
+import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
+import org.elasticsearch.watcher.watch.WatchService;
 
 /**
  * Performs the stats operation.
  */
-public class TransportWatcherStatsAction extends TransportMasterNodeOperationAction<WatcherStatsRequest, WatcherStatsResponse> {
+public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherStatsRequest, WatcherStatsResponse> {
 
     private final WatchService watchService;
     private final HistoryService historyService;
@@ -33,8 +34,8 @@ public class TransportWatcherStatsAction extends TransportMasterNodeOperationAct
     @Inject
     public TransportWatcherStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, ActionFilters actionFilters, WatchService watchService,
-                                       HistoryService historyService) {
-        super(settings, WatcherStatsAction.NAME, transportService, clusterService, threadPool, actionFilters);
+                                       HistoryService historyService, LicenseService licenseService) {
+        super(settings, WatcherStatsAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService);
         this.watchService = watchService;
         this.historyService = historyService;
     }

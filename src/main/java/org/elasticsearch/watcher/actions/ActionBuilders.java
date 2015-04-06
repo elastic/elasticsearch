@@ -7,8 +7,10 @@ package org.elasticsearch.watcher.actions;
 
 import org.elasticsearch.watcher.actions.email.EmailAction;
 import org.elasticsearch.watcher.actions.index.IndexAction;
+import org.elasticsearch.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 import org.elasticsearch.watcher.support.http.TemplatedHttpRequest;
+import org.elasticsearch.watcher.support.template.Template;
 
 /**
  *
@@ -28,6 +30,14 @@ public final class ActionBuilders {
 
     public static WebhookAction.SourceBuilder webhookAction(String id, TemplatedHttpRequest.SourceBuilder httpRequest) {
         return new WebhookAction.SourceBuilder(id, httpRequest);
+    }
+
+    public static LoggingAction.SourceBuilder loggingAction(String id, String text) {
+        return new LoggingAction.SourceBuilder(id).text(text);
+    }
+
+    public static LoggingAction.SourceBuilder loggingAction(String id, Template.SourceBuilder text) {
+        return new LoggingAction.SourceBuilder(id).text(text);
     }
 
 }

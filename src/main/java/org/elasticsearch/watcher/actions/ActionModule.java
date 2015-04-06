@@ -11,6 +11,7 @@ import org.elasticsearch.watcher.actions.email.EmailAction;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.InternalEmailService;
 import org.elasticsearch.watcher.actions.index.IndexAction;
+import org.elasticsearch.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.watcher.actions.webhook.WebhookAction;
 
 import java.util.HashMap;
@@ -38,6 +39,9 @@ public class ActionModule extends AbstractModule {
 
         bind(IndexAction.Parser.class).asEagerSingleton();
         parsersBinder.addBinding(IndexAction.TYPE).to(IndexAction.Parser.class);
+
+        bind(LoggingAction.Parser.class).asEagerSingleton();
+        parsersBinder.addBinding(LoggingAction.TYPE).to(LoggingAction.Parser.class);
 
         for (Map.Entry<String, Class<? extends Action.Parser>> entry : parsers.entrySet()) {
             bind(entry.getValue()).asEagerSingleton();

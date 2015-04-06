@@ -35,6 +35,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
+import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
@@ -59,7 +60,12 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                 .source(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest))
-                        .condition(scriptCondition("ctx.payload.hits.total == 1")))
+                        .condition(scriptCondition("ctx.payload.hits.total == 1"))
+                        .addAction(loggingAction("_logger",
+                                "\n\n************\n" +
+                                "total hits: {{ctx.payload.hits.total}}\n" +
+                                "************\n")
+                                .category("_category")))
                 .get();
 
         if (timeWarped()) {

@@ -16,8 +16,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ElasticsearchTestCase;
-import org.elasticsearch.watcher.actions.Actions;
 import org.elasticsearch.watcher.actions.ActionWrapper;
+import org.elasticsearch.watcher.actions.Actions;
 import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputBuilders;
@@ -28,6 +28,7 @@ import org.elasticsearch.watcher.support.http.auth.BasicAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuth;
 import org.elasticsearch.watcher.support.http.auth.HttpAuthRegistry;
 import org.elasticsearch.watcher.support.template.Template;
+import org.elasticsearch.watcher.support.template.ValueTemplate;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
@@ -39,7 +40,6 @@ import org.hamcrest.Description;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
@@ -61,7 +61,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
     @Before
     public void init() throws Exception {
         httpClient = mock(HttpClient.class);
-        Template.Parser templateParser = new MockTemplate.Parser();
+        Template.Parser templateParser = new ValueTemplate.Parser();
         HttpAuthRegistry registry = new HttpAuthRegistry(ImmutableMap.of("basic", new BasicAuth.Parser()));
         httpParser = new HttpInput.Parser(
                 ImmutableSettings.EMPTY, httpClient, new HttpRequest.Parser(registry), new TemplatedHttpRequest.Parser(templateParser, registry)
@@ -120,7 +120,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
                 .setScheme(scheme)
                 .setMethod(httpMethod)
                 .setPath(pathTemplate)
-                .setBody(body != null ? new MockTemplate(body) : null)
+                .setBody(body != null ? new ValueTemplate(body) : null)
                 .setAuth(auth);
 
         if (params != null) {
@@ -176,7 +176,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
                 .setMethod(httpMethod)
                 .setHost("_host")
                 .setPort(123)
-                .setBody(new MockTemplate(body))
+                .setBody(new ValueTemplate(body))
                 .setHeaders(headers);
 
         Map<String, Object> payload = MapBuilder.<String, Object>newMapBuilder().put("x", "y").map();
@@ -202,56 +202,11 @@ public class HttpInputTests extends ElasticsearchTestCase {
     }
 
     private static Template mockTemplate(String value) {
-        return new MockTemplate(value);
+        return new ValueTemplate(value);
     }
 
     private static Template.SourceBuilder mockTemplateSourceBuilder(String value) {
-        return new Template.InstanceSourceBuilder(new MockTemplate(value));
-    }
-
-    private static class MockTemplate implements Template {
-
-        private final String value;
-
-        private MockTemplate(String value) {
-            this.value = value;
-        }
-
-        @Override
-        public String render(Map<String, Object> model) {
-            return value;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder.value(value);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            MockTemplate that = (MockTemplate) o;
-
-            if (!value.equals(that.value)) return false;
-
-            return true;
-        }
-
-        @Override
-        public int hashCode() {
-            return value.hashCode();
-        }
-
-        static class Parser implements Template.Parser {
-
-            @Override
-            public Template parse(XContentParser parser) throws IOException, ParseException {
-                String value = parser.text();
-                return new MockTemplate(value);
-            }
-        }
+        return new Template.InstanceSourceBuilder(new ValueTemplate(value));
     }
 
     static MockTemplateMatcher isTemplate(String value) {
@@ -268,7 +223,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
 
         @Override
         public boolean matches(Object item) {
-            return item instanceof MockTemplate && ((MockTemplate) item).value.equals(value);
+            return item instanceof ValueTemplate && ((ValueTemplate) item).value().equals(value);
         }
 
         @Override

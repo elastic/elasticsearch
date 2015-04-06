@@ -24,7 +24,7 @@ public interface Template extends ToXContent {
 
         T parse(XContentParser parser) throws IOException, ParseException;
 
-        public static class ParseException extends WatcherException {
+        class ParseException extends WatcherException {
 
             public ParseException(String msg) {
                 super(msg);

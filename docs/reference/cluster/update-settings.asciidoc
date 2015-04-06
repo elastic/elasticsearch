@@ -188,6 +188,9 @@ All the disable allocation settings have been deprecated in favour for
 `indices.recovery.concurrent_streams`::
      See <<modules-indices>>
 
+`indices.recovery.concurrent_small_file_streams`::
+     See <<modules-indices>>
+
 `indices.recovery.file_chunk_size`::
      See <<modules-indices>>
 

@@ -27,11 +27,7 @@ import java.util.Set;
 
 /**
  * Delete by query request to execute on a specific index.
- *
- * @deprecated Delete by query will be removed in 2.0.  Instead, use the scroll/scan API to find all matching IDs and then issue a bulk
- * request to delete them.
  */
-@Deprecated
 class IndexDeleteByQueryRequest extends IndexReplicationOperationRequest<IndexDeleteByQueryRequest> {
 
     private final BytesReference source;

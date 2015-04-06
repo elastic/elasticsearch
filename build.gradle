@@ -1,107 +1,107 @@
 description = 'Elasticsearch HDFS Repository'
 
 configurations {
-	hadoop1
-	hadoop2
-	s3
+    hadoop1
+    hadoop2
+    s3
 }
 
 dependencies {
-	provided("org.apache.hadoop:hadoop-core:$hadoop12Version")
-	provided("org.elasticsearch:elasticsearch:$esVersion")
-	testCompile "org.elasticsearch:elasticsearch:$esVersion:tests"
-	testCompile "org.apache.lucene:lucene-test-framework:$luceneVersion"
-	
-	hadoop1("org.apache.hadoop:hadoop-core:$hadoop12Version") {
-		exclude module: "commons-cli"
-		exclude group: "com.sun.jersey"
-		exclude group: "org.mortbay.jetty"
-		exclude group: "tomcat"
-		exclude module: "commons-el"
-		exclude module: "hsqldb"
-		exclude group: "org.eclipse.jdt"
-		exclude module: "commons-beanutils"
-	}
+    provided("org.apache.hadoop:hadoop-core:$hadoop12Version")
+    provided("org.elasticsearch:elasticsearch:$esVersion")
+    testCompile "org.elasticsearch:elasticsearch:$esVersion:tests"
+    testCompile "org.apache.lucene:lucene-test-framework:$luceneVersion"
 
-	hadoop2("org.apache.hadoop:hadoop-client:$hadoop2Version") {
-		exclude group: "com.sun.jersey"
-		exclude group: "com.sun.jersey.contribs"
-		exclude group: "com.sun.jersey.jersey-test-framework"
-		exclude module: "guice"
-		exclude group: "org.mortbay.jetty"
-		exclude group: "tomcat"
-		exclude module: "commons-el"
-		exclude module: "hsqldb"
-		exclude group: "org.eclipse.jdt"
-		exclude module: "commons-beanutils"
-		exclude module: "javax.servlet"
-	}
+    hadoop1("org.apache.hadoop:hadoop-core:$hadoop12Version") {
+        exclude module: "commons-cli"
+        exclude group: "com.sun.jersey"
+        exclude group: "org.mortbay.jetty"
+        exclude group: "tomcat"
+        exclude module: "commons-el"
+        exclude module: "hsqldb"
+        exclude group: "org.eclipse.jdt"
+        exclude module: "commons-beanutils"
+    }
+
+    hadoop2("org.apache.hadoop:hadoop-client:$hadoop2Version") {
+        exclude group: "com.sun.jersey"
+        exclude group: "com.sun.jersey.contribs"
+        exclude group: "com.sun.jersey.jersey-test-framework"
+        exclude module: "guice"
+        exclude group: "org.mortbay.jetty"
+        exclude group: "tomcat"
+        exclude module: "commons-el"
+        exclude module: "hsqldb"
+        exclude group: "org.eclipse.jdt"
+        exclude module: "commons-beanutils"
+        exclude module: "javax.servlet"
+    }
 }
 
 jar {
-	manifest.attributes['Implementation-Title'] = 'elasticsearch-repository-hdfs'
+    manifest.attributes['Implementation-Title'] = 'elasticsearch-repository-hdfs'
 }
 
 def baseZip(Zip zip) {
-	zip.group = "Distribution"
+    zip.group = "Distribution"
 
-	artifacts { s3 zip }
-	
-	zip.from("../") {
-			include "LICENSE.txt"
-			include "NOTICE.txt"
-			//expand(yyyy: new Date().format("yyyy"), version: project.version)
-		}
-	zip.from (".") { include "README.md" }
-	zip.from jar.archivePath
-	
-	// tell Gradle about our output (for incremental build) - disabled for now since the sha1 is created alongside the zip
-	// zip.outputs.file file(zip.archivePath.absolutePath + '.sha1.txt')
-	
-	// execute phase
-	zip << {
-		ant.checksum(file: zip.archivePath, algorithm: 'SHA1', format: 'MD5SUM', fileext: '.sha1.txt')
-	}
+    artifacts { s3 zip }
+
+    zip.from("../") {
+            include "LICENSE.txt"
+            include "NOTICE.txt"
+            //expand(yyyy: new Date().format("yyyy"), version: project.version)
+        }
+    zip.from (".") { include "README.md" }
+    zip.from jar.archivePath
+
+    // tell Gradle about our output (for incremental build) - disabled for now since the sha1 is created alongside the zip
+    // zip.outputs.file file(zip.archivePath.absolutePath + '.sha1.txt')
+
+    // execute phase
+    zip << {
+        ant.checksum(file: zip.archivePath, algorithm: 'SHA1', format: 'MD5SUM', fileext: '.sha1.txt')
+    }
 }
 
 task distZipHadoop1(type: Zip, dependsOn: [jar]) { zipTask ->
-	baseZip(zipTask)
+    baseZip(zipTask)
     description = "Builds archive (with Hadoop1 dependencies) suitable for download page."
-	
-	from configurations.hadoop1.allArtifacts.files
-	from configurations.hadoop1
+
+    from configurations.hadoop1.allArtifacts.files
+    from configurations.hadoop1
 }
 
 task distZipHadoop2(type: Zip, dependsOn: [jar]) { zipTask ->
     baseZip(zipTask)
     description = "Builds archive (with Hadoop2/YARN dependencies) suitable for download page."
-	classifier = "hadoop2"
+    classifier = "hadoop2"
 
-	from configurations.hadoop2.allArtifacts.files
-	from configurations.hadoop2
+    from configurations.hadoop2.allArtifacts.files
+    from configurations.hadoop2
 }
 
 task distZipNoHadoop(type: Zip, dependsOn: [jar]) { zipTask ->
     baseZip(zipTask)
     description = "Builds archive (without any Hadoop dependencies) suitable for download page."
-	classifier = "light"
+    classifier = "light"
 }
 
 task distZip(dependsOn : [distZipHadoop1, distZipHadoop2, distZipNoHadoop]) {
-	group = "Distribution"
-	description = "Builds all distribution zips for Elasticsearch Repository HDFS"
+    group = "Distribution"
+    description = "Builds all distribution zips for Elasticsearch Repository HDFS"
 }
 
 pack() {
-	artifacts {
-		archives distZipHadoop1
-		archives distZipHadoop2
-		archives distZipNoHadoop
-	}
+    artifacts {
+        archives distZipHadoop1
+        archives distZipHadoop2
+        archives distZipNoHadoop
+    }
 }
 
 uploadToS3() {
-	ext.toDir = "elasticsearch/elasticsearch-repository-hdfs"
+    ext.toDir = "elasticsearch/elasticsearch-repository-hdfs"
 }
 
 assemble.dependsOn = ['jar']

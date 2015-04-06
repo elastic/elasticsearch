@@ -155,7 +155,7 @@ public class HdfsSnapshotRestoreTest extends ElasticsearchIntegrationTest {
     }
 
     @Test(expected = RepositoryVerificationException.class)
-	@Ignore
+    @Ignore
     public void testWrongPath() {
         Client client = client();
         logger.info("-->  creating hdfs repository with path [{}]", path);

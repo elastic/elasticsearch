@@ -9,15 +9,15 @@
 ## Flavors
 The HDFS snapshot/restore plugin comes in three flavors:
 
-* Default / Hadoop 1.x  
+* Default / Hadoop 1.x
 The default version contains the plugin jar alongside Hadoop 1.x (stable) dependencies
-* Yarn / Hadoop 2.x  
+* Yarn / Hadoop 2.x
 The `hadoop2` version contains the plugin jar plus the Hadoop 2.x (Yarn) dependencies.
-* Light  
+* Light
 The `light` version contains just the plugin jar, without any Hadoop dependencies.
 
 ### What version to use?
-It depends on whether you have Hadoop installed on your nodes or not. If you do, then we recommend exposing Hadoop to the Elasticsearch classpath (typically through an environment variable such as +ES_CLASSPATH+ - see the Elasticsearch [reference](http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/setup-configuration.html) for more info) and using the `light` version. 
+It depends on whether you have Hadoop installed on your nodes or not. If you do, then we recommend exposing Hadoop to the Elasticsearch classpath (typically through an environment variable such as +ES_CLASSPATH+ - see the Elasticsearch [reference](http://www.elasticsearch.org/guide/en/elasticsearch/reference/1.x/setup-configuration.html) for more info) and using the `light` version.
 This guarantees the existing libraries and configuration are being picked up by the plugin.
 If you do not have Hadoop installed, then select either the default version (for Hadoop stable/1.x) or, if you are using Hadoop 2, the `hadoop2` version.
 
@@ -105,9 +105,9 @@ ownership. Elasticsearch licenses this file to you under
 the Apache License, Version 2.0 (the "License"); you may
 not use this file except in compliance with the License.
 You may obtain a copy of the License at
- 
+
    http://www.apache.org/licenses/LICENSE-2.0
- 
+
 Unless required by applicable law or agreed to in writing,
 software distributed under the License is distributed on an
 "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY

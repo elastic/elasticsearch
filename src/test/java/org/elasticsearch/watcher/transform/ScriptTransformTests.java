@@ -64,7 +64,7 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testApply_NoneMapValue() throws Exception {
+    public void testApply_NonMapValue() throws Exception {
         ScriptServiceProxy service = mock(ScriptServiceProxy.class);
         ScriptService.ScriptType type = randomFrom(ScriptService.ScriptType.values());
         Map<String, Object> params = Collections.emptyMap();

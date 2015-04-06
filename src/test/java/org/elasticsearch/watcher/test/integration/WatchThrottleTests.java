@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.test.integration;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.actions.ActionBuilders;
 import org.elasticsearch.watcher.client.WatcherClient;
@@ -135,7 +136,7 @@ public class WatchThrottleTests extends AbstractWatcherIntegrationTests {
         assertThat(putWatchResponse.indexResponse().isCreated(), is(true));
 
         if (timeWarped()) {
-            timeWarp().clock().setTime(DateTime.now());
+            timeWarp().clock().setTime(DateTime.now(DateTimeZone.UTC));
 
             timeWarp().scheduler().trigger("_name");
             refresh();

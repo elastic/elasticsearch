@@ -18,7 +18,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.WatcherSettingsException;
 
 import java.io.IOException;
 import java.lang.reflect.Array;
@@ -76,7 +75,7 @@ public final class WatcherUtils {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             indices.add(parser.textOrNull());
                         } else {
-                            throw new WatcherSettingsException("could not read search request. expected string values in [" + currentFieldName + "] field, but instead found [" + token + "]");
+                            throw new SearchRequestParseException("could not read search request. expected string values in [" + currentFieldName + "] field, but instead found [" + token + "]");
                         }
                     }
                     searchRequest.indices(indices.toArray(new String[indices.size()]));
@@ -86,12 +85,12 @@ public final class WatcherUtils {
                         if (token == XContentParser.Token.VALUE_STRING) {
                             types.add(parser.textOrNull());
                         } else {
-                            throw new WatcherSettingsException("could not read search request. expected string values in [" + currentFieldName + "] field, but instead found [" + token + "]");
+                            throw new SearchRequestParseException("could not read search request. expected string values in [" + currentFieldName + "] field, but instead found [" + token + "]");
                         }
                     }
                     searchRequest.types(types.toArray(new String[types.size()]));
                 } else {
-                    throw new WatcherSettingsException("could not read search request. unexpected array field [" + currentFieldName + "]");
+                    throw new SearchRequestParseException("could not read search request. unexpected array field [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 XContentBuilder builder;
@@ -127,17 +126,17 @@ public final class WatcherUtils {
                                         expandClosed = false;
                                         break;
                                     default:
-                                        throw new WatcherSettingsException("could not read search request. unknown value [" + parser.text() + "] for [" + currentFieldName + "] field ");
+                                        throw new SearchRequestParseException("could not read search request. unknown value [" + parser.text() + "] for [" + currentFieldName + "] field ");
                                 }
                             } else if (IGNORE_UNAVAILABLE_FIELD.match(currentFieldName)) {
                                 ignoreUnavailable = parser.booleanValue();
                             } else if (ALLOW_NO_INDICES_FIELD.match(currentFieldName)) {
                                 allowNoIndices = parser.booleanValue();
                             } else {
-                                throw new WatcherSettingsException("could not read search request. unexpected index option [" + currentFieldName + "]");
+                                throw new SearchRequestParseException("could not read search request. unexpected index option [" + currentFieldName + "]");
                             }
                         } else {
-                            throw new WatcherSettingsException("could not read search request. unexpected object field [" + currentFieldName + "]");
+                            throw new SearchRequestParseException("could not read search request. unexpected object field [" + currentFieldName + "]");
                         }
                     }
                     indicesOptions = IndicesOptions.fromOptions(ignoreUnavailable, allowNoIndices, expandOpen, expandClosed, DEFAULT_INDICES_OPTIONS);
@@ -152,21 +151,21 @@ public final class WatcherUtils {
                                 try {
                                     searchRequest.templateType(ScriptService.ScriptType.valueOf(parser.text().toUpperCase(Locale.ROOT)));
                                 } catch (IllegalArgumentException iae) {
-                                    throw new WatcherSettingsException("could not parse search request. unknown template type [" + parser.text() + "]");
+                                    throw new SearchRequestParseException("could not parse search request. unknown template type [" + parser.text() + "]");
                                 }
                             } else {
-                                throw new WatcherSettingsException("could not read search request. unexpected template field [" + currentFieldName + "]");
+                                throw new SearchRequestParseException("could not read search request. unexpected template field [" + currentFieldName + "]");
                             }
                         } else if (token == XContentParser.Token.START_OBJECT) {
                             if ("params".equals(currentFieldName)) {
                                 searchRequest.templateParams(flattenModel(parser.map()));
                             }
                         } else {
-                            throw new WatcherSettingsException("could not read search request. unexpected template token [" + token + "]");
+                            throw new SearchRequestParseException("could not read search request. unexpected template token [" + token + "]");
                         }
                     }
                 } else {
-                    throw new WatcherSettingsException("could not read search request. unexpected object field [" + currentFieldName + "]");
+                    throw new SearchRequestParseException("could not read search request. unexpected object field [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (INDICES_FIELD.match(currentFieldName)) {
@@ -178,10 +177,10 @@ public final class WatcherUtils {
                 } else if (SEARCH_TYPE_FIELD.match(currentFieldName)) {
                     searchType = SearchType.fromString(parser.text().toLowerCase(Locale.ROOT));
                 } else {
-                    throw new WatcherSettingsException("could not read search request. unexpected string field [" + currentFieldName + "]");
+                    throw new SearchRequestParseException("could not read search request. unexpected string field [" + currentFieldName + "]");
                 }
             } else {
-                throw new WatcherSettingsException("could not read search request. unexpected token [" + token + "]");
+                throw new SearchRequestParseException("could not read search request. unexpected token [" + token + "]");
             }
         }
 

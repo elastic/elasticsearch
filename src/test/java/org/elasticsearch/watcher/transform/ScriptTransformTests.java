@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.watcher.transform;
 
+import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableList;
+import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableSet;
 import org.elasticsearch.watcher.watch.WatchExecutionContext;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.support.Script;
@@ -34,7 +36,7 @@ import static org.mockito.Mockito.when;
 public class ScriptTransformTests extends ElasticsearchTestCase {
 
     @Test
-    public void testApply() throws Exception {
+    public void testApply_MapValue() throws Exception {
         ScriptServiceProxy service = mock(ScriptServiceProxy.class);
         ScriptService.ScriptType type = randomFrom(ScriptService.ScriptType.values());
         Map<String, Object> params = Collections.emptyMap();
@@ -59,6 +61,32 @@ public class ScriptTransformTests extends ElasticsearchTestCase {
         assertThat(result, notNullValue());
         assertThat(result.type(), is(ScriptTransform.TYPE));
         assertThat(result.payload().data(), equalTo(transformed));
+    }
+
+    @Test
+    public void testApply_NoneMapValue() throws Exception {
+        ScriptServiceProxy service = mock(ScriptServiceProxy.class);
+        ScriptService.ScriptType type = randomFrom(ScriptService.ScriptType.values());
+        Map<String, Object> params = Collections.emptyMap();
+        Script script = new Script("_script", type, "_lang", params);
+        ScriptTransform transform = new ScriptTransform(service, script);
+
+        WatchExecutionContext ctx = mockExecutionContext("_name", EMPTY_PAYLOAD);
+
+        Payload payload = simplePayload("key", "value");
+
+        Map<String, Object> model = Variables.createCtxModel(ctx, payload);
+
+        ExecutableScript executable = mock(ExecutableScript.class);
+        Object value = randomFrom("value", 1, new String[] { "value" }, ImmutableList.of("value"), ImmutableSet.of("value"));
+        when(executable.run()).thenReturn(value);
+        when(service.executable("_lang", "_script", type, model)).thenReturn(executable);
+
+        Transform.Result result = transform.apply(ctx, payload);
+        assertThat(result, notNullValue());
+        assertThat(result.type(), is(ScriptTransform.TYPE));
+        assertThat(result.payload().data().size(), is(1));
+        assertThat(result.payload().data(), hasEntry("_value", value));
     }
 
     @Test

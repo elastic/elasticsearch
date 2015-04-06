@@ -5,15 +5,15 @@
  */
 package org.elasticsearch.watcher.transform;
 
-import org.elasticsearch.watcher.WatcherSettingsException;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
-import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.support.Script;
-import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.watcher.WatcherSettingsException;
+import org.elasticsearch.watcher.support.Script;
+import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
+import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.watcher.watch.WatchExecutionContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -52,10 +52,12 @@ public class ScriptTransform extends Transform<ScriptTransform.Result> {
         model.putAll(createCtxModel(ctx, payload));
         ExecutableScript executable = scriptService.executable(script.lang(), script.script(), script.type(), model);
         Object value = executable.run();
-        if (!(value instanceof Map)) {
-            throw new TransformException("illegal [script] transform [" + script.script() + "]. script must output a Map<String, Object> structure but outputted [" + value.getClass().getSimpleName() + "] instead");
+        if (value instanceof Map) {
+            return new Result(TYPE, new Payload.Simple((Map<String, Object>) value));
         }
-        return new Result(TYPE, new Payload.Simple((Map<String, Object>) value));
+        Map<String, Object> data = new HashMap<>();
+        data.put("_value", value);
+        return new Result(TYPE, new Payload.Simple(data));
     }
 
     @Override

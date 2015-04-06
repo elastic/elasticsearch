@@ -31,9 +31,6 @@ import org.elasticsearch.index.query.QueryBuilder;
 
 import java.util.Map;
 
-/**
- *
- */
 public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequestBuilder<DeleteByQueryRequest, DeleteByQueryResponse, DeleteByQueryRequestBuilder> {
 
     private QuerySourceBuilder sourceBuilder;

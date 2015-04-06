@@ -22,8 +22,6 @@ package org.elasticsearch.action.deletebyquery;
 import org.elasticsearch.action.ClientAction;
 import org.elasticsearch.client.Client;
 
-/**
- */
 public class DeleteByQueryAction extends ClientAction<DeleteByQueryRequest, DeleteByQueryResponse, DeleteByQueryRequestBuilder> {
 
     public static final DeleteByQueryAction INSTANCE = new DeleteByQueryAction();

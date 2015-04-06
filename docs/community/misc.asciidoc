@@ -24,3 +24,5 @@
 * https://github.com/sscarduzio/elasticsearch-readonlyrest-plugin[Readonly REST]:
   High performance access control for Elasticsearch native REST API.
 
+* https://github.com/kodcu/pes[Pes]:
+  A pluggable elastic query DSL builder for Elasticsearch

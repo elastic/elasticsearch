@@ -73,6 +73,10 @@ Can be set to:
        The number of streams to open (on a *node* level) to recover a
        shard from a peer shard. Defaults to `3`.
 
+`indices.recovery.concurrent_small_file_streams`::
+       The number of streams to open (on a *node* level) for small files (under
+       5mb) to recover a shard from a peer shard. Defaults to `2`.
+
 [float]
 [[allocation-awareness]]
 === Shard Allocation Awareness

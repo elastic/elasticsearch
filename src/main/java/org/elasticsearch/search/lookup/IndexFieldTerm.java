@@ -67,67 +67,10 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
     // and reader
     void setNextReader(LeafReader reader) {
         try {
-            // Get the posting list for a specific term.
-
-            if (!shouldRetrieveFrequenciesOnly()) {
-                postings = getPostings(getLucenePositionsFlags(flags), reader);
-            }
+            postings = getPostings(convertToLuceneFlags(flags), reader);
 
             if (postings == null) {
-                postings = getPostings(getLuceneFrequencyFlag(flags), reader);
-                if (postings != null) {
-                    final PostingsEnum p = postings;
-                    postings = new PostingsEnum() {
-
-                        @Override
-                        public int freq() throws IOException {
-                            return p.freq();
-                        }
-
-                        @Override
-                        public int nextPosition() throws IOException {
-                            return -1;
-                        }
-
-                        @Override
-                        public int startOffset() throws IOException {
-                            return -1;
-                        }
-
-                        @Override
-                        public int endOffset() throws IOException {
-                            return -1;
-                        }
-
-                        @Override
-                        public BytesRef getPayload() throws IOException {
-                            return null;
-                        }
-
-                        @Override
-                        public int docID() {
-                            return p.docID();
-                        }
-
-                        @Override
-                        public int nextDoc() throws IOException {
-                            return p.nextDoc();
-                        }
-
-                        @Override
-                        public int advance(int target) throws IOException {
-                            return p.advance(target);
-                        }
-
-                        @Override
-                        public long cost() {
-                            return p.cost();
-                        }
-                    };
-                }
-            }
-
-            if (postings == null) {
+                // no term or field for this segment, fake out the postings...
                 final DocIdSetIterator empty = DocIdSetIterator.empty();
                 postings = new PostingsEnum() {
                     @Override
@@ -176,23 +119,16 @@ public class IndexFieldTerm implements Iterable<TermPosition> {
                     }
                 };
             }
-
         } catch (IOException e) {
-            throw new ElasticsearchException("Unable to get posting list for field " + fieldName + " and term " + term, e);
+            throw new ElasticsearchException("Unable to get postings for field " + fieldName + " and term " + term, e);
         }
 
     }
 
-    private boolean shouldRetrieveFrequenciesOnly() {
-        return (flags & ~IndexLookup.FLAG_FREQUENCIES) == 0;
-    }
-
-    private int getLuceneFrequencyFlag(int flags) {
-        return (flags & IndexLookup.FLAG_FREQUENCIES) > 0 ? PostingsEnum.FREQS : PostingsEnum.NONE;
-    }
-
-    private int getLucenePositionsFlags(int flags) {
-        int lucenePositionsFlags = PostingsEnum.POSITIONS;
+    private int convertToLuceneFlags(int flags) {
+        int lucenePositionsFlags = PostingsEnum.NONE;
+        lucenePositionsFlags |= (flags & IndexLookup.FLAG_FREQUENCIES) > 0 ? PostingsEnum.FREQS : 0x0;
+        lucenePositionsFlags |= (flags & IndexLookup.FLAG_POSITIONS) > 0 ? PostingsEnum.POSITIONS : 0x0;
         lucenePositionsFlags |= (flags & IndexLookup.FLAG_PAYLOADS) > 0 ? PostingsEnum.PAYLOADS : 0x0;
         lucenePositionsFlags |= (flags & IndexLookup.FLAG_OFFSETS) > 0 ? PostingsEnum.OFFSETS : 0x0;
         return lucenePositionsFlags;

@@ -44,9 +44,6 @@ import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-/**
- *
- */
 public class TransportShardDeleteByQueryAction extends TransportShardReplicationOperationAction<ShardDeleteByQueryRequest, ShardDeleteByQueryRequest, ShardDeleteByQueryResponse> {
 
     public final static String DELETE_BY_QUERY_API = "delete_by_query";

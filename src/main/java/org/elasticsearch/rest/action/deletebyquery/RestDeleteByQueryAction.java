@@ -40,9 +40,6 @@ import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
-/**
- *
- */
 public class RestDeleteByQueryAction extends BaseRestHandler {
 
     @Inject

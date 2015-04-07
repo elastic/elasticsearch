@@ -24,6 +24,9 @@ import javax.net.ssl.SSLEngine;
 import javax.net.ssl.SSLParameters;
 import java.net.InetSocketAddress;
 
+import static org.elasticsearch.shield.transport.SSLExceptionHelper.isCloseDuringHandshakeException;
+import static org.elasticsearch.shield.transport.SSLExceptionHelper.isNotSslRecordException;
+
 /**
  *
  */
@@ -64,6 +67,34 @@ public class ShieldNettyTransport extends NettyTransport {
     @Override
     public ChannelPipelineFactory configureServerChannelPipelineFactory(String name, Settings profileSettings) {
         return new SslServerChannelPipelineFactory(this, name, settings, profileSettings);
+    }
+
+    @Override
+    protected void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
+        if (!lifecycle.started()) {
+            return;
+        }
+
+        Throwable t = e.getCause();
+        if (isNotSslRecordException(t)) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("received plaintext traffic on a encrypted channel, closing connection {}", t, ctx.getChannel());
+            } else {
+                logger.warn("received plaintext traffic on a encrypted channel, closing connection {}", ctx.getChannel());
+            }
+            ctx.getChannel().close();
+            disconnectFromNodeChannel(ctx.getChannel(), e.getCause());
+        } else if (isCloseDuringHandshakeException(t)) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("connection {} closed during handshake", t, ctx.getChannel());
+            } else {
+                logger.warn("connection {} closed during handshake", ctx.getChannel());
+            }
+            ctx.getChannel().close();
+            disconnectFromNodeChannel(ctx.getChannel(), e.getCause());
+        } else {
+            super.exceptionCaught(ctx, e);
+        }
     }
 
     private class SslServerChannelPipelineFactory extends ServerChannelPipelineFactory {

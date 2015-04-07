@@ -10,7 +10,6 @@ import org.elasticsearch.common.netty.channel.ChannelHandlerContext;
 import org.elasticsearch.common.netty.channel.ChannelPipeline;
 import org.elasticsearch.common.netty.channel.ChannelPipelineFactory;
 import org.elasticsearch.common.netty.channel.ExceptionEvent;
-import org.elasticsearch.common.netty.handler.ssl.NotSslRecordException;
 import org.elasticsearch.common.netty.handler.ssl.SslHandler;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
@@ -20,6 +19,8 @@ import org.elasticsearch.shield.ssl.ServerSSLService;
 import org.elasticsearch.shield.transport.filter.IPFilter;
 
 import javax.net.ssl.SSLEngine;
+
+import static org.elasticsearch.shield.transport.SSLExceptionHelper.*;
 
 /**
  *
@@ -46,11 +47,23 @@ public class ShieldNettyHttpServerTransport extends NettyHttpServerTransport {
 
     @Override
     protected void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
-        if (e.getCause() instanceof NotSslRecordException) {
+        if (!lifecycle.started()) {
+            return;
+        }
+
+        Throwable t = e.getCause();
+        if (isNotSslRecordException(t)) {
             if (logger.isTraceEnabled()) {
-                logger.trace("received plaintext http traffic on a https channel, closing connection {}", e.getCause(), ctx.getChannel());
+                logger.trace("received plaintext http traffic on a https channel, closing connection {}", t, ctx.getChannel());
             } else {
                 logger.warn("received plaintext http traffic on a https channel, closing connection {}", ctx.getChannel());
+            }
+            ctx.getChannel().close();
+        } else if (isCloseDuringHandshakeException(t)) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("connection {} closed during handshake", t, ctx.getChannel());
+            } else {
+                logger.warn("connection {} closed during handshake", ctx.getChannel());
             }
             ctx.getChannel().close();
         } else {

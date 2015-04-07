@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.functionscore;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -28,8 +29,10 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.AbstractDoubleSearchScript;
+import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ExplainableSearchScript;
+import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -101,12 +104,7 @@ public class ExplainableScriptTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    static class MyScript extends AbstractDoubleSearchScript implements ExplainableSearchScript {
-
-        @Override
-        public double runAsDouble() {
-            return ((Number) ((ScriptDocValues) doc().get("number_field")).getValues().get(0)).doubleValue();
-        }
+    static class MyScript extends AbstractDoubleSearchScript implements ExplainableSearchScript, ExecutableScript {
 
         @Override
         public Explanation explain(Explanation subQueryScore) throws IOException {
@@ -115,6 +113,11 @@ public class ExplainableScriptTests extends ElasticsearchIntegrationTest {
             scoreExp.addDetail(subQueryScore);
             exp.addDetail(scoreExp);
             return exp;
+        }
+
+        @Override
+        public double runAsDouble() {
+            return ((Number) ((ScriptDocValues) doc().get("number_field")).getValues().get(0)).doubleValue();
         }
     }
 }

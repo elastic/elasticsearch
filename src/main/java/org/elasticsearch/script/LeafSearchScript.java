@@ -16,16 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.common.lucene;
 
-import org.apache.lucene.index.LeafReaderContext;
+package org.elasticsearch.script;
 
-import java.io.IOException;
+import org.elasticsearch.common.lucene.ScorerAware;
+
+import java.util.Map;
 
 /**
- *
+ * A per-segment {@link SearchScript}.
  */
-public interface ReaderContextAware {
+public interface LeafSearchScript extends ScorerAware, ExecutableScript {
 
-    public void setNextReader(LeafReaderContext reader) throws IOException;
+    void setDocument(int doc);
+
+    void setSource(Map<String, Object> source);
+
+    float runAsFloat();
+
+    long runAsLong();
+
+    double runAsDouble();
+
 }

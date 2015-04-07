@@ -20,10 +20,10 @@
 package org.elasticsearch.search.aggregations.support;
 
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.apache.lucene.index.LeafReaderContext;
+
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
@@ -35,7 +35,7 @@ import java.util.Map;
 
 public class ScriptValuesTests extends ElasticsearchTestCase {
 
-    private static class FakeSearchScript implements SearchScript {
+    private static class FakeSearchScript implements LeafSearchScript {
         
         private final Object[][] values;
         int index;
@@ -65,20 +65,16 @@ public class ScriptValuesTests extends ElasticsearchTestCase {
         }
 
         @Override
-        public void setNextReader(LeafReaderContext reader) {
-        }
-
-        @Override
         public void setScorer(Scorer scorer) {
         }
 
         @Override
-        public void setNextDocId(int doc) {
+        public void setDocument(int doc) {
             index = doc;
         }
 
         @Override
-        public void setNextSource(Map<String, Object> source) {
+        public void setSource(Map<String, Object> source) {
         }
 
         @Override

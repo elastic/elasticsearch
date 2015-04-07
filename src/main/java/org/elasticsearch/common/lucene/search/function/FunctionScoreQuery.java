@@ -125,10 +125,11 @@ public class FunctionScoreQuery extends Query {
             if (subQueryScorer == null) {
                 return null;
             }
+            LeafScoreFunction leafFunction = null;
             if (function != null) {
-                function.setNextReader(context);
+                leafFunction = function.getLeafScoreFunction(context);
             }
-            return new FunctionFactorScorer(this, subQueryScorer, function, maxBoost, combineFunction, minScore);
+            return new FunctionFactorScorer(this, subQueryScorer, leafFunction, maxBoost, combineFunction, minScore);
         }
 
         @Override
@@ -138,8 +139,7 @@ public class FunctionScoreQuery extends Query {
                 return subQueryExpl;
             }
             if (function != null) {
-                function.setNextReader(context);
-                Explanation functionExplanation = function.explainScore(doc, subQueryExpl);
+                Explanation functionExplanation = function.getLeafScoreFunction(context).explainScore(doc, subQueryExpl);
                 return combineFunction.explain(getBoost(), subQueryExpl, functionExplanation, maxBoost);
             } else {
                 return subQueryExpl;
@@ -149,9 +149,9 @@ public class FunctionScoreQuery extends Query {
 
     static class FunctionFactorScorer extends CustomBoostFactorScorer {
 
-        private final ScoreFunction function;
+        private final LeafScoreFunction function;
 
-        private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function, float maxBoost, CombineFunction scoreCombiner, Float minScore)
+        private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, LeafScoreFunction function, float maxBoost, CombineFunction scoreCombiner, Float minScore)
                 throws IOException {
             super(w, scorer, maxBoost, scoreCombiner, minScore);
             this.function = function;

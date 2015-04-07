@@ -134,7 +134,7 @@ class VersionFieldUpgrader extends FilterCodecReader {
                 PostingsEnum dpe = null;
                 for (BytesRef uid = uids.next(); uid != null; uid = uids.next()) {
                     dpe = uids.postings(reader.getLiveDocs(), dpe, PostingsEnum.PAYLOADS);
-                    assert dpe != null : "field has payloads";
+                    assert terms.hasPayloads() : "field has payloads";
                     for (int doc = dpe.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = dpe.nextDoc()) {
                         dpe.nextPosition();
                         final BytesRef payload = dpe.getPayload();

@@ -246,6 +246,16 @@ public class IndexShard extends AbstractIndexShardComponent {
         logger.debug("state: [CREATED]");
 
         this.checkIndexOnStartup = indexSettings.get("index.shard.check_on_startup", "false");
+
+        // since we can do async merging, it will not be called explicitly when indexing (adding / deleting docs), and only when flushing
+        // so, make sure we periodically call it, this need to be a small enough value so mergine will actually
+        // happen and reduce the number of segments
+        if (mergeInterval.millis() > 0) {
+            mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, new EngineMerger());
+            logger.debug("scheduling optimizer / merger every {}", mergeInterval);
+        } else {
+            logger.debug("scheduled optimizer / merger disabled");
+        }
     }
 
     public MergeSchedulerProvider mergeScheduler() {
@@ -1116,7 +1126,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     class EngineMerger implements Runnable {
         @Override
         public void run() {
-            if (!engine().possibleMergeNeeded()) {
+            final Engine engine = engineUnsafe();
+            if (engine == null || engine.possibleMergeNeeded() == false) {
                 synchronized (mutex) {
                     if (state != IndexShardState.CLOSED) {
                         mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, this);
@@ -1128,7 +1139,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                 @Override
                 public void run() {
                     try {
-                        engine().maybeMerge();
+                        engine.maybeMerge();
                     } catch (EngineClosedException e) {
                         // we are being closed, ignore
                     } catch (OptimizeFailedEngineException e) {
@@ -1238,16 +1249,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
             assert this.currentEngineReference.get() == null;
             this.currentEngineReference.set(newEngine());
-
-            // since we can do async merging, it will not be called explicitly when indexing (adding / deleting docs), and only when flushing
-            // so, make sure we periodically call it, this need to be a small enough value so mergine will actually
-            // happen and reduce the number of segments
-            if (mergeInterval.millis() > 0) {
-                mergeScheduleFuture = threadPool.schedule(mergeInterval, ThreadPool.Names.SAME, new EngineMerger());
-                logger.debug("scheduling optimizer / merger every {}", mergeInterval);
-            } else {
-                logger.debug("scheduled optimizer / merger disabled");
-            }
         }
     }
 

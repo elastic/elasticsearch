@@ -422,6 +422,17 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
         });
     }
 
+    protected void ensureLicenseEnabled()  throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                for (LicenseService service : internalTestCluster().getInstances(LicenseService.class)) {
+                    assertThat(service.enabled(), is(true));
+                }
+            }
+        });
+    }
+
     protected void ensureWatcherStopped() throws Exception {
         ensureWatcherStopped(true);
     }

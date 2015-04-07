@@ -424,6 +424,7 @@
             </testResource>
         </testResources>
 
+        <pluginManagement>
         <plugins>
           <plugin>
             <groupId>org.codehaus.mojo</groupId>
@@ -1541,9 +1542,7 @@
                     </execution>
                 </executions>
             </plugin>
-        </plugins>
-        <pluginManagement>
-            <plugins>
+
                 <!-- make m2e stfu -->
                 <plugin>
                     <groupId>org.eclipse.m2e</groupId>

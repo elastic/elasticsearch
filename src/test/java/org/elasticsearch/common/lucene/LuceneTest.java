@@ -172,10 +172,15 @@ public class LuceneTest extends ElasticsearchLuceneTestCase {
         for (String f : Lucene.files(Lucene.readSegmentInfos(dir))) {
             files.add(f);
         }
-
+        final boolean simpleTextCFS = files.contains("_0.scf");
         assertTrue(files.toString(), files.contains("segments_1"));
-        assertTrue(files.toString(), files.contains("_0.cfs"));
-        assertTrue(files.toString(), files.contains("_0.cfe"));
+        if (simpleTextCFS) {
+            assertFalse(files.toString(), files.contains("_0.cfs"));
+            assertFalse(files.toString(), files.contains("_0.cfe"));
+        } else {
+            assertTrue(files.toString(), files.contains("_0.cfs"));
+            assertTrue(files.toString(), files.contains("_0.cfe"));
+        }
         assertTrue(files.toString(), files.contains("_0.si"));
 
         doc = new Document();
@@ -193,12 +198,23 @@ public class LuceneTest extends ElasticsearchLuceneTestCase {
         }
         assertFalse(files.toString(), files.contains("segments_1"));
         assertTrue(files.toString(), files.contains("segments_2"));
-        assertTrue(files.toString(), files.contains("_0.cfs"));
-        assertTrue(files.toString(), files.contains("_0.cfe"));
+        if (simpleTextCFS) {
+            assertFalse(files.toString(), files.contains("_0.cfs"));
+            assertFalse(files.toString(), files.contains("_0.cfe"));
+        } else {
+            assertTrue(files.toString(), files.contains("_0.cfs"));
+            assertTrue(files.toString(), files.contains("_0.cfe"));
+        }
         assertTrue(files.toString(), files.contains("_0.si"));
 
-        assertTrue(files.toString(), files.contains("_1.cfs"));
-        assertTrue(files.toString(), files.contains("_1.cfe"));
+
+        if (simpleTextCFS) {
+            assertFalse(files.toString(), files.contains("_1.cfs"));
+            assertFalse(files.toString(), files.contains("_1.cfe"));
+        } else {
+            assertTrue(files.toString(), files.contains("_1.cfs"));
+            assertTrue(files.toString(), files.contains("_1.cfe"));
+        }
         assertTrue(files.toString(), files.contains("_1.si"));
         writer.close();
         dir.close();

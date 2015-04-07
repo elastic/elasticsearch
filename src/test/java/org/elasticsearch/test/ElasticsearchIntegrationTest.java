@@ -1947,7 +1947,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
     }
 
     protected HttpRequestBuilder httpClient() {
-        return new HttpRequestBuilder(HttpClients.createDefault()).httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class));
+        final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
+        final NodeInfo[] nodes = nodeInfos.getNodes();
+        assertTrue(nodes.length > 0);
+        TransportAddress publishAddress = randomFrom(nodes).getHttp().address().publishAddress();
+        assertEquals(1, publishAddress.uniqueAddressTypeId());
+        InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
+        return new HttpRequestBuilder(HttpClients.createDefault()).host(address.getHostName()).port(address.getPort());
     }
 
     /**

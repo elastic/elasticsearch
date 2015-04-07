@@ -30,7 +30,7 @@ public interface ScriptContext {
     /**
      * @return the name of the operation
      */
-    String key();
+    String getKey();
 
     /**
      * Standard operations that make use of scripts as part of their execution.
@@ -54,7 +54,7 @@ public interface ScriptContext {
         }
 
         @Override
-        public String key() {
+        public String getKey() {
             return key;
         }
     }
@@ -62,8 +62,10 @@ public interface ScriptContext {
     /**
      * Custom operation exposed via plugin, which makes use of scripts as part of its execution
      */
-    class Plugin implements ScriptContext {
+    final class Plugin implements ScriptContext {
 
+        private final String pluginName;
+        private final String operation;
         private final String key;
 
         /**
@@ -80,11 +82,21 @@ public interface ScriptContext {
             if (Strings.hasLength(operation) == false) {
                 throw new ElasticsearchIllegalArgumentException("operation name cannot be empty when registering a custom script context");
             }
+            this.pluginName = pluginName;
+            this.operation = operation;
             this.key = pluginName + "_" + operation;
         }
 
+        public String getPluginName() {
+            return pluginName;
+        }
+
+        public String getOperation() {
+            return operation;
+        }
+
         @Override
-        public String key() {
+        public final String getKey() {
             return key;
         }
     }

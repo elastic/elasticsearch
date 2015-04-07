@@ -85,7 +85,7 @@ public class ScriptModes {
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
             ScriptMode scriptMode = getScriptContextMode(settings, SCRIPT_SETTINGS_PREFIX, scriptContext);
             if (scriptMode != null) {
-                processedSettings.add(SCRIPT_SETTINGS_PREFIX + scriptContext.key() + ": " + scriptMode);
+                processedSettings.add(SCRIPT_SETTINGS_PREFIX + scriptContext.getKey() + ": " + scriptMode);
                 addGlobalScriptContextModes(scriptEngines.keySet(), scriptContext, scriptMode, scriptModes);
             }
         }
@@ -103,7 +103,7 @@ public class ScriptModes {
                     for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
                         ScriptMode scriptMode = getScriptContextMode(langSettings.getValue(), scriptTypePrefix, scriptContext);
                         if (scriptMode != null) {
-                            processedSettings.add(enginePrefix + scriptTypePrefix + scriptContext.key() + ": " + scriptMode);
+                            processedSettings.add(enginePrefix + scriptTypePrefix + scriptContext.getKey() + ": " + scriptMode);
                             addScriptMode(scriptEngineService, scriptType, scriptContext, scriptMode, scriptModes);
                         }
                     }
@@ -139,7 +139,7 @@ public class ScriptModes {
     }
 
     private static ScriptMode getScriptContextMode(Settings settings, String prefix, ScriptContext scriptContext) {
-        String settingValue = settings.get(prefix + scriptContext.key());
+        String settingValue = settings.get(prefix + scriptContext.getKey());
         if (Strings.hasLength(settingValue)) {
             return ScriptMode.parse(settingValue);
         }
@@ -171,7 +171,7 @@ public class ScriptModes {
     }
 
     private static void addScriptMode(String lang, ScriptType scriptType, ScriptContext scriptContext, ScriptMode scriptMode, Map<String, ScriptMode> scriptModes) {
-        scriptModes.put(ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + scriptContext.key(), scriptMode);
+        scriptModes.put(ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + scriptContext.getKey(), scriptMode);
     }
 
     /**
@@ -188,9 +188,9 @@ public class ScriptModes {
         if (NativeScriptEngineService.NAME.equals(lang)) {
             return ScriptMode.ON;
         }
-        ScriptMode scriptMode = scriptModes.get(ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + scriptContext.key());
+        ScriptMode scriptMode = scriptModes.get(ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + scriptContext.getKey());
         if (scriptMode == null) {
-            throw new ElasticsearchIllegalArgumentException("script mode not found for lang [" + lang + "], script_type [" + scriptType + "], operation [" + scriptContext.key() + "]");
+            throw new ElasticsearchIllegalArgumentException("script mode not found for lang [" + lang + "], script_type [" + scriptType + "], operation [" + scriptContext.getKey() + "]");
         }
         return scriptMode;
     }

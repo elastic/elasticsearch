@@ -274,14 +274,14 @@ public class ScriptService extends AbstractComponent implements Closeable {
             if (compiled != null) {
                 scriptType = ScriptType.FILE;
                 if (canExecuteScript(lang, scriptEngineService, scriptType, scriptContext) == false) {
-                    throw new ScriptException("scripts of type [" + scriptType + "], operation [" + scriptContext.key() + "] and lang [" + lang + "] are disabled");
+                    throw new ScriptException("scripts of type [" + scriptType + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
                 }
                 return compiled;
             }
         }
 
         if (canExecuteScript(lang, scriptEngineService, scriptType, scriptContext) == false) {
-            throw new ScriptException("scripts of type [" + scriptType + "], operation [" + scriptContext.key() + "] and lang [" + lang + "] are disabled");
+            throw new ScriptException("scripts of type [" + scriptType + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
         }
         return compileInternal(lang, script, scriptType);
     }
@@ -492,7 +492,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
     private boolean canExecuteScript(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType, ScriptContext scriptContext) {
         assert lang != null;
         if (scriptContextRegistry.isSupportedContext(scriptContext) == false) {
-            throw new ElasticsearchIllegalArgumentException("script context [" + scriptContext.key() + "] not supported");
+            throw new ElasticsearchIllegalArgumentException("script context [" + scriptContext.getKey() + "] not supported");
         }
         ScriptMode mode = scriptModes.getScriptMode(lang, scriptType, scriptContext);
         switch (mode) {

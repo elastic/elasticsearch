@@ -19,7 +19,6 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
@@ -35,13 +34,14 @@ import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.containsString;
@@ -79,26 +79,18 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         //randomly register custom script contexts
         int randomInt = randomIntBetween(0, 3);
         //prevent duplicates using map
-        Map<String, ScriptContext> contexts = Maps.newHashMap();
+        Map<String, ScriptContext.Plugin> contexts = Maps.newHashMap();
         for (int i = 0; i < randomInt; i++) {
-            if (randomBoolean()) {
-                String context;
-                do {
-                    context = randomAsciiOfLength(randomIntBetween(1, 30));
-                } while (ScriptContextRegistry.RESERVED_SCRIPT_CONTEXTS.contains(context));
-                final String randomContext = context;
-                contexts.put(randomContext, new ScriptContext() {
-                    @Override
-                    public String key() {
-                        return randomContext;
-                    }
-                });
-            } else {
-                String plugin = randomAsciiOfLength(randomIntBetween(1, 10));
-                String operation = randomAsciiOfLength(randomIntBetween(1, 30));
-                String context = plugin + "-" + operation;
-                contexts.put(context, new ScriptContext.Plugin(plugin, operation));
-            }
+            String plugin;
+            do {
+                plugin = randomAsciiOfLength(randomIntBetween(1, 10));
+            } while (ScriptContextRegistry.RESERVED_SCRIPT_CONTEXTS.contains(plugin));
+            String operation;
+            do {
+                operation = randomAsciiOfLength(randomIntBetween(1, 30));
+            } while (ScriptContextRegistry.RESERVED_SCRIPT_CONTEXTS.contains(operation));
+            String context = plugin + "_" + operation;
+            contexts.put(context, new ScriptContext.Plugin(plugin, operation));
         }
         scriptContextRegistry = new ScriptContextRegistry(contexts.values());
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
@@ -275,7 +267,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         for (int i = 0; i < numScriptContextSettings; i++) {
             String scriptContext;
             do {
-                scriptContext = randomFrom(this.scriptContexts).key();
+                scriptContext = randomFrom(this.scriptContexts).getKey();
             } while (scriptContextSettings.containsKey(scriptContext));
             scriptContextSettings.put(scriptContext, randomFrom(ScriptMode.values()));
         }
@@ -288,7 +280,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                 ScriptEngineService scriptEngineService = randomFrom(scriptEngineServices);
                 ScriptType scriptType = randomFrom(ScriptType.values());
                 ScriptContext scriptContext = randomFrom(this.scriptContexts);
-                settingKey = scriptEngineService.types()[0] + "." + scriptType + "." + scriptContext.key();
+                settingKey = scriptEngineService.types()[0] + "." + scriptType + "." + scriptContext.getKey();
             } while (engineSettings.containsKey(settingKey));
             engineSettings.put(settingKey, randomFrom(ScriptMode.values()));
         }
@@ -349,9 +341,9 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                 String script = scriptType == ScriptType.FILE ? "file_script" : "script";
                 for (ScriptContext scriptContext : this.scriptContexts) {
                     //fallback mechanism: 1) engine specific settings 2) op based settings 3) source based settings
-                    ScriptMode scriptMode = engineSettings.get(scriptEngineService.types()[0] + "." + scriptType + "." + scriptContext.key());
+                    ScriptMode scriptMode = engineSettings.get(scriptEngineService.types()[0] + "." + scriptType + "." + scriptContext.getKey());
                     if (scriptMode == null) {
-                        scriptMode = scriptContextSettings.get(scriptContext.key());
+                        scriptMode = scriptContextSettings.get(scriptContext.getKey());
                     }
                     if (scriptMode == null) {
                         scriptMode = scriptSourceSettings.get(scriptType);
@@ -401,67 +393,6 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                     assertThat(e.getMessage(), containsString("script context [" + pluginName + "_" + unknownContext + "] not supported"));
                 }
             }
-        }
-    }
-
-    @Test
-    public void testValidateCustomScriptContexts() throws IOException {
-        List<String> rejectedContexts = new ArrayList<>();
-        for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {
-            rejectedContexts.add(scriptContext.key());
-        }
-        rejectedContexts.add("script");
-        rejectedContexts.add("engine");
-        for (ScriptType scriptType : ScriptType.values()) {
-            rejectedContexts.add(scriptType.toString());
-        }
-        for (final String rejectedContext : rejectedContexts) {
-            try {
-                //try to register a prohibited script context
-                new ScriptContextRegistry(Lists.<ScriptContext>newArrayList(new ScriptContext() {
-                    @Override
-                    public String key() {
-                        return rejectedContext;
-                    }
-                }));
-                fail("ScriptContextRegistry initialization should have failed");
-            } catch(ElasticsearchIllegalArgumentException e) {
-                assertThat(e.getMessage(), Matchers.containsString("[" + rejectedContext + "] is a reserved name, it cannot be registered as a custom script context"));
-            }
-        }
-    }
-
-    @Test
-    public void testDuplicatedCustomScriptContexts() throws IOException {
-        ScriptContext scriptContext1 = new ScriptContext() {
-            @Override
-            public String key() {
-                return "test";
-            }
-        };
-        ScriptContext scriptContext2 = new ScriptContext() {
-            @Override
-            public String key() {
-                return "test";
-            }
-        };
-        try {
-            //try to register a prohibited script context
-            new ScriptContextRegistry(Lists.newArrayList(scriptContext1, scriptContext2));
-            fail("ScriptContextRegistry initialization should have failed");
-        } catch(ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getMessage(), Matchers.containsString("script context [test] cannot be registered twice"));
-        }
-    }
-
-    @Test
-    public void testDuplicatedPluginScriptContexts() throws IOException {
-        try {
-            //try to register a prohibited script context
-            new ScriptContextRegistry(Lists.<ScriptContext>newArrayList(new ScriptContext.Plugin("plugin", "test"), new ScriptContext.Plugin("plugin", "test")));
-            fail("ScriptContextRegistry initialization should have failed");
-        } catch(ElasticsearchIllegalArgumentException e) {
-            assertThat(e.getMessage(), Matchers.containsString("script context [plugin_test] cannot be registered twice"));
         }
     }
 

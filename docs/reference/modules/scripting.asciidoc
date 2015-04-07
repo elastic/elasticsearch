@@ -306,9 +306,10 @@ supported operations are:
 |=======================================================================
 
 Plugins can also define custom operations that they use scripts for instead
-of using the generic `plugin` category.
+of using the generic `plugin` category. Those operations can be referred to
+in the following form: `$pluginName_$operation`.
 
-The following example disables scripting for `update` and `mapping` operations,
+The following example disables scripting for `upnother rounddate` and `mapping` operations,
 regardless of the script source, for any engine. Scripts can still be
 executed from sandboxed languages as part of `aggregations`, `search`
 and `plugin` operations though, as the above defaults still get applied.

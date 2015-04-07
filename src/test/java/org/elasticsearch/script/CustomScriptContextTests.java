@@ -99,7 +99,7 @@ public class CustomScriptContextTests extends ElasticsearchIntegrationTest {
         try {
             scriptService.compile(randomFrom(LANG_SET.toArray(new String[LANG_SET.size()])), "test", randomFrom(ScriptService.ScriptType.values()), new ScriptContext() {
                 @Override
-                public String key() {
+                public String getKey() {
                     return "test";
                 }
             });

@@ -59,26 +59,12 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         //randomly register custom script contexts
         int randomInt = randomIntBetween(0, 3);
         //prevent duplicates using map
-        Map<String, ScriptContext> contexts = Maps.newHashMap();
+        Map<String, ScriptContext.Plugin> contexts = Maps.newHashMap();
         for (int i = 0; i < randomInt; i++) {
-            if (randomBoolean()) {
-                String context;
-                do {
-                    context = randomAsciiOfLength(randomIntBetween(1, 30));
-                } while (ScriptContextRegistry.RESERVED_SCRIPT_CONTEXTS.contains(context));
-                final String randomContext = context;
-                contexts.put(randomContext, new ScriptContext() {
-                    @Override
-                    public String key() {
-                        return randomContext;
-                    }
-                });
-            } else {
-                String plugin = randomAsciiOfLength(randomIntBetween(1, 10));
-                String operation = randomAsciiOfLength(randomIntBetween(1, 30));
-                String context = plugin + "-" + operation;
-                contexts.put(context, new ScriptContext.Plugin(plugin, operation));
-            }
+            String plugin = randomAsciiOfLength(randomIntBetween(1, 10));
+            String operation = randomAsciiOfLength(randomIntBetween(1, 30));
+            String context = plugin + "-" + operation;
+            contexts.put(context, new ScriptContext.Plugin(plugin, operation));
         }
         scriptContextRegistry = new ScriptContextRegistry(contexts.values());
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
@@ -156,7 +142,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
                 builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + randomFrom(ScriptType.values()), randomFrom(ScriptMode.values()));
             } else {
                 if (randomBoolean()) {
-                    builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + randomFrom(scriptContexts).key(), randomFrom(ScriptMode.values()));
+                    builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + randomFrom(scriptContexts).getKey(), randomFrom(ScriptMode.values()));
                 } else {
                     builder.put(specificEngineOpSettings(GroovyScriptEngineService.NAME, randomFrom(ScriptType.values()), randomFrom(scriptContexts)), randomFrom(ScriptMode.values()));
                 }
@@ -230,7 +216,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         ScriptContext[] randomScriptContexts = randomScriptContextsSet.toArray(new ScriptContext[randomScriptContextsSet.size()]);
         ImmutableSettings.Builder builder = ImmutableSettings.builder();
         for (int i = 0; i < randomInt; i++) {
-            builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + randomScriptContexts[i].key(), randomScriptModes[i]);
+            builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + randomScriptContexts[i].getKey(), randomScriptModes[i]);
         }
         this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, builder.build(), Loggers.getLogger(ScriptModesTests.class));
 
@@ -246,7 +232,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     @Test
     public void testConflictingScriptTypeAndOpGenericSettings() {
         ScriptContext scriptContext = randomFrom(scriptContexts);
-        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptContext.key(), randomFrom(DISABLE_VALUES))
+        ImmutableSettings.Builder builder = ImmutableSettings.builder().put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptContext.getKey(), randomFrom(DISABLE_VALUES))
                 .put("script.indexed", randomFrom(ENABLE_VALUES)).put("script.inline", ScriptMode.SANDBOX);
         //operations generic settings have precedence over script type generic settings
         this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, builder.build(), Loggers.getLogger(ScriptModesTests.class));
@@ -303,7 +289,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
         for (String lang : langs) {
             for (ScriptType scriptType : scriptTypes) {
                 for (ScriptContext scriptContext : scriptContexts) {
-                    assertThat(lang + "." + scriptType + "." + scriptContext.key() + " doesn't have the expected value", scriptModes.getScriptMode(lang, scriptType, scriptContext), equalTo(expectedScriptMode));
+                    assertThat(lang + "." + scriptType + "." + scriptContext.getKey() + " doesn't have the expected value", scriptModes.getScriptMode(lang, scriptType, scriptContext), equalTo(expectedScriptMode));
                     checkedSettings.add(lang + "." + scriptType + "." + scriptContext);
                 }
             }
@@ -313,16 +299,16 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     private ScriptContext[] complementOf(ScriptContext... scriptContexts) {
         Map<String, ScriptContext> copy = Maps.newHashMap();
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
-            copy.put(scriptContext.key(), scriptContext);
+            copy.put(scriptContext.getKey(), scriptContext);
         }
         for (ScriptContext scriptContext : scriptContexts) {
-            copy.remove(scriptContext.key());
+            copy.remove(scriptContext.getKey());
         }
         return copy.values().toArray(new ScriptContext[copy.size()]);
     }
 
     private static String specificEngineOpSettings(String lang, ScriptType scriptType, ScriptContext scriptContext) {
-        return ScriptModes.ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + scriptContext.key();
+        return ScriptModes.ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + scriptContext.getKey();
     }
 
     static ImmutableMap<String, ScriptEngineService> buildScriptEnginesByLangMap(Set<ScriptEngineService> scriptEngines) {

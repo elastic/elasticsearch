@@ -29,7 +29,7 @@ import java.util.Map;
 
 /**
  * Registry for operations that use scripts as part of their execution. Can be standard operations of custom defined ones (via plugin).
- * Allows plugins to register custom operations that they use scripts for, via {@link ScriptModule#registerScriptContext(ScriptContext)}.
+ * Allows plugins to register custom operations that they use scripts for, via {@link ScriptModule#registerScriptContext(org.elasticsearch.script.ScriptContext.Plugin)}.
  * Scripts can be enabled/disabled via fine-grained settings for each single registered operation.
  */
 public final class ScriptContextRegistry {
@@ -37,16 +37,16 @@ public final class ScriptContextRegistry {
 
     private final ImmutableMap<String, ScriptContext> scriptContexts;
 
-    ScriptContextRegistry(Iterable<ScriptContext> customScriptContexts) {
+    ScriptContextRegistry(Iterable<ScriptContext.Plugin> customScriptContexts) {
         Map<String, ScriptContext> scriptContexts = Maps.newHashMap();
         for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {
-            scriptContexts.put(scriptContext.key(), scriptContext);
+            scriptContexts.put(scriptContext.getKey(), scriptContext);
         }
-        for (ScriptContext customScriptContext : customScriptContexts) {
-            validateScriptContext(customScriptContext.key());
-            ScriptContext previousContext = scriptContexts.put(customScriptContext.key(), customScriptContext);
+        for (ScriptContext.Plugin customScriptContext : customScriptContexts) {
+            validateScriptContext(customScriptContext);
+            ScriptContext previousContext = scriptContexts.put(customScriptContext.getKey(), customScriptContext);
             if (previousContext != null) {
-                throw new ElasticsearchIllegalArgumentException("script context [" + customScriptContext.key() + "] cannot be registered twice");
+                throw new ElasticsearchIllegalArgumentException("script context [" + customScriptContext.getKey() + "] cannot be registered twice");
             }
         }
         this.scriptContexts = ImmutableMap.copyOf(scriptContexts);
@@ -63,13 +63,16 @@ public final class ScriptContextRegistry {
      * @return <tt>true</tt> if the provided {@link ScriptContext} is supported, <tt>false</tt> otherwise
      */
     boolean isSupportedContext(ScriptContext scriptContext) {
-        return scriptContexts.containsKey(scriptContext.key());
+        return scriptContexts.containsKey(scriptContext.getKey());
     }
 
     //script contexts can be used in fine-grained settings, we need to be careful with what we allow here
-    private void validateScriptContext(String scriptContext) {
-        if (RESERVED_SCRIPT_CONTEXTS.contains(scriptContext)) {
-            throw new ElasticsearchIllegalArgumentException("[" + scriptContext + "] is a reserved name, it cannot be registered as a custom script context");
+    private void validateScriptContext(ScriptContext.Plugin scriptContext) {
+        if (RESERVED_SCRIPT_CONTEXTS.contains(scriptContext.getPluginName())) {
+            throw new ElasticsearchIllegalArgumentException("[" + scriptContext.getPluginName() + "] is a reserved name, it cannot be registered as a custom script context");
+        }
+        if (RESERVED_SCRIPT_CONTEXTS.contains(scriptContext.getOperation())) {
+            throw new ElasticsearchIllegalArgumentException("[" + scriptContext.getOperation() + "] is a reserved name, it cannot be registered as a custom script context");
         }
     }
 
@@ -79,7 +82,7 @@ public final class ScriptContextRegistry {
             builder.add(scriptType.toString());
         }
         for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {
-            builder.add(scriptContext.key());
+            builder.add(scriptContext.getKey());
         }
         builder.add("script").add("engine");
         return builder.build();

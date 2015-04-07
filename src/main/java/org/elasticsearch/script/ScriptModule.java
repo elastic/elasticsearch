@@ -46,7 +46,7 @@ public class ScriptModule extends AbstractModule {
 
     private final Map<String, Class<? extends NativeScriptFactory>> scripts = Maps.newHashMap();
 
-    private final List<ScriptContext> customScriptContexts = Lists.newArrayList();
+    private final List<ScriptContext.Plugin> customScriptContexts = Lists.newArrayList();
 
     public ScriptModule(Settings settings) {
         this.settings = settings;
@@ -67,7 +67,7 @@ public class ScriptModule extends AbstractModule {
      * @see ScriptContext
      *
      */
-    public void registerScriptContext(ScriptContext scriptContext) {
+    public void registerScriptContext(ScriptContext.Plugin scriptContext) {
         customScriptContexts.add(scriptContext);
     }
 

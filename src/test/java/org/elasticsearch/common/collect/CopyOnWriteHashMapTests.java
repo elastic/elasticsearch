@@ -55,9 +55,11 @@ public class CopyOnWriteHashMapTests extends ElasticsearchTestCase {
     public void testDuel() {
         final int iters = scaledRandomIntBetween(2, 5);
         for (int iter = 0; iter < iters; ++iter) {
-            final int numOps = randomInt(5000);
             final int valueBits = randomIntBetween(1, 30);
             final int hashBits = randomInt(valueBits);
+            // we compute the total number of ops based on the bits of the hash
+            // since the test is much heavier when few bits are used for the hash
+            final int numOps = randomInt(10 + hashBits * 100);
 
             Map<O, Integer> ref = new HashMap<>();
             CopyOnWriteHashMap<O, Integer> map = new CopyOnWriteHashMap<>();

@@ -19,10 +19,12 @@ package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 
 import com.tdunning.math.stats.AVLTreeDigest;
 import com.tdunning.math.stats.Centroid;
+
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Collection;
 
 /**
  * Extension of {@link com.tdunning.math.stats.TDigest} with custom serialization.
@@ -43,8 +45,9 @@ public class TDigestState extends AVLTreeDigest {
 
     public static void write(TDigestState state, StreamOutput out) throws IOException {
         out.writeDouble(state.compression);
-        out.writeVInt(state.centroidCount());
-        for (Centroid centroid : state.centroids()) {
+        Collection<Centroid> centroids = state.centroids();
+        out.writeVInt(centroids.size());
+        for (Centroid centroid : centroids) {
             out.writeDouble(centroid.mean());
             out.writeVLong(centroid.count());
         }

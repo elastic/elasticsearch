@@ -40,7 +40,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * 
+ *
  */
 public class LuceneTest extends ElasticsearchLuceneTestCase {
 
@@ -218,7 +218,7 @@ public class LuceneTest extends ElasticsearchLuceneTestCase {
             File indexDir = createTempDir();
             File backwardsIndex = new File(getClass().getResource("/org/elasticsearch/bwcompat/index-0.20.6.zip").toURI());
             TestUtil.unzip(backwardsIndex, indexDir);
-            File luceneIndex = new File(indexDir, "data/bwc_index_0.20.6/nodes/0/indices/test/0/index");
+            File luceneIndex = new File(indexDir, "data/bwc_index_0.20.6/nodes/0/indices/index-0.20.6/0/index");
             try (Directory dir = newFSDirectory(luceneIndex)) {
                     SegmentInfos before = Lucene.readSegmentInfos(dir);
                     assertTrue(before.getUserData().containsKey(Translog.TRANSLOG_ID_KEY));

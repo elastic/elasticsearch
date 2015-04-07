@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasable;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -133,6 +134,14 @@ public interface XContentParser extends Releasable {
     Map<String, Object> mapAndClose() throws IOException;
 
     Map<String, Object> mapOrderedAndClose() throws IOException;
+
+    List<Object> list() throws IOException;
+
+    List<Object> listOrderedMap() throws IOException;
+
+    List<Object> listAndClose() throws IOException;
+
+    List<Object> listOrderedMapAndClose() throws IOException;
 
     String text() throws IOException;
 

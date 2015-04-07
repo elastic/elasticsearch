@@ -21,9 +21,8 @@ package org.elasticsearch.search.aggregations.support.values;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.lucene.ScorerAware;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
-import org.elasticsearch.search.aggregations.support.ScriptValues;
 
 import java.lang.reflect.Array;
 import java.util.Collection;
@@ -32,23 +31,18 @@ import java.util.Iterator;
 /**
  * {@link DoubleValues} implementation which is based on a script
  */
-public class ScriptDoubleValues extends SortingNumericDoubleValues implements ScriptValues, ScorerAware {
+public class ScriptDoubleValues extends SortingNumericDoubleValues implements ScorerAware {
 
-    final SearchScript script;
+    final LeafSearchScript script;
 
-    public ScriptDoubleValues(SearchScript script) {
+    public ScriptDoubleValues(LeafSearchScript script) {
         super();
         this.script = script;
     }
 
     @Override
-    public SearchScript script() {
-        return script;
-    }
-
-    @Override
     public void setDocument(int docId) {
-        script.setNextDocId(docId);
+        script.setDocument(docId);
         final Object value = script.run();
 
         if (value == null) {

@@ -47,7 +47,7 @@ import java.io.IOException;
  * This is currently not used inside elasticsearch but it is used, see for example here:
  * https://github.com/elasticsearch/elasticsearch/issues/8561
  */
-public interface ExplainableSearchScript extends SearchScript {
+public interface ExplainableSearchScript extends LeafSearchScript {
 
     /**
      * Build the explanation of the current document being scored

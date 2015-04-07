@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics.scripted;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.ScriptContext;
@@ -93,13 +94,13 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
             final LeafBucketCollector sub) throws IOException {
-        mapScript.setNextReader(ctx);
+        final LeafSearchScript leafMapScript = mapScript.getLeafSearchScript(ctx);
         return new LeafBucketCollectorBase(sub, mapScript) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 assert bucket == 0 : bucket;
-                mapScript.setNextDocId(doc);
-                mapScript.run();
+                leafMapScript.setDocument(doc);
+                leafMapScript.run();
             }
         };
     }

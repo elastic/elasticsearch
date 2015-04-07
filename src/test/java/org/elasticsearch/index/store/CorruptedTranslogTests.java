@@ -55,7 +55,7 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  * Integration test for corrupted translog files
  */
-@ElasticsearchIntegrationTest.ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE, numDataNodes =0)
+@ElasticsearchIntegrationTest.ClusterScope(scope= ElasticsearchIntegrationTest.Scope.SUITE, numDataNodes = 0)
 public class CorruptedTranslogTests extends ElasticsearchIntegrationTest {
 
     @Override

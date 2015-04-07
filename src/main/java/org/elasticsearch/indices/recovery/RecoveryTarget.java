@@ -45,7 +45,6 @@ import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexMissingException;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -285,7 +284,7 @@ public class RecoveryTarget extends AbstractComponent {
             try (RecoveriesCollection.StatusRef statusRef = onGoingRecoveries.getStatusSafe(request.recoveryId(), request.shardId())) {
                 final RecoveryStatus recoveryStatus = statusRef.status();
                 recoveryStatus.state().getTranslog().totalOperations(request.totalTranslogOps());
-                recoveryStatus.indexShard().prepareForTranslogRecovery();
+                recoveryStatus.indexShard().skipTranslogRecovery();
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
@@ -332,10 +331,8 @@ public class RecoveryTarget extends AbstractComponent {
                 final RecoveryStatus recoveryStatus = statusRef.status();
                 final RecoveryState.Translog translog = recoveryStatus.state().getTranslog();
                 translog.totalOperations(request.totalTranslogOps());
-                for (Translog.Operation operation : request.operations()) {
-                    recoveryStatus.indexShard().performRecoveryOperation(operation);
-                    translog.incrementRecoveredOperations();
-                }
+                assert recoveryStatus.indexShard().recoveryState() == recoveryStatus.state();
+                recoveryStatus.indexShard().performBatchRecovery(request.operations());
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
 

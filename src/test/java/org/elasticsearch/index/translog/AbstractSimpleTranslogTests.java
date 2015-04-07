@@ -264,7 +264,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     }
 
     @Test
-    public void testSnapshot() {
+    public void testSnapshot() throws IOException {
         Translog.Snapshot snapshot = translog.snapshot();
         assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
         snapshot.close();
@@ -402,7 +402,7 @@ public abstract class AbstractSimpleTranslogTests extends ElasticsearchTestCase 
     }
 
     @Test
-    public void testSnapshotWithSeekTo() {
+    public void testSnapshotWithSeekTo() throws IOException {
         Translog.Snapshot snapshot = translog.snapshot();
         assertThat(snapshot, TranslogSizeMatcher.translogSize(0));
         snapshot.close();

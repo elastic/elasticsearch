@@ -186,7 +186,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     public static final String INDEX_FLUSH_ON_CLOSE = "index.flush_on_close";
 
     /**
-     * Controsl how frequently we automatically refresh the near-real-time searcher.
+     * Controls how frequently we automatically refresh the near-real-time searcher.
      */
     public static final String INDEX_REFRESH_INTERVAL = "index.refresh_interval";
 

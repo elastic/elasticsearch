@@ -226,13 +226,13 @@ public class Version {
     public static final int V_1_4_4_ID = 1040499;
     public static final Version V_1_4_4 = new Version(V_1_4_4_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_3);
     public static final int V_1_4_5_ID = 1040599;
-    public static final Version V_1_4_5 = new Version(V_1_4_5_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_3); // TODO 1.4.5 -> 1.6 is lucene 4.10.4 we need the constant here
+    public static final Version V_1_4_5 = new Version(V_1_4_5_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_4);
     public static final int V_1_5_0_ID = 1050099;
-    public static final Version V_1_5_0 = new Version(V_1_5_0_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_3);
+    public static final Version V_1_5_0 = new Version(V_1_5_0_ID, false, org.apache.lucene.util.Version.LUCENE_4_10_4);
     public static final int V_1_5_1_ID = 1050199;
-    public static final Version V_1_5_1 = new Version(V_1_5_1_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_3);
+    public static final Version V_1_5_1 = new Version(V_1_5_1_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_4);
     public static final int V_1_6_0_ID = 1060099;
-    public static final Version V_1_6_0 = new Version(V_1_6_0_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_3);
+    public static final Version V_1_6_0 = new Version(V_1_6_0_ID, true, org.apache.lucene.util.Version.LUCENE_4_10_4);
     public static final int V_2_0_0_ID = 2000099;
     public static final Version V_2_0_0 = new Version(V_2_0_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_1_0);
 

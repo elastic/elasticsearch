@@ -27,6 +27,9 @@ import java.io.IOException;
 
 import static org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
 
+/**
+ * A builder to create MovingAvg reducer aggregations
+ */
 public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
 
     private String format;
@@ -43,16 +46,36 @@ public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
         return this;
     }
 
+    /**
+     * Defines what should be done when a gap in the series is discovered
+     *
+     * @param gapPolicy A GapPolicy enum defining the selected policy
+     * @return Returns the builder to continue chaining
+     */
     public MovAvgBuilder gapPolicy(GapPolicy gapPolicy) {
         this.gapPolicy = gapPolicy;
         return this;
     }
 
+    /**
+     * Sets a MovAvgModelBuilder for the Moving Average.  The model builder is used to
+     * define what type of moving average you want to use on the series
+     *
+     * @param modelBuilder A MovAvgModelBuilder which has been prepopulated with settings
+     * @return Returns the builder to continue chaining
+     */
     public MovAvgBuilder modelBuilder(MovAvgModelBuilder modelBuilder) {
         this.modelBuilder = modelBuilder;
         return this;
     }
 
+    /**
+     * Sets the window size for the moving average.  This window will "slide" across the
+     * series, and the values inside that window will be used to calculate the moving avg value
+     *
+     * @param window Size of window
+     * @return Returns the builder to continue chaining
+     */
     public MovAvgBuilder window(int window) {
         this.window = window;
         return this;
@@ -68,7 +91,7 @@ public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
             builder.field(MovAvgParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
         }
         if (modelBuilder != null) {
-            modelBuilder.toXContent(builder);
+            modelBuilder.toXContent(builder, params);
         }
         if (window != null) {
             builder.field(MovAvgParser.WINDOW.getPreferredName(), window);

@@ -106,17 +106,27 @@ public class SingleExpModel extends MovAvgModel {
 
         private double alpha = 0.5;
 
+        /**
+         * Alpha controls the smoothing of the data.  Alpha = 1 retains no memory of past values
+         * (e.g. a random walk), while alpha = 0 retains infinite memory of past values (e.g.
+         * the series mean).  Useful values are somewhere in between.  Defaults to 0.5.
+         *
+         * @param alpha A double between 0-1 inclusive, controls data smoothing
+         *
+         * @return The builder to continue chaining
+         */
         public SingleExpModelBuilder alpha(double alpha) {
             this.alpha = alpha;
             return this;
         }
 
         @Override
-        public void toXContent(XContentBuilder builder) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
             builder.startObject(MovAvgParser.SETTINGS.getPreferredName());
                 builder.field("alpha", alpha);
             builder.endObject();
+            return builder;
         }
     }
 }

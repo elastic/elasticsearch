@@ -154,23 +154,40 @@ public class DoubleExpModel extends MovAvgModel {
         private double alpha = 0.5;
         private double beta = 0.5;
 
+        /**
+         * Alpha controls the smoothing of the data.  Alpha = 1 retains no memory of past values
+         * (e.g. a random walk), while alpha = 0 retains infinite memory of past values (e.g.
+         * the series mean).  Useful values are somewhere in between.  Defaults to 0.5.
+         *
+         * @param alpha A double between 0-1 inclusive, controls data smoothing
+         *
+         * @return The builder to continue chaining
+         */
         public DoubleExpModelBuilder alpha(double alpha) {
             this.alpha = alpha;
             return this;
         }
 
+        /**
+         * Equivalent to <code>alpha</code>, but controls the smoothing of the trend instead of the data
+         *
+         * @param beta a double between 0-1 inclusive, controls trend smoothing
+         *
+         * @return The builder to continue chaining
+         */
         public DoubleExpModelBuilder beta(double beta) {
             this.beta = beta;
             return this;
         }
 
         @Override
-        public void toXContent(XContentBuilder builder) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
             builder.startObject(MovAvgParser.SETTINGS.getPreferredName());
                 builder.field("alpha", alpha);
                 builder.field("beta", beta);
             builder.endObject();
+            return builder;
         }
     }
 }

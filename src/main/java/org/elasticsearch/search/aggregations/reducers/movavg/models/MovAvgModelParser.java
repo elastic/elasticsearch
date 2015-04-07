@@ -24,6 +24,9 @@ import org.elasticsearch.common.Nullable;
 
 import java.util.Map;
 
+/**
+ * Common interface for parsers used by the various Moving Average models
+ */
 public interface MovAvgModelParser {
     public MovAvgModel parse(@Nullable Map<String, Object> settings);
 

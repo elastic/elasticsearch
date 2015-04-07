@@ -85,8 +85,9 @@ public class LinearModel extends MovAvgModel {
 
     public static class LinearModelBuilder implements MovAvgModelBuilder {
         @Override
-        public void toXContent(XContentBuilder builder) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+            return builder;
         }
     }
 }

@@ -58,13 +58,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -187,6 +181,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         }
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "times out often , see : https://github.com/elastic/elasticsearch/issues/10434")
     public void testOldIndexes() throws Exception {
         // Enable logging of all file deletions while we try to debug this tricky rare test failure (#9822):
         Loggers.getLogger("test.engine.lucene.iw.ifd").setLevel("TRACE");
@@ -213,10 +208,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         assertBasicSearchWorks(indexName);
         assertBasicAggregationWorks(indexName);
         assertRealtimeGetWorks(indexName);
-        if (version.equals(Version.V_0_90_13) == false) {
-            // norelease: 0.90.13 can take too long to create replicas, see https://github.com/elastic/elasticsearch/issues/10434
-            assertNewReplicasWork(indexName);
-        }
+        assertNewReplicasWork(indexName);
         assertUpgradeWorks(indexName, isLatestLuceneVersion(version));
         assertDeleteByQueryWorked(indexName, version);
         unloadIndex(indexName);
@@ -295,8 +287,8 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         final int numReplicas = randomIntBetween(1, 2);
         logger.debug("Creating [{}] replicas for index [{}]", numReplicas, indexName);
             assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.builder()
-                    .put("number_of_replicas", numReplicas)
-        ).execute().actionGet());
+                            .put("number_of_replicas", numReplicas)
+            ).execute().actionGet());
         ensureGreen(indexName);
 
         // TODO: do something with the replicas! query? index?

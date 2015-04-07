@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.test.integration;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.ScriptService;
@@ -104,6 +105,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         refresh();
 
         if (timeWarped()) {
+            timeWarp().clock().fastForwardSeconds(5);
             timeWarp().scheduler().trigger("_name");
             refresh();
         }
@@ -194,6 +196,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                 .get();
 
         if (timeWarped()) {
+            timeWarp().clock().fastForwardSeconds(5);
             timeWarp().scheduler().trigger("_name");
             refresh();
         }
@@ -204,6 +207,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                 .get();
 
         if (timeWarped()) {
+            timeWarp().clock().fastForwardSeconds(5);
             timeWarp().scheduler().trigger("_name");
             refresh();
         }
@@ -216,6 +220,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                 .get();
 
         if (timeWarped()) {
+            timeWarp().clock().fastForwardSeconds(5);
             timeWarp().scheduler().trigger("_name");
             refresh();
         } else {
@@ -225,6 +230,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         long count =  findNumberOfPerformedActions("_name");
 
         if (timeWarped()) {
+            timeWarp().clock().fastForwardSeconds(5);
             timeWarp().scheduler().trigger("_name");
             refresh();
         } else {
@@ -313,10 +319,13 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
     }
 
     private void testConditionSearch(SearchRequest request) throws Exception {
+        if (timeWarped()) {
+            // reset, so we don't miss event docs when we filter over the _timestamp field.
+            timeWarp().clock().setTime(new DateTime());
+        }
+
         String watchName = "_name";
         assertAcked(prepareCreate("events").addMapping("event", "_timestamp", "enabled=true", "level", "type=string"));
-
-        watcherClient().prepareDeleteWatch(watchName).get();
         watcherClient().preparePutWatch(watchName)
                 .source(createWatchSource(interval("5s"), request, "return ctx.payload.hits.total >= 3"))
                 .get();

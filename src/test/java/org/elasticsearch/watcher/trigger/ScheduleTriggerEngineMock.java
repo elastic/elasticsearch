@@ -87,10 +87,10 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
             for (Listener listener : listeners) {
                 listener.triggered(jobName, event);
             }
-            if (clock instanceof ClockMock) {
-                ((ClockMock) clock).fastForward(interval == null ? TimeValue.timeValueMillis(10) : interval);
-            } else {
-                if (interval != null) {
+            if (interval != null)  {
+                if (clock instanceof ClockMock) {
+                    ((ClockMock) clock).fastForward(interval);
+                } else {
                     try {
                         Thread.sleep(interval.millis());
                     } catch (InterruptedException ie) {

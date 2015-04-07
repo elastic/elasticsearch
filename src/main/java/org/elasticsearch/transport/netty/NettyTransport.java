@@ -605,7 +605,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         return this.boundAddress;
     }
 
-    void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
+    protected void exceptionCaught(ChannelHandlerContext ctx, ExceptionEvent e) throws Exception {
         if (!lifecycle.started()) {
             // ignore
             return;

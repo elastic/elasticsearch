@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.VersionType;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShardComponent;
 
 import java.io.Closeable;
+import java.io.EOFException;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -158,6 +160,22 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
      */
     long findLargestPresentTranslogId() throws IOException;
 
+    /**
+     * Returns an OperationIterator to iterate over all translog entries in the given translog ID.
+     * @throws java.io.FileNotFoundException if the file for the translog ID can not be found
+     */
+    OperationIterator openIterator(long translogId) throws IOException;
+
+    /**
+     * Iterator for translog operations.
+     */
+    public static interface OperationIterator extends Releasable {
+        /**
+         * Returns the next operation in the translog or <code>null</code> if we reached the end of the stream.
+         */
+        public Translog.Operation next() throws IOException;
+    }
+
     static class Location implements Accountable {
 
         public final long translogId;
@@ -189,7 +207,7 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
     /**
      * A snapshot of the transaction log, allows to iterate over all the transaction log operations.
      */
-    static interface Snapshot extends Releasable {
+    static interface Snapshot extends OperationIterator {
 
         /**
          * The id of the translog the snapshot was taken with.
@@ -210,11 +228,6 @@ public interface Translog extends IndexShardComponent, Closeable, Accountable {
          * The total number of operations in the translog.
          */
         int estimatedTotalOperations();
-
-        /**
-         * Returns the next operation, or null when no more operations are found
-         */
-        Operation next();
 
         /**
          * Seek to the specified position in the translog stream

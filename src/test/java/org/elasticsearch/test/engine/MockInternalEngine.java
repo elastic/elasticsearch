@@ -66,22 +66,30 @@ public class MockInternalEngine extends InternalEngine {
 
     private MockContext mockContext;
 
-    public MockInternalEngine(EngineConfig config) throws EngineException {
-        super(config);
-        Settings indexSettings = config.getIndexSettings();
-        final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
-        Random random = new Random(seed);
-        final double ratio = indexSettings.getAsDouble(WRAP_READER_RATIO, 0.0d); // DISABLED by default - AssertingDR is crazy slow
-        Class<? extends AssertingDirectoryReader> wrapper = indexSettings.getAsClass(READER_WRAPPER_TYPE, AssertingDirectoryReader.class);
-        boolean wrapReader = random.nextDouble() < ratio;
-        if (logger.isTraceEnabled()) {
-            logger.trace("Using [{}] for shard [{}] seed: [{}] wrapReader: [{}]", this.getClass().getName(), shardId, seed, wrapReader);
-        }
-        mockContext = new MockContext(random, wrapReader, wrapper, indexSettings);
+    public MockInternalEngine(EngineConfig config, boolean skipInitialTranslogRecovery) throws EngineException {
+        super(config, skipInitialTranslogRecovery);
     }
+
+    private synchronized MockContext getMockContext() {
+        if (mockContext == null) {
+            Settings indexSettings = config().getIndexSettings();
+            final long seed = indexSettings.getAsLong(ElasticsearchIntegrationTest.SETTING_INDEX_SEED, 0l);
+            Random random = new Random(seed);
+            final double ratio = indexSettings.getAsDouble(WRAP_READER_RATIO, 0.0d); // DISABLED by default - AssertingDR is crazy slow
+            Class<? extends AssertingDirectoryReader> wrapper = indexSettings.getAsClass(READER_WRAPPER_TYPE, AssertingDirectoryReader.class);
+            boolean wrapReader = random.nextDouble() < ratio;
+            if (logger.isTraceEnabled()) {
+                logger.trace("Using [{}] for shard [{}] seed: [{}] wrapReader: [{}]", this.getClass().getName(), shardId, seed, wrapReader);
+            }
+            mockContext = new MockContext(random, wrapReader, wrapper, indexSettings);
+        }
+        return mockContext;
+    }
+
 
     @Override
     public void close() throws IOException {
+        MockContext mockContext = getMockContext();
         try {
             if (closing.compareAndSet(false, true)) { // only do the random thing if we are the first call to this since super.flushOnClose() calls #close() again and then we might end up with a stackoverflow.
                 if (mockContext.flushOnClose > mockContext.random.nextDouble()) {
@@ -106,6 +114,7 @@ public class MockInternalEngine extends InternalEngine {
 
     @Override
     public void flushAndClose() throws IOException {
+        MockContext mockContext = getMockContext();
         if (closing.compareAndSet(false, true)) { // only do the random thing if we are the first call to this since super.flushOnClose() calls #close() again and then we might end up with a stackoverflow.
             if (mockContext.flushOnClose > mockContext.random.nextDouble()) {
                 super.flushAndClose();
@@ -119,9 +128,10 @@ public class MockInternalEngine extends InternalEngine {
 
     @Override
     protected Searcher newSearcher(String source, IndexSearcher searcher, SearcherManager manager) throws EngineException {
-
+        MockContext mockContext = getMockContext();
         IndexReader reader = searcher.getIndexReader();
         IndexReader wrappedReader = reader;
+        assert reader != null;
         if (reader instanceof DirectoryReader && mockContext.wrapReader) {
             wrappedReader = wrapReader((DirectoryReader) reader);
         }
@@ -136,6 +146,7 @@ public class MockInternalEngine extends InternalEngine {
     }
 
     private DirectoryReader wrapReader(DirectoryReader reader) {
+        MockContext mockContext = getMockContext();
         try {
             Constructor<?>[] constructors = mockContext.wrapper.getConstructors();
             Constructor<?> nonRandom = null;

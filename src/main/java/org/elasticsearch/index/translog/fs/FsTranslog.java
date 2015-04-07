@@ -25,9 +25,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasablePagedBytesReference;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -36,14 +39,14 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.index.translog.TranslogException;
-import org.elasticsearch.index.translog.TranslogStats;
-import org.elasticsearch.index.translog.TranslogStreams;
+import org.elasticsearch.index.translog.*;
 
+import java.io.EOFException;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.file.*;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.ThreadLocalRandom;
@@ -473,6 +476,33 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
         }
     }
 
+    @Override
+    public OperationIterator openIterator(long translogId) throws IOException {
+        final Path translogName = getPath(translogId);
+        Path recoveringTranslogFile = null;
+        logger.trace("try open translog file {} locations: {}", translogName, Arrays.toString(locations()));
+        OUTER:
+        for (Path translogLocation : locations()) {
+            // we have to support .recovering since it's a leftover from previous version but might still be on the filesystem
+            // we used to rename the foo into foo.recovering since foo was reused / overwritten but we fixed that in 2.0
+            for (Path recoveryFiles : FileSystemUtils.files(translogLocation, translogName.getFileName() + "{.recovering,}")) {
+                logger.trace("translog file found in {}", recoveryFiles);
+                recoveringTranslogFile = recoveryFiles;
+                break OUTER;
+            }
+            logger.trace("translog file NOT found in {} - continue", translogLocation);
+        }
+        final boolean translogFileExists = recoveringTranslogFile != null && Files.exists(recoveringTranslogFile);
+        if (translogFileExists) {
+            if (logger.isTraceEnabled()) {
+                logger.trace("opening iterator for translog file: {} length: {}", recoveringTranslogFile, Files.size(recoveringTranslogFile));
+            }
+            final TranslogStream translogStream = TranslogStreams.translogStreamFor(recoveringTranslogFile);
+            return new OperationIteratorImpl(logger, translogStream, translogStream.openInput(recoveringTranslogFile));
+        }
+        throw new FileNotFoundException("no translog file found for id: " + translogId);
+    }
+
     private boolean isReferencedTranslogFile(Path file) {
         final FsTranslogFile theCurrent = this.current;
         final FsTranslogFile theTrans = this.trans;
@@ -498,6 +528,51 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                 }
             } finally {
                 rwl.writeLock().unlock();
+            }
+        }
+    }
+
+    /**
+     * Iterator for translog operations.
+     */
+    private static class OperationIteratorImpl implements org.elasticsearch.index.translog.Translog.OperationIterator {
+
+        private final TranslogStream translogStream;
+        private final StreamInput input;
+        private final ESLogger logger;
+
+        OperationIteratorImpl(ESLogger logger, TranslogStream translogStream, StreamInput input) {
+            this.translogStream = translogStream;
+            this.input = input;
+            this.logger = logger;
+        }
+
+        /**
+         * Returns the next operation in the translog or <code>null</code> if we reached the end of the stream.
+         */
+        public Translog.Operation next() throws IOException {
+            try {
+                if (translogStream instanceof LegacyTranslogStream) {
+                    input.readInt(); // ignored opSize
+                }
+                return translogStream.read(input);
+            } catch (TruncatedTranslogException | EOFException e) {
+                // ignore, not properly written the last op
+                logger.trace("ignoring translog EOF exception, the last operation was not properly written", e);
+                return null;
+            } catch (IOException e) {
+                // ignore, not properly written last op
+                logger.trace("ignoring translog IO exception, the last operation was not properly written", e);
+                return null;
+            }
+        }
+
+        @Override
+        public void close() throws ElasticsearchException {
+            try {
+                input.close();
+            } catch (IOException ex) {
+                throw new ElasticsearchException("failed to close stream input", ex);
             }
         }
     }

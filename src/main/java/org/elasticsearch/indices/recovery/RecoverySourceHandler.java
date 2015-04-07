@@ -593,12 +593,17 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
      *
      * @return the total number of translog operations that were sent
      */
-    protected int sendSnapshot(Translog.Snapshot snapshot) throws ElasticsearchException {
+    protected int sendSnapshot(Translog.Snapshot snapshot) {
         int ops = 0;
         long size = 0;
         int totalOperations = 0;
         final List<Translog.Operation> operations = Lists.newArrayList();
-        Translog.Operation operation = snapshot.next();
+        Translog.Operation operation;
+        try {
+             operation = snapshot.next(); // this ex should bubble up
+        } catch (IOException ex){
+            throw new ElasticsearchException("failed to get next operation from translog", ex);
+        }
 
         final TransportRequestOptions recoveryOptions = TransportRequestOptions.options()
                 .withCompress(recoverySettings.compress())
@@ -642,8 +647,11 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                 size = 0;
                 operations.clear();
             }
-            operation = snapshot.next();
-        }
+            try {
+                operation = snapshot.next(); // this ex should bubble up
+            } catch (IOException ex){
+                throw new ElasticsearchException("failed to get next operation from translog", ex);
+            }        }
         // send the leftover
         if (!operations.isEmpty()) {
             cancellableThreads.execute(new Interruptable() {

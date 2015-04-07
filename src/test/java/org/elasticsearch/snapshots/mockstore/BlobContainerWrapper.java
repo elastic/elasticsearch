@@ -19,9 +19,9 @@
 package org.elasticsearch.snapshots.mockstore;
 
 import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.BlobContainer;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -65,11 +65,6 @@ public class BlobContainerWrapper implements BlobContainer {
     @Override
     public void deleteBlobsByPrefix(String blobNamePrefix) throws IOException {
         delegate.deleteBlobsByPrefix(blobNamePrefix);
-    }
-
-    @Override
-    public void deleteBlobsByFilter(BlobNameFilter filter) throws IOException {
-        delegate.deleteBlobsByFilter(filter);
     }
 
     @Override

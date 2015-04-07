@@ -71,6 +71,7 @@ import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
 import org.elasticsearch.indices.IndicesWarmer.WarmerContext;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
@@ -635,7 +636,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
         final ExecutableScript executable;
         if (hasLength(request.templateName())) {
-            executable = this.scriptService.executable(MustacheScriptEngineService.NAME, request.templateName(), request.templateType(), ScriptContextRegistry.SEARCH, request.templateParams());
+            executable = this.scriptService.executable(MustacheScriptEngineService.NAME, request.templateName(), request.templateType(), ScriptContext.Standard.SEARCH, request.templateParams());
         } else {
             if (!hasLength(request.templateSource())) {
                 return;
@@ -675,7 +676,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             if (!hasLength(templateContext.template())) {
                 throw new ElasticsearchParseException("Template must have [template] field configured");
             }
-            executable = this.scriptService.executable(MustacheScriptEngineService.NAME, templateContext.template(), templateContext.scriptType(), ScriptContextRegistry.SEARCH, templateContext.params());
+            executable = this.scriptService.executable(MustacheScriptEngineService.NAME, templateContext.template(), templateContext.scriptType(), ScriptContext.Standard.SEARCH, templateContext.params());
         }
 
         BytesReference processedQuery = (BytesReference) executable.run();

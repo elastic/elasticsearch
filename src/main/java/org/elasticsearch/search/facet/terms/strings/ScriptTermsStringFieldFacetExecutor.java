@@ -28,8 +28,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cache.recycler.CacheRecycler;
 import org.elasticsearch.common.collect.BoundedTreeSet;
 import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.facet.FacetExecutor;
 import org.elasticsearch.search.facet.InternalFacet;
@@ -66,7 +66,7 @@ public class ScriptTermsStringFieldFacetExecutor extends FacetExecutor {
         this.shardSize = shardSize;
         this.comparatorType = comparatorType;
         this.numberOfShards = context.numberOfShards();
-        this.script = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, ScriptContextRegistry.AGGS, params);
+        this.script = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, ScriptContext.Standard.AGGS, params);
 
         this.excluded = excluded;
         this.matcher = pattern != null ? pattern.matcher("") : null;

@@ -19,38 +19,52 @@
 
 package org.elasticsearch.script;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
-import java.util.Set;
+import java.util.List;
 
 /**
- * Registry for operations that use a script as part of their execution.
- * Note that the suggest api is considered part of search for simplicity, as well as the percolate api.
- * Allows plugins to register custom operations that they use scripts for, via {@link ScriptModule}
+ * Registry for operations that use scripts as part of their execution. Can be standard operations of custom defined ones (via plugin).
+ * Allows plugins to register custom operations that they use scripts for, via {@link ScriptModule#registerScriptContext(ScriptContext)}.
+ * Scripts can be enabled/disabled via fine-grained settings for each single registered operation.
  */
 public final class ScriptContextRegistry {
-    public static final String MAPPING = "mapping";
-    public static final String UPDATE = "update";
-    public static final String SEARCH = "search";
-    public static final String AGGS = "aggs";
-    public static final String PLUGINS = "plugins";
+    static final ImmutableSet<String> RESERVED_SCRIPT_CONTEXTS = reservedScriptContexts();
 
-    static final String[] DEFAULT_CONTEXTS = new String[]{AGGS, MAPPING, PLUGINS, SEARCH, UPDATE};
+    private final ImmutableList<ScriptContext> scriptContexts;
+    private final ImmutableSet<String> scriptContextsKeys;
 
-    static final Set<String> RESERVED_SCRIPT_CONTEXTS = reservedScriptContexts();
-
-    private final ImmutableSet<String> scriptContexts;
-
-    ScriptContextRegistry(Set<String> customScriptContexts) {
-        for (String customScriptContext : customScriptContexts) {
-            validateScriptContext(customScriptContext);
+    ScriptContextRegistry(List<ScriptContext> customScriptContexts) {
+        for (ScriptContext customScriptContext : customScriptContexts) {
+            validateScriptContext(customScriptContext.key());
         }
-        this.scriptContexts = ImmutableSet.<String>builder().add(DEFAULT_CONTEXTS).addAll(customScriptContexts).build();
+
+        this.scriptContexts = ImmutableList.<ScriptContext>builder().add(ScriptContext.Standard.values()).addAll(customScriptContexts).build();
+
+        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
+        for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {
+            builder.add(scriptContext.key());
+        }
+        for (ScriptContext customScriptContext : customScriptContexts) {
+            builder.add(customScriptContext.key());
+        }
+        this.scriptContextsKeys = builder.build();
     }
 
-    ImmutableSet<String> scriptContexts() {
+    /**
+     * @return a list that contains all the supported {@link ScriptContext}s, both standard ones and registered via plugins
+     */
+    ImmutableList<ScriptContext> scriptContexts() {
         return scriptContexts;
+    }
+
+    /**
+     * @return <tt>true</tt> if the provided {@link ScriptContext} is supported, <tt>false</tt> otherwise
+     */
+    boolean isSupportedContext(ScriptContext scriptContext) {
+        return scriptContextsKeys.contains(scriptContext.key());
     }
 
     //script contexts can be used in fine-grained settings, we need to be careful with what we allow here
@@ -65,8 +79,10 @@ public final class ScriptContextRegistry {
         for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
             builder.add(scriptType.toString());
         }
-        builder.add(DEFAULT_CONTEXTS);
-        builder.add("script").add("engine");
+        for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {
+            builder.add(scriptContext.key());
+        }
+        builder.add("script").add("engine").add(ScriptContext.GENERIC_PLUGIN.key());
         return builder.build();
     }
 }

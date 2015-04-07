@@ -82,10 +82,10 @@ public class ScriptModes {
     private static void processOperationBasedGlobalSettings(Settings settings, Map<String, ScriptEngineService> scriptEngines, ScriptContextRegistry scriptContextRegistry, List<String> processedSettings, Map<String, ScriptMode> scriptModes) {
         //read custom op based settings for all sources (e.g. script.aggs: off)
         //op based settings take precedence over source based settings, hence they get expanded later
-        for (String scriptContext : scriptContextRegistry.scriptContexts()) {
+        for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
             ScriptMode scriptMode = getScriptContextMode(settings, SCRIPT_SETTINGS_PREFIX, scriptContext);
             if (scriptMode != null) {
-                processedSettings.add(SCRIPT_SETTINGS_PREFIX + scriptContext + ": " + scriptMode);
+                processedSettings.add(SCRIPT_SETTINGS_PREFIX + scriptContext.key() + ": " + scriptMode);
                 addGlobalScriptContextModes(scriptEngines.keySet(), scriptContext, scriptMode, scriptModes);
             }
         }
@@ -100,10 +100,10 @@ public class ScriptModes {
                 String enginePrefix = ScriptModes.ENGINE_SETTINGS_PREFIX + "." + langSettings.getKey() + ".";
                 for (ScriptType scriptType : ScriptType.values()) {
                     String scriptTypePrefix = scriptType + ".";
-                    for (String scriptContext : scriptContextRegistry.scriptContexts()) {
+                    for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
                         ScriptMode scriptMode = getScriptContextMode(langSettings.getValue(), scriptTypePrefix, scriptContext);
                         if (scriptMode != null) {
-                            processedSettings.add(enginePrefix + scriptTypePrefix + scriptContext + ": " + scriptMode);
+                            processedSettings.add(enginePrefix + scriptTypePrefix + scriptContext.key() + ": " + scriptMode);
                             addScriptMode(scriptEngineService, scriptType, scriptContext, scriptMode, scriptModes);
                         }
                     }
@@ -138,8 +138,8 @@ public class ScriptModes {
         }
     }
 
-    private static ScriptMode getScriptContextMode(Settings settings, String prefix, String scriptContext) {
-        String settingValue = settings.get(prefix + scriptContext);
+    private static ScriptMode getScriptContextMode(Settings settings, String prefix, ScriptContext scriptContext) {
+        String settingValue = settings.get(prefix + scriptContext.key());
         if (Strings.hasLength(settingValue)) {
             return ScriptMode.parse(settingValue);
         }
@@ -148,13 +148,13 @@ public class ScriptModes {
 
     private static void addGlobalScriptTypeModes(Set<String> langs, ScriptContextRegistry scriptContextRegistry, ScriptType scriptType, ScriptMode scriptMode, Map<String, ScriptMode> scriptModes) {
         for (String lang : langs) {
-            for (String scriptContext : scriptContextRegistry.scriptContexts()) {
+            for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
                 addScriptMode(lang, scriptType, scriptContext, scriptMode, scriptModes);
             }
         }
     }
 
-    private static void addGlobalScriptContextModes(Set<String> langs, String scriptContext, ScriptMode scriptMode, Map<String, ScriptMode> scriptModes) {
+    private static void addGlobalScriptContextModes(Set<String> langs, ScriptContext scriptContext, ScriptMode scriptMode, Map<String, ScriptMode> scriptModes) {
         for (String lang : langs) {
             for (ScriptType scriptType : ScriptType.values()) {
                 addScriptMode(lang, scriptType, scriptContext, scriptMode, scriptModes);
@@ -162,7 +162,7 @@ public class ScriptModes {
         }
     }
 
-    private static void addScriptMode(ScriptEngineService scriptEngineService, ScriptType scriptType, String scriptContext,
+    private static void addScriptMode(ScriptEngineService scriptEngineService, ScriptType scriptType, ScriptContext scriptContext,
                                       ScriptMode scriptMode, Map<String, ScriptMode> scriptModes) {
         //expand the lang specific settings to all of the different names given to each scripting language
         for (String scriptEngineName : scriptEngineService.types()) {
@@ -170,8 +170,8 @@ public class ScriptModes {
         }
     }
 
-    private static void addScriptMode(String lang, ScriptType scriptType, String scriptContext, ScriptMode scriptMode, Map<String, ScriptMode> scriptModes) {
-        scriptModes.put(ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + scriptContext, scriptMode);
+    private static void addScriptMode(String lang, ScriptType scriptType, ScriptContext scriptContext, ScriptMode scriptMode, Map<String, ScriptMode> scriptModes) {
+        scriptModes.put(ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + scriptContext.key(), scriptMode);
     }
 
     /**
@@ -180,17 +180,17 @@ public class ScriptModes {
      *
      * @param lang the language that the script is written in
      * @param scriptType the type of the script
-     * @param scriptContext the api that requires the execution of the script
+     * @param scriptContext the operation that requires the execution of the script
      * @return whether scripts are on, off, or enabled only for sandboxed languages
      */
-    public ScriptMode getScriptMode(String lang, ScriptType scriptType, String scriptContext) {
+    public ScriptMode getScriptMode(String lang, ScriptType scriptType, ScriptContext scriptContext) {
         //native scripts are always on as they are static by definition
         if (NativeScriptEngineService.NAME.equals(lang)) {
             return ScriptMode.ON;
         }
-        ScriptMode scriptMode = scriptModes.get(ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + scriptContext);
+        ScriptMode scriptMode = scriptModes.get(ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + scriptContext.key());
         if (scriptMode == null) {
-            throw new ElasticsearchIllegalArgumentException("script mode not found for lang [" + lang + "], script_type [" + scriptType + "], operation [" + scriptContext + "]");
+            throw new ElasticsearchIllegalArgumentException("script mode not found for lang [" + lang + "], script_type [" + scriptType + "], operation [" + scriptContext.key() + "]");
         }
         return scriptMode;
     }

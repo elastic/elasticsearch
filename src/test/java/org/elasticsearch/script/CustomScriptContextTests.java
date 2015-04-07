@@ -53,7 +53,7 @@ public class CustomScriptContextTests extends ElasticsearchIntegrationTest {
         for (String lang : LANG_SET) {
             for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
                 try {
-                    scriptService.compile(lang, "test", scriptType, "custom_globally_disabled_op");
+                    scriptService.compile(lang, "test", scriptType, new ScriptContext.Plugin("custom_globally_disabled_op"));
                     fail("script compilation should have been rejected");
                 } catch(ScriptException e) {
                     assertThat(e.getMessage(), containsString("scripts of type [" + scriptType + "], operation [custom_globally_disabled_op] and lang [" + lang + "] are disabled"));
@@ -62,20 +62,20 @@ public class CustomScriptContextTests extends ElasticsearchIntegrationTest {
         }
 
         try {
-            scriptService.compile("expression", "1", ScriptService.ScriptType.INLINE, "custom_exp_disabled_op");
+            scriptService.compile("expression", "1", ScriptService.ScriptType.INLINE, new ScriptContext.Plugin("custom_exp_disabled_op"));
             fail("script compilation should have been rejected");
         } catch(ScriptException e) {
             assertThat(e.getMessage(), containsString("scripts of type [inline], operation [custom_exp_disabled_op] and lang [expression] are disabled"));
         }
 
-        CompiledScript compiledScript = scriptService.compile("expression", "1", ScriptService.ScriptType.INLINE, randomFrom(ScriptContextRegistry.DEFAULT_CONTEXTS));
+        CompiledScript compiledScript = scriptService.compile("expression", "1", ScriptService.ScriptType.INLINE, randomFrom(ScriptContext.Standard.values()));
         assertThat(compiledScript, notNullValue());
 
-        compiledScript = scriptService.compile("mustache", "1", ScriptService.ScriptType.INLINE, "custom_exp_disabled_op");
+        compiledScript = scriptService.compile("mustache", "1", ScriptService.ScriptType.INLINE, new ScriptContext.Plugin("custom_exp_disabled_op"));
         assertThat(compiledScript, notNullValue());
 
         for (String lang : LANG_SET) {
-            compiledScript = scriptService.compile(lang, "1", ScriptService.ScriptType.INLINE, "custom_op");
+            compiledScript = scriptService.compile(lang, "1", ScriptService.ScriptType.INLINE, new ScriptContext.Plugin("custom_op"));
             assertThat(compiledScript, notNullValue());
         }
     }
@@ -84,7 +84,7 @@ public class CustomScriptContextTests extends ElasticsearchIntegrationTest {
     public void testCompileNonRegisteredContext() {
         ScriptService scriptService = internalCluster().getInstance(ScriptService.class);
         try {
-            scriptService.compile(randomFrom(LANG_SET.toArray(new String[LANG_SET.size()])), "test", randomFrom(ScriptService.ScriptType.values()), "unknown");
+            scriptService.compile(randomFrom(LANG_SET.toArray(new String[LANG_SET.size()])), "test", randomFrom(ScriptService.ScriptType.values()), new ScriptContext.Plugin("unknown"));
             fail("script compilation should have been rejected");
         } catch(ElasticsearchIllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("script context [unknown] not supported"));
@@ -106,9 +106,9 @@ public class CustomScriptContextTests extends ElasticsearchIntegrationTest {
         public void processModule(Module module) {
             if (module instanceof ScriptModule) {
                 ScriptModule scriptModule = (ScriptModule) module;
-                scriptModule.registerScriptContext("custom_op");
-                scriptModule.registerScriptContext("custom_exp_disabled_op");
-                scriptModule.registerScriptContext("custom_globally_disabled_op");
+                scriptModule.registerScriptContext(new ScriptContext.Plugin("custom_op"));
+                scriptModule.registerScriptContext(new ScriptContext.Plugin("custom_exp_disabled_op"));
+                scriptModule.registerScriptContext(new ScriptContext.Plugin("custom_globally_disabled_op"));
             }
         }
     }

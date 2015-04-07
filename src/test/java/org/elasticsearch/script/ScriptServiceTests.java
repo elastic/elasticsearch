@@ -19,7 +19,7 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.Streams;
@@ -46,16 +46,13 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.*;
 
-/**
- *
- */
 public class ScriptServiceTests extends ElasticsearchTestCase {
 
     private ResourceWatcherService resourceWatcherService;
     private Set<ScriptEngineService> scriptEngineServices;
     private Map<String, ScriptEngineService> scriptEnginesByLangMap;
     private ScriptContextRegistry scriptContextRegistry;
-    private String[] scriptContexts;
+    private ScriptContext[] scriptContexts;
     private ScriptService scriptService;
     private File scriptsFile;
     private Settings baseSettings;
@@ -78,7 +75,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         scriptEngineServices = ImmutableSet.of(new TestEngineService(), new GroovyScriptEngineService(baseSettings),
                 new ExpressionScriptEngineService(baseSettings), new MustacheScriptEngineService(baseSettings));
         scriptEnginesByLangMap = ScriptModesTests.buildScriptEnginesByLangMap(scriptEngineServices);
-        Set<String> contextSet = Sets.newHashSet();
+        List<ScriptContext> contexts = Lists.newArrayList();
         if (randomBoolean()) {
             int randomInt = randomIntBetween(1, 3);
             for (int i = 0; i < randomInt; i++) {
@@ -86,11 +83,11 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                 do {
                     randomContext = randomAsciiOfLength(randomIntBetween(1, 30));
                 } while (ScriptContextRegistry.RESERVED_SCRIPT_CONTEXTS.contains(randomContext));
-                contextSet.add(randomContext);
+                contexts.add(new ScriptContext.Plugin(randomContext));
             }
         }
-        scriptContextRegistry = new ScriptContextRegistry(contextSet);
-        scriptContexts = scriptContextRegistry.scriptContexts().toArray(new String[scriptContextRegistry.scriptContexts().size()]);
+        scriptContextRegistry = new ScriptContextRegistry(contexts);
+        scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
         logger.info("--> setup script service");
         scriptsFile = new File(configDir, "scripts");
         assertThat(scriptsFile.mkdir(), equalTo(true));
@@ -119,7 +116,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         resourceWatcherService.notifyNow();
 
         logger.info("--> verify that file with extension was correctly processed");
-        CompiledScript compiledScript = scriptService.compile("test", "test_script", ScriptType.FILE, ScriptContextRegistry.SEARCH);
+        CompiledScript compiledScript = scriptService.compile("test", "test_script", ScriptType.FILE, ScriptContext.Standard.SEARCH);
         assertThat(compiledScript.compiled(), equalTo((Object) "compiled_test_file"));
 
         logger.info("--> delete both files");
@@ -129,7 +126,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
 
         logger.info("--> verify that file with extension was correctly removed");
         try {
-            scriptService.compile("test", "test_script", ScriptType.FILE, ScriptContextRegistry.SEARCH);
+            scriptService.compile("test", "test_script", ScriptType.FILE, ScriptContext.Standard.SEARCH);
             fail("the script test_script should no longer exist");
         } catch (ElasticsearchIllegalArgumentException ex) {
             assertThat(ex.getMessage(), containsString("Unable to find on disk script test_script"));
@@ -179,7 +176,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         buildScriptService(builder.build());
         createFileScripts("groovy", "expression", "mustache", "test");
 
-        for (String scriptContext : scriptContexts) {
+        for (ScriptContext scriptContext : scriptContexts) {
             //groovy is not sandboxed, only file scripts are enabled by default
             assertCompileRejected(GroovyScriptEngineService.NAME, "script", ScriptType.INLINE, scriptContext);
             assertCompileRejected(GroovyScriptEngineService.NAME, "script", ScriptType.INDEXED, scriptContext);
@@ -218,7 +215,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         buildScriptService(builder.build());
         createFileScripts("groovy", "expression", "mustache", "test");
 
-        for (String scriptContext : scriptContexts) {
+        for (ScriptContext scriptContext : scriptContexts) {
             for (ScriptEngineService scriptEngineService : scriptEngineServices) {
                 for (String lang : scriptEngineService.types()) {
                     assertCompileAccepted(lang, "file_script", ScriptType.FILE, scriptContext);
@@ -264,7 +261,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         for (int i = 0; i < numScriptContextSettings; i++) {
             String scriptContext;
             do {
-                scriptContext = randomFrom(this.scriptContexts);
+                scriptContext = randomFrom(this.scriptContexts).key();
             } while (scriptContextSettings.containsKey(scriptContext));
             scriptContextSettings.put(scriptContext, randomFrom(ScriptMode.values()));
         }
@@ -276,8 +273,8 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                 ScriptEngineService[] scriptEngineServices = this.scriptEngineServices.toArray(new ScriptEngineService[this.scriptEngineServices.size()]);
                 ScriptEngineService scriptEngineService = randomFrom(scriptEngineServices);
                 ScriptType scriptType = randomFrom(ScriptType.values());
-                String scriptContext = randomFrom(this.scriptContexts);
-                settingKey = scriptEngineService.types()[0] + "." + scriptType + "." + scriptContext;
+                ScriptContext scriptContext = randomFrom(this.scriptContexts);
+                settingKey = scriptEngineService.types()[0] + "." + scriptType + "." + scriptContext.key();
             } while (engineSettings.containsKey(settingKey));
             engineSettings.put(settingKey, randomFrom(ScriptMode.values()));
         }
@@ -336,11 +333,11 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
                 //make sure file scripts have a different name than inline ones.
                 //Otherwise they are always considered file ones as they can be found in the static cache.
                 String script = scriptType == ScriptType.FILE ? "file_script" : "script";
-                for (String scriptContext : this.scriptContexts) {
+                for (ScriptContext scriptContext : this.scriptContexts) {
                     //fallback mechanism: 1) engine specific settings 2) op based settings 3) source based settings
-                    ScriptMode scriptMode = engineSettings.get(scriptEngineService.types()[0] + "." + scriptType + "." + scriptContext);
+                    ScriptMode scriptMode = engineSettings.get(scriptEngineService.types()[0] + "." + scriptType + "." + scriptContext.key());
                     if (scriptMode == null) {
-                        scriptMode = scriptContextSettings.get(scriptContext);
+                        scriptMode = scriptContextSettings.get(scriptContext.key());
                     }
                     if (scriptMode == null) {
                         scriptMode = scriptSourceSettings.get(scriptType);
@@ -377,12 +374,12 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         String unknownContext;
         do {
             unknownContext = randomAsciiOfLength(randomIntBetween(1, 30));
-        } while(scriptContextRegistry.scriptContexts().contains(unknownContext));
+        } while(scriptContextRegistry.scriptContexts().contains(new ScriptContext.Plugin(unknownContext)));
 
         for (ScriptEngineService scriptEngineService : scriptEngineServices) {
             for (String type : scriptEngineService.types()) {
                 try {
-                    scriptService.compile(type, "test", randomFrom(ScriptType.values()), unknownContext);
+                    scriptService.compile(type, "test", randomFrom(ScriptType.values()), new ScriptContext.Plugin(unknownContext));
                     fail("script compilation should have been rejected");
                 } catch(ElasticsearchIllegalArgumentException e) {
                     assertThat(e.getMessage(), containsString("script context [" + unknownContext + "] not supported"));
@@ -394,17 +391,18 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
     @Test
     public void testValidateCustomScriptContexts() throws IOException {
         List<String> rejectedContexts = new ArrayList<>();
-        Collections.addAll(rejectedContexts, ScriptContextRegistry.DEFAULT_CONTEXTS);
+        for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {
+            rejectedContexts.add(scriptContext.key());
+        }
         rejectedContexts.add("script");
         rejectedContexts.add("engine");
         for (ScriptType scriptType : ScriptType.values()) {
             rejectedContexts.add(scriptType.toString());
         }
         for (String rejectedContext : rejectedContexts) {
-
             try {
                 //try to register a prohibited script context
-                new ScriptContextRegistry(Sets.newHashSet(rejectedContext));
+                new ScriptContextRegistry(Lists.<ScriptContext>newArrayList(new ScriptContext.Plugin(rejectedContext)));
                 fail("ScriptContextRegistry initialization should have failed");
             } catch(ElasticsearchIllegalArgumentException e) {
                 assertThat(e.getMessage(), Matchers.containsString("[" + rejectedContext + "] is a reserved name, it cannot be registered as a custom script context"));
@@ -420,7 +418,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         resourceWatcherService.notifyNow();
     }
 
-    private void assertCompileRejected(String lang, String script, ScriptType scriptType, String scriptContext) {
+    private void assertCompileRejected(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
         try {
             scriptService.compile(lang, script, scriptType, scriptContext);
             fail("compile should have been rejected for lang [" + lang + "], script_type [" + scriptType + "], scripted_op [" + scriptContext + "]");
@@ -429,7 +427,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
         }
     }
 
-    private void assertCompileAccepted(String lang, String script, ScriptType scriptType, String scriptContext) {
+    private void assertCompileAccepted(String lang, String script, ScriptType scriptType, ScriptContext scriptContext) {
         assertThat(scriptService.compile(lang, script, scriptType, scriptContext), notNullValue());
     }
 

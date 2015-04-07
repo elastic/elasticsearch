@@ -24,8 +24,8 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptContextRegistry;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.internal.SearchContext;
 
@@ -43,7 +43,7 @@ public class ScriptGeoDistanceFacetExecutor extends GeoDistanceFacetExecutor {
                                           GeoDistanceFacet.Entry[] entries, SearchContext context,
                                           String scriptLang, String script, ScriptService.ScriptType scriptType, Map<String, Object> params) {
         super(indexFieldData, lat, lon, unit, geoDistance, entries, context);
-        this.script = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, ScriptContextRegistry.AGGS, params);
+        this.script = context.scriptService().search(context.lookup(), scriptLang, script, scriptType, ScriptContext.Standard.AGGS, params);
     }
 
     @Override

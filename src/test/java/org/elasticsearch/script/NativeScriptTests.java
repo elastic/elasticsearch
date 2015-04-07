@@ -20,7 +20,7 @@
 package org.elasticsearch.script;
 
 import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Sets;
+import com.google.common.collect.Lists;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -59,7 +59,7 @@ public class NativeScriptTests extends ElasticsearchTestCase {
 
         ScriptService scriptService = injector.getInstance(ScriptService.class);
 
-        ExecutableScript executable = scriptService.executable(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, ScriptContextRegistry.SEARCH, null);
+        ExecutableScript executable = scriptService.executable(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, ScriptContext.Standard.SEARCH, null);
         assertThat(executable.run().toString(), equalTo("test"));
         terminate(injector.getInstance(ThreadPool.class));
     }
@@ -71,7 +71,7 @@ public class NativeScriptTests extends ElasticsearchTestCase {
             ScriptType scriptType = randomFrom(ScriptType.values());
             builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptType, randomFrom(ScriptMode.values()));
         } else {
-            String scriptContext = randomFrom(ScriptContextRegistry.DEFAULT_CONTEXTS);
+            String scriptContext = randomFrom(ScriptContext.Standard.values()).key();
             builder.put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptContext, randomFrom(ScriptMode.values()));
         }
         Settings settings = builder.build();
@@ -80,10 +80,10 @@ public class NativeScriptTests extends ElasticsearchTestCase {
         Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();
         nativeScriptFactoryMap.put("my", new MyNativeScriptFactory());
         Set<ScriptEngineService> scriptEngineServices = ImmutableSet.<ScriptEngineService>of(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Sets.<String>newHashSet());
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Lists.<ScriptContext>newArrayList());
         ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, new NodeSettingsService(settings), scriptContextRegistry);
 
-        for (String scriptContext : scriptContextRegistry.scriptContexts()) {
+        for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
             assertThat(scriptService.compile(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, scriptContext), notNullValue());
         }
     }
@@ -96,10 +96,10 @@ public class NativeScriptTests extends ElasticsearchTestCase {
         Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();
         nativeScriptFactoryMap.put("my", new MyNativeScriptFactory());
         Set<ScriptEngineService> scriptEngineServices = ImmutableSet.<ScriptEngineService>of(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
-        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Sets.<String>newHashSet());
+        ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(Lists.<ScriptContext>newArrayList());
         ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, new NodeSettingsService(settings), scriptContextRegistry);
 
-        for (String scriptContext : scriptContextRegistry.scriptContexts()) {
+        for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
             assertThat(scriptService.compile(NativeScriptEngineService.NAME, "my", ScriptType.INLINE, scriptContext), notNullValue());
         }
     }

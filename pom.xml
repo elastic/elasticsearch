@@ -457,6 +457,7 @@
                     <descriptors>
                         <descriptor>${basedir}/src/main/assemblies/plugin.xml</descriptor>
                     </descriptors>
+                    <finalName>shield-${project.version}</finalName>
                 </configuration>
                 <executions>
                     <execution>

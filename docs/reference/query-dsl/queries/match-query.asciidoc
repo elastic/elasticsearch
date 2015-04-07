@@ -94,8 +94,8 @@ the query terms are above the given `cutoff_frequency` the query is
 automatically transformed into a pure conjunction (`and`) query to
 ensure fast execution.
 
-The `cutoff_frequency` can either be relative to the number of documents
-in the index if in the range `[0..1)` or absolute if greater or equal to
+The `cutoff_frequency` can either be relative to the total number of
+documents if in the range `[0..1)` or absolute if greater or equal to
 `1.0`.
 
 Here is an example showing a query composed of stopwords exclusivly:
@@ -111,6 +111,11 @@ Here is an example showing a query composed of stopwords exclusivly:
     }
 }
 --------------------------------------------------
+
+
+IMPORTANT: The `cutoff_frequency` option operates on a per-shard-level. This means
+that when trying it out on test indexes with low document numbers you
+should follow the advice in {defguide}/relevance-is-broken.html[Relevance is broken].
 
 [float]
 ===== phrase

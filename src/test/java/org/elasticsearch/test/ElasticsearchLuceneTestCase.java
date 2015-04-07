@@ -69,10 +69,4 @@ public abstract class ElasticsearchLuceneTestCase extends LuceneTestCase {
     public static int scaledRandomIntBetween(int min, int max) {
         return RandomizedTest.scaledRandomIntBetween(min, max);
     }
-
-    @AfterClass
-    public static void clearDefaultQueryCache() {
-        // TODO: remove me when https://issues.apache.org/jira/browse/LUCENE-6406 is fixed
-        IndexSearcher.setDefaultQueryCache(null);
-    }
 }

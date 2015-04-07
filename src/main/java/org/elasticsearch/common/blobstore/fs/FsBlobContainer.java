@@ -21,15 +21,17 @@ package org.elasticsearch.common.blobstore.fs;
 
 import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.io.FileSystemUtils;
 
 import java.io.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.attribute.BasicFileAttributes;
 
 /**
  *
@@ -51,15 +53,21 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     public ImmutableMap<String, BlobMetaData> listBlobs() throws IOException {
-        File[] files = path.listFiles();
-        if (files == null || files.length == 0) {
-            return ImmutableMap.of();
-        }
+        return listBlobsByPrefix(null);
+    }
+
+    @Override
+    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
         // using MapBuilder and not ImmutableMap.Builder as it seems like File#listFiles might return duplicate files!
         MapBuilder<String, BlobMetaData> builder = MapBuilder.newMapBuilder();
-        for (File file : files) {
-            if (file.isFile()) {
-                builder.put(file.getName(), new PlainBlobMetaData(file.getName(), file.length()));
+
+        blobNamePrefix = blobNamePrefix == null ? "" : blobNamePrefix;
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(path.toPath(), blobNamePrefix + "*")) {
+            for (Path file : stream) {
+                final BasicFileAttributes attrs = Files.readAttributes(file, BasicFileAttributes.class);
+                if (attrs.isRegularFile()) {
+                    builder.put(file.getFileName().toString(), new PlainBlobMetaData(file.getFileName().toString(), attrs.size()));
+                }
             }
         }
         return builder.immutableMap();

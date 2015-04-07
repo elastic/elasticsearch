@@ -1014,8 +1014,7 @@ public class InternalEngine extends Engine {
 
         @Override
         public IndexSearcher newSearcher(IndexReader reader) throws IOException {
-            IndexSearcher searcher = new IndexSearcher(reader);
-            searcher.setSimilarity(engineConfig.getSimilarity());
+            IndexSearcher searcher = super.newSearcher(reader);
             if (warmer != null) {
                 // we need to pass a custom searcher that does not release anything on Engine.Search Release,
                 // we will release explicitly

@@ -41,6 +41,9 @@ public class EngineSearcherFactory extends SearcherFactory {
     @Override
     public IndexSearcher newSearcher(IndexReader reader) throws IOException {
         IndexSearcher searcher = new IndexSearcher(reader);
+        // Explicitely opt-out for the query cache since it would not play
+        // well with NoCacheFilter
+        searcher.setQueryCache(null);
         searcher.setSimilarity(engineConfig.getSimilarity());
         return searcher;
     }

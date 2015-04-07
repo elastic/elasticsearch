@@ -58,13 +58,7 @@ import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -99,10 +93,10 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     @Override
     public Settings nodeSettings(int ord) {
         return ImmutableSettings.builder()
-            .put(InternalNode.HTTP_ENABLED, true) // for _upgrade
-            .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class) // disable merging so no segments will be upgraded
-            .put("gateway.type", "local") // this is important we need to recover from gateway
-            .build();
+                .put(InternalNode.HTTP_ENABLED, true) // for _upgrade
+                .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class) // disable merging so no segments will be upgraded
+                .put("gateway.type", "local") // this is important we need to recover from gateway
+                .build();
     }
 
     void setupCluster() throws Exception {
@@ -110,8 +104,8 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
 
         File dataDir = newTempDir(LifecycleScope.SUITE);
         ImmutableSettings.Builder nodeSettings = ImmutableSettings.builder()
-            .put("path.data", dataDir)
-            .put("node.master", false); // workaround for dangling index loading issue when node is master
+                .put("path.data", dataDir)
+                .put("node.master", false); // workaround for dangling index loading issue when node is master
         String loadingNode = internalCluster().startNode(nodeSettings.build());
 
         Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, loadingNode).nodeDataPaths();
@@ -164,10 +158,16 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         SortedSet<String> expectedVersions = new TreeSet<>();
         for (java.lang.reflect.Field field : Version.class.getDeclaredFields()) {
             if (Modifier.isStatic(field.getModifiers()) && field.getType() == Version.class) {
-                Version v = (Version)field.get(Version.class);
-                if (v.snapshot()) continue;  // snapshots are unreleased, so there is no backcompat yet
-                if (v.onOrBefore(Version.V_0_20_0_RC1)) continue; // we can only test back one major lucene version
-                if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
+                Version v = (Version) field.get(Version.class);
+                if (v.snapshot()) {
+                    continue;  // snapshots are unreleased, so there is no backcompat yet
+                }
+                if (v.onOrBefore(Version.V_0_20_0_RC1)) {
+                    continue; // we can only test back one major lucene version
+                }
+                if (v.equals(Version.CURRENT)) {
+                    continue; // the current version is always compatible with itself
+                }
 
                 expectedVersions.add("index-" + v.toString() + ".zip");
             }
@@ -187,6 +187,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         }
     }
 
+    @LuceneTestCase.AwaitsFix(bugUrl = "times out often , see : https://github.com/elastic/elasticsearch/issues/10434")
     public void testOldIndexes() throws Exception {
         // Enable logging of all file deletions while we try to debug this tricky rare test failure (#9822):
         Loggers.getLogger("test.engine.lucene.iw.ifd").setLevel("TRACE");
@@ -213,10 +214,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         assertBasicSearchWorks(indexName);
         assertBasicAggregationWorks(indexName);
         assertRealtimeGetWorks(indexName);
-        if (version.equals(Version.V_0_90_13) == false) {
-            // norelease: 0.90.13 can take too long to create replicas, see https://github.com/elastic/elasticsearch/issues/10434
-            assertNewReplicasWork(indexName);
-        }
+        assertNewReplicasWork(indexName);
         assertUpgradeWorks(indexName, isLatestLuceneVersion(version));
         assertDeleteByQueryWorked(indexName, version);
         unloadIndex(indexName);
@@ -228,7 +226,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
 
     boolean isLatestLuceneVersion(Version version) {
         return version.luceneVersion.major == Version.CURRENT.luceneVersion.major &&
-               version.luceneVersion.minor == Version.CURRENT.luceneVersion.minor;
+                version.luceneVersion.minor == Version.CURRENT.luceneVersion.minor;
     }
 
 
@@ -275,8 +273,8 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
 
     void assertRealtimeGetWorks(String indexName) {
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.builder()
-            .put("refresh_interval", -1)
-            .build()));
+                .put("refresh_interval", -1)
+                .build()));
         SearchRequestBuilder searchReq = client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery());
         SearchHit hit = searchReq.get().getHits().getAt(0);
         String docId = hit.getId();
@@ -287,15 +285,15 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         assertThat(source, Matchers.hasKey("foo"));
 
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.builder()
-            .put("refresh_interval", EngineConfig.DEFAULT_REFRESH_INTERVAL)
-            .build()));
+                .put("refresh_interval", EngineConfig.DEFAULT_REFRESH_INTERVAL)
+                .build()));
     }
 
     void assertNewReplicasWork(String indexName) throws Exception {
         final int numReplicas = randomIntBetween(1, 2);
         logger.debug("Creating [{}] replicas for index [{}]", numReplicas, indexName);
-            assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.builder()
-                    .put("number_of_replicas", numReplicas)
+        assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.builder()
+                        .put("number_of_replicas", numReplicas)
         ).execute().actionGet());
         ensureGreen(indexName);
 

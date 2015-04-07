@@ -893,6 +893,98 @@
                             </resources>
                         </configuration>
                     </execution>
+                    <!-- Filters some files and uses packaging.properties when building the .deb package -->
+                    <execution>
+                        <id>copy-resources-deb</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/generated-packaging/deb/</outputDirectory>
+                            <filters>
+                                <filter>src/packaging/common/packaging.properties</filter>
+                                <filter>src/packaging/deb/packaging.properties</filter>
+                            </filters>
+                            <resources>
+                                <resource>
+                                    <directory>src/packaging/common/</directory>
+                                    <filtering>true</filtering>
+                                    <includes>
+                                        <include>**/*</include>
+                                    </includes>
+                                    <excludes>
+                                        <exclude>packaging.properties</exclude>
+                                    </excludes>
+                                </resource>
+                                <resource>
+                                    <directory>src/packaging/deb/</directory>
+                                    <filtering>true</filtering>
+                                    <includes>
+                                        <include>**/*</include>
+                                    </includes>
+                                    <excludes>
+                                        <exclude>packaging.properties</exclude>
+                                    </excludes>
+                                </resource>
+                                <resource>
+                                    <directory>${project.basedir}</directory>
+                                    <filtering>true</filtering>
+                                    <includes>
+                                        <include>bin/elasticsearch</include>
+                                        <include>bin/elasticsearch.in.sh</include>
+                                        <include>bin/plugin</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <!-- Filters some files and uses packaging.properties when building the .rpm package -->
+                    <execution>
+                        <id>copy-resources-rpm</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/generated-packaging/rpm/</outputDirectory>
+                            <filters>
+                                <filter>src/packaging/common/packaging.properties</filter>
+                                <filter>src/packaging/rpm/packaging.properties</filter>
+                            </filters>
+                            <resources>
+                                <resource>
+                                    <directory>src/packaging/common/</directory>
+                                    <filtering>true</filtering>
+                                    <includes>
+                                        <include>**/*</include>
+                                    </includes>
+                                    <excludes>
+                                        <exclude>packaging.properties</exclude>
+                                    </excludes>
+                                </resource>
+                                <resource>
+                                    <directory>src/packaging/rpm/</directory>
+                                    <filtering>true</filtering>
+                                    <includes>
+                                        <include>**/*</include>
+                                    </includes>
+                                    <excludes>
+                                        <exclude>packaging.properties</exclude>
+                                    </excludes>
+                                </resource>
+                                <resource>
+                                    <directory>${project.basedir}</directory>
+                                    <filtering>true</filtering>
+                                    <includes>
+                                        <include>bin/elasticsearch</include>
+                                        <include>bin/elasticsearch.in.sh</include>
+                                        <include>bin/plugin</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
@@ -1097,57 +1189,6 @@
                                 </data>
                             </dataSet>
 
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <!-- use packaging.properties when building the .deb package -->
-                <artifactId>maven-resources-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>copy-resources-deb</id>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/generated-packaging/deb/</outputDirectory>
-                            <filters>
-                                <filter>src/packaging/common/packaging.properties</filter>
-                                <filter>src/packaging/deb/packaging.properties</filter>
-                            </filters>
-                            <resources>
-                                <resource>
-                                    <directory>src/packaging/common/</directory>
-                                    <filtering>true</filtering>
-                                    <includes>
-                                        <include>**/*</include>
-                                    </includes>
-                                    <excludes>
-                                        <exclude>packaging.properties</exclude>
-                                    </excludes>
-                                </resource>
-                                <resource>
-                                    <directory>src/packaging/deb/</directory>
-                                    <filtering>true</filtering>
-                                    <includes>
-                                        <include>**/*</include>
-                                    </includes>
-                                    <excludes>
-                                        <exclude>packaging.properties</exclude>
-                                    </excludes>
-                                </resource>
-                                <resource>
-                                    <directory>${project.basedir}</directory>
-                                    <filtering>true</filtering>
-                                    <includes>
-                                        <include>bin/elasticsearch</include>
-                                        <include>bin/elasticsearch.in.sh</include>
-                                        <include>bin/plugin</include>
-                                    </includes>
-                                </resource>
-                            </resources>
                         </configuration>
                     </execution>
                 </executions>
@@ -1363,57 +1404,6 @@
                         <fileEncoding>utf-8</fileEncoding>
                     </postremoveScriptlet>
                 </configuration>
-            </plugin>
-            <plugin>
-                <!-- use packaging.properties when building the .rpm package -->
-                <artifactId>maven-resources-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>copy-resources-rpm</id>
-                        <phase>prepare-package</phase>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
-                        <configuration>
-                            <outputDirectory>${project.build.directory}/generated-packaging/rpm/</outputDirectory>
-                            <filters>
-                                <filter>src/packaging/common/packaging.properties</filter>
-                                <filter>src/packaging/rpm/packaging.properties</filter>
-                            </filters>
-                            <resources>
-                                <resource>
-                                    <directory>src/packaging/common/</directory>
-                                    <filtering>true</filtering>
-                                    <includes>
-                                        <include>**/*</include>
-                                    </includes>
-                                    <excludes>
-                                        <exclude>packaging.properties</exclude>
-                                    </excludes>
-                                </resource>
-                                <resource>
-                                    <directory>src/packaging/rpm/</directory>
-                                    <filtering>true</filtering>
-                                    <includes>
-                                        <include>**/*</include>
-                                    </includes>
-                                    <excludes>
-                                        <exclude>packaging.properties</exclude>
-                                    </excludes>
-                                </resource>
-                                <resource>
-                                    <directory>${project.basedir}</directory>
-                                    <filtering>true</filtering>
-                                    <includes>
-                                        <include>bin/elasticsearch</include>
-                                        <include>bin/elasticsearch.in.sh</include>
-                                        <include>bin/plugin</include>
-                                    </includes>
-                                </resource>
-                            </resources>
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
 
             <plugin>

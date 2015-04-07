@@ -25,12 +25,15 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope.Scope;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
 import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
+import org.junit.AfterClass;
 
 
 /**
@@ -65,5 +68,11 @@ public abstract class ElasticsearchLuceneTestCase extends LuceneTestCase {
 
     public static int scaledRandomIntBetween(int min, int max) {
         return RandomizedTest.scaledRandomIntBetween(min, max);
+    }
+
+    @AfterClass
+    public static void clearDefaultQueryCache() {
+        // TODO: remove me when https://issues.apache.org/jira/browse/LUCENE-6406 is fixed
+        IndexSearcher.setDefaultQueryCache(null);
     }
 }

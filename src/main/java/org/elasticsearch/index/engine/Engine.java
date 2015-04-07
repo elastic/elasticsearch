@@ -350,7 +350,7 @@ public abstract class Engine implements Closeable {
                     segment = new Segment(info.info.name);
                     segment.search = false;
                     segment.committed = true;
-                    segment.docCount = info.info.getDocCount();
+                    segment.docCount = info.info.maxDoc();
                     segment.delDocCount = info.getDelCount();
                     segment.version = info.info.getVersion();
                     segment.compound = info.info.getUseCompoundFile();

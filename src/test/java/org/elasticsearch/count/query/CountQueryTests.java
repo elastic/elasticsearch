@@ -77,7 +77,7 @@ public class CountQueryTests extends ElasticsearchIntegrationTest {
         assertThat(countResponse.getFailedShards(), equalTo(countResponse.getShardFailures().length));
         for (ShardOperationFailedException shardFailure : countResponse.getShardFailures()) {
             assertThat(shardFailure.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
-            assertThat(shardFailure.reason(), containsString("[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]"));
+            assertThat(shardFailure.reason(), containsString("[field \"field1\" was indexed without position data; cannot run PhraseQuery"));
         }
     }
 

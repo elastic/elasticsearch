@@ -171,7 +171,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
 
         assertFailures(client().prepareSearch().setQuery(matchQuery("field1", "quick brown").type(Type.PHRASE).slop(0)),
                     RestStatus.INTERNAL_SERVER_ERROR,
-                    containsString("field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick"));
+                    containsString("field \"field1\" was indexed without position data; cannot run PhraseQuery"));
     }
 
     @Test // see #3521
@@ -482,7 +482,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                     client().prepareSearch().setQuery(matchQuery("field1", "quick brown").type(MatchQueryBuilder.Type.PHRASE).slop(0)).get();
                     fail("SearchPhaseExecutionException should have been thrown");
                 } catch (SearchPhaseExecutionException e) {
-                    assertTrue(e.getMessage().endsWith("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery (term=quick)]; }"));
+                    assertTrue(e.getMessage().contains("IllegalStateException[field \"field1\" was indexed without position data; cannot run PhraseQuery"));
                 }
                 cluster().wipeIndices("test");
             } catch (MapperParsingException ex) {

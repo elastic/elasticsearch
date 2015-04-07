@@ -243,13 +243,13 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
      * Doesn't require to specify a script context in order to maintain backwards compatibility, internally uses
-     * the {@link ScriptContext#GENERIC_PLUGIN} default context, assuming that it can only be called from plugins.
+     * the {@link org.elasticsearch.script.ScriptContext.Standard#GENERIC_PLUGIN} default context, assuming that it can only be called from plugins.
      *
      * @deprecated use the method variant that accepts the scriptContext as argument too: {@link #compile(String, String, ScriptType, ScriptContext)}
      */
     @Deprecated
     public CompiledScript compile(String lang,  String script, ScriptType scriptType) {
-        return compile(lang, script, scriptType, ScriptContext.GENERIC_PLUGIN);
+        return compile(lang, script, scriptType, ScriptContext.Standard.GENERIC_PLUGIN);
     }
 
     /**
@@ -437,13 +437,13 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles (or retrieves from cache) and executes the provided script.
      * Doesn't require to specify a script context in order to maintain backwards compatibility, internally uses
-     * the {@link ScriptContext#GENERIC_PLUGIN} default context, assuming that it can only be called from plugins.
+     * the {@link org.elasticsearch.script.ScriptContext.Standard#GENERIC_PLUGIN} default context, assuming that it can only be called from plugins.
      *
      * @deprecated use the method variant that accepts the scriptContext as argument too: {@link #executable(String, String, ScriptType, ScriptContext, Map)}
      */
     @Deprecated
     public ExecutableScript executable(String lang, String script, ScriptType scriptType, Map<String, Object> vars) {
-        return executable(lang, script, scriptType, ScriptContext.GENERIC_PLUGIN, vars);
+        return executable(lang, script, scriptType, ScriptContext.Standard.GENERIC_PLUGIN, vars);
     }
 
     /**
@@ -463,13 +463,13 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles (or retrieves from cache) and executes the provided search script
      * Doesn't require to specify a script context in order to maintain backwards compatibility, internally uses
-     * the {@link ScriptContext#GENERIC_PLUGIN} default context, assuming that it can only be called from plugins.
+     * the {@link org.elasticsearch.script.ScriptContext.Standard#GENERIC_PLUGIN} default context, assuming that it can only be called from plugins.
      *
      * @deprecated use the method variant that accepts the scriptContext as argument too: {@link #search(SearchLookup, String, String, ScriptType, ScriptContext, Map)}
      */
     @Deprecated
     public SearchScript search(SearchLookup lookup, String lang, String script, ScriptType scriptType, @Nullable Map<String, Object> vars) {
-        return search(lookup, lang, script, scriptType, ScriptContext.GENERIC_PLUGIN, vars);
+        return search(lookup, lang, script, scriptType, ScriptContext.Standard.GENERIC_PLUGIN, vars);
     }
 
     /**

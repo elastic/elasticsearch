@@ -19,11 +19,13 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableCollection;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
-import java.util.List;
+import java.util.Map;
 
 /**
  * Registry for operations that use scripts as part of their execution. Can be standard operations of custom defined ones (via plugin).
@@ -33,38 +35,35 @@ import java.util.List;
 public final class ScriptContextRegistry {
     static final ImmutableSet<String> RESERVED_SCRIPT_CONTEXTS = reservedScriptContexts();
 
-    private final ImmutableList<ScriptContext> scriptContexts;
-    private final ImmutableSet<String> scriptContextsKeys;
+    private final ImmutableMap<String, ScriptContext> scriptContexts;
 
-    ScriptContextRegistry(List<ScriptContext> customScriptContexts) {
+    ScriptContextRegistry(Iterable<ScriptContext> customScriptContexts) {
+        Map<String, ScriptContext> scriptContexts = Maps.newHashMap();
+        for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {
+            scriptContexts.put(scriptContext.key(), scriptContext);
+        }
         for (ScriptContext customScriptContext : customScriptContexts) {
             validateScriptContext(customScriptContext.key());
+            ScriptContext previousContext = scriptContexts.put(customScriptContext.key(), customScriptContext);
+            if (previousContext != null) {
+                throw new ElasticsearchIllegalArgumentException("script context [" + customScriptContext.key() + "] cannot be registered twice");
+            }
         }
-
-        this.scriptContexts = ImmutableList.<ScriptContext>builder().add(ScriptContext.Standard.values()).addAll(customScriptContexts).build();
-
-        ImmutableSet.Builder<String> builder = ImmutableSet.builder();
-        for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {
-            builder.add(scriptContext.key());
-        }
-        for (ScriptContext customScriptContext : customScriptContexts) {
-            builder.add(customScriptContext.key());
-        }
-        this.scriptContextsKeys = builder.build();
+        this.scriptContexts = ImmutableMap.copyOf(scriptContexts);
     }
 
     /**
      * @return a list that contains all the supported {@link ScriptContext}s, both standard ones and registered via plugins
      */
-    ImmutableList<ScriptContext> scriptContexts() {
-        return scriptContexts;
+    ImmutableCollection<ScriptContext> scriptContexts() {
+        return scriptContexts.values();
     }
 
     /**
      * @return <tt>true</tt> if the provided {@link ScriptContext} is supported, <tt>false</tt> otherwise
      */
     boolean isSupportedContext(ScriptContext scriptContext) {
-        return scriptContextsKeys.contains(scriptContext.key());
+        return scriptContexts.containsKey(scriptContext.key());
     }
 
     //script contexts can be used in fine-grained settings, we need to be careful with what we allow here
@@ -82,7 +81,7 @@ public final class ScriptContextRegistry {
         for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {
             builder.add(scriptContext.key());
         }
-        builder.add("script").add("engine").add(ScriptContext.GENERIC_PLUGIN.key());
+        builder.add("script").add("engine");
         return builder.build();
     }
 }

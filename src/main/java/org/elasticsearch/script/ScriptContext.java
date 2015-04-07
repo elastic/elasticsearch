@@ -19,6 +19,9 @@
 
 package org.elasticsearch.script;
 
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.common.Strings;
+
 /**
  * Context of an operation that uses scripts as part of its execution.
  */
@@ -35,7 +38,14 @@ public interface ScriptContext {
      */
     enum Standard implements ScriptContext {
 
-        AGGS("aggs"), MAPPING("mapping"), SEARCH("search"), UPDATE("update");
+        AGGS("aggs"), MAPPING("mapping"), SEARCH("search"), UPDATE("update"),
+        /**
+         * Generic custom operation exposed via plugin
+         *
+         * @deprecated create a new {@link org.elasticsearch.script.ScriptContext.Plugin} instance instead
+         */
+        @Deprecated
+        GENERIC_PLUGIN("plugin");
 
         private final String key;
 
@@ -50,14 +60,6 @@ public interface ScriptContext {
     }
 
     /**
-     * Generic custom operation exposed via plugin
-     *
-     * @deprecated create a new {@link org.elasticsearch.script.ScriptContext.Plugin} instance instead
-     */
-    @Deprecated
-    Plugin GENERIC_PLUGIN = new Plugin("plugin");
-
-    /**
      * Custom operation exposed via plugin, which makes use of scripts as part of its execution
      */
     class Plugin implements ScriptContext {
@@ -65,11 +67,20 @@ public interface ScriptContext {
         private final String key;
 
         /**
-         * Creates a new custom scripts based operation exposed via plugin
-         * @param key the name of the operation. can be used to enable/disable scripts via fine-grained settings
+         * Creates a new custom scripts based operation exposed via plugin.
+         * The name of the plugin combined with the operation name can be used to enable/disable scripts via fine-grained settings.
+         *
+         * @param pluginName the name of the plugin
+         * @param operation the name of the operation
          */
-        public Plugin(String key) {
-            this.key = key;
+        public Plugin(String pluginName, String operation) {
+            if (Strings.hasLength(pluginName) == false) {
+                throw new ElasticsearchIllegalArgumentException("plugin name cannot be empty when registering a custom script context");
+            }
+            if (Strings.hasLength(operation) == false) {
+                throw new ElasticsearchIllegalArgumentException("operation name cannot be empty when registering a custom script context");
+            }
+            this.key = pluginName + "_" + operation;
         }
 
         @Override

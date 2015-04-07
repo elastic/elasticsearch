@@ -19,10 +19,7 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Sets;
+import com.google.common.collect.*;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.Loggers;
@@ -49,7 +46,7 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     static final String[] ENABLE_VALUES = new String[]{"on", "true", "yes", "1"};
     static final String[] DISABLE_VALUES = new String[]{"off", "false", "no", "0"};
 
-    private ScriptContextRegistry scriptContextRegistry;
+    ScriptContextRegistry scriptContextRegistry;
     private ScriptContext[] scriptContexts;
     private Map<String, ScriptEngineService> scriptEngines;
     private ScriptModes scriptModes;
@@ -59,18 +56,31 @@ public class ScriptModesTests extends ElasticsearchTestCase {
 
     @Before
     public void setupScriptEngines() {
-        List<ScriptContext> contextSet = Lists.newArrayList();
-        if (randomBoolean()) {
-            int randomInt = randomIntBetween(1, 3);
-            for (int i = 0; i < randomInt; i++) {
-                String randomContext;
+        //randomly register custom script contexts
+        int randomInt = randomIntBetween(0, 3);
+        //prevent duplicates using map
+        Map<String, ScriptContext> contexts = Maps.newHashMap();
+        for (int i = 0; i < randomInt; i++) {
+            if (randomBoolean()) {
+                String context;
                 do {
-                    randomContext = randomAsciiOfLength(randomIntBetween(1, 30));
-                } while (ScriptContextRegistry.RESERVED_SCRIPT_CONTEXTS.contains(randomContext));
-                contextSet.add(new ScriptContext.Plugin(randomContext));
+                    context = randomAsciiOfLength(randomIntBetween(1, 30));
+                } while (ScriptContextRegistry.RESERVED_SCRIPT_CONTEXTS.contains(context));
+                final String randomContext = context;
+                contexts.put(randomContext, new ScriptContext() {
+                    @Override
+                    public String key() {
+                        return randomContext;
+                    }
+                });
+            } else {
+                String plugin = randomAsciiOfLength(randomIntBetween(1, 10));
+                String operation = randomAsciiOfLength(randomIntBetween(1, 30));
+                String context = plugin + "-" + operation;
+                contexts.put(context, new ScriptContext.Plugin(plugin, operation));
             }
         }
-        scriptContextRegistry = new ScriptContextRegistry(contextSet);
+        scriptContextRegistry = new ScriptContextRegistry(contexts.values());
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
         scriptEngines = buildScriptEnginesByLangMap(ImmutableSet.of(
                 new GroovyScriptEngineService(ImmutableSettings.EMPTY),
@@ -301,9 +311,14 @@ public class ScriptModesTests extends ElasticsearchTestCase {
     }
 
     private ScriptContext[] complementOf(ScriptContext... scriptContexts) {
-        Set<ScriptContext> copy = Sets.newHashSet(scriptContextRegistry.scriptContexts());
-        copy.removeAll(Arrays.asList(scriptContexts));
-        return copy.toArray(new ScriptContext[copy.size()]);
+        Map<String, ScriptContext> copy = Maps.newHashMap();
+        for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
+            copy.put(scriptContext.key(), scriptContext);
+        }
+        for (ScriptContext scriptContext : scriptContexts) {
+            copy.remove(scriptContext.key());
+        }
+        return copy.values().toArray(new ScriptContext[copy.size()]);
     }
 
     private static String specificEngineOpSettings(String lang, ScriptType scriptType, ScriptContext scriptContext) {

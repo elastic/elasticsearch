@@ -17,6 +17,17 @@
                 "synonymAnalyzerWordnet_file":{
                     "tokenizer":"standard",
                     "filter":[ "synonymWordnet_file" ]
+                },
+                "synonymAnalyzerWithsettings":{
+                    "tokenizer":"trigram",
+                    "filter":["synonymWithTokenizerSettings"]
+                }
+            },
+            "tokenizer":{
+                "trigram" : {
+                    "type" : "ngram",
+                    "min_gram" : 3,
+                    "max_gram" : 3
                 }
             },
             "filter":{
@@ -45,6 +56,15 @@
                     "type":"synonym",
                     "format":"wordnet",
                     "synonyms_path":"org/elasticsearch/index/analysis/synonyms/synonyms_wordnet.txt"
+                },
+                "synonymWithTokenizerSettings":{
+                    "type":"synonym",
+                    "synonyms":[
+                        "kimchy => shay"
+                    ],
+                    "tokenizer" : "trigram",
+                    "min_gram" : 3,
+                    "max_gram" : 3
                 }
             }
         }

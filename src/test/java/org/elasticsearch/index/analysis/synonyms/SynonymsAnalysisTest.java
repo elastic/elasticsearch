@@ -83,6 +83,7 @@ public class SynonymsAnalysisTest extends ElasticsearchTestCase {
         match("synonymAnalyzer_file", "kimchy is the dude abides", "shay is the elasticsearch man!");
         match("synonymAnalyzerWordnet", "abstain", "abstain refrain desist");
         match("synonymAnalyzerWordnet_file", "abstain", "abstain refrain desist");
+        match("synonymAnalyzerWithsettings", "kimchy", "sha hay");
 
     }
 

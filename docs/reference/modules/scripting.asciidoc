@@ -356,6 +356,8 @@ appropriate language.
 [float]
 === Groovy Sandboxing
 
+deprecated[1.6.0,Groovy sandboxing has been disabled by default since 1.4.3 because it has proved to be ineffective. It will be removed completely in 2.0.0"]
+
 Elasticsearch sandboxes Groovy scripts that are compiled and executed in order
 to ensure they don't perform unwanted actions. There are a number of options
 that can be used for configuring this sandbox:

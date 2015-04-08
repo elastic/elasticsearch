@@ -79,27 +79,27 @@ Imagine a situation where you index the following documents into and index with 
 
 [source,js]
 --------------------------------------------------
-$ curl -XPUT 'http://localhost:9200/transactions/stock/1' -d '{
+$ curl -XPUT 'http://localhost:9200/transactions/stock/1' -d '
 {
-    "type": "sale"
+    "type": "sale",
     "amount": 80
 }
 
-$ curl -XPUT 'http://localhost:9200/transactions/stock/2' -d '{
+$ curl -XPUT 'http://localhost:9200/transactions/stock/2' -d '
 {
-    "type": "cost"
+    "type": "cost",
     "amount": 10
 }
 
-$ curl -XPUT 'http://localhost:9200/transactions/stock/3' -d '{
+$ curl -XPUT 'http://localhost:9200/transactions/stock/3' -d '
 {
-    "type": "cost"
+    "type": "cost",
     "amount": 30
 }
 
-$ curl -XPUT 'http://localhost:9200/transactions/stock/4' -d '{
+$ curl -XPUT 'http://localhost:9200/transactions/stock/4' -d '
 {
-    "type": "sale"
+    "type": "sale",
     "amount": 130
 }
 --------------------------------------------------

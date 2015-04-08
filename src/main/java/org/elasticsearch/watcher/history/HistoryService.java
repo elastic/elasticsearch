@@ -33,8 +33,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-
 /**
  */
 public class HistoryService extends AbstractComponent {
@@ -99,12 +97,10 @@ public class HistoryService extends AbstractComponent {
         return started.get();
     }
 
-    // TODO: should be removed from the stats api? This is already visible in the thread pool cat api.
     public long queueSize() {
         return executor.queue().size();
     }
 
-    // TODO: should be removed from the stats api? This is already visible in the thread pool cat api.
     public long largestQueueSize() {
         return executor.largestPoolSize();
     }

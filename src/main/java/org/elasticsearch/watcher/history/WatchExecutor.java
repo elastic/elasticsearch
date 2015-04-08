@@ -12,7 +12,7 @@ import java.util.concurrent.BlockingQueue;
  */
 public interface WatchExecutor {
 
-    BlockingQueue queue();
+    BlockingQueue<Runnable> queue();
 
     long largestPoolSize();
 

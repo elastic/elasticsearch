@@ -25,7 +25,7 @@ public class InternalWatchExecutor implements WatchExecutor {
     }
 
     @Override
-    public BlockingQueue queue() {
+    public BlockingQueue<Runnable> queue() {
         return executor().getQueue();
     }
 

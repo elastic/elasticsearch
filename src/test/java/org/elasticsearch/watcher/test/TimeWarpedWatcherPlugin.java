@@ -101,8 +101,8 @@ public class TimeWarpedWatcherPlugin extends WatcherPlugin {
             public static class SameThreadExecutor implements WatchExecutor {
 
                 @Override
-                public BlockingQueue queue() {
-                    return new ArrayBlockingQueue(1);
+                public BlockingQueue<Runnable> queue() {
+                    return new ArrayBlockingQueue<>(1);
                 }
 
                 @Override

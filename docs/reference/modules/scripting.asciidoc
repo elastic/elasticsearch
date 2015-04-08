@@ -352,39 +352,6 @@ The default scripting language (assuming no `lang` parameter is provided) is
 appropriate language.
 
 [float]
-=== Groovy Sandboxing
-
-Elasticsearch sandboxes Groovy scripts that are compiled and executed in order
-to ensure they don't perform unwanted actions. There are a number of options
-that can be used for configuring this sandbox:
-
-`script.groovy.sandbox.receiver_whitelist`::
-
-    Comma-separated list of string classes for objects that may have methods
-    invoked.
-
-`script.groovy.sandbox.package_whitelist`::
-
-    Comma-separated list of packages under which new objects may be constructed.
-
-`script.groovy.sandbox.class_whitelist`::
-
-    Comma-separated list of classes that are allowed to be constructed.
-
-`script.groovy.sandbox.method_blacklist`::
-
-    Comma-separated list of methods that are never allowed to be invoked,
-    regardless of target object.
-
-`script.groovy.sandbox.enabled`::
-
-    Flag to enable the sandbox (defaults to `false` added[v1.4.3] meaning the sandbox is
-    disabled).
-
-When specifying whitelist or blacklist settings for the groovy sandbox, all
-options replace the current whitelist, they are not additive.
-
-[float]
 === Automatic Script Reloading
 
 The `config/scripts` directory is scanned periodically for changes.

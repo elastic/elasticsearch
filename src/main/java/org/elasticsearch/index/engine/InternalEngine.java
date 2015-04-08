@@ -902,6 +902,11 @@ public class InternalEngine extends Engine {
         if (isClosed.compareAndSet(false, true)) {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
+                try {
+                    translog.sync();
+                } catch (IOException ex) {
+                    logger.warn("failed to sync translog");
+                }
                 this.versionMap.clear();
                 logger.trace("close searcherManager");
                 try {

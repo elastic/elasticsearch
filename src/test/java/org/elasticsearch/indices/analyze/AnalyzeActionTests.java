@@ -20,12 +20,10 @@ package org.elasticsearch.indices.analyze;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
-import org.elasticsearch.action.admin.indices.analyze.AnalyzeSourceBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.rest.action.admin.indices.analyze.RestAnalyzeAction;
@@ -199,23 +197,25 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
-    public void testParseXContentForAnalyzeReuqest() {
-        AnalyzeSourceBuilder sourceBuilder = new AnalyzeSourceBuilder();
-        sourceBuilder.setText("THIS IS A TEST").setTokenizer("keyword").setTokenFilters("lowercase");
+    public void testParseXContentForAnalyzeReuqest() throws Exception {
+        BytesReference content =  XContentFactory.jsonBuilder()
+            .startObject()
+            .field("text", "THIS IS A TEST")
+            .field("tokenizer", "keyword")
+            .array("filters", "lowercase")
+            .endObject().bytes();
 
         AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test", null);
 
-        analyzeRequest = RestAnalyzeAction.buildFromContent(sourceBuilder.buildAsBytes(XContentType.JSON), analyzeRequest);
+        RestAnalyzeAction.buildFromContent(content, analyzeRequest);
 
         assertThat(analyzeRequest.text(), equalTo("THIS IS A TEST"));
         assertThat(analyzeRequest.tokenizer(), equalTo("keyword"));
         assertThat(analyzeRequest.tokenFilters(), equalTo(new String[]{"lowercase"}));
-
-
     }
-    @Test
-    public void testParseXContentForAnalyzeRequestThrowsException() throws Exception {
 
+    @Test
+    public void testParseXContentForAnalyzeRequestWithInvalidJsonThrowsException() throws Exception {
         AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test", null);
         BytesReference invalidContent =  XContentFactory.jsonBuilder().startObject().value("invalid_json").endObject().bytes();
 
@@ -225,6 +225,25 @@ public class AnalyzeActionTests extends ElasticsearchIntegrationTest {
         } catch (Exception e) {
             assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
             assertThat(e.getMessage(), equalTo("Failed to parse request body"));
+        }
+    }
+
+
+    @Test
+    public void testParseXContentForAnalyzeRequestWithUnknownParamThrowsException() throws Exception {
+        AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test", null);
+        BytesReference invalidContent =XContentFactory.jsonBuilder()
+            .startObject()
+            .field("text", "THIS IS A TEST")
+            .field("unknown", "keyword")
+            .endObject().bytes();
+
+        try {
+            RestAnalyzeAction.buildFromContent(invalidContent, analyzeRequest);
+            fail("shouldn't get here");
+        } catch (Exception e) {
+            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e.getMessage(), startsWith("Unknown param [unknown]"));
         }
     }
 

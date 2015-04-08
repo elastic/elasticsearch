@@ -18,8 +18,8 @@
  */
 package org.elasticsearch.rest.action.admin.indices.analyze;
 
+import com.google.common.collect.Lists;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequest;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.client.Client;
@@ -28,15 +28,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.rest.*;
-import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
-import org.elasticsearch.rest.support.RestUtils;
 
+import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
@@ -59,19 +57,7 @@ public class RestAnalyzeAction extends BaseRestHandler {
     public void handleRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String text = request.param("text");
         AnalyzeRequest analyzeRequest = new AnalyzeRequest(request.param("index"), text);
-
-        if (text == null && request.hasContent()) {
-            XContentType type = XContentFactory.xContentType(request.content());
-            if (type == null) {
-                text = request.content().toUtf8();
-            } else {
-                // NOTE: if rest request with xcontent body has request parameters, these parameters override xcontent values
-                analyzeRequest = buildFromContent(request.content(), analyzeRequest);
-            }
-        }
-
         analyzeRequest.listenerThreaded(false);
-        analyzeRequest.text(text);
         analyzeRequest.preferLocal(request.paramAsBoolean("prefer_local", analyzeRequest.preferLocalShard()));
         analyzeRequest.analyzer(request.param("analyzer"));
         analyzeRequest.field(request.param("field"));
@@ -79,47 +65,69 @@ public class RestAnalyzeAction extends BaseRestHandler {
         analyzeRequest.tokenFilters(request.paramAsStringArray("token_filters", request.paramAsStringArray("filters", analyzeRequest.tokenFilters())));
         analyzeRequest.charFilters(request.paramAsStringArray("char_filters", analyzeRequest.charFilters()));
 
-        if (analyzeRequest.text() == null) {
-            throw new ElasticsearchIllegalArgumentException("text is missing");
+        if (request.hasContent()) {
+            XContentType type = XContentFactory.xContentType(request.content());
+            if (type == null) {
+                if (text == null) {
+                    text = request.content().toUtf8();
+                    analyzeRequest.text(text);
+                }
+            } else {
+                // NOTE: if rest request with xcontent body has request parameters, the parameters does not override xcontent values
+                buildFromContent(request.content(), analyzeRequest);
+            }
         }
 
         client.admin().indices().analyze(analyzeRequest, new RestToXContentListener<AnalyzeResponse>(channel));
     }
 
-
-    public static AnalyzeRequest buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest) {
-
-        try {
-            Map<String, Object> contentMap = XContentHelper.convertToMap(content, false).v2();
-            for (Map.Entry<String, Object> entry : contentMap.entrySet()) {
-                String name = entry.getKey();
-                if ("prefer_local".equals(name)) {
-                    analyzeRequest.preferLocal(XContentMapValues.nodeBooleanValue(entry.getValue(), analyzeRequest.preferLocalShard()));
-                } else if ("analyzer".equals(name)) {
-                    analyzeRequest.analyzer(XContentMapValues.nodeStringValue(entry.getValue(), null));
-                } else if ("field".equals(name)) {
-                    analyzeRequest.field(XContentMapValues.nodeStringValue(entry.getValue(), null));
-                } else if ("tokenizer".equals(name)) {
-                    analyzeRequest.tokenizer(XContentMapValues.nodeStringValue(entry.getValue(), null));
-                } else if ("token_filters".equals(name) || "filters".equals(name)) {
-                    if (XContentMapValues.isArray(entry.getValue())) {
-                        analyzeRequest.tokenFilters(((List<String>) entry.getValue()).toArray(new String[0]));
+    public static void buildFromContent(BytesReference content, AnalyzeRequest analyzeRequest) throws ElasticsearchIllegalArgumentException {
+        try (XContentParser parser = XContentHelper.createParser(content)) {
+            if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
+                throw new ElasticsearchIllegalArgumentException("Malforrmed content, must start with an object");
+            } else {
+                XContentParser.Token token;
+                String currentFieldName = null;
+                int count = 0;
+                while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (token == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = parser.currentName();
+                    } else if ("prefer_local".equals(currentFieldName) && token == XContentParser.Token.VALUE_BOOLEAN) {
+                        analyzeRequest.preferLocal(parser.booleanValue());
+                    } else if ("text".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
+                            analyzeRequest.text(parser.text());
+                    } else if ("analyzer".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
+                        analyzeRequest.analyzer(parser.text());
+                    } else if ("field".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
+                        analyzeRequest.field(parser.text());
+                    } else if ("tokenizer".equals(currentFieldName) && token == XContentParser.Token.VALUE_STRING) {
+                        analyzeRequest.tokenizer(parser.text());
+                    }else if (("token_filters".equals(currentFieldName) || "filters".equals(currentFieldName)) && token == XContentParser.Token.START_ARRAY) {
+                        List<String> filters = Lists.newArrayList();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token.isValue() == false) {
+                                throw new ElasticsearchIllegalArgumentException(currentFieldName + " array element should only contain token filter's name");
+                            }
+                            filters.add(parser.text());
+                        }
+                        analyzeRequest.tokenFilters(filters.toArray(new String[0]));
+                    } else if ("char_filters".equals(currentFieldName) && token == XContentParser.Token.START_ARRAY) {
+                        List<String> charFilters = Lists.newArrayList();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            if (token.isValue() == false) {
+                                throw new ElasticsearchIllegalArgumentException(currentFieldName + " array element should only contain char filter's name");
+                            }
+                            charFilters.add(parser.text());
+                        }
+                        analyzeRequest.tokenFilters(charFilters.toArray(new String[0]));
+                    } else {
+                        throw new ElasticsearchIllegalArgumentException("Unknown param [" + currentFieldName + "] in request body");
                     }
-                } else if ("char_filters".equals(name)) {
-                    if (XContentMapValues.isArray(entry.getValue())) {
-                        analyzeRequest.charFilters(((List<String>) entry.getValue()).toArray(new String[0]));
-                    }
-                } else if ("text".equals(name)) {
-                    analyzeRequest.text(XContentMapValues.nodeStringValue(entry.getValue(), null));
                 }
             }
-        } catch (ElasticsearchParseException e) {
+        } catch (IOException e) {
             throw new ElasticsearchIllegalArgumentException("Failed to parse request body", e);
         }
-        if (analyzeRequest.text() == null) {
-            throw new ElasticsearchIllegalArgumentException("text is missing");
-        }
-        return analyzeRequest;
     }
 
 

@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.RestClearScrollAction;
@@ -491,20 +490,21 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testParseSearchScrollRequest() throws Exception {
-        SearchScrollSourceBuilder sourceBuilder = new SearchScrollSourceBuilder();
-        sourceBuilder.scrollId("SCROLL_ID").scroll("1m");
+        BytesReference content = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("scroll_id", "SCROLL_ID")
+            .field("scroll", "1m")
+            .endObject().bytes();
 
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
-        searchScrollRequest = RestSearchScrollAction.buildFromContent(sourceBuilder.buildAsBytes(XContentType.JSON), searchScrollRequest);
+        RestSearchScrollAction.buildFromContent(content, searchScrollRequest);
 
         assertThat(searchScrollRequest.scrollId(), equalTo("SCROLL_ID"));
         assertThat(searchScrollRequest.scroll().keepAlive(), equalTo(TimeValue.parseTimeValue("1m", null)));
-
-
     }
 
     @Test
-    public void testParseSearchScrollRequestThrowsException() throws Exception {
+    public void testParseSearchScrollRequestWithInvalidJsonThrowsException() throws Exception {
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
         BytesReference invalidContent = XContentFactory.jsonBuilder().startObject()
             .value("invalid_json").endObject().bytes();
@@ -519,18 +519,34 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void testParseSearchScrollRequestWithUnknownParamThrowsException() throws Exception {
+        SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
+        BytesReference invalidContent = XContentFactory.jsonBuilder().startObject()
+            .field("scroll_id", "value_2")
+            .field("unknown", "keyword")
+            .endObject().bytes();
+
+        try {
+            RestSearchScrollAction.buildFromContent(invalidContent, searchScrollRequest);
+            fail("expected parseContent failure");
+        } catch (Exception e) {
+            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e.getMessage(), startsWith("Unknown param [unknown]"));
+        }
+    }
+
+    @Test
     public void testParseClearScrollRequest() throws Exception {
         BytesReference content = XContentFactory.jsonBuilder().startObject()
             .array("scroll_id", "value_1", "value_2")
             .endObject().bytes();
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
-        clearScrollRequest = RestClearScrollAction.buildFromContent(content, clearScrollRequest);
+        RestClearScrollAction.buildFromContent(content, clearScrollRequest);
         assertThat(clearScrollRequest.scrollIds(), contains("value_1", "value_2"));
     }
 
     @Test
-    public void testParseClearScrollRequestThrowsException() throws Exception {
-
+    public void testParseClearScrollRequestWithInvalidJsonThrowsException() throws Exception {
         BytesReference invalidContent = XContentFactory.jsonBuilder().startObject()
             .value("invalid_json").endObject().bytes();
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
@@ -544,5 +560,21 @@ public class SearchScrollTests extends ElasticsearchIntegrationTest {
         }
     }
 
+    @Test
+    public void testParseClearScrollRequestWithUnknownParamThrowsException() throws Exception {
+        BytesReference invalidContent = XContentFactory.jsonBuilder().startObject()
+            .array("scroll_id", "value_1", "value_2")
+            .field("unknown", "keyword")
+            .endObject().bytes();
+        ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
+
+        try {
+            RestClearScrollAction.buildFromContent(invalidContent, clearScrollRequest);
+            fail("expected parseContent failure");
+        } catch (Exception e) {
+            assertThat(e, instanceOf(ElasticsearchIllegalArgumentException.class));
+            assertThat(e.getMessage(), startsWith("Unknown param [unknown]"));
+        }
+    }
 
 }

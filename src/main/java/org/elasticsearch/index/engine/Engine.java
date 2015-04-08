@@ -1030,8 +1030,15 @@ public abstract class Engine implements Closeable {
 
     protected abstract SearcherManager getSearcherManager();
 
+    /**
+     * Method to close the engine while the write lock is held.
+     */
     protected abstract void closeNoLock(String reason) throws ElasticsearchException;
 
+    /**
+     * Flush the engine (committing segments to disk and truncating the
+     * translog) and close it.
+     */
     public void flushAndClose() throws IOException {
         if (isClosed.get() == false) {
             logger.trace("flushAndClose now acquire writeLock");
@@ -1055,7 +1062,8 @@ public abstract class Engine implements Closeable {
 
     @Override
     public void close() throws IOException {
-        if (isClosed.get() == false) { // don't acquire the write lock if we are already closed
+        // don't acquire the write lock if we are already closed
+        if (isClosed.get() == false) {
             logger.debug("close now acquiring writeLock");
             try (ReleasableLock _ = writeLock.acquire()) {
                 logger.debug("close acquired writeLock");

@@ -739,7 +739,9 @@ public class IndexShard extends AbstractIndexShardComponent {
                     if (flushEngine && this.flushOnClose) {
                         engine.flushAndClose();
                     }
-                } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
+                } finally {
+                    // playing safe here and close the engine even if the above
+                    // succeeds - close can be called multiple times.
                     IOUtils.close(engine);
                 }
             }
@@ -824,7 +826,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void finalizeRecovery() {
         recoveryState().setStage(RecoveryState.Stage.FINALIZE);
         // clear unreferenced files
-        translog.clearUnreferenced();
+        clearUnreferencedTranslogs();
         engine().refresh("recovery_finalization");
         startEngineRefresher();
         config.setEnableGcDeletes(true);
@@ -890,6 +892,10 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
         }
         return indexOperation;
+    }
+
+    protected void clearUnreferencedTranslogs() {
+        translog.clearUnreferenced();
     }
 
     /**
@@ -1264,7 +1270,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     protected Engine newEngine() {
         return engineFactory.newReadWriteEngine(config);
     }
-
 
     /**
      * Returns <code>true</code> iff this shard allows primary promotion, otherwise <code>false</code>

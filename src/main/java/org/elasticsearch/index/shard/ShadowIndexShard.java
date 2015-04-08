@@ -110,6 +110,11 @@ public final class ShadowIndexShard extends IndexShard {
         return engineFactory.newReadOnlyEngine(config);
     }
 
+    @Override
+    protected void clearUnreferencedTranslogs() {
+        // no-op - Shadow replicas should never delete translogs
+    }
+
     public boolean allowsPrimaryPromotion() {
         return false;
     }

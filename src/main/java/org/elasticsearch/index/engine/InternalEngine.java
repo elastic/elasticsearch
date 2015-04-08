@@ -614,7 +614,7 @@ public class InternalEngine extends Engine {
             if (flushLock.tryLock() == false) {
                 // if we can't get the lock right away we block if needed otherwise barf
                 if (waitIfOngoing) {
-                    logger.trace("waiting fore in-flight flush to finish");
+                    logger.trace("waiting for in-flight flush to finish");
                     flushLock.lock();
                     logger.trace("acquired flush lock after blocking");
                 } else {
@@ -626,7 +626,7 @@ public class InternalEngine extends Engine {
             try {
                 if (commitTranslog) {
                     if (onGoingRecoveries.get() > 0) {
-                        throw new FlushNotAllowedEngineException(shardId, "Recovery is in progress, flush is not allowed");
+                        throw new FlushNotAllowedEngineException(shardId, "recovery is in progress, flush is not allowed");
                     }
 
                     if (flushNeeded || force) {
@@ -833,6 +833,7 @@ public class InternalEngine extends Engine {
 
         SnapshotIndexCommit phase1Snapshot;
         try {
+            logger.trace("[pre-phase1] performing deletion policy snapshot");
             phase1Snapshot = deletionPolicy.snapshot();
         } catch (Throwable e) {
             maybeFailEngine("recovery", e);
@@ -841,9 +842,10 @@ public class InternalEngine extends Engine {
         }
 
         try {
+            logger.trace("[phase1] performing phase 1 recovery (file recovery)");
             recoveryHandler.phase1(phase1Snapshot);
         } catch (Throwable e) {
-            maybeFailEngine("recovery phase 1", e);
+            maybeFailEngine("recovery phase 1 (file transfer)", e);
             // close the snapshot first to release the reference to the translog file, so a flush post recovery can delete it
             Releasables.closeWhileHandlingException(phase1Snapshot, onGoingRecoveries);
             throw new RecoveryEngineException(shardId, 1, "Execution failed", wrapIfClosed(e));
@@ -851,16 +853,18 @@ public class InternalEngine extends Engine {
 
         Translog.Snapshot phase2Snapshot;
         try {
+            logger.trace("[pre-phase2] performing translog snapshot");
             phase2Snapshot = translog.snapshot();
         } catch (Throwable e) {
-            maybeFailEngine("snapshot recovery", e);
+            maybeFailEngine("translog snapshot", e);
             Releasables.closeWhileHandlingException(phase1Snapshot, onGoingRecoveries);
             throw new RecoveryEngineException(shardId, 2, "Snapshot failed", wrapIfClosed(e));
         }
         try {
+            logger.trace("[phase2] performing phase 2 recovery (translog replay)");
             recoveryHandler.phase2(phase2Snapshot);
         } catch (Throwable e) {
-            maybeFailEngine("recovery phase 2", e);
+            maybeFailEngine("recovery phase 2 (snapshot transfer)", e);
             // close the snapshots first to release the reference to the translog file, so a flush post recovery can delete it
             Releasables.closeWhileHandlingException(phase1Snapshot, phase2Snapshot, onGoingRecoveries);
             throw new RecoveryEngineException(shardId, 2, "Execution failed", wrapIfClosed(e));
@@ -871,17 +875,20 @@ public class InternalEngine extends Engine {
         boolean success = false;
         try {
             ensureOpen();
+            logger.trace("[pre-phase3] performing translog snapshot");
             phase3Snapshot = translog.snapshot(phase2Snapshot);
+            logger.trace("[phase3] performing phase 3 recovery (translog replay under write lock)");
             recoveryHandler.phase3(phase3Snapshot);
             success = true;
         } catch (Throwable e) {
-            maybeFailEngine("recovery phase 3", e);
+            maybeFailEngine("recovery phase 3 (snapshot transfer)", e);
             throw new RecoveryEngineException(shardId, 3, "Execution failed", wrapIfClosed(e));
         } finally {
             // close the snapshots first to release the reference to the translog file, so a flush post recovery can delete it
             Releasables.close(success, phase1Snapshot, phase2Snapshot, phase3Snapshot,
                     onGoingRecoveries, writeLock); // hmm why can't we use try-with here?
         }
+        logger.trace("[post-recovery] recovery complete");
     }
 
     @Override

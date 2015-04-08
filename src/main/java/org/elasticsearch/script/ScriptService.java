@@ -58,7 +58,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.TemplateQueryParser;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.FileChangesListener;
@@ -100,7 +99,6 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     private final Cache<CacheKey, CompiledScript> cache;
     private final Path scriptsDirectory;
-    private final FileWatcher fileWatcher;
 
     private final ScriptModes scriptModes;
     private final ScriptContextRegistry scriptContextRegistry;
@@ -114,7 +112,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     @Inject
     public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines,
-                         ResourceWatcherService resourceWatcherService, NodeSettingsService nodeSettingsService, ScriptContextRegistry scriptContextRegistry) throws IOException {
+                         ResourceWatcherService resourceWatcherService, ScriptContextRegistry scriptContextRegistry) throws IOException {
         super(settings);
 
         if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
@@ -159,7 +157,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         if (logger.isTraceEnabled()) {
             logger.trace("Using scripts directory [{}] ", scriptsDirectory);
         }
-        this.fileWatcher = new FileWatcher(scriptsDirectory);
+        FileWatcher fileWatcher = new FileWatcher(scriptsDirectory);
         fileWatcher.addListener(new ScriptChangesListener());
 
         if (settings.getAsBoolean(SCRIPT_AUTO_RELOAD_ENABLED_SETTING, true)) {
@@ -169,7 +167,6 @@ public class ScriptService extends AbstractComponent implements Closeable {
             // automatic reload is disable just load scripts once
             fileWatcher.init();
         }
-        nodeSettingsService.addListener(new ApplySettings());
     }
 
     //This isn't set in the ctor because doing so creates a guice circular
@@ -181,21 +178,6 @@ public class ScriptService extends AbstractComponent implements Closeable {
     @Override
     public void close() throws IOException {
         IOUtils.close(scriptEngines);
-    }
-
-    /**
-     * Clear both the in memory and on disk compiled script caches. Files on
-     * disk will be treated as if they are new and recompiled.
-     * */
-    public void clearCache() {
-        logger.debug("clearing script cache");
-        // Clear the in-memory script caches
-        this.cache.invalidateAll();
-        this.cache.cleanUp();
-        // Clear the cache of on-disk scripts
-        this.staticCache.clear();
-        // Clear the file watcher's state so it re-compiles on-disk scripts
-        this.fileWatcher.clearState();
     }
 
     private ScriptEngineService getScriptEngineServiceForLang(String lang) {
@@ -638,25 +620,6 @@ public class ScriptService extends AbstractComponent implements Closeable {
                         throw new ElasticsearchIllegalStateException("Conflicting script language, found [" + parts[1] + "] expected + ["+ this.lang + "]");
                     }
                     this.id = parts[2];
-                }
-            }
-        }
-    }
-
-    private class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            GroovyScriptEngineService engine = (GroovyScriptEngineService) ScriptService.this.scriptEnginesByLang.get(GroovyScriptEngineService.NAME);
-            if (engine != null) {
-                String[] patches = settings.getAsArray(GroovyScriptEngineService.GROOVY_SCRIPT_BLACKLIST_PATCH, Strings.EMPTY_ARRAY);
-                boolean blacklistChanged = engine.addToBlacklist(patches);
-                if (blacklistChanged) {
-                    logger.info("adding {} to [{}], new blacklisted methods: {}", patches,
-                            GroovyScriptEngineService.GROOVY_SCRIPT_BLACKLIST_PATCH, engine.blacklistAdditions());
-                    engine.reloadConfig();
-                    // Because the GroovyScriptEngineService knows nothing about the
-                    // cache, we need to clear it here if the setting changes
-                    ScriptService.this.clearCache();
                 }
             }
         }

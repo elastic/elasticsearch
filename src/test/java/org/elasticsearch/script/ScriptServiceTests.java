@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
@@ -103,7 +102,7 @@ public class ScriptServiceTests extends ElasticsearchTestCase {
     private void buildScriptService(Settings additionalSettings) throws IOException {
         Settings finalSettings = ImmutableSettings.builder().put(baseSettings).put(additionalSettings).build();
         Environment environment = new Environment(finalSettings);
-        scriptService = new ScriptService(finalSettings, environment, scriptEngineServices, resourceWatcherService, new NodeSettingsService(finalSettings), scriptContextRegistry) {
+        scriptService = new ScriptService(finalSettings, environment, scriptEngineServices, resourceWatcherService, scriptContextRegistry) {
             @Override
             String getScriptFromIndex(String scriptLang, String id) {
                 //mock the script that gets retrieved from an index

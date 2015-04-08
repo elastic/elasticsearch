@@ -59,6 +59,8 @@ import org.elasticsearch.search.aggregations.metrics.tophits.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.valuecount.InternalValueCount;
 import org.elasticsearch.search.aggregations.reducers.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeReducer;
+import org.elasticsearch.search.aggregations.reducers.movavg.MovAvgReducer;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.TransportMovAvgModelModule;
 
 /**
  * A module that registers all the transport streams for the addAggregation
@@ -108,10 +110,11 @@ public class TransportAggregationModule extends AbstractModule implements SpawnM
 
         // Reducers
         DerivativeReducer.registerStreams();
+        MovAvgReducer.registerStreams();
     }
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(new TransportSignificantTermsHeuristicModule());
+        return ImmutableList.of(new TransportSignificantTermsHeuristicModule(), new TransportMovAvgModelModule());
     }
 }

@@ -31,11 +31,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.action.admin.indices.upgrade.UpgradeTest;
 import org.elasticsearch.search.SearchHit;
@@ -46,6 +49,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
@@ -97,6 +101,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         return ImmutableSettings.builder()
                 .put(Node.HTTP_ENABLED, true) // for _upgrade
                 .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class) // disable merging so no segments will be upgraded
+                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, 30) // increase recovery speed for small files
                 .build();
     }
 
@@ -190,7 +195,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         }
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "times out often , see : https://github.com/elastic/elasticsearch/issues/10434")
+    @TestLogging("indices.recovery:TRACE")
     public void testOldIndexes() throws Exception {
         setupCluster();
 
@@ -296,11 +301,14 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
 
     void assertNewReplicasWork(String indexName) throws Exception {
         final int numReplicas = randomIntBetween(1, 2);
-        logger.debug("Creating [{}] replicas for index [{}]", numReplicas, indexName);
+        final long startTime = System.currentTimeMillis();
+        logger.debug("--> creating [{}] replicas for index [{}]", numReplicas, indexName);
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.builder()
                         .put("number_of_replicas", numReplicas)
         ).execute().actionGet());
         ensureGreen(indexName);
+        logger.debug("--> index [{}] is green, took [{}]", indexName, TimeValue.timeValueMillis(System.currentTimeMillis() - startTime));
+        logger.debug("--> recovery status:\n{}", XContentHelper.toString(client().admin().indices().prepareRecoveries(indexName).get()));
 
         // TODO: do something with the replicas! query? index?
     }

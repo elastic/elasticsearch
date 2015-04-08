@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.ActionFactory;
 import org.elasticsearch.watcher.actions.ActionRegistry;
@@ -78,7 +77,6 @@ import org.elasticsearch.watcher.trigger.schedule.support.*;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Map;
 
@@ -323,11 +321,8 @@ public class WatchTests extends ElasticsearchTestCase {
 
     static class ParseOnlyScheduleTriggerEngine extends ScheduleTriggerEngine {
 
-        private final ScheduleRegistry registry;
-
         public ParseOnlyScheduleTriggerEngine(Settings settings, ScheduleRegistry registry) {
-            super(settings);
-            this.registry = registry;
+            super(settings, registry);
         }
 
         @Override
@@ -349,17 +344,6 @@ public class WatchTests extends ElasticsearchTestCase {
         @Override
         public boolean remove(String jobName) {
             return false;
-        }
-
-        @Override
-        public ScheduleTrigger parseTrigger(String context, XContentParser parser) throws IOException {
-            Schedule schedule = registry.parse(context, parser);
-            return new ScheduleTrigger(schedule);
-        }
-
-        @Override
-        public ScheduleTriggerEvent parseTriggerEvent(String context, XContentParser parser) throws IOException {
-            return null;
         }
     }
 }

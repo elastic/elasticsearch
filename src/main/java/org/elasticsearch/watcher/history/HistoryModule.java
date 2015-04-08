@@ -6,6 +6,8 @@
 package org.elasticsearch.watcher.history;
 
 import org.elasticsearch.common.inject.AbstractModule;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.watcher.execution.InternalWatchExecutor;
 
 /**
  */
@@ -20,5 +22,9 @@ public class HistoryModule extends AbstractModule {
     protected void configure() {
         bind(WatchRecord.Parser.class).asEagerSingleton();
         bind(HistoryStore.class).asEagerSingleton();
+    }
+
+    public static Settings additionalSettings(Settings nodeSettings) {
+        return InternalWatchExecutor.additionalSettings(nodeSettings);
     }
 }

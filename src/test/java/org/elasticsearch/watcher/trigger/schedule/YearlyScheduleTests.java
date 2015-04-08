@@ -6,13 +6,13 @@
 package org.elasticsearch.watcher.trigger.schedule;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.common.base.Joiner;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.primitives.Ints;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.trigger.schedule.support.DayTimes;
 import org.elasticsearch.watcher.trigger.schedule.support.YearTimes;
 import org.junit.Test;
@@ -28,16 +28,16 @@ public class YearlyScheduleTests extends ScheduleTestCase {
     @Test
     public void test_Default() throws Exception {
         YearlySchedule schedule = new YearlySchedule();
-        String[] crons = schedule.crons();
+        String[] crons = expressions(schedule);
         assertThat(crons, arrayWithSize(1));
         assertThat(crons, arrayContaining("0 0 0 1 JAN ?"));
     }
 
-    @Test @Repeat(iterations = 20)
+    @Test @Repeat(iterations = 120)
     public void test_SingleTime() throws Exception {
         YearTimes time = validYearTime();
         YearlySchedule schedule = new YearlySchedule(time);
-        String[] crons = schedule.crons();
+        String[] crons = expressions(schedule);
         assertThat(crons, arrayWithSize(time.times().length));
         for (DayTimes dayTimes : time.times()) {
             String minStr = Ints.join(",", dayTimes.minute());
@@ -45,7 +45,9 @@ public class YearlyScheduleTests extends ScheduleTestCase {
             String dayStr = Ints.join(",", time.days());
             dayStr = dayStr.replace("32", "L");
             String monthStr = Joiner.on(",").join(time.months());
-            assertThat(crons, hasItemInArray("0 " + minStr + " " + hrStr + " " + dayStr + " " + monthStr + " ?"));
+            String expression = "0 " + minStr + " " + hrStr + " " + dayStr + " " + monthStr + " ?";
+            logger.info("expression: " + expression);
+            assertThat(crons, hasItemInArray(expression));
         }
     }
 
@@ -53,7 +55,7 @@ public class YearlyScheduleTests extends ScheduleTestCase {
     public void test_MultipleTimes() throws Exception {
         YearTimes[] times = validYearTimes();
         YearlySchedule schedule = new YearlySchedule(times);
-        String[] crons = schedule.crons();
+        String[] crons = expressions(schedule);
         int count = 0;
         for (int i = 0; i < times.length; i++) {
             count += times[i].times().length;

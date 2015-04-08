@@ -32,6 +32,17 @@ public class IntervalSchedule implements Schedule {
         return TYPE;
     }
 
+    @Override
+    public long nextScheduledTimeAfter(long startTime, long time) {
+        if (time <= startTime) {
+            return startTime;
+        }
+        // advancing the time in 1 ns (we're looking for the time **after**)
+        time += 1;
+        long delta = time - startTime;
+        return startTime + (delta / interval.millis + 1) * interval.millis;
+    }
+
     public Interval interval() {
         return interval;
     }
@@ -132,10 +143,12 @@ public class IntervalSchedule implements Schedule {
 
         private final long duration;
         private final Unit unit;
+        private final long millis; // computed once
 
         public Interval(long duration, Unit unit) {
             this.duration = duration;
             this.unit = unit;
+            this.millis = unit.millis(duration);
         }
 
         public long seconds() {

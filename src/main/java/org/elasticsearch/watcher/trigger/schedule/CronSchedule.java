@@ -8,10 +8,8 @@ package org.elasticsearch.watcher.trigger.schedule;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.WatcherSettingsException;
-import org.quartz.CronExpression;
 
 import java.io.IOException;
-import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,8 +21,7 @@ public class CronSchedule extends CronnableSchedule {
     public static final String TYPE = "cron";
 
     public CronSchedule(String... crons) {
-        super(crons);
-        validate(crons);
+        super(validate(crons));
     }
 
     @Override
@@ -37,14 +34,15 @@ public class CronSchedule extends CronnableSchedule {
         return crons.length == 1 ? builder.value(crons[0]) : builder.value(crons);
     }
 
-    static void validate(String... crons) {
+    static String[] validate(String... crons) {
         for (String cron :crons) {
             try {
-                CronExpression.validateExpression(cron);
-            } catch (ParseException pe) {
+                Cron.validate(cron);
+            } catch (Cron.ParseException pe) {
                 throw new ValidationException(cron, pe);
             }
         }
+        return crons;
     }
 
     public static class Parser implements Schedule.Parser<CronSchedule> {
@@ -90,7 +88,7 @@ public class CronSchedule extends CronnableSchedule {
 
         private String expression;
 
-        public ValidationException(String expression, ParseException cause) {
+        public ValidationException(String expression, Cron.ParseException cause) {
             super("invalid cron expression [" + expression + "]. " + cause.getMessage());
             this.expression = expression;
         }

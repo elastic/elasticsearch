@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.trigger.schedule;
 
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.watcher.trigger.Trigger;
 

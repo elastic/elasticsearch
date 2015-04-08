@@ -23,6 +23,18 @@ import static org.elasticsearch.watcher.trigger.schedule.Schedules.*;
  */
 public abstract class ScheduleTestCase extends ElasticsearchTestCase {
 
+    protected static String[] expressions(CronnableSchedule schedule) {
+        return expressions(schedule.crons);
+    }
+
+    protected static String[] expressions(Cron[] crons) {
+        String[] expressions = new String[crons.length];
+        for (int i = 0; i < expressions.length; i++) {
+            expressions[i] = crons[i].expression();
+        }
+        return expressions;
+    }
+
     protected static MonthlySchedule randomMonthlySchedule() {
         switch (randomIntBetween(1, 4)) {
             case 1: return monthly().build();
@@ -145,10 +157,13 @@ public abstract class ScheduleTestCase extends ElasticsearchTestCase {
     }
 
     protected static int[] randomDaysOfMonth() {
+        if (rarely()) {
+            return new int[] { 32 };
+        }
         int count = randomIntBetween(1, 5);
         Set<Integer> days = new HashSet<>();
         for (int i = 0; i < count; i++) {
-            days.add(randomIntBetween(1, 32));
+            days.add(randomIntBetween(1, 31));
         }
         return Ints.toArray(days);
     }

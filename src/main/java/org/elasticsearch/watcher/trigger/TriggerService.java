@@ -54,6 +54,12 @@ public class TriggerService extends AbstractComponent {
         engines.get(job.trigger().type()).add(job);
     }
 
+    /**
+     * Removes the job associated with the given name from this trigger service.
+     *
+     * @param jobName   The name of the job to remove
+     * @return          {@code true} if the job existed and removed, {@code false} otherwise.
+     */
     public boolean remove(String jobName) {
         for (TriggerEngine engine : engines.values()) {
             if (engine.remove(jobName)) {

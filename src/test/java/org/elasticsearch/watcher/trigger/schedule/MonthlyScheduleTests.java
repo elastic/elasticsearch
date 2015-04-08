@@ -6,12 +6,12 @@
 package org.elasticsearch.watcher.trigger.schedule;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.primitives.Ints;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.trigger.schedule.support.DayTimes;
 import org.elasticsearch.watcher.trigger.schedule.support.MonthTimes;
 import org.junit.Test;
@@ -27,7 +27,7 @@ public class MonthlyScheduleTests extends ScheduleTestCase {
     @Test
     public void test_Default() throws Exception {
         MonthlySchedule schedule = new MonthlySchedule();
-        String[] crons = schedule.crons();
+        String[] crons = expressions(schedule);
         assertThat(crons, arrayWithSize(1));
         assertThat(crons, arrayContaining("0 0 0 1 * ?"));
     }
@@ -36,7 +36,7 @@ public class MonthlyScheduleTests extends ScheduleTestCase {
     public void test_SingleTime() throws Exception {
         MonthTimes time = validMonthTime();
         MonthlySchedule schedule = new MonthlySchedule(time);
-        String[] crons = schedule.crons();
+        String[] crons = expressions(schedule);
         assertThat(crons, arrayWithSize(time.times().length));
         for (DayTimes dayTimes : time.times()) {
             String minStr = Ints.join(",", dayTimes.minute());
@@ -51,7 +51,7 @@ public class MonthlyScheduleTests extends ScheduleTestCase {
     public void test_MultipleTimes() throws Exception {
         MonthTimes[] times = validMonthTimes();
         MonthlySchedule schedule = new MonthlySchedule(times);
-        String[] crons = schedule.crons();
+        String[] crons = expressions(schedule);
         int count = 0;
         for (int i = 0; i < times.length; i++) {
             count += times[i].times().length;

@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.test.integration;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -13,6 +14,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
@@ -23,6 +25,7 @@ import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.get.GetWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.watcher.trigger.schedule.Schedules;
 import org.elasticsearch.watcher.watch.WatchStore;
 import org.junit.Test;
@@ -47,7 +50,13 @@ import static org.hamcrest.Matchers.*;
 
 /**
  */
+@TestLogging("watcher.trigger.schedule:TRACE")
 public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
+
+    @Override
+    protected ScheduleModule.Engine scheduleEngine() {
+        return ScheduleModule.Engine.HASHWHEEL;
+    }
 
     @Test
     public void testIndexWatch() throws Exception {
@@ -239,7 +248,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         assertThat(count, equalTo(findNumberOfPerformedActions("_name")));
     }
 
-    @Test
+    @Test //@Repeat(iterations = 10)
     public void testConditionSearchWithSource() throws Exception {
         String variable = randomFrom("ctx.execution_time", "ctx.trigger.scheduled_time", "ctx.trigger.triggered_time");
         SearchSourceBuilder searchSourceBuilder = searchSource().query(filteredQuery(
@@ -251,7 +260,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
         testConditionSearch(newInputSearchRequest("events").source(searchSourceBuilder));
     }
 
-    @Test
+    @Test @Repeat(iterations = 10)
     public void testConditionSearchWithIndexedTemplate() throws Exception {
         String variable = randomFrom("ctx.execution_time", "ctx.trigger.scheduled_time", "ctx.trigger.triggered_time");
         SearchSourceBuilder searchSourceBuilder = searchSource().query(filteredQuery(
@@ -298,6 +307,8 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
             timeWarp().scheduler().trigger("_name1");
             timeWarp().scheduler().trigger("_name2");
             refresh();
+        } else {
+            Thread.sleep(5000);
         }
 
         assertWatchWithMinimumPerformedActionsCount("_name1", 1);
@@ -325,9 +336,12 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
 
         String watchName = "_name";
         assertAcked(prepareCreate("events").addMapping("event", "_timestamp", "enabled=true", "level", "type=string"));
+
         watcherClient().preparePutWatch(watchName)
                 .setSource(createWatchSource(interval("5s"), request, "return ctx.payload.hits.total >= 3"))
                 .get();
+
+        logger.info("created watch [{}] at [{}]", watchName, DateTime.now());
 
         client().prepareIndex("events", "event")
                 .setCreate(true)
@@ -337,7 +351,9 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTests {
                 .setCreate(true)
                 .setSource("level", "a")
                 .get();
+
         refresh();
+
         if (timeWarped()) {
             timeWarp().clock().fastForwardSeconds(5);
             timeWarp().scheduler().trigger(watchName);

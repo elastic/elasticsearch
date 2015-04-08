@@ -226,7 +226,7 @@ public class WatcherBenchmark {
                     if (module instanceof TriggerModule) {
                         // replacing scheduler module so we'll
                         // have control on when it fires a job
-                        modules.add(new MockTriggerModule());
+                        modules.add(new MockTriggerModule(settings));
 
                     } else {
                         modules.add(module);
@@ -236,6 +236,10 @@ public class WatcherBenchmark {
             }
 
             public static class MockTriggerModule extends TriggerModule {
+
+                public MockTriggerModule(Settings settings) {
+                    super(settings);
+                }
 
                 @Override
                 protected void registerStandardEngines() {

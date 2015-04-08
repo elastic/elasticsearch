@@ -6,13 +6,13 @@
 package org.elasticsearch.watcher.trigger.schedule;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
-import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.common.base.Joiner;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.primitives.Ints;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.watcher.WatcherSettingsException;
 import org.elasticsearch.watcher.trigger.schedule.support.DayOfWeek;
 import org.elasticsearch.watcher.trigger.schedule.support.DayTimes;
 import org.elasticsearch.watcher.trigger.schedule.support.WeekTimes;
@@ -29,7 +29,7 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
     @Test
     public void test_Default() throws Exception {
         WeeklySchedule schedule = new WeeklySchedule();
-        String[] crons = schedule.crons();
+        String[] crons = expressions(schedule);
         assertThat(crons, arrayWithSize(1));
         assertThat(crons, arrayContaining("0 0 0 ? * MON"));
     }
@@ -38,7 +38,7 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
     public void test_SingleTime() throws Exception {
         WeekTimes time = validWeekTime();
         WeeklySchedule schedule = new WeeklySchedule(time);
-        String[] crons = schedule.crons();
+        String[] crons = expressions(schedule);
         assertThat(crons, arrayWithSize(time.times().length));
         for (DayTimes dayTimes : time.times()) {
             assertThat(crons, hasItemInArray("0 " + Ints.join(",", dayTimes.minute()) + " " + Ints.join(",", dayTimes.hour()) + " ? * " + Joiner.on(",").join(time.days())));
@@ -49,7 +49,7 @@ public class WeeklyScheduleTests extends ScheduleTestCase {
     public void test_MultipleTimes() throws Exception {
         WeekTimes[] times = validWeekTimes();
         WeeklySchedule schedule = new WeeklySchedule(times);
-        String[] crons = schedule.crons();
+        String[] crons = expressions(schedule);
         int count = 0;
         for (int i = 0; i < times.length; i++) {
             count += times[i].times().length;

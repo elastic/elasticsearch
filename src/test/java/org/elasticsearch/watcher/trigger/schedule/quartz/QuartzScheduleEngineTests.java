@@ -20,6 +20,7 @@ import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.schedule.Schedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleRegistry;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
+import org.elasticsearch.watcher.trigger.schedule.engine.QuartzScheduleTriggerEngine;
 import org.elasticsearch.watcher.trigger.schedule.support.DayOfWeek;
 import org.elasticsearch.watcher.trigger.schedule.support.WeekTimes;
 import org.junit.After;

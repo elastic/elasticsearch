@@ -7,10 +7,13 @@ package org.elasticsearch.watcher.trigger.schedule;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
-import org.elasticsearch.watcher.trigger.schedule.quartz.QuartzScheduleTriggerEngine;
+import org.elasticsearch.watcher.trigger.schedule.engine.*;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -30,8 +33,10 @@ public class ScheduleModule extends AbstractModule {
         registerScheduleParser(YearlySchedule.TYPE, YearlySchedule.Parser.class);
     }
 
-    public static Class<? extends TriggerEngine> triggerEngineType() {
-        return QuartzScheduleTriggerEngine.class;
+    public static Class<? extends TriggerEngine> triggerEngineType(Settings nodeSettings) {
+        Engine engine = Engine.resolve(nodeSettings);
+        Loggers.getLogger(ScheduleModule.class, nodeSettings).info("using [{}] schedule trigger engine", engine.name().toLowerCase(Locale.ROOT));
+        return engine.engineType();
     }
 
     public void registerScheduleParser(String parserType, Class<? extends Schedule.Parser> parserClass) {
@@ -48,6 +53,91 @@ public class ScheduleModule extends AbstractModule {
         }
 
         bind(ScheduleRegistry.class).asEagerSingleton();
+    }
+
+    public static Settings additionalSettings(Settings nodeSettings) {
+        Engine engine = Engine.resolve(nodeSettings);
+        return engine.additionalSettings(nodeSettings);
+    }
+
+    public enum Engine {
+
+        SCHEDULER() {
+            @Override
+            protected Class<? extends TriggerEngine> engineType() {
+                return SchedulerScheduleTriggerEngine.class;
+            }
+
+            @Override
+            protected Settings additionalSettings(Settings nodeSettings) {
+                return SchedulerScheduleTriggerEngine.additionalSettings(nodeSettings);
+            }
+        },
+
+        HASHWHEEL() {
+            @Override
+            protected Class<? extends TriggerEngine> engineType() {
+                return HashWheelScheduleTriggerEngine.class;
+            }
+
+            @Override
+            protected Settings additionalSettings(Settings nodeSettings) {
+                return HashWheelScheduleTriggerEngine.additionalSettings(nodeSettings);
+            }
+        },
+
+        QUARTZ() {
+            @Override
+            protected Class<? extends TriggerEngine> engineType() {
+                return QuartzScheduleTriggerEngine.class;
+            }
+
+            @Override
+            protected Settings additionalSettings(Settings nodeSettings) {
+                return QuartzScheduleTriggerEngine.additionalSettings(nodeSettings);
+            }
+        },
+
+        TIMER() {
+            @Override
+            protected Class<? extends TriggerEngine> engineType() {
+                return TimerTickerScheduleTriggerEngine.class;
+            }
+
+            @Override
+            protected Settings additionalSettings(Settings nodeSettings) {
+                return TimerTickerScheduleTriggerEngine.additionalSettings(nodeSettings);
+            }
+        },
+
+        SIMPLE() {
+            @Override
+            protected Class<? extends TriggerEngine> engineType() {
+                return SimpleTickerScheduleTriggerEngine.class;
+            }
+
+            @Override
+            protected Settings additionalSettings(Settings nodeSettings) {
+                return SimpleTickerScheduleTriggerEngine.additionalSettings(nodeSettings);
+            }
+        };
+
+        protected abstract Class<? extends TriggerEngine> engineType();
+
+        protected abstract Settings additionalSettings(Settings nodeSettings);
+
+        public static Engine resolve(Settings settings) {
+            String engine = settings.getComponentSettings(ScheduleModule.class).get("engine", "scheduler");
+            switch (engine.toLowerCase(Locale.ROOT)) {
+                case "quartz"    : return QUARTZ;
+                case "timer"     : return TIMER;
+                case "simple"    : return SIMPLE;
+                case "hashwheel" : return HASHWHEEL;
+                case "scheduler" : return SCHEDULER;
+                default:
+                    return SCHEDULER;
+            }
+        }
     }
 
 }

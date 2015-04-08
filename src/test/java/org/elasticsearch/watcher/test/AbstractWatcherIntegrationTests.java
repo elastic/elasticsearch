@@ -54,6 +54,7 @@ import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.watcher.trigger.TriggerService;
 import org.elasticsearch.watcher.trigger.schedule.Schedule;
+import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.trigger.schedule.Schedules;
 import org.elasticsearch.watcher.watch.Watch;
@@ -86,17 +87,20 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
     boolean shieldEnabled = enableShield();
 
+    final ScheduleModule.Engine scheduleEngine = randomFrom(ScheduleModule.Engine.values());
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        ImmutableSettings.Builder builder = ImmutableSettings.builder()
+        return ImmutableSettings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("scroll.size", randomIntBetween(1, 100))
                 .put("plugin.types",
                         (timeWarped() ? TimeWarpedWatcherPlugin.class.getName() : WatcherPlugin.class.getName()) + "," +
                                 (shieldEnabled ? ShieldPlugin.class.getName() + "," : "") +
                                 licensePluginClass().getName())
-                .put(ShieldSettings.settings(shieldEnabled));
-        return builder.build();
+                .put(ShieldSettings.settings(shieldEnabled))
+                .put("watcher.trigger.schedule.engine", scheduleEngine().name().toLowerCase(Locale.ROOT))
+                .build();
     }
 
     /**
@@ -114,6 +118,13 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
      */
     protected boolean shieldEnabled() {
         return shieldEnabled;
+    }
+
+    /**
+     * @return The schedule trigger engine that will be used for the nodes.
+     */
+    protected ScheduleModule.Engine scheduleEngine() {
+        return scheduleEngine;
     }
 
     /**
@@ -600,6 +611,8 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
 
     static class ShieldSettings {
 
+        static boolean auditLogsEnabled = SystemPropertyUtil.getBoolean("tests.audit_logs", false);
+
         public static final String IP_FILTER = "allow: all\n";
 
         public static final String USERS =
@@ -640,7 +653,7 @@ public abstract class AbstractWatcherIntegrationTests extends ElasticsearchInteg
                     .put("shield.authc.realms.esusers.files.users_roles", writeFile(folder, "users_roles", USER_ROLES))
                     .put("shield.authz.store.files.roles", writeFile(folder, "roles.yml", ROLES))
                     .put("shield.transport.n2n.ip_filter.file", writeFile(folder, "ip_filter.yml", IP_FILTER))
-                    .put("shield.audit.enabled", true)
+                    .put("shield.audit.enabled", auditLogsEnabled)
                     .build();
         }
 

@@ -6,7 +6,10 @@
 package org.elasticsearch.watcher.trigger.schedule;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.trigger.AbstractTriggerEngine;
+
+import java.io.IOException;
 
 /**
  *
@@ -15,12 +18,26 @@ public abstract class ScheduleTriggerEngine extends AbstractTriggerEngine<Schedu
 
     public static final String TYPE = ScheduleTrigger.TYPE;
 
-    public ScheduleTriggerEngine(Settings settings) {
+    protected final ScheduleRegistry scheduleRegistry;
+
+    public ScheduleTriggerEngine(Settings settings, ScheduleRegistry scheduleRegistry) {
         super(settings);
+        this.scheduleRegistry = scheduleRegistry;
     }
 
     @Override
     public String type() {
         return TYPE;
+    }
+
+    @Override
+    public ScheduleTrigger parseTrigger(String context, XContentParser parser) throws IOException {
+        Schedule schedule = scheduleRegistry.parse(context, parser);
+        return new ScheduleTrigger(schedule);
+    }
+
+    @Override
+    public ScheduleTriggerEvent parseTriggerEvent(String context, XContentParser parser) throws IOException {
+        return ScheduleTriggerEvent.parse(context, parser);
     }
 }

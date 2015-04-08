@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.trigger.schedule;
 
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Objects;
 
 /**
@@ -13,14 +14,38 @@ import java.util.Objects;
  */
 public abstract class CronnableSchedule implements Schedule {
 
-    protected final String[] crons;
+    private static final Comparator<Cron> CRON_COMPARATOR = new Comparator<Cron>() {
+        @Override
+        public int compare(Cron c1, Cron c2) {
+            return c1.expression().compareTo(c2.expression());
+        }
+    };
 
-    public CronnableSchedule(String... crons) {
-        this.crons = crons;
-        Arrays.sort(crons);
+    protected final Cron[] crons;
+
+    public CronnableSchedule(String... expressions) {
+        this(crons(expressions));
     }
 
-    public String[] crons() {
+    public CronnableSchedule(Cron... crons) {
+        assert crons.length > 0;
+        this.crons = crons;
+        Arrays.sort(crons, CRON_COMPARATOR);
+    }
+
+    @Override
+    public long nextScheduledTimeAfter(long startTime, long time) {
+        if (time <= startTime) {
+            return startTime;
+        }
+        long nextTime = Long.MAX_VALUE;
+        for (Cron cron : crons) {
+            nextTime = Math.min(nextTime, cron.getNextValidTimeAfter(time));
+        }
+        return nextTime;
+    }
+
+    public Cron[] crons() {
         return crons;
     }
 
@@ -39,5 +64,13 @@ public abstract class CronnableSchedule implements Schedule {
         }
         final CronnableSchedule other = (CronnableSchedule) obj;
         return Objects.deepEquals(this.crons, other.crons);
+    }
+
+    static Cron[] crons(String... expressions) {
+        Cron[] crons = new Cron[expressions.length];
+        for (int i = 0; i < crons.length; i++) {
+            crons[i] = new Cron(expressions[i]);
+        }
+        return crons;
     }
 }

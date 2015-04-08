@@ -9,13 +9,12 @@ import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
 import org.elasticsearch.common.cli.commons.CommandLine;
+import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.format.DateTimeFormat;
+import org.elasticsearch.common.joda.time.format.DateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.quartz.CronExpression;
-
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
+import org.elasticsearch.watcher.trigger.schedule.Cron;
 
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
@@ -50,7 +49,7 @@ public class CronEvalTool extends CliTool {
                 .options(option("c", "count").hasArg(false).required(false))
                 .build();
 
-        private static final SimpleDateFormat format = new SimpleDateFormat("EEE, d MMM yyyy HH:mm:ss", Locale.ROOT);
+        private static final DateTimeFormatter formatter = DateTimeFormat.forPattern("EEE, d MMM yyyy HH:mm:ss");
 
         final String expression;
         final int count;
@@ -79,20 +78,27 @@ public class CronEvalTool extends CliTool {
 
             // when invalid, a parse expression will be thrown with a descriptive error message
             // the cli infra handles such exceptions and hows the exceptions' message
-            CronExpression.validateExpression(expression);
+            Cron.validate(expression);
 
             terminal.println("Valid!");
 
-            Date date = new Date();
+            DateTime date = DateTime.now();
 
-            terminal.println("Now is [" + format.format(date) + "]");
+            terminal.println("Now is [" + formatter.print(date) + "]");
             terminal.println("Here are the next " + count + " times this cron expression will trigger:");
 
-            CronExpression cron = new CronExpression(expression);
+            Cron cron = new Cron(expression);
 
+            long time = date.getMillis();
             for (int i = 0; i < count; i++) {
-                date = cron.getNextValidTimeAfter(date);
-                terminal.println((i+1) + ".\t" + format.format(date));
+                long prevTime = time;
+                time = cron.getNextValidTimeAfter(time);
+                if (time < 0) {
+                    terminal.printError((i + 1) + ".\t Could not compute future times since [" + formatter.print(prevTime) + "] " +
+                            "(perhaps the cron expression only points to times in the past?)");
+                    return ExitStatus.OK;
+                }
+                terminal.println((i+1) + ".\t" + formatter.print(time));
             }
             return ExitStatus.OK;
         }

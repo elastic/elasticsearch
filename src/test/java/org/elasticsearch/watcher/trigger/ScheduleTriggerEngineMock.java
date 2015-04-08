@@ -33,13 +33,11 @@ public class ScheduleTriggerEngineMock extends ScheduleTriggerEngine {
     private final ESLogger logger;
     private final ConcurrentMap<String, Job> jobs = new ConcurrentHashMap<>();
     private final Clock clock;
-    private final ScheduleRegistry scheduleRegistry;
 
     @Inject
     public ScheduleTriggerEngineMock(Settings settings, ScheduleRegistry scheduleRegistry, Clock clock) {
-        super(settings);
+        super(settings, scheduleRegistry);
         this.logger = Loggers.getLogger(ScheduleTriggerEngineMock.class, settings);
-        this.scheduleRegistry = scheduleRegistry;
         this.clock = clock;
     }
 

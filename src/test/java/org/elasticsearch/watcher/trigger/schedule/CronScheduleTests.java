@@ -34,7 +34,7 @@ public class CronScheduleTests extends ScheduleTestCase {
         parser.nextToken();
         CronSchedule schedule = new CronSchedule.Parser().parse(parser);
         assertThat(schedule.crons(), arrayWithSize(1));
-        assertThat(schedule.crons()[0], is("0 0/5 * * * ?"));
+        assertThat(schedule.crons()[0].expression(), is("0 0/5 * * * ?"));
     }
 
     @Test
@@ -48,10 +48,11 @@ public class CronScheduleTests extends ScheduleTestCase {
         XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
         parser.nextToken();
         CronSchedule schedule = new CronSchedule.Parser().parse(parser);
-        assertThat(schedule.crons(), arrayWithSize(3));
-        assertThat(schedule.crons(), hasItemInArray("0 0/1 * * * ?"));
-        assertThat(schedule.crons(), hasItemInArray("0 0/2 * * * ?"));
-        assertThat(schedule.crons(), hasItemInArray("0 0/3 * * * ?"));
+        String[] crons = expressions(schedule);
+        assertThat(crons, arrayWithSize(3));
+        assertThat(crons, hasItemInArray("0 0/1 * * * ?"));
+        assertThat(crons, hasItemInArray("0 0/2 * * * ?"));
+        assertThat(crons, hasItemInArray("0 0/3 * * * ?"));
     }
 
     @Test

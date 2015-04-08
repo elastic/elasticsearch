@@ -72,7 +72,8 @@ public class YearTimes implements Times {
             String daysStr = Ints.join(",", this.days);
             daysStr = daysStr.replace("32", "L");
             String monthsStr = Joiner.on(",").join(months);
-            crons.add("0 " + minsStr + " " + hrsStr + " " + daysStr + " " + monthsStr + " ?");
+            String expression = "0 " + minsStr + " " + hrsStr + " " + daysStr + " " + monthsStr + " ?";
+            crons.add(expression);
         }
         return crons;
     }

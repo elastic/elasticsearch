@@ -32,6 +32,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
@@ -295,7 +296,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.builder()
                         .put("number_of_replicas", numReplicas)
         ).execute().actionGet());
-        ensureGreen(indexName);
+        ensureGreen(TimeValue.timeValueMinutes(1), indexName);
 
         // TODO: do something with the replicas! query? index?
     }

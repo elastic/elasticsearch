@@ -108,8 +108,15 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
     }
 
     protected UidFieldMapper(String name, String indexName, Boolean docValues, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), docValues,
+        super(new Names(name, indexName, indexName, name), Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), docValuesEnabled(docValues, indexSettings),
                 Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
+    }
+    
+    static Boolean docValuesEnabled(Boolean docValues, Settings indexSettings) {
+        if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0)) {
+            return false; // explicitly disable doc values for 2.0+, for now
+        }
+        return docValues;
     }
 
     @Override
@@ -202,7 +209,7 @@ public class UidFieldMapper extends AbstractFieldMapper<Uid> implements Internal
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (writePre2xSettings == false) {
+        if (indexCreatedBefore2x == false) {
             return builder;
         }
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);

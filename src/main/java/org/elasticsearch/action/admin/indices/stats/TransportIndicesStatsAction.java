@@ -37,10 +37,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.IndexShardMissingException;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -200,6 +200,9 @@ public class TransportIndicesStatsAction extends TransportBroadcastOperationActi
         }
         if (request.request.queryCache()) {
             flags.set(CommonStatsFlags.Flag.QueryCache);
+        }
+        if (request.request.recovery()) {
+            flags.set(CommonStatsFlags.Flag.Recovery);
         }
 
         return new ShardStats(indexShard, indexShard.routingEntry(), flags);

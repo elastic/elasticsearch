@@ -70,7 +70,7 @@ client.search index: 'my-index', body: { query: { match: { title: 'test' } } }
 === Features at a Glance
 
 * Pluggable logging and tracing
-* Plugabble connection selection strategies (round-robin, random, custom)
+* Pluggable connection selection strategies (round-robin, random, custom)
 * Pluggable transport implementation, customizable and extendable
 * Pluggable serializer implementation
 * Request retries and dead connections handling
@@ -81,7 +81,7 @@ client.search index: 'my-index', body: { query: { match: { title: 'test' } } }
 
 === Transport and API
 
-The `elasticsearch` gem combines two separate Ruybygems:
+The `elasticsearch` gem combines two separate Rubygems:
 
 * https://github.com/elasticsearch/elasticsearch-ruby/tree/master/elasticsearch-transport[`elasticsearch-transport`]
 provides a HTTP Ruby client for connecting to the Elasticsearch cluster,

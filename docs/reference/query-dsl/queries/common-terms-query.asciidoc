@@ -53,7 +53,9 @@ in this case a high enough value should probably be used.
 
 Terms are allocated to the high or low frequency groups based on the
 `cutoff_frequency`, which can be specified as an absolute frequency
-(`>=1`) or as a relative frequency (`0.0 .. 1.0`).
+(`>=1`) or as a relative frequency (`0.0 .. 1.0`). (Remember that document
+frequencies are computed on a per shard level as explained in the blog post
+{defguide}/relevance-is-broken.html[Relevence is broken].)
 
 Perhaps the most interesting property of this query is that it adapts to
 domain specific stopwords automatically. For example, on a video hosting

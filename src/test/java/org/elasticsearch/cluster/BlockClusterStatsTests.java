@@ -64,13 +64,6 @@ public class BlockClusterStatsTests extends ElasticsearchIntegrationTest {
             }
 
             try {
-                client().admin().indices().prepareDeleteMapping("foo-alias").setType("test").get();
-                fail("delete mapping should have failed");
-            } catch(ClusterBlockException e) {
-                assertClusterAndIndexBlocks(e);
-            }
-
-            try {
                 client().admin().indices().preparePutMapping("foo-alias").setType("type1").setSource("field1", "type=string").get();
                 fail("put mapping should have failed");
             } catch(ClusterBlockException e) {

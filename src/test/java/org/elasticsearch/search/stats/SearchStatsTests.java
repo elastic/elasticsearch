@@ -151,6 +151,7 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
     @Test
     public void testOpenContexts() {
         createIndex("test1");
+        ensureGreen("test1");
         final int docs = scaledRandomIntBetween(20, 50);
         for (int i = 0; i < docs; i++) {
             client().prepareIndex("test1", "type", Integer.toString(i)).setSource("field", "value").execute().actionGet();
@@ -164,6 +165,7 @@ public class SearchStatsTests extends ElasticsearchIntegrationTest {
                 .setSize(5)
                 .setScroll(TimeValue.timeValueMinutes(2))
                 .execute().actionGet();
+        assertSearchResponse(searchResponse);
 
         indicesStats = client().admin().indices().prepareStats().execute().actionGet();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo((long)numAssignedShards("test1")));

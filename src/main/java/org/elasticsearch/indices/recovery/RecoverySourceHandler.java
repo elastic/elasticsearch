@@ -24,6 +24,7 @@ import com.google.common.collect.Lists;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -67,6 +68,7 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -214,6 +216,10 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
             final AtomicReference<Throwable> corruptedEngine = new AtomicReference<>();
             int fileIndex = 0;
             ThreadPoolExecutor pool;
+
+            // How many bytes we've copied since we last called RateLimiter.pause
+            final AtomicLong bytesSinceLastPause = new AtomicLong();
+
             for (final String name : response.phase1FileNames) {
                 long fileSize = response.phase1FileSizes.get(fileIndex);
 
@@ -229,7 +235,7 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                 // recovered while ongoing large segment recoveries are
                 // happening. It also allows these pools to be configured
                 // separately.
-                if (fileSize > recoverySettings.SMALL_FILE_CUTOFF_BYTES) {
+                if (fileSize > RecoverySettings.SMALL_FILE_CUTOFF_BYTES) {
                     pool = recoverySettings.concurrentStreamPool();
                 } else {
                     pool = recoverySettings.concurrentSmallFileStreamPool();
@@ -276,22 +282,29 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                                 final long position = indexInput.getFilePointer();
 
                                 // Pause using the rate limiter, if desired, to throttle the recovery
-                                if (recoverySettings.rateLimiter() != null) {
-                                    recoverySettings.rateLimiter().pause(toRead);
+                                RateLimiter rl = recoverySettings.rateLimiter();
+                                long throttleTimeInNanos = 0;
+                                if (rl != null) {
+                                    long bytes = bytesSinceLastPause.addAndGet(toRead);
+                                    if (bytes > rl.getMinPauseCheckBytes()) {
+                                        // Time to pause
+                                        bytesSinceLastPause.addAndGet(-bytes);
+                                        throttleTimeInNanos = rl.pause(bytes);
+                                        shard.recoveryStats().addThrottleTime(throttleTimeInNanos);
+                                    }
                                 }
-
                                 indexInput.readBytes(buf, 0, toRead, false);
                                 final BytesArray content = new BytesArray(buf, 0, toRead);
                                 readCount += toRead;
                                 final boolean lastChunk = readCount == len;
+                                final RecoveryFileChunkRequest fileChunkRequest = new RecoveryFileChunkRequest(request.recoveryId(), request.shardId(), md, position,
+                                        content, lastChunk, shard.translog().estimatedNumberOfOperations(), throttleTimeInNanos);
                                 cancellableThreads.execute(new Interruptable() {
                                     @Override
                                     public void run() throws InterruptedException {
                                         // Actually send the file chunk to the target node, waiting for it to complete
                                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILE_CHUNK,
-                                                new RecoveryFileChunkRequest(request.recoveryId(), request.shardId(), md, position, content,
-                                                        lastChunk, shard.translog().estimatedNumberOfOperations()),
-                                                requestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                                                fileChunkRequest, requestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                                     }
                                 });
 

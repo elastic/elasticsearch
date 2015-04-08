@@ -27,7 +27,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -90,7 +89,7 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
 
         @Override
         public IndexFieldMapper build(BuilderContext context) {
-            return new IndexFieldMapper(name, indexName, boost, fieldType, docValues, enabledState, fieldDataSettings, context.indexSettings());
+            return new IndexFieldMapper(name, indexName, boost, fieldType, enabledState, fieldDataSettings, context.indexSettings());
         }
     }
 
@@ -119,12 +118,12 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     private EnabledAttributeMapper enabledState;
 
     public IndexFieldMapper(Settings indexSettings) {
-        this(Defaults.NAME, Defaults.NAME, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), null, Defaults.ENABLED_STATE, null, indexSettings);
+        this(Defaults.NAME, Defaults.NAME, Defaults.BOOST, new FieldType(Defaults.FIELD_TYPE), Defaults.ENABLED_STATE, null, indexSettings);
     }
 
-    public IndexFieldMapper(String name, String indexName, float boost, FieldType fieldType, Boolean docValues, EnabledAttributeMapper enabledState,
+    public IndexFieldMapper(String name, String indexName, float boost, FieldType fieldType, EnabledAttributeMapper enabledState,
                             @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(name, indexName, indexName, name), boost, fieldType, docValues, Lucene.KEYWORD_ANALYZER,
+        super(new Names(name, indexName, indexName, name), boost, fieldType, false, Lucene.KEYWORD_ANALYZER,
                 Lucene.KEYWORD_ANALYZER, null, null, fieldDataSettings, indexSettings);
         this.enabledState = enabledState;
     }
@@ -141,11 +140,6 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
     @Override
     public FieldDataType defaultFieldDataType() {
         return new FieldDataType(IndexFieldMapper.NAME);
-    }
-
-    @Override
-    public boolean hasDocValues() {
-        return false;
     }
 
     public String value(Document document) {
@@ -203,14 +197,14 @@ public class IndexFieldMapper extends AbstractFieldMapper<String> implements Int
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
-        if (writePre2xSettings && (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored())) {
+        if (indexCreatedBefore2x && (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored())) {
             builder.field("store", fieldType().stored());
         }
         if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
 
-        if (writePre2xSettings) {
+        if (indexCreatedBefore2x) {
             if (customFieldDataSettings != null) {
                 builder.field("fielddata", (Map) customFieldDataSettings.getAsMap());
             } else if (includeDefaults) {

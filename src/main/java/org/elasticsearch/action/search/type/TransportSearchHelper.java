@@ -62,7 +62,7 @@ public abstract class TransportSearchHelper {
         } else if (searchType == SearchType.SCAN) {
             return buildScrollId(ParsedScrollId.SCAN, searchPhaseResults, attributes);
         } else {
-            throw new ElasticsearchIllegalStateException();
+            throw new ElasticsearchIllegalStateException("search_type [" + searchType + "] not supported");
         }
     }
 

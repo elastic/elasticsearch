@@ -6,6 +6,7 @@ logger:
   action: DEBUG
   # reduce the logging for aws, too much is logged under the default INFO
   com.amazonaws: WARN
+  org.apache.http: INFO
 
   # gateway
   #gateway: DEBUG

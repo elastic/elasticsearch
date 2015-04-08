@@ -33,7 +33,6 @@ public class RandomScoreFunction extends ScoreFunction {
     private int originalSeed;
     private int saltedSeed;
     private final IndexFieldData<?> uidFieldData;
-    private SortedBinaryDocValues uidByteData;
 
     /**
      * Default constructor. Only useful for constructing as a placeholder, but should not be used for actual scoring.
@@ -59,23 +58,27 @@ public class RandomScoreFunction extends ScoreFunction {
     }
 
     @Override
-    public void setNextReader(LeafReaderContext context) {
-        AtomicFieldData leafData = uidFieldData.load(context);
-        uidByteData = leafData.getBytesValues();
+    public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
+        AtomicFieldData leafData = uidFieldData.load(ctx);
+        final SortedBinaryDocValues uidByteData = leafData.getBytesValues();
         if (uidByteData == null) throw new NullPointerException("failed to get uid byte data");
+
+        return new LeafScoreFunction() {
+
+            @Override
+            public double score(int docId, float subQueryScore) {
+                uidByteData.setDocument(docId);
+                int hash = StringHelper.murmurhash3_x86_32(uidByteData.valueAt(0), saltedSeed);
+                return (hash & 0x00FFFFFF) / (float)(1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
+            }
+
+            @Override
+            public Explanation explainScore(int docId, Explanation subQueryScore) {
+                Explanation exp = new Explanation();
+                exp.setDescription("random score function (seed: " + originalSeed + ")");
+                return exp;
+            }
+        };
     }
 
-    @Override
-    public double score(int docId, float subQueryScore) {
-        uidByteData.setDocument(docId);
-        int hash = StringHelper.murmurhash3_x86_32(uidByteData.valueAt(0), saltedSeed);
-        return (hash & 0x00FFFFFF) / (float)(1 << 24); // only use the lower 24 bits to construct a float from 0.0-1.0
-    }
-
-    @Override
-    public Explanation explainScore(int docId, float subQueryScore) {
-        Explanation exp = new Explanation();
-        exp.setDescription("random score function (seed: " + originalSeed + ")");
-        return exp;
-    }
 }

@@ -55,7 +55,7 @@ public class SimpleIpMappingTests extends ElasticsearchSingleNodeTest {
                 .bytes());
 
         assertThat(doc.rootDoc().getField("ip").numericValue().longValue(), is(2130706433L));
-        assertThat(doc.rootDoc().get("ip"), is(nullValue()));
+        assertThat(doc.rootDoc().get("ip"), is("2130706433"));
     }
 
     @Test

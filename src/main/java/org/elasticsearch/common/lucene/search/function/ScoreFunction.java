@@ -19,27 +19,24 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
-import org.apache.lucene.search.Explanation;
-import org.elasticsearch.common.lucene.ReaderContextAware;
+import org.apache.lucene.index.LeafReaderContext;
 
 import java.io.IOException;
 
 /**
  *
  */
-public abstract class ScoreFunction implements ReaderContextAware {
+public abstract class ScoreFunction {
 
     private final CombineFunction scoreCombiner;
 
-    public abstract double score(int docId, float subQueryScore);
-
-    public abstract Explanation explainScore(int docId, float subQueryScore) throws IOException;
+    protected ScoreFunction(CombineFunction scoreCombiner) {
+        this.scoreCombiner = scoreCombiner;
+    }
 
     public CombineFunction getDefaultScoreCombiner() {
         return scoreCombiner;
     }
 
-    protected ScoreFunction(CombineFunction scoreCombiner) {
-        this.scoreCombiner = scoreCombiner;
-    }
+    public abstract LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException;
 }

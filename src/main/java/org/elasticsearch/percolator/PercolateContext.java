@@ -19,6 +19,7 @@
 package org.elasticsearch.percolator;
 
 import com.google.common.collect.ImmutableList;
+
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
@@ -60,6 +61,7 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.internal.*;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
@@ -136,9 +138,9 @@ public class PercolateContext extends SearchContext {
 
         IndexReader indexReader = docSearcher.reader();
         LeafReaderContext atomicReaderContext = indexReader.leaves().get(0);
-        lookup().setNextReader(atomicReaderContext);
-        lookup().setNextDocId(0);
-        lookup().source().setNextSource(parsedDocument.source());
+        LeafSearchLookup leafLookup = lookup().getLeafSearchLookup(atomicReaderContext);
+        leafLookup.setDocument(0);
+        leafLookup.source().setSource(parsedDocument.source());
 
         Map<String, SearchHitField> fields = new HashMap<>();
         for (IndexableField field : parsedDocument.rootDoc().getFields()) {

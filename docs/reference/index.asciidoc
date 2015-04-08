@@ -1,9 +1,10 @@
 [[elasticsearch-reference]]
 = Reference
 
-:version: 1.4.3
-:branch:  1.4
-:jdk:     1.8.0_25
+:version:   1.5.0
+:branch:    1.5
+:jdk:       1.8.0_25
+:defguide:  https://www.elastic.co/guide/en/elasticsearch/guide/current
 
 include::getting-started.asciidoc[]
 

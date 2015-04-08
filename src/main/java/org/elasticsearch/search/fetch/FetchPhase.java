@@ -21,6 +21,7 @@ package org.elasticsearch.search.fetch;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -61,6 +62,8 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -238,10 +241,10 @@ public class FetchPhase implements SearchPhase {
         InternalSearchHit searchHit = new InternalSearchHit(docId, fieldsVisitor.uid().id(), typeText, searchFields);
 
         // go over and extract fields that are not mapped / stored
-        context.lookup().setNextReader(subReaderContext);
-        context.lookup().setNextDocId(subDocId);
+        SourceLookup sourceLookup = context.lookup().source();
+        sourceLookup.setSegmentAndDocument(subReaderContext, subDocId);
         if (fieldsVisitor.source() != null) {
-            context.lookup().source().setNextSource(fieldsVisitor.source());
+            sourceLookup.setSource(fieldsVisitor.source());
         }
         if (extractFieldNames != null) {
             for (String extractFieldName : extractFieldNames) {
@@ -281,8 +284,8 @@ public class FetchPhase implements SearchPhase {
 
         Map<String, SearchHitField> searchFields = getSearchFields(context, nestedSubDocId, loadAllStored, fieldNames, subReaderContext);
         DocumentMapper documentMapper = context.mapperService().documentMapper(rootFieldsVisitor.uid().type());
-        context.lookup().setNextReader(subReaderContext);
-        context.lookup().setNextDocId(nestedSubDocId);
+        SourceLookup sourceLookup = context.lookup().source();
+        sourceLookup.setSegmentAndDocument(subReaderContext, nestedSubDocId);
 
         ObjectMapper nestedObjectMapper = documentMapper.findNestedObjectMapper(nestedSubDocId, context.bitsetFilterCache(), subReaderContext);
         assert nestedObjectMapper != null;
@@ -297,7 +300,10 @@ public class FetchPhase implements SearchPhase {
             SearchHit.NestedIdentity nested = nestedIdentity;
             do {
                 Object extractedValue = XContentMapValues.extractValue(nested.getField().string(), sourceAsMap);
-                if (extractedValue instanceof List) {
+                if (extractedValue == null) {
+                    // The nested objects may not exist in the _source, because it was filtered because of _source filtering
+                    break;
+                } else if (extractedValue instanceof List) {
                     // nested field has an array value in the _source
                     nestedParsedSource = (List<Map<String, Object>>) extractedValue;
                 } else if (extractedValue instanceof Map) {
@@ -310,11 +316,11 @@ public class FetchPhase implements SearchPhase {
                 nested = nested.getChild();
             } while (nested != null);
 
-            context.lookup().source().setNextSource(sourceAsMap);
+            context.lookup().source().setSource(sourceAsMap);
             XContentType contentType = tuple.v1();
             BytesReference nestedSource = contentBuilder(contentType).map(sourceAsMap).bytes();
-            context.lookup().source().setNextSource(nestedSource);
-            context.lookup().source().setNextSourceContentType(contentType);
+            context.lookup().source().setSource(nestedSource);
+            context.lookup().source().setSourceContentType(contentType);
         }
 
         InternalSearchHit searchHit = new InternalSearchHit(nestedTopDocId, rootFieldsVisitor.uid().id(), documentMapper.typeText(), nestedIdentity, searchFields);
@@ -373,8 +379,14 @@ public class FetchPhase implements SearchPhase {
             String field;
             Filter parentFilter;
             nestedParentObjectMapper = documentMapper.findParentObjectMapper(nestedObjectMapper);
-            if (nestedParentObjectMapper != null && nestedObjectMapper.nested().isNested()) {
+            if (nestedParentObjectMapper != null) {
                 field = nestedObjectMapper.name();
+                if (!nestedParentObjectMapper.nested().isNested()) {
+                    nestedObjectMapper = nestedParentObjectMapper;
+                    // all right, the parent is a normal object field, so this is the best identiy we can give for that:
+                    nestedIdentity = new InternalSearchHit.InternalNestedIdentity(field, 0, nestedIdentity);
+                    continue;
+                }
                 parentFilter = nestedParentObjectMapper.nestedTypeFilter();
             } else {
                 field = nestedObjectMapper.fullPath();

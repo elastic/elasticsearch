@@ -427,11 +427,11 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         byte[] addParent = new BytesArray("{\"index\" : { \"_index\" : \"test\", \"_type\" : \"parent\", \"_id\" : \"parent1\"}}\n" +
                 "{\"field1\" : \"value1\"}\n").array();
 
-        byte[] addChild = new BytesArray("{ \"update\" : { \"_index\" : \"test\", \"_type\" : \"child\", \"_id\" : \"child1\", \"routing\" : \"parent1\"}}\n" +
-                "{\"doc\" : { \"field1\" : \"value1\", \"_parent\" : \"parent1\"}, \"doc_as_upsert\" : \"true\"}\n").array();
+        byte[] addChild = new BytesArray("{ \"update\" : { \"_index\" : \"test\", \"_type\" : \"child\", \"_id\" : \"child1\", \"parent\" : \"parent1\"}}\n" +
+                "{\"doc\" : { \"field1\" : \"value1\"}, \"doc_as_upsert\" : \"true\"}\n").array();
 
-        builder.add(addParent, 0, addParent.length, false);
-        builder.add(addChild, 0, addChild.length, false);
+        builder.add(addParent, 0, addParent.length);
+        builder.add(addChild, 0, addChild.length);
 
         BulkResponse bulkResponse = builder.get();
         assertThat(bulkResponse.getItems().length, equalTo(2));
@@ -464,11 +464,11 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         byte[] addParent = new BytesArray("{\"index\" : { \"_index\" : \"test\", \"_type\" : \"parent\", \"_id\" : \"parent1\"}}\n" +
                 "{\"field1\" : \"value1\"}\n").array();
 
-        byte[] addChild = new BytesArray("{\"update\" : { \"_id\" : \"child1\", \"_type\" : \"child\", \"_index\" : \"test\", \"routing\" : \"parent1\"} }\n" +
-                "{ \"script\" : \"ctx._source.field2 = 'value2'\", \"upsert\" : {\"field1\" : \"value1\", \"_parent\" : \"parent1\"}}\n").array();
+        byte[] addChild = new BytesArray("{\"update\" : { \"_id\" : \"child1\", \"_type\" : \"child\", \"_index\" : \"test\", \"parent\" : \"parent1\"} }\n" +
+                "{ \"script\" : \"ctx._source.field2 = 'value2'\", \"upsert\" : {\"field1\" : \"value1\"}}\n").array();
 
-        builder.add(addParent, 0, addParent.length, false);
-        builder.add(addChild, 0, addChild.length, false);
+        builder.add(addParent, 0, addParent.length);
+        builder.add(addChild, 0, addChild.length);
 
         BulkResponse bulkResponse = builder.get();
         assertThat(bulkResponse.getItems().length, equalTo(2));
@@ -505,10 +505,10 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                 "{\"index\" : { \"_id\" : \"child2\", \"_type\" : \"child\", \"_index\" : \"test\"} }\n" + "{ \"field1\" : \"value1\"}\n")
                 .array();
 
-        builder.add(addParent, 0, addParent.length, false);
-        builder.add(addChildOK, 0, addChildOK.length, false);
-        builder.add(addChildMissingRouting, 0, addChildMissingRouting.length, false);
-        builder.add(addChildOK, 0, addChildOK.length, false);
+        builder.add(addParent, 0, addParent.length);
+        builder.add(addChildOK, 0, addChildOK.length);
+        builder.add(addChildMissingRouting, 0, addChildMissingRouting.length);
+        builder.add(addChildOK, 0, addChildOK.length);
 
         BulkResponse bulkResponse = builder.get();
         assertThat(bulkResponse.getItems().length, equalTo(4));
@@ -578,7 +578,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                 "{\"index\": {\"_id\": \"2\"}}\n" +
                 "{\"name\": \"Good\", \"last_modified\" : \"2013-04-05\"}\n";
 
-        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(Charsets.UTF_8), 0, brokenBuildRequestData.length(), false, "test", "type").setRefresh(true).get();
+        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(Charsets.UTF_8), 0, brokenBuildRequestData.length(), "test", "type").setRefresh(true).get();
         assertThat(bulkResponse.getItems().length, is(2));
         assertThat(bulkResponse.getItems()[0].isFailed(), is(true));
         assertThat(bulkResponse.getItems()[1].isFailed(), is(false));
@@ -605,7 +605,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                 "{\"index\": { \"_id\" : \"24000\" } }\n" +
                 "{\"name\": \"Good\", \"my_routing\" : \"48000\"}\n";
 
-        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(Charsets.UTF_8), 0, brokenBuildRequestData.length(), false, "test", "type").setRefresh(true).get();
+        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(Charsets.UTF_8), 0, brokenBuildRequestData.length(), "test", "type").setRefresh(true).get();
         assertThat(bulkResponse.getItems().length, is(2));
         assertThat(bulkResponse.getItems()[0].isFailed(), is(true));
         assertThat(bulkResponse.getItems()[1].isFailed(), is(false));
@@ -632,7 +632,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
                 "{\"index\": {} }\n" +
                 "{\"name\": \"Good\", \"my_id\" : \"48\"}\n";
 
-        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(Charsets.UTF_8), 0, brokenBuildRequestData.length(), false, "test", "type").setRefresh(true).get();
+        BulkResponse bulkResponse = client().prepareBulk().add(brokenBuildRequestData.getBytes(Charsets.UTF_8), 0, brokenBuildRequestData.length(), "test", "type").setRefresh(true).get();
         assertThat(bulkResponse.getItems().length, is(2));
         assertThat(bulkResponse.getItems()[0].isFailed(), is(true));
         assertThat(bulkResponse.getItems()[1].isFailed(), is(false));

@@ -126,7 +126,7 @@ public class QueryFilterAggregationSearchBenchmark {
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch()
-                    .setSearchType(SearchType.COUNT)
+                    .setSize(0)
                     .setQuery(termQuery("l_value", anyValue))
                     .execute().actionGet();
             totalQueryTime += searchResponse.getTookInMillis();
@@ -136,7 +136,7 @@ public class QueryFilterAggregationSearchBenchmark {
         totalQueryTime = 0;
         for (int j = 0; j < QUERY_COUNT; j++) {
             SearchResponse searchResponse = client.prepareSearch()
-                    .setSearchType(SearchType.COUNT)
+                    .setSize(0)
                     .setQuery(termQuery("l_value", anyValue))
                     .addAggregation(AggregationBuilders.filter("filter").filter(FilterBuilders.termFilter("l_value", anyValue)))
                     .execute().actionGet();

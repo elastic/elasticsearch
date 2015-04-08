@@ -55,23 +55,24 @@ public class WeightFactorFunction extends ScoreFunction {
     }
 
     @Override
-    public void setNextReader(LeafReaderContext context) throws IOException {
-        scoreFunction.setNextReader(context);
-    }
+    public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
+        final LeafScoreFunction leafFunction = scoreFunction.getLeafScoreFunction(ctx);
+        return new LeafScoreFunction() {
+            @Override
+            public double score(int docId, float subQueryScore) {
+                return leafFunction.score(docId, subQueryScore) * getWeight();
+            }
 
-    @Override
-    public double score(int docId, float subQueryScore) {
-        return scoreFunction.score(docId, subQueryScore) * getWeight();
-    }
-
-    @Override
-    public Explanation explainScore(int docId, float score) throws IOException {
-        Explanation functionScoreExplanation;
-        Explanation functionExplanation = scoreFunction.explainScore(docId, score);
-        functionScoreExplanation = new ComplexExplanation(true, functionExplanation.getValue() * (float) getWeight(), "product of:");
-        functionScoreExplanation.addDetail(functionExplanation);
-        functionScoreExplanation.addDetail(explainWeight());
-        return functionScoreExplanation;
+            @Override
+            public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
+                Explanation functionScoreExplanation;
+                Explanation functionExplanation = leafFunction.explainScore(docId, subQueryScore);
+                functionScoreExplanation = new ComplexExplanation(true, functionExplanation.getValue() * (float) getWeight(), "product of:");
+                functionScoreExplanation.addDetail(functionExplanation);
+                functionScoreExplanation.addDetail(explainWeight());
+                return functionScoreExplanation;
+            }
+        };
     }
 
     public Explanation explainWeight() {
@@ -89,18 +90,18 @@ public class WeightFactorFunction extends ScoreFunction {
         }
 
         @Override
-        public void setNextReader(LeafReaderContext context) {
+        public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
+            return new LeafScoreFunction() {
+                @Override
+                public double score(int docId, float subQueryScore) {
+                    return 1.0;
+                }
 
-        }
-
-        @Override
-        public double score(int docId, float subQueryScore) {
-            return 1.0;
-        }
-
-        @Override
-        public Explanation explainScore(int docId, float subQueryScore) {
-            return new Explanation(1.0f, "constant score 1.0 - no function provided");
+                @Override
+                public Explanation explainScore(int docId, Explanation subQueryScore) {
+                    return new Explanation(1.0f, "constant score 1.0 - no function provided");
+                }
+            };
         }
     }
 }

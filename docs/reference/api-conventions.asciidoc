@@ -3,11 +3,7 @@
 
 [partintro]
 --
-The *elasticsearch* REST APIs are exposed using:
-
-* <<modules-http,JSON over HTTP>>,
-* <<modules-thrift,thrift>>,
-* <<modules-memcached,memcached>>.
+The *elasticsearch* REST APIs are exposed using <<modules-http,JSON over HTTP>>.
 
 The conventions listed in this chapter can be applied throughout the REST
 API, unless otherwise specified.
@@ -246,23 +242,6 @@ All REST APIs accept the `case` parameter. When set to `camelCase`, all
 field names in the result will be returned in camel casing, otherwise,
 underscore casing will be used. Note, this does not apply to the source
 document indexed.
-
-[float]
-=== JSONP
-
-By default JSONP responses are disabled.
-
-When enabled, all REST APIs accept a `callback` parameter
-resulting in a http://en.wikipedia.org/wiki/JSONP[JSONP] result. You can enable
-this behavior by adding the following to `config.yaml`:
-
-    http.jsonp.enable: true
-
-Please note, when enabled, due to the architecture of Elasticsearch, this may pose
-a security risk. Under some circumstances, an attacker may be able to exfiltrate
-data in your Elasticsearch server if they're able to force your browser to make a
-JSONP request on your behalf (e.g. by including a <script> tag on an untrusted site
-with a legitimate query against a local Elasticsearch server).
 
 [float]
 === Request body in query string

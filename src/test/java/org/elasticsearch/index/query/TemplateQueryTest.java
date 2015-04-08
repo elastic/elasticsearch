@@ -169,7 +169,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
         String query = "{ \"template\" : { \"query\": {\"match_{{template}}\": {} } }, \"params\" : { \"template\":\"all\" } }";
         BytesReference bytesRef = new BytesArray(query);
-        searchRequest.templateSource(bytesRef, false);
+        searchRequest.templateSource(bytesRef);
 
         SearchResponse searchResponse = client().search(searchRequest).get();
         assertHitCount(searchResponse, 2);
@@ -183,15 +183,15 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         try {
             String query = "{ \"template\" : { \"query\": {\"match_all\": {}}, \"size\" : \"{{my_size}}\"  } }";
             BytesReference bytesRef = new BytesArray(query);
-            searchRequest.templateSource(bytesRef, false);
+            searchRequest.templateSource(bytesRef);
             client().search(searchRequest).get();
             fail("expected exception");
-        } catch (Throwable ex) {
+        } catch (Exception ex) {
             // expected - no params
         }
         String query = "{ \"template\" : { \"query\": {\"match_all\": {}}, \"size\" : \"{{my_size}}\"  }, \"params\" : { \"my_size\": 1 } }";
         BytesReference bytesRef = new BytesArray(query);
-        searchRequest.templateSource(bytesRef, false);
+        searchRequest.templateSource(bytesRef);
 
         SearchResponse searchResponse = client().search(searchRequest).get();
         assertThat(searchResponse.getHits().hits().length, equalTo(1));

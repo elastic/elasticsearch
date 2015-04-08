@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.replication.IndicesReplicationOperationRequestBuilder;
-import org.elasticsearch.action.support.replication.ReplicationType;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -114,41 +113,15 @@ public class DeleteByQueryRequestBuilder extends IndicesReplicationOperationRequ
      * The source to execute.
      */
     public DeleteByQueryRequestBuilder setSource(BytesReference source) {
-        request().source(source, false);
+        request().source(source);
         return this;
     }
 
     /**
      * The source to execute.
      */
-    public DeleteByQueryRequestBuilder setSource(BytesReference source, boolean unsafe) {
-        request().source(source, unsafe);
-        return this;
-    }
-
-    /**
-     * The source to execute.
-     */
-    public DeleteByQueryRequestBuilder setSource(byte[] source, int offset, int length, boolean unsafe) {
-        request().source(source, offset, length, unsafe);
-        return this;
-    }
-
-    /**
-     * The replication type to use with this operation.
-     */
-    @Override
-    public DeleteByQueryRequestBuilder setReplicationType(ReplicationType replicationType) {
-        request.replicationType(replicationType);
-        return this;
-    }
-
-    /**
-     * The replication type to use with this operation.
-     */
-    @Override
-    public DeleteByQueryRequestBuilder setReplicationType(String replicationType) {
-        request.replicationType(replicationType);
+    public DeleteByQueryRequestBuilder setSource(byte[] source, int offset, int length) {
+        request().source(source, offset, length);
         return this;
     }
 

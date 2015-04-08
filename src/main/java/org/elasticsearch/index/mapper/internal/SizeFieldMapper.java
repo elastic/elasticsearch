@@ -108,15 +108,10 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
     }
 
     public SizeFieldMapper(EnabledAttributeMapper enabled, FieldType fieldType, @Nullable Settings fieldDataSettings, Settings indexSettings) {
-        super(new Names(Defaults.NAME), Defaults.PRECISION_STEP_32_BIT, Defaults.BOOST, fieldType, null, Defaults.NULL_VALUE,
+        super(new Names(Defaults.NAME), Defaults.PRECISION_STEP_32_BIT, Defaults.BOOST, fieldType, false, Defaults.NULL_VALUE,
                 Defaults.IGNORE_MALFORMED,  Defaults.COERCE, null, null, fieldDataSettings, 
                 indexSettings, MultiFields.empty(), null);
         this.enabledState = enabled;
-    }
-
-    @Override
-    public boolean hasDocValues() {
-        return false;
     }
 
     @Override
@@ -164,14 +159,14 @@ public class SizeFieldMapper extends IntegerFieldMapper implements RootMapper {
         boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
 
         // all are defaults, no need to write it at all
-        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE && (writePre2xSettings == false || fieldType().stored() == false)) {
+        if (!includeDefaults && enabledState == Defaults.ENABLED_STATE && (indexCreatedBefore2x == false || fieldType().stored() == false)) {
             return builder;
         }
         builder.startObject(contentType());
         if (includeDefaults || enabledState != Defaults.ENABLED_STATE) {
             builder.field("enabled", enabledState.enabled);
         }
-        if (writePre2xSettings && (includeDefaults || fieldType().stored() == true)) {
+        if (indexCreatedBefore2x && (includeDefaults || fieldType().stored() == true)) {
             builder.field("store", fieldType().stored());
         }
         builder.endObject();

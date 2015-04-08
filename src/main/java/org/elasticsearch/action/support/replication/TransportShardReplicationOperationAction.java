@@ -70,7 +70,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     protected final ClusterService clusterService;
     protected final IndicesService indicesService;
     protected final ShardStateAction shardStateAction;
-    protected final ReplicationType defaultReplicationType;
     protected final WriteConsistencyLevel defaultWriteConsistencyLevel;
     protected final TransportRequestOptions transportOptions;
 
@@ -96,7 +95,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
         this.transportOptions = transportOptions();
 
-        this.defaultReplicationType = ReplicationType.fromString(settings.get("action.replication_type", "sync"));
         this.defaultWriteConsistencyLevel = WriteConsistencyLevel.fromString(settings.get("action.write_consistency", "quorum"));
     }
 
@@ -136,11 +134,10 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
     protected abstract boolean resolveIndex();
 
     /**
-     * Resolves the request, by default doing nothing. If the resolve
-     * means a different execution, then return false here to indicate not to continue and execute this request.
+     * Resolves the request, by default doing nothing. Can be subclassed to do
+     * additional processing or validation depending on the incoming request
      */
-    protected boolean resolveRequest(ClusterState state, InternalRequest request, ActionListener<Response> listener) {
-        return true;
+    protected void resolveRequest(ClusterState state, InternalRequest request, ActionListener<Response> listener) {
     }
 
     protected TransportRequestOptions transportOptions() {
@@ -310,18 +307,11 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
         private final InternalRequest internalRequest;
         private volatile ShardIterator shardIt;
         private final AtomicBoolean primaryOperationStarted = new AtomicBoolean();
-        private final ReplicationType replicationType;
         private volatile ClusterStateObserver observer;
 
         AsyncShardOperationAction(Request request, ActionListener<Response> listener) {
             this.internalRequest = new InternalRequest(request);
             this.listener = listener;
-
-            if (request.replicationType() != ReplicationType.DEFAULT) {
-                replicationType = request.replicationType();
-            } else {
-                replicationType = defaultReplicationType;
-            }
         }
 
         public void start() {
@@ -349,10 +339,9 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 } else {
                     internalRequest.concreteIndex(internalRequest.request().index());
                 }
-                // check if we need to execute, and if not, return
-                if (!resolveRequest(observer.observedState(), internalRequest, listener)) {
-                    return;
-                }
+
+                resolveRequest(observer.observedState(), internalRequest, listener);
+
                 blockException = checkRequestBlock(observer.observedState(), internalRequest);
                 if (blockException != null) {
                     if (blockException.retryable()) {
@@ -398,7 +387,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 if (shard.currentNodeId().equals(observer.observedState().nodes().localNodeId())) {
                     try {
                         if (internalRequest.request().operationThreaded()) {
-                            internalRequest.request().beforeLocalFork();
                             threadPool.executor(executor).execute(new Runnable() {
                                 @Override
                                 public void run() {
@@ -468,7 +456,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 return;
             }
             // make it threaded operation so we fork on the discovery listener thread
-            internalRequest.request().beforeLocalFork();
             internalRequest.request().operationThreaded(true);
 
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
@@ -584,10 +571,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 replicationState.forceFinish();
                 return;
             }
-            if (replicationType == ReplicationType.ASYNC) {
-                replicationState.forceFinish();
-            }
-
             IndexMetaData indexMetaData = observer.observedState().metaData().index(internalRequest.concreteIndex());
             if (newPrimaryShard != null) {
                 performOnReplica(replicationState, newPrimaryShard, newPrimaryShard.currentNodeId(), indexMetaData);
@@ -667,7 +650,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                 });
             } else {
                 if (internalRequest.request().operationThreaded()) {
-                    internalRequest.request().beforeLocalFork();
                     try {
                         threadPool.executor(executor).execute(new AbstractRunnable() {
                             @Override
@@ -853,7 +835,6 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
                         new ActionWriteResponse.ShardInfo(
                                 numberOfShardInstances,
                                 success.get(),
-                                pending.get(),
                                 failuresArray
 
                         )

@@ -177,7 +177,7 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
                         ).explain(true))).actionGet();
 
         assertThat(responseWithWeights.getHits().getAt(0).getExplanation().toString(),
-                equalTo("6.0 = (MATCH) function score, product of:\n  1.0 = (MATCH) ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  6.0 = (MATCH) Math.min of\n    6.0 = (MATCH) function score, score mode [multiply]\n      1.0 = (MATCH) function score, product of:\n        1.0 = match filter: *:*\n        1.0 = (MATCH) Function for field geo_point_field:\n          1.0 = exp(-0.5*pow(MIN of: [Math.max(arcDistance([10.0, 20.0](=doc value),[10.0, 20.0](=origin)) - 0.0(=offset), 0)],2.0)/7.213475204444817E11)\n      2.0 = (MATCH) function score, product of:\n        1.0 = match filter: *:*\n        2.0 = (MATCH) product of:\n          1.0 = field value function: ln(doc['double_field'].value * factor=1.0)\n          2.0 = weight\n      3.0 = (MATCH) function score, product of:\n        1.0 = match filter: *:*\n        3.0 = (MATCH) product of:\n          1.0 = script score function, computed with script:\"_index['text_field']['value'].tf()\n          3.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n")
+                equalTo("6.0 = (MATCH) function score, product of:\n  1.0 = (MATCH) ConstantScore(text_field:value), product of:\n    1.0 = boost\n    1.0 = queryNorm\n  6.0 = (MATCH) Math.min of\n    6.0 = (MATCH) function score, score mode [multiply]\n      1.0 = (MATCH) function score, product of:\n        1.0 = match filter: *:*\n        1.0 = (MATCH) Function for field geo_point_field:\n          1.0 = exp(-0.5*pow(MIN of: [Math.max(arcDistance([10.0, 20.0](=doc value),[10.0, 20.0](=origin)) - 0.0(=offset), 0)],2.0)/7.213475204444817E11)\n      2.0 = (MATCH) function score, product of:\n        1.0 = match filter: *:*\n        2.0 = (MATCH) product of:\n          1.0 = field value function: ln(doc['double_field'].value * factor=1.0)\n          2.0 = weight\n      3.0 = (MATCH) function score, product of:\n        1.0 = match filter: *:*\n        3.0 = (MATCH) product of:\n          1.0 = script score function, computed with script:\"_index['text_field']['value'].tf()\n            1.0 = _score: \n              1.0 = (MATCH) ConstantScore(text_field:value), product of:\n                1.0 = boost\n                1.0 = queryNorm\n          3.0 = weight\n    3.4028235E38 = maxBoost\n  1.0 = queryBoost\n")
         );
         responseWithWeights = client().search(
                 searchRequest().source(
@@ -556,6 +556,41 @@ public class FunctionScoreTests extends ElasticsearchIntegrationTest {
         for (SearchHit hit : response.getHits().getHits()) {
             assertThat(Float.parseFloat(hit.getId()), equalTo(hit.getScore()));
         }
+    }
+
+    @Test
+    public void testWithEmptyFunctions() throws IOException, ExecutionException, InterruptedException {
+        assertAcked(prepareCreate("test"));
+        ensureYellow();
+        index("test", "testtype", "1", jsonBuilder().startObject().field("text", "test text").endObject());
+        refresh();
+
+        // make sure that min_score works if functions is empty, see https://github.com/elastic/elasticsearch/issues/10253
+        float termQueryScore = 0.19178301f;
+        testMinScoreApplied("sum", termQueryScore);
+        testMinScoreApplied("avg", termQueryScore);
+        testMinScoreApplied("max", termQueryScore);
+        testMinScoreApplied("min", termQueryScore);
+        testMinScoreApplied("multiply", termQueryScore);
+        testMinScoreApplied("replace", termQueryScore);
+    }
+
+    protected void testMinScoreApplied(String boostMode, float expectedScore) throws InterruptedException, ExecutionException {
+        SearchResponse response = client().search(
+                searchRequest().source(
+                        searchSource().explain(true).query(
+                                functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(0.1f)))).get();
+        assertSearchResponse(response);
+        assertThat(response.getHits().totalHits(), equalTo(1l));
+        assertThat(response.getHits().getAt(0).getScore(), equalTo(expectedScore));
+
+        response = client().search(
+                searchRequest().source(
+                        searchSource().explain(true).query(
+                                functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(2f)))).get();
+
+        assertSearchResponse(response);
+        assertThat(response.getHits().totalHits(), equalTo(0l));
     }
 }
 

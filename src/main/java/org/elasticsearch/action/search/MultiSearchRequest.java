@@ -70,16 +70,16 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
         return this;
     }
 
-    public MultiSearchRequest add(byte[] data, int from, int length, boolean contentUnsafe,
+    public MultiSearchRequest add(byte[] data, int from, int length,
                                   @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType) throws Exception {
-        return add(new BytesArray(data, from, length), contentUnsafe, indices, types, searchType, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true);
+        return add(new BytesArray(data, from, length), indices, types, searchType, null, IndicesOptions.strictExpandOpenAndForbidClosed(), true);
     }
 
-    public MultiSearchRequest add(BytesReference data, boolean contentUnsafe, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, IndicesOptions indicesOptions) throws Exception {
-        return add(data, contentUnsafe, indices, types, searchType, null, indicesOptions, true);
+    public MultiSearchRequest add(BytesReference data, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, IndicesOptions indicesOptions) throws Exception {
+        return add(data, indices, types, searchType, null, indicesOptions, true);
     }
 
-    public MultiSearchRequest add(BytesReference data, boolean contentUnsafe, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, @Nullable String routing, IndicesOptions indicesOptions, boolean allowExplicitIndex) throws Exception {
+    public MultiSearchRequest add(BytesReference data, @Nullable String[] indices, @Nullable String[] types, @Nullable String searchType, @Nullable String routing, IndicesOptions indicesOptions, boolean allowExplicitIndex) throws Exception {
         XContent xContent = XContentFactory.xContent(data);
         int from = 0;
         int length = data.length();
@@ -196,7 +196,7 @@ public class MultiSearchRequest extends ActionRequest<MultiSearchRequest> implem
                 break;
             }
 
-            searchRequest.source(data.slice(from, nextMarker - from), contentUnsafe);
+            searchRequest.source(data.slice(from, nextMarker - from));
             // move pointers
             from = nextMarker + 1;
 

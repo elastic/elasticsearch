@@ -197,8 +197,8 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
                     latMapperBuilder.precisionStep(precisionStep);
                     lonMapperBuilder.precisionStep(precisionStep);
                 }
-                latMapper = (DoubleFieldMapper) latMapperBuilder.includeInAll(false).store(fieldType.stored()).build(context);
-                lonMapper = (DoubleFieldMapper) lonMapperBuilder.includeInAll(false).store(fieldType.stored()).build(context);
+                latMapper = (DoubleFieldMapper) latMapperBuilder.includeInAll(false).store(fieldType.stored()).docValues(false).build(context);
+                lonMapper = (DoubleFieldMapper) lonMapperBuilder.includeInAll(false).store(fieldType.stored()).docValues(false).build(context);
             }
             StringFieldMapper geohashMapper = null;
             if (enableGeoHash) {
@@ -470,6 +470,11 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
     public FieldDataType defaultFieldDataType() {
         return new FieldDataType("geo_point");
     }
+    
+    @Override
+    protected boolean defaultDocValues() {
+        return false;
+    }
 
     public DoubleFieldMapper latMapper() {
         return latMapper;
@@ -665,11 +670,11 @@ public class GeoPointFieldMapper extends AbstractFieldMapper<GeoPoint> implement
         if (!Objects.equal(this.precisionStep, fieldMergeWith.precisionStep)) {
             mergeContext.addConflict("mapper [" + names.fullName() + "] has different precision_step");
         }
-
-
-        if (!mergeContext.mergeFlags().simulate()) {
-            this.validateLat = fieldMergeWith.validateLat;
-            this.validateLon = fieldMergeWith.validateLon;
+        if (this.validateLat != fieldMergeWith.validateLat) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different validate_lat");
+        }
+        if (this.validateLon != fieldMergeWith.validateLon) {
+            mergeContext.addConflict("mapper [" + names.fullName() + "] has different validate_lon");
         }
     }
 

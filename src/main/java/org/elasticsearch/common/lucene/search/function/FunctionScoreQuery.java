@@ -27,6 +27,7 @@ import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -43,7 +44,7 @@ public class FunctionScoreQuery extends Query {
     public FunctionScoreQuery(Query subQuery, ScoreFunction function, Float minScore) {
         this.subQuery = subQuery;
         this.function = function;
-        this.combineFunction = function.getDefaultScoreCombiner();
+        this.combineFunction = function == null? combineFunction.MULT : function.getDefaultScoreCombiner();
         this.minScore = minScore;
     }
 
@@ -124,8 +125,11 @@ public class FunctionScoreQuery extends Query {
             if (subQueryScorer == null) {
                 return null;
             }
-            function.setNextReader(context);
-            return new FunctionFactorScorer(this, subQueryScorer, function, maxBoost, combineFunction, minScore);
+            LeafScoreFunction leafFunction = null;
+            if (function != null) {
+                leafFunction = function.getLeafScoreFunction(context);
+            }
+            return new FunctionFactorScorer(this, subQueryScorer, leafFunction, maxBoost, combineFunction, minScore);
         }
 
         @Override
@@ -134,17 +138,20 @@ public class FunctionScoreQuery extends Query {
             if (!subQueryExpl.isMatch()) {
                 return subQueryExpl;
             }
-            function.setNextReader(context);
-            Explanation functionExplanation = function.explainScore(doc, subQueryExpl.getValue());
-            return combineFunction.explain(getBoost(), subQueryExpl, functionExplanation, maxBoost);
+            if (function != null) {
+                Explanation functionExplanation = function.getLeafScoreFunction(context).explainScore(doc, subQueryExpl);
+                return combineFunction.explain(getBoost(), subQueryExpl, functionExplanation, maxBoost);
+            } else {
+                return subQueryExpl;
+            }
         }
     }
 
     static class FunctionFactorScorer extends CustomBoostFactorScorer {
 
-        private final ScoreFunction function;
+        private final LeafScoreFunction function;
 
-        private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreFunction function, float maxBoost, CombineFunction scoreCombiner, Float minScore)
+        private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, LeafScoreFunction function, float maxBoost, CombineFunction scoreCombiner, Float minScore)
                 throws IOException {
             super(w, scorer, maxBoost, scoreCombiner, minScore);
             this.function = function;
@@ -153,8 +160,12 @@ public class FunctionScoreQuery extends Query {
         @Override
         public float innerScore() throws IOException {
             float score = scorer.score();
-            return scoreCombiner.combine(subQueryBoost, score,
-                    function.score(scorer.docID(), score), maxBoost);
+            if (function == null) {
+                return subQueryBoost * score;
+            } else {
+                return scoreCombiner.combine(subQueryBoost, score,
+                        function.score(scorer.docID(), score), maxBoost);
+            }
         }
     }
 
@@ -171,12 +182,12 @@ public class FunctionScoreQuery extends Query {
         if (o == null || getClass() != o.getClass())
             return false;
         FunctionScoreQuery other = (FunctionScoreQuery) o;
-        return this.getBoost() == other.getBoost() && this.subQuery.equals(other.subQuery) && this.function.equals(other.function)
+        return this.getBoost() == other.getBoost() && this.subQuery.equals(other.subQuery) && (this.function != null ? this.function.equals(other.function) : other.function == null)
                 && this.maxBoost == other.maxBoost;
     }
 
     @Override
     public int hashCode() {
-        return subQuery.hashCode() + 31 * function.hashCode() ^ Float.floatToIntBits(getBoost());
+        return subQuery.hashCode() + 31 * Objects.hashCode(function) ^ Float.floatToIntBits(getBoost());
     }
 }

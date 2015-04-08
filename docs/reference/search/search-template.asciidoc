@@ -25,6 +25,11 @@ For more information on how Mustache templating and what kind of templating you
 can do with it check out the http://mustache.github.io/mustache.5.html[online
 documentation of the mustache project].
 
+NOTE: The mustache language is implemented in elasticsearch as a sandboxed
+scripting language, hence it obeys settings that may be used to enable or
+disable scripts per language, source and operation as described in
+<<enable-dynamic-scripting, scripting docs>> coming[1.6.0, `mustache` scripts were always on before and it wasn't possible to disable them].
+
 [float]
 ==== More template examples
 
@@ -296,4 +301,4 @@ GET /_search/template
     }
 }
 ------------------------------------------
-<1> Name of the the query template stored in the .scripts index.
+<1> Name of the the query template stored in the `.scripts` index.

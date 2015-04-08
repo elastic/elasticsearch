@@ -21,7 +21,6 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
-import org.elasticsearch.ElasticsearchIllegalArgumentException;
 
 /**
  *
@@ -43,20 +42,21 @@ public class BoostScoreFunction extends ScoreFunction {
     }
 
     @Override
-    public void setNextReader(LeafReaderContext context) {
-        // nothing to do here...
-    }
-    
-    @Override
-    public double score(int docId, float subQueryScore) {
-        return boost;
-    }
+    public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
+        return new LeafScoreFunction() {
 
-    @Override
-    public Explanation explainScore(int docId, float subQueryScore) {
-        Explanation exp = new Explanation(boost, "static boost factor");
-        exp.addDetail(new Explanation(boost, "boostFactor"));
-        return exp;
+            @Override
+            public double score(int docId, float subQueryScore) {
+                return boost;
+            }
+
+            @Override
+            public Explanation explainScore(int docId, Explanation subQueryScore) {
+                Explanation exp = new Explanation(boost, "static boost factor");
+                exp.addDetail(new Explanation(boost, "boostFactor"));
+                return exp;
+            }
+        };
     }
 
     @Override

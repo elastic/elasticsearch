@@ -140,4 +140,14 @@ public class NettyTransportChannel implements TransportChannel {
         channel.write(buffer);
         transportServiceAdapter.onResponseSent(requestId, action, error);
     }
+
+    /**
+     * Returns the underlying netty channel. This method is intended be used for access to netty to get additional
+     * details when processing the request and may be used by plugins. Responses should be sent using the methods
+     * defined in this class and not directly on the channel.
+     * @return underlying netty channel
+     */
+    public Channel getChannel() {
+        return channel;
+    }
 }

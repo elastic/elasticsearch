@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.core;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.Filter;
@@ -51,9 +52,8 @@ import static org.elasticsearch.index.mapper.MapperBuilders.booleanField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
- *
+ * A field mapper for boolean fields.
  */
-// TODO this can be made better, maybe storing a byte for it?
 public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
 
     public static final String CONTENT_TYPE = "boolean";
@@ -100,7 +100,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
 
         @Override
         public BooleanFieldMapper build(BuilderContext context) {
-            return new BooleanFieldMapper(buildNames(context), boost, fieldType, nullValue,
+            return new BooleanFieldMapper(buildNames(context), boost, fieldType, docValues, nullValue,
                     similarity, normsLoading, fieldDataSettings, context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
     }
@@ -128,10 +128,10 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
 
     private Boolean nullValue;
 
-    protected BooleanFieldMapper(Names names, float boost, FieldType fieldType, Boolean nullValue,
+    protected BooleanFieldMapper(Names names, float boost, FieldType fieldType, Boolean docValues, Boolean nullValue,
                                  SimilarityProvider similarity, Loading normsLoading,
                                  @Nullable Settings fieldDataSettings, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(names, boost, fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
+        super(names, boost, fieldType, docValues, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER, similarity, normsLoading, fieldDataSettings, indexSettings, multiFields, copyTo);
         this.nullValue = nullValue;
     }
 
@@ -143,7 +143,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
     @Override
     public FieldDataType defaultFieldDataType() {
         // TODO have a special boolean type?
-        return new FieldDataType("string");
+        return new FieldDataType(CONTENT_TYPE);
     }
 
     @Override
@@ -210,7 +210,7 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored()) {
+        if (fieldType().indexOptions() == IndexOptions.NONE && !fieldType().stored() && !hasDocValues()) {
             return;
         }
 
@@ -230,6 +230,9 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
             return;
         }
         fields.add(new Field(names.indexName(), value ? "T" : "F", fieldType));
+        if (hasDocValues()) {
+            fields.add(new SortedNumericDocValuesField(names.indexName(), value ? 1 : 0));
+        }
     }
 
     @Override
@@ -255,10 +258,5 @@ public class BooleanFieldMapper extends AbstractFieldMapper<Boolean> {
         if (includeDefaults || nullValue != null) {
             builder.field("null_value", nullValue);
         }
-    }
-
-    @Override
-    public boolean hasDocValues() {
-        return false;
     }
 }

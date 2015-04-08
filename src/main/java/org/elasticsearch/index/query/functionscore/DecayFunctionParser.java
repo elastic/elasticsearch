@@ -29,6 +29,7 @@ import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.TimeValue;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -57,30 +59,30 @@ import java.util.Locale;
 /**
  * This class provides the basic functionality needed for adding a decay
  * function.
- * 
+ *
  * This parser parses this kind of input
- * 
+ *
  * <pre>
  * {@code}
- * { 
+ * {
  *      "fieldname1" : {
- *          "origin" = "someValue", 
+ *          "origin" = "someValue",
  *          "scale" = "someValue"
- *      } 
- *      
+ *      }
+ *
  * }
  * </pre>
- * 
+ *
  * "origin" here refers to the reference point and "scale" to the level of
  * uncertainty you have in your origin.
  * <p>
- * 
+ *
  * For example, you might want to retrieve an event that took place around the
  * 20 May 2010 somewhere near Berlin. You are mainly interested in events that
  * are close to the 20 May 2010 but you are unsure about your guess, maybe it
  * was a week before or after that. Your "origin" for the date field would be
  * "20 May 2010" and your "scale" would be "7d".
- * 
+ *
  * This class parses the input and creates a scoring function from the
  * parameters origin and scale.
  * <p>
@@ -92,7 +94,7 @@ import java.util.Locale;
  * for an example. The parser furthermore needs to be registered in the
  * {@link org.elasticsearch.index.query.functionscore.FunctionScoreModule
  * FunctionScoreModule}.
- * 
+ *
  * **/
 
 public abstract class DecayFunctionParser implements ScoreFunctionParser {
@@ -106,18 +108,18 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
     /**
      * Parses bodies of the kind
-     * 
+     *
      * <pre>
      * {@code}
-     * { 
+     * {
      *      "fieldname1" : {
-     *          "origin" = "someValue", 
+     *          "origin" = "someValue",
      *          "scale" = "someValue"
-     *      } 
-     *      
+     *      }
+     *
      * }
      * </pre>
-     * 
+     *
      * */
     @Override
     public ScoreFunction parse(QueryParseContext parseContext, XContentParser parser) throws IOException, QueryParsingException {
@@ -283,7 +285,6 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         private final GeoPoint origin;
         private final IndexGeoPointFieldData fieldData;
-        private MultiGeoPointValues geoPointValues = null;
 
         private static final GeoDistance distFunction = GeoDistance.DEFAULT;
 
@@ -295,31 +296,35 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         }
 
         @Override
-        public void setNextReader(LeafReaderContext context) {
-            geoPointValues = fieldData.load(context).getGeoPointValues();
-        }
+        protected NumericDoubleValues distance(LeafReaderContext context) {
+            final MultiGeoPointValues geoPointValues = fieldData.load(context).getGeoPointValues();
+            return new NumericDoubleValues() {
 
-        @Override
-        protected double distance(int docId) {
-            geoPointValues.setDocument(docId);
-            final int num = geoPointValues.count();
-            if (num > 0) {
-                double value = mode.startDouble();
-                for (int i = 0; i < num; i++) {
-                    GeoPoint other = geoPointValues.valueAt(i);
-                    value = mode.apply(Math.max(0.0d, distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(),
-                            DistanceUnit.METERS) - offset), value);
+                @Override
+                public double get(int docID) {
+                    geoPointValues.setDocument(docID);
+                    final int num = geoPointValues.count();
+                    if (num > 0) {
+                        double value = mode.startDouble();
+                        for (int i = 0; i < num; i++) {
+                            GeoPoint other = geoPointValues.valueAt(i);
+                            value = mode.apply(Math.max(0.0d, distFunction.calculate(origin.lat(), origin.lon(), other.lat(), other.lon(),
+                                    DistanceUnit.METERS) - offset), value);
+                        }
+                        return mode.reduce(value, num);
+                    } else {
+                        return 0.0;
+                    }
                 }
-                return mode.reduce(value, num);
-            } else {
-                return 0.0;
-            }
+
+            };
         }
 
         @Override
-        protected String getDistanceString(int docId) {
+        protected String getDistanceString(LeafReaderContext ctx, int docId) {
             StringBuilder values = new StringBuilder(mode.name());
             values.append(" of: [");
+            final MultiGeoPointValues geoPointValues = fieldData.load(ctx).getGeoPointValues();
             geoPointValues.setDocument(docId);
             final int num = geoPointValues.count();
             if (num > 0) {
@@ -348,7 +353,6 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
         private final IndexNumericFieldData fieldData;
         private final double origin;
-        private SortedNumericDoubleValues doubleValues;
 
         public NumericFieldDataScoreFunction(double origin, double scale, double decay, double offset, DecayFunction func,
                 IndexNumericFieldData fieldData, MultiValueMode mode) {
@@ -358,31 +362,33 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         }
 
         @Override
-        public void setNextReader(LeafReaderContext context) {
-            this.doubleValues = this.fieldData.load(context).getDoubleValues();
-        }
-
-        @Override
-        protected double distance(int docId) {
-            doubleValues.setDocument(docId);
-            final int num = doubleValues.count();
-            if (num > 0) {
-                double value = mode.startDouble();
-                for (int i = 0; i < num; i++) {
-                    final double other = doubleValues.valueAt(i);
-                    value = mode.apply(Math.max(0.0d, Math.abs(other - origin) - offset), value);
+        protected NumericDoubleValues distance(LeafReaderContext context) {
+            final SortedNumericDoubleValues doubleValues = fieldData.load(context).getDoubleValues();
+            return new NumericDoubleValues() {
+                @Override
+                public double get(int docID) {
+                    doubleValues.setDocument(docID);
+                    final int num = doubleValues.count();
+                    if (num > 0) {
+                        double value = mode.startDouble();
+                        for (int i = 0; i < num; i++) {
+                            final double other = doubleValues.valueAt(i);
+                            value = mode.apply(Math.max(0.0d, Math.abs(other - origin) - offset), value);
+                        }
+                        return mode.reduce(value, num);
+                    } else {
+                        return 0.0;
+                    }
                 }
-                return mode.reduce(value, num);
-            } else {
-                return 0.0;
-            }
+            };
         }
 
         @Override
-        protected String getDistanceString(int docId) {
+        protected String getDistanceString(LeafReaderContext ctx, int docId) {
 
             StringBuilder values = new StringBuilder(mode.name());
             values.append("[");
+            final SortedNumericDoubleValues doubleValues = fieldData.load(ctx).getDoubleValues();
             doubleValues.setDocument(docId);
             final int num = doubleValues.count();
             if (num > 0) {
@@ -410,7 +416,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
 
     /**
      * This is the base class for scoring a single field.
-     * 
+     *
      * */
     public static abstract class AbstractDistanceScoreFunction extends ScoreFunction {
 
@@ -437,33 +443,39 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
             this.offset = offset;
         }
 
-        @Override
-        public double score(int docId, float subQueryScore) {
-            double value = distance(docId);
-            return func.evaluate(value, scale);
-        }
-
         /**
          * This function computes the distance from a defined origin. Since
          * the value of the document is read from the index, it cannot be
          * guaranteed that the value actually exists. If it does not, we assume
          * the user handles this case in the query and return 0.
          * */
-        protected abstract double distance(int docId);
-
-        protected abstract String getDistanceString(int docId);
-
-        protected abstract String getFieldName();
+        protected abstract NumericDoubleValues distance(LeafReaderContext context);
 
         @Override
-        public Explanation explainScore(int docId, float subQueryScore) {
-            ComplexExplanation ce = new ComplexExplanation();
-            ce.setValue(CombineFunction.toFloat(score(docId, subQueryScore)));
-            ce.setMatch(true);
-            ce.setDescription("Function for field " + getFieldName() + ":");
-            ce.addDetail(func.explainFunction(getDistanceString(docId), distance(docId), scale));
-            return ce;
+        public final LeafScoreFunction getLeafScoreFunction(final LeafReaderContext ctx) {
+            final NumericDoubleValues distance = distance(ctx);
+            return new LeafScoreFunction() {
+
+                @Override
+                public double score(int docId, float subQueryScore) {
+                    return func.evaluate(distance.get(docId), scale);
+                }
+
+                @Override
+                public Explanation explainScore(int docId, Explanation subQueryScore) throws IOException {
+                    ComplexExplanation ce = new ComplexExplanation();
+                    ce.setValue(CombineFunction.toFloat(score(docId, subQueryScore.getValue())));
+                    ce.setMatch(true);
+                    ce.setDescription("Function for field " + getFieldName() + ":");
+                    ce.addDetail(func.explainFunction(getDistanceString(ctx, docId), distance.get(docId), scale));
+                    return ce;
+                }
+            };
         }
+
+        protected abstract String getDistanceString(LeafReaderContext ctx, int docId);
+
+        protected abstract String getFieldName();
     }
 
 }

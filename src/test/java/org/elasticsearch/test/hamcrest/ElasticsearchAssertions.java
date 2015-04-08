@@ -280,6 +280,12 @@ public class ElasticsearchAssertions {
         }
     }
 
+    public static void assertFailures(PercolateResponse percolateResponse) {
+        assertThat("Expected at least one shard failure, got none",
+            percolateResponse.getShardFailures().length, greaterThan(0));
+        assertVersionSerializable(percolateResponse);
+    }
+
     public static void assertNoFailures(BroadcastOperationResponse response) {
         assertThat("Unexpected ShardFailures: " + Arrays.toString(response.getShardFailures()), response.getFailedShards(), equalTo(0));
         assertVersionSerializable(response);

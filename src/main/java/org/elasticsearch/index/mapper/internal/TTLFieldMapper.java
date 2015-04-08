@@ -132,7 +132,7 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
     protected TTLFieldMapper(FieldType fieldType, EnabledAttributeMapper enabled, long defaultTTL, Explicit<Boolean> ignoreMalformed,
                 Explicit<Boolean> coerce, @Nullable Settings fieldDataSettings, Settings indexSettings) {
         super(new Names(Defaults.NAME, Defaults.NAME, Defaults.NAME, Defaults.NAME), Defaults.PRECISION_STEP_64_BIT,
-                Defaults.BOOST, fieldType, null, Defaults.NULL_VALUE, ignoreMalformed, coerce,
+                Defaults.BOOST, fieldType, false, Defaults.NULL_VALUE, ignoreMalformed, coerce,
                 null, null, fieldDataSettings, indexSettings, MultiFields.empty(), null);
         this.enabledState = enabled;
         this.defaultTTL = defaultTTL;
@@ -144,11 +144,6 @@ public class TTLFieldMapper extends LongFieldMapper implements InternalMapper, R
 
     public long defaultTTL() {
         return this.defaultTTL;
-    }
-
-    @Override
-    public boolean hasDocValues() {
-        return false;
     }
 
     // Overrides valueForSearch to display live value of remaining ttl

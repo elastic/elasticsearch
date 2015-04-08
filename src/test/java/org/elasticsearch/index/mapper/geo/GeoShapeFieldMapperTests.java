@@ -22,6 +22,7 @@ import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
@@ -54,6 +55,46 @@ public class GeoShapeFieldMapperTests extends ElasticsearchSingleNodeTest {
         assertThat(strategy.getDistErrPct(), equalTo(GeoShapeFieldMapper.Defaults.DISTANCE_ERROR_PCT));
         assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoShapeFieldMapper.Defaults.GEOHASH_LEVELS));
+        assertThat(geoShapeFieldMapper.orientation(), equalTo(GeoShapeFieldMapper.Defaults.ORIENTATION));
+    }
+
+    /**
+     * Test that orientation parameter correctly parses
+     * @throws IOException
+     */
+    public void testOrientationParsing() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("orientation", "left")
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        FieldMapper fieldMapper = defaultMapper.mappers().name("location").mapper();
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+        ShapeBuilder.Orientation orientation = ((GeoShapeFieldMapper)fieldMapper).orientation();
+        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CLOCKWISE));
+        assertThat(orientation, equalTo(ShapeBuilder.Orientation.LEFT));
+        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CW));
+
+        // explicit right orientation test
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("orientation", "right")
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        defaultMapper = createIndex("test2").mapperService().documentMapperParser().parse(mapping);
+        fieldMapper = defaultMapper.mappers().name("location").mapper();
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+        orientation = ((GeoShapeFieldMapper)fieldMapper).orientation();
+        assertThat(orientation, equalTo(ShapeBuilder.Orientation.COUNTER_CLOCKWISE));
+        assertThat(orientation, equalTo(ShapeBuilder.Orientation.RIGHT));
+        assertThat(orientation, equalTo(ShapeBuilder.Orientation.CCW));
     }
 
     @Test

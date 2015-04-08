@@ -42,7 +42,6 @@ import org.elasticsearch.index.mapper.RootMapper;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.core.TypeParsers;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -230,6 +229,11 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         return defaultFieldType;
     }
 
+    @Override
+    public boolean defaultDocValues() {
+        return false;
+    }
+
     public boolean enabled() {
         return this.enabledState.enabled;
     }
@@ -310,7 +314,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
                 fieldType.stored() == Defaults.FIELD_TYPE.stored() && enabledState == Defaults.ENABLED && path == Defaults.PATH
                 && dateTimeFormatter.format().equals(Defaults.DATE_TIME_FORMATTER.format())
                 && Defaults.DEFAULT_TIMESTAMP.equals(defaultTimestamp)
-                && Defaults.DOC_VALUES == hasDocValues()) {
+                && defaultDocValues() == hasDocValues()) {
             return builder;
         }
         builder.startObject(CONTENT_TYPE);
@@ -323,9 +327,7 @@ public class TimestampFieldMapper extends DateFieldMapper implements InternalMap
         if (includeDefaults || fieldType.stored() != Defaults.FIELD_TYPE.stored()) {
             builder.field("store", fieldType.stored());
         }
-        if (includeDefaults || hasDocValues() != Defaults.DOC_VALUES) {
-            builder.field(TypeParsers.DOC_VALUES, docValues);
-        }
+        doXContentDocValues(builder, includeDefaults);
         if (includeDefaults || path != Defaults.PATH) {
             builder.field("path", path);
         }

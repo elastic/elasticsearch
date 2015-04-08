@@ -32,6 +32,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ScriptParameterParser;
+import org.elasticsearch.script.*;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
@@ -133,7 +134,7 @@ public class ScriptFilterParser implements FilterParser {
         public ScriptFilter(String scriptLang, String script, ScriptService.ScriptType scriptType, Map<String, Object> params, ScriptService scriptService, SearchLookup searchLookup) {
             this.script = script;
             this.params = params;
-            this.searchScript = scriptService.search(searchLookup, scriptLang, script, scriptType, newHashMap(params));
+            this.searchScript = scriptService.search(searchLookup, scriptLang, script, scriptType, ScriptContext.Standard.SEARCH, newHashMap(params));
         }
 
         @Override
@@ -167,23 +168,23 @@ public class ScriptFilterParser implements FilterParser {
 
         @Override
         public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptDocs) throws IOException {
-            searchScript.setNextReader(context);
+            final LeafSearchScript leafScript = searchScript.getLeafSearchScript(context);
             // LUCENE 4 UPGRADE: we can simply wrap this here since it is not cacheable and if we are not top level we will get a null passed anyway 
-            return BitsFilteredDocIdSet.wrap(new ScriptDocSet(context.reader().maxDoc(), acceptDocs, searchScript), acceptDocs);
+            return BitsFilteredDocIdSet.wrap(new ScriptDocSet(context.reader().maxDoc(), acceptDocs, leafScript), acceptDocs);
         }
 
         static class ScriptDocSet extends DocValuesDocIdSet {
 
-            private final SearchScript searchScript;
+            private final LeafSearchScript searchScript;
 
-            public ScriptDocSet(int maxDoc, @Nullable Bits acceptDocs, SearchScript searchScript) {
+            public ScriptDocSet(int maxDoc, @Nullable Bits acceptDocs, LeafSearchScript searchScript) {
                 super(maxDoc, acceptDocs);
                 this.searchScript = searchScript;
             }
 
             @Override
             protected boolean matchDoc(int doc) {
-                searchScript.setNextDocId(doc);
+                searchScript.setDocument(doc);
                 Object val = searchScript.run();
                 if (val == null) {
                     return false;

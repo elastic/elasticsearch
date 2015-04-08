@@ -1,6 +1,5 @@
 Tests missing for:
 
 # consistency
-# replication
 # timeout
 

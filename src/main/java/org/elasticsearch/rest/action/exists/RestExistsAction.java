@@ -50,7 +50,7 @@ public class RestExistsAction extends BaseRestHandler {
         existsRequest.indicesOptions(IndicesOptions.fromRequest(request, existsRequest.indicesOptions()));
         existsRequest.listenerThreaded(false);
         if (request.hasContent()) {
-            existsRequest.source(request.content(), request.contentUnsafe());
+            existsRequest.source(request.content());
         } else {
             String source = request.param("source");
             if (source != null) {

@@ -94,6 +94,9 @@ final class BigLongArray extends AbstractBigArray implements LongArray {
     @Override
     public void fill(long fromIndex, long toIndex, long value) {
         Preconditions.checkArgument(fromIndex <= toIndex);
+        if (fromIndex == toIndex) {
+            return; // empty range
+        }
         final int fromPage = pageIndex(fromIndex);
         final int toPage = pageIndex(toIndex - 1);
         if (fromPage == toPage) {

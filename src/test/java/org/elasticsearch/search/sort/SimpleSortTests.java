@@ -1560,10 +1560,11 @@ public class SimpleSortTests extends ElasticsearchIntegrationTest {
     public void testSortMetaField() throws Exception {
         final boolean idDocValues = maybeDocValues();
         final boolean timestampDocValues = maybeDocValues();
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp").field("enabled", true).field("store", true).field("index", !timestampDocValues || randomBoolean() ? "not_analyzed" : "no").field("doc_values", timestampDocValues).endObject()
+                .endObject().endObject();
         assertAcked(prepareCreate("test")
-            .addMapping("type", XContentFactory.jsonBuilder().startObject().startObject("type")
-                        .startObject("_timestamp").field("enabled", true).field("store", true).field("index", !timestampDocValues || randomBoolean() ? "not_analyzed" : "no").startObject("fielddata").field("format", timestampDocValues ? "doc_values" : null).endObject().endObject()
-                        .endObject().endObject()));
+            .addMapping("type", mapping));
         ensureGreen();
         final int numDocs = randomIntBetween(10, 20);
         IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];

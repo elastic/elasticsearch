@@ -23,6 +23,7 @@ import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -72,17 +73,18 @@ public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
     @Override
     public void hitExecute(SearchContext context, HitContext hitContext) throws ElasticsearchException {
         for (ScriptFieldsContext.ScriptField scriptField : context.scriptFields().fields()) {
+            LeafSearchScript leafScript;
             try {
-                scriptField.script().setNextReader(hitContext.readerContext());
-            } catch (IOException e) {
-                throw new ElasticsearchIllegalStateException("IOException while calling setNextReader", e);
+                leafScript = scriptField.script().getLeafSearchScript(hitContext.readerContext());
+            } catch (IOException e1) {
+                throw new ElasticsearchIllegalStateException("Failed to load script", e1);
             }
-            scriptField.script().setNextDocId(hitContext.docId());
+            leafScript.setDocument(hitContext.docId());
 
             Object value;
             try {
-                value = scriptField.script().run();
-                value = scriptField.script().unwrap(value);
+                value = leafScript.run();
+                value = leafScript.unwrap(value);
             } catch (RuntimeException e) {
                 if (scriptField.ignoreException()) {
                     continue;
@@ -100,7 +102,8 @@ public class ScriptFieldsFetchSubPhase implements FetchSubPhase {
                 if (value == null) {
                     values = Collections.emptyList();
                 } else if (value instanceof Collection) {
-                    values = new ArrayList<>((Collection<?>) value);
+                    // TODO: use diamond operator once JI-9019884 is fixed
+                    values = new ArrayList<Object>((Collection<?>) value);
                 } else {
                     values = Collections.singletonList(value);
                 }

@@ -286,10 +286,19 @@ public class RepositoriesService extends AbstractComponent implements ClusterSta
                             // Previous version is different from the version in settings
                             logger.debug("updating repository [{}]", repositoryMetaData.name());
                             closeRepository(repositoryMetaData.name(), holder);
-                            holder = createRepositoryHolder(repositoryMetaData);
+                            holder = null;
+                            try {
+                                holder = createRepositoryHolder(repositoryMetaData);
+                            } catch (RepositoryException ex) {
+                                logger.warn("failed to change repository [{}]", ex, repositoryMetaData.name());
+                            }
                         }
                     } else {
-                        holder = createRepositoryHolder(repositoryMetaData);
+                        try {
+                            holder = createRepositoryHolder(repositoryMetaData);
+                        } catch (RepositoryException ex) {
+                            logger.warn("failed to create repository [{}]", ex, repositoryMetaData.name());
+                        }
                     }
                     if (holder != null) {
                         logger.debug("registering repository [{}]", repositoryMetaData.name());

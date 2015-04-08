@@ -272,13 +272,13 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
 
         phraseSuggestion.field("nosuchField");
         {
-            SearchRequestBuilder suggestBuilder = client().prepareSearch().setSearchType(SearchType.COUNT);
+            SearchRequestBuilder suggestBuilder = client().prepareSearch().setSize(0);
             suggestBuilder.setSuggestText("tetsting sugestion");
             suggestBuilder.addSuggestion(phraseSuggestion);
             assertThrows(suggestBuilder, SearchPhaseExecutionException.class);
         }
         {
-            SearchRequestBuilder suggestBuilder = client().prepareSearch().setSearchType(SearchType.COUNT);
+            SearchRequestBuilder suggestBuilder = client().prepareSearch().setSize(0);
             suggestBuilder.setSuggestText("tetsting sugestion");
             suggestBuilder.addSuggestion(phraseSuggestion);
             assertThrows(suggestBuilder, SearchPhaseExecutionException.class);
@@ -815,13 +815,13 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         // When searching on a shard with a non existing mapping, we should fail
-        SearchRequestBuilder request = client().prepareSearch().setSearchType(SearchType.COUNT)
+        SearchRequestBuilder request = client().prepareSearch().setSize(0)
             .setSuggestText("tetsting sugestion")
             .addSuggestion(phraseSuggestion("did_you_mean").field("fielddoesnotexist").maxErrors(5.0f));
         assertThrows(request, SearchPhaseExecutionException.class);
 
         // When searching on a shard which does not hold yet any document of an existing type, we should not fail
-        SearchResponse searchResponse = client().prepareSearch().setSearchType(SearchType.COUNT)
+        SearchResponse searchResponse = client().prepareSearch().setSize(0)
             .setSuggestText("tetsting sugestion")
             .addSuggestion(phraseSuggestion("did_you_mean").field("name").maxErrors(5.0f))
             .get();
@@ -864,7 +864,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
         refresh();
 
         SearchResponse searchResponse = client().prepareSearch()
-                .setSearchType(SearchType.COUNT)
+                .setSize(0)
                 .setSuggestText("tetsting sugestion")
                 .addSuggestion(phraseSuggestion("did_you_mean").field("name").maxErrors(5.0f))
                 .get();
@@ -1268,7 +1268,7 @@ public class SuggestSearchTests extends ElasticsearchIntegrationTest {
 
     protected Suggest searchSuggest(String suggestText, int expectShardsFailed, SuggestionBuilder<?>... suggestions) {
         if (randomBoolean()) {
-            SearchRequestBuilder builder = client().prepareSearch().setSearchType(SearchType.COUNT);
+            SearchRequestBuilder builder = client().prepareSearch().setSize(0);
             if (suggestText != null) {
                 builder.setSuggestText(suggestText);
             }

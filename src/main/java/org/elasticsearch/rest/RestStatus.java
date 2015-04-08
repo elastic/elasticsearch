@@ -19,6 +19,7 @@
 
 package org.elasticsearch.rest;
 
+import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -493,5 +494,25 @@ public enum RestStatus {
 
     public static void writeTo(StreamOutput out, RestStatus status) throws IOException {
         out.writeString(status.name());
+    }
+
+    public static RestStatus status(int successfulShards, int totalShards, ShardOperationFailedException... failures) {
+        if (failures.length == 0) {
+            if (successfulShards == 0 && totalShards > 0) {
+                return RestStatus.SERVICE_UNAVAILABLE;
+            }
+            return RestStatus.OK;
+        }
+        RestStatus status = RestStatus.OK;
+        if (successfulShards == 0 && totalShards > 0) {
+            for (ShardOperationFailedException failure : failures) {
+                RestStatus shardStatus = failure.status();
+                if (shardStatus.getStatus() >= status.getStatus()) {
+                    status = failure.status();
+                }
+            }
+            return status;
+        }
+        return status;
     }
 }

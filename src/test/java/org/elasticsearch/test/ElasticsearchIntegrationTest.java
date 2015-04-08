@@ -26,6 +26,7 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 
+import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.IOUtils;
@@ -38,6 +39,8 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.exists.indices.IndicesExistsResponse;
@@ -89,6 +92,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
+import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -114,6 +118,8 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.test.client.RandomizingClient;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
+import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
+import org.elasticsearch.transport.netty.NettyTransport;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTimeZone;
 import org.junit.*;
@@ -125,6 +131,7 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.net.InetSocketAddress;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -316,12 +323,13 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             if (frequently() && randomDynamicTemplates()) {
                 mappings = XContentFactory.jsonBuilder().startObject().startObject("_default_");
                 if (randomBoolean()) {
+                    boolean timestampEnabled = randomBoolean();
                     mappings.startObject(TimestampFieldMapper.NAME)
-                            .field("enabled", randomBoolean())
-                            .startObject("fielddata")
-                            .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                            .endObject()
-                            .endObject();
+                            .field("enabled", timestampEnabled);
+                    if (timestampEnabled) {
+                        mappings.field("doc_values", randomBoolean());
+                    }
+                    mappings.endObject();
                 }
                 if (randomBoolean()) {
                     mappings.startObject(SizeFieldMapper.NAME)
@@ -331,62 +339,65 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 if (randomBoolean()) {
                     mappings.startObject(AllFieldMapper.NAME)
                             .field("auto_boost", true)
-                            .endObject();
+                        .endObject();
                 }
                 if (randomBoolean()) {
                     mappings.startObject(SourceFieldMapper.NAME)
                             .field("compress", randomBoolean())
                             .endObject();
                 }
-                if (compatibilityVersion().onOrAfter(Version.V_1_3_0) && compatibilityVersion().before(Version.V_2_0_0)) {
-                    // some tests rely on this BWC version behavior that we wanna keep
-                    mappings.startObject(FieldNamesFieldMapper.NAME)
-                            .startObject("fielddata")
-                            .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst", "doc_values"))
-                            .endObject()
-                            .endObject();
-                }
                 mappings.startArray("dynamic_templates")
                         .startObject()
-                        .startObject("template-strings")
-                        .field("match_mapping_type", "string")
+                    .startObject("template-strings")
+                    .field("match_mapping_type", "string")
                         .startObject("mapping")
-                        .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst")) // unfortunately doc values only work on not_analyzed fields
-                        .field(Loading.KEY, randomLoadingValues())
+                    .startObject("fielddata")
+                    .field(FieldDataType.FORMAT_KEY, randomFrom("paged_bytes", "fst"))
+                    .field(Loading.KEY, randomLoadingValues())
                         .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
                         .startObject()
-                        .startObject("template-longs")
-                        .field("match_mapping_type", "long")
-                        .startObject("mapping")
-                        .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                    .startObject("template-longs")
+                    .field("match_mapping_type", "long")
+                    .startObject("mapping")
+                    .field("doc_values", randomBoolean())
+                    .startObject("fielddata")
+                    .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
                         .startObject()
-                        .startObject("template-doubles")
-                        .field("match_mapping_type", "double")
-                        .startObject("mapping")
-                        .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                    .startObject("template-doubles")
+                    .field("match_mapping_type", "double")
+                    .startObject("mapping")
+                    .field("doc_values", randomBoolean())
+                    .startObject("fielddata")
+                    .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
                         .endObject()
                         .endObject()
                         .endObject()
                         .startObject()
-                        .startObject("template-geo_points")
-                        .field("match_mapping_type", "geo_point")
-                        .startObject("mapping")
-                        .startObject("fielddata")
-                        .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
-                        .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                    .startObject("template-geo_points")
+                    .field("match_mapping_type", "geo_point")
+                    .startObject("mapping")
+                    .field("doc_values", randomBoolean())
+                    .startObject("fielddata")
+                    .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                        .startObject()
+                    .startObject("template-booleans")
+                    .field("match_mapping_type", "boolean")
+                    .startObject("mapping")
+                    .startObject("fielddata")
+                    .field(FieldDataType.FORMAT_KEY, randomFrom("array", "doc_values"))
+                    .field(Loading.KEY, randomFrom(Loading.LAZY, Loading.EAGER))
                         .endObject()
                         .endObject()
                         .endObject()
@@ -440,7 +451,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         if (random.nextBoolean()) {
-            builder.put(RecoverySettings.INDICES_RECOVERY_COMPRESS, randomBoolean());
+            builder.put(RecoverySettings.INDICES_RECOVERY_COMPRESS, random.nextBoolean());
         }
 
         if (random.nextBoolean()) {
@@ -456,14 +467,17 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         }
 
         if (random.nextBoolean()) {
-            builder.put(IndicesQueryCache.INDICES_CACHE_QUERY_CONCURRENCY_LEVEL, randomIntBetween(1, 32));
-            builder.put(IndicesFieldDataCache.FIELDDATA_CACHE_CONCURRENCY_LEVEL, randomIntBetween(1, 32));
-            builder.put(IndicesFilterCache.INDICES_CACHE_FILTER_CONCURRENCY_LEVEL, randomIntBetween(1, 32));
+            builder.put(IndicesQueryCache.INDICES_CACHE_QUERY_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
+            builder.put(IndicesFieldDataCache.FIELDDATA_CACHE_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
+            builder.put(IndicesFilterCache.INDICES_CACHE_FILTER_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
         }
         if (globalCompatibilityVersion().before(Version.V_1_3_2)) {
             // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
             // see #7210
             builder.put(RecoverySettings.INDICES_RECOVERY_COMPRESS, false);
+        }
+        if (random.nextBoolean()) {
+            builder.put(NettyTransport.PING_SCHEDULE, RandomInts.randomIntBetween(random, 100, 2000) + "ms");
         }
         return builder;
     }
@@ -1486,12 +1500,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         int numClientNodes() default InternalTestCluster.DEFAULT_NUM_CLIENT_NODES;
 
         /**
-         * Returns whether the ability to randomly have benchmark (client) nodes as part of the cluster needs to be enabled.
-         * Default is {@link InternalTestCluster#DEFAULT_ENABLE_RANDOM_BENCH_NODES}.
-         */
-        boolean enableRandomBenchNodes() default InternalTestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES;
-
-        /**
          * Returns the transport client ratio. By default this returns <code>-1</code> which means a random
          * ratio in the interval <code>[0..1]</code> is used.
          */
@@ -1597,11 +1605,6 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
         return annotation == null ? InternalTestCluster.DEFAULT_NUM_CLIENT_NODES : annotation.numClientNodes();
     }
 
-    private boolean enableRandomBenchNodes() {
-        ClusterScope annotation = getAnnotation(this.getClass());
-        return annotation == null ? InternalTestCluster.DEFAULT_ENABLE_RANDOM_BENCH_NODES : annotation.enableRandomBenchNodes();
-    }
-
     private boolean randomDynamicTemplates() {
         ClusterScope annotation = getAnnotation(this.getClass());
         return annotation == null || annotation.randomDynamicTemplates();
@@ -1620,6 +1623,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
                 // from failing on nodes without enough disk space
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "1b")
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "1b")
+                .put("script.indexed", "on")
+                .put("script.inline", "on")
+                // wait short time for other active shards before actually deleting, default 30s not needed in tests
+                .put(IndicesStore.INDICES_STORE_DELETE_SHARD_TIMEOUT, new TimeValue(1, TimeUnit.SECONDS))
                 .build();
     }
 
@@ -1696,7 +1703,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
         return new InternalTestCluster(seed, minNumDataNodes, maxNumDataNodes,
                 clusterName(scope.name(), Integer.toString(CHILD_JVM_ID), seed), settingsSource, getNumClientNodes(),
-                enableRandomBenchNodes(), InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, CHILD_JVM_ID, nodePrefix);
+                InternalTestCluster.DEFAULT_ENABLE_HTTP_PIPELINING, CHILD_JVM_ID, nodePrefix);
     }
 
     /**
@@ -1740,7 +1747,7 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
      * "paged_bytes", "fst", or "doc_values".
      */
     public static String randomBytesFieldDataFormat() {
-        return randomFrom(Arrays.asList("paged_bytes", "fst", "doc_values"));
+        return randomFrom(Arrays.asList("paged_bytes", "fst"));
     }
 
     /**
@@ -1850,6 +1857,10 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
 
     @After
     public final void after() throws Exception {
+        // Deleting indices is going to clear search contexts implicitely so we
+        // need to check that there are no more in-flight search contexts before
+        // we remove indices
+        super.ensureAllSearchContextsReleased();
         if (runTestScopeLifecycle()) {
             afterInternal(false);
         }
@@ -1933,6 +1944,16 @@ public abstract class ElasticsearchIntegrationTest extends ElasticsearchTestCase
             builder.put("path.conf", configDir.toAbsolutePath());
         }
         return builder.build();
+    }
+
+    protected HttpRequestBuilder httpClient() {
+        final NodesInfoResponse nodeInfos = client().admin().cluster().prepareNodesInfo().get();
+        final NodeInfo[] nodes = nodeInfos.getNodes();
+        assertTrue(nodes.length > 0);
+        TransportAddress publishAddress = randomFrom(nodes).getHttp().address().publishAddress();
+        assertEquals(1, publishAddress.uniqueAddressTypeId());
+        InetSocketAddress address = ((InetSocketTransportAddress) publishAddress).address();
+        return new HttpRequestBuilder(HttpClients.createDefault()).host(address.getHostName()).port(address.getPort());
     }
 
     /**

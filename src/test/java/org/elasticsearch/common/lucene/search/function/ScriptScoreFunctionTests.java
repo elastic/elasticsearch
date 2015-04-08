@@ -19,10 +19,15 @@
 
 package org.elasticsearch.common.lucene.search.function;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.AbstractFloatSearchScript;
+import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -32,10 +37,11 @@ public class ScriptScoreFunctionTests extends ElasticsearchTestCase {
      * Tests https://github.com/elasticsearch/elasticsearch/issues/2426
      */
     @Test
-    public void testScriptScoresReturnsNaN() {
+    public void testScriptScoresReturnsNaN() throws IOException {
+        ScoreFunction scoreFunction = new ScriptScoreFunction("Float.NaN", null, new FloatValueScript(Float.NaN));
+        LeafScoreFunction leafScoreFunction = scoreFunction.getLeafScoreFunction(null);
         try {
-            ScoreFunction scoreFunction = new ScriptScoreFunction("Float.NaN", null, new FloatValueScript(Float.NaN));
-            scoreFunction.score(randomInt(), randomFloat());
+            leafScoreFunction.score(randomInt(), randomFloat());
             fail("should have thrown an exception about the script_score returning NaN");
         } catch (ScriptException e) {
             assertThat("message contains error about script_score returning NaN: " + e.getMessage(),
@@ -43,7 +49,7 @@ public class ScriptScoreFunctionTests extends ElasticsearchTestCase {
         }
     }
 
-    static class FloatValueScript extends AbstractFloatSearchScript {
+    static class FloatValueScript implements SearchScript {
 
         private final float value;
 
@@ -52,13 +58,19 @@ public class ScriptScoreFunctionTests extends ElasticsearchTestCase {
         }
 
         @Override
-        public float runAsFloat() {
-            return value;
-        }
+        public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+            return new AbstractFloatSearchScript() {
 
-        @Override
-        public void setNextDocId(int doc) {
-            // nothing here
+                @Override
+                public float runAsFloat() {
+                    return value;
+                }
+
+                @Override
+                public void setDocument(int doc) {
+                    // nothing here
+                }
+            };
         }
     }
 }

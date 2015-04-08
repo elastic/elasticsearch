@@ -68,6 +68,12 @@ public class SizeHeaderFrameDecoder extends FrameDecoder {
         }
 
         int dataLen = buffer.getInt(buffer.readerIndex() + 2);
+        if (dataLen == NettyHeader.PING_DATA_SIZE) {
+            // discard the messages we read and continue, this is achieved by skipping the bytes
+            // and returning null
+            buffer.skipBytes(6);
+            return null;
+        }
         if (dataLen <= 0) {
             throw new StreamCorruptedException("invalid data length: " + dataLen);
         }

@@ -60,7 +60,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
-import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
@@ -82,13 +81,13 @@ import java.util.concurrent.TimeUnit;
  */
 public class ScriptService extends AbstractComponent implements Closeable {
 
+    static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
+
     public static final String DEFAULT_SCRIPTING_LANGUAGE_SETTING = "script.default_lang";
-    public static final String DISABLE_DYNAMIC_SCRIPTING_SETTING = "script.disable_dynamic";
     public static final String SCRIPT_CACHE_SIZE_SETTING = "script.cache.max_size";
     public static final String SCRIPT_CACHE_EXPIRE_SETTING = "script.cache.expire";
-    public static final String DISABLE_DYNAMIC_SCRIPTING_DEFAULT = "sandbox";
     public static final String SCRIPT_INDEX = ".scripts";
-    public static final String DEFAULT_LANG = "groovy";
+    public static final String DEFAULT_LANG = GroovyScriptEngineService.NAME;
     public static final String SCRIPT_AUTO_RELOAD_ENABLED_SETTING = "script.auto_reload_enabled";
 
     private final String defaultLang;
@@ -103,40 +102,10 @@ public class ScriptService extends AbstractComponent implements Closeable {
     private final Path scriptsDirectory;
     private final FileWatcher fileWatcher;
 
-    private final DynamicScriptDisabling dynamicScriptingDisabled;
+    private final ScriptModes scriptModes;
+    private final ScriptContextRegistry scriptContextRegistry;
 
     private Client client = null;
-
-    /**
-     * Enum defining the different dynamic settings for scripting, either
-     * ONLY_DISK_ALLOWED (scripts must be placed on disk), EVERYTHING_ALLOWED
-     * (all dynamic scripting is enabled), or SANDBOXED_ONLY (only sandboxed
-     * scripting languages are allowed)
-     */
-    enum DynamicScriptDisabling {
-        EVERYTHING_ALLOWED,
-        ONLY_DISK_ALLOWED,
-        SANDBOXED_ONLY;
-
-        static DynamicScriptDisabling parse(String s) {
-            switch (s.toLowerCase(Locale.ROOT)) {
-                // true for "disable_dynamic" means only on-disk scripts are enabled
-                case "true":
-                case "all":
-                    return ONLY_DISK_ALLOWED;
-                // false for "disable_dynamic" means all scripts are enabled
-                case "false":
-                case "none":
-                    return EVERYTHING_ALLOWED;
-                // only sandboxed scripting is enabled
-                case "sandbox":
-                case "sandboxed":
-                    return SANDBOXED_ONLY;
-                default:
-                    throw new ElasticsearchIllegalArgumentException("Unrecognized script allowance setting: [" + s + "]");
-            }
-        }
-    }
 
     public static final ParseField SCRIPT_LANG = new ParseField("lang","script_lang");
     public static final ParseField SCRIPT_FILE = new ParseField("script_file");
@@ -145,16 +114,21 @@ public class ScriptService extends AbstractComponent implements Closeable {
 
     @Inject
     public ScriptService(Settings settings, Environment env, Set<ScriptEngineService> scriptEngines,
-                         ResourceWatcherService resourceWatcherService, NodeSettingsService nodeSettingsService) throws IOException {
+                         ResourceWatcherService resourceWatcherService, NodeSettingsService nodeSettingsService, ScriptContextRegistry scriptContextRegistry) throws IOException {
         super(settings);
 
+        if (Strings.hasLength(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING))) {
+            throw new ElasticsearchIllegalArgumentException(DISABLE_DYNAMIC_SCRIPTING_SETTING + " is not a supported setting, replace with fine-grained script settings. \n" +
+                    "Dynamic scripts can be enabled for all languages and all operations by replacing `script.disable_dynamic: false` with `script.inline: on` and `script.indexed: on` in elasticsearch.yml");
+        }
+
         this.scriptEngines = scriptEngines;
+        this.scriptContextRegistry = scriptContextRegistry;
         int cacheMaxSize = settings.getAsInt(SCRIPT_CACHE_SIZE_SETTING, 100);
         TimeValue cacheExpire = settings.getAsTime(SCRIPT_CACHE_EXPIRE_SETTING, null);
         logger.debug("using script cache with max_size [{}], expire [{}]", cacheMaxSize, cacheExpire);
 
         this.defaultLang = settings.get(DEFAULT_SCRIPTING_LANGUAGE_SETTING, DEFAULT_LANG);
-        this.dynamicScriptingDisabled = DynamicScriptDisabling.parse(settings.get(DISABLE_DYNAMIC_SCRIPTING_SETTING, DISABLE_DYNAMIC_SCRIPTING_DEFAULT));
 
         CacheBuilder cacheBuilder = CacheBuilder.newBuilder();
         if (cacheMaxSize >= 0) {
@@ -163,8 +137,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
         if (cacheExpire != null) {
             cacheBuilder.expireAfterAccess(cacheExpire.nanos(), TimeUnit.NANOSECONDS);
         }
-        cacheBuilder.removalListener(new ScriptCacheRemovalListener());
-        this.cache = cacheBuilder.build();
+        this.cache = cacheBuilder.removalListener(new ScriptCacheRemovalListener()).build();
 
         ImmutableMap.Builder<String, ScriptEngineService> enginesByLangBuilder = ImmutableMap.builder();
         ImmutableMap.Builder<String, ScriptEngineService> enginesByExtBuilder = ImmutableMap.builder();
@@ -178,6 +151,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
         }
         this.scriptEnginesByLang = enginesByLangBuilder.build();
         this.scriptEnginesByExt = enginesByExtBuilder.build();
+
+        this.scriptModes = new ScriptModes(this.scriptEnginesByLang, scriptContextRegistry, settings);
 
         // add file watcher for static scripts
         scriptsDirectory = env.configFile().resolve("scripts");
@@ -240,9 +215,30 @@ public class ScriptService extends AbstractComponent implements Closeable {
     }
 
     /**
+     * Checks if a script can be executed and compiles it if needed, or returns the previously compiled and cached script.
+     */
+    public CompiledScript compile(String lang,  String script, ScriptType scriptType, ScriptContext scriptContext) {
+        assert script != null;
+        assert scriptType != null;
+        assert scriptContext != null;
+
+        if (lang == null) {
+            lang = defaultLang;
+        }
+
+        ScriptEngineService scriptEngineService = getScriptEngineServiceForLang(lang);
+        if (canExecuteScript(lang, scriptEngineService, scriptType, scriptContext) == false) {
+            throw new ScriptException("scripts of type [" + scriptType + "], operation [" + scriptContext.getKey() + "] and lang [" + lang + "] are disabled");
+        }
+        return compileInternal(lang, script, scriptType);
+    }
+
+    /**
      * Compiles a script straight-away, or returns the previously compiled and cached script, without checking if it can be executed based on settings.
      */
-    public CompiledScript compile(String lang,  String script, ScriptType scriptType) {
+    public CompiledScript compileInternal(String lang,  String script, ScriptType scriptType) {
+        assert script != null;
+        assert scriptType != null;
         if (lang == null) {
             lang = defaultLang;
         }
@@ -261,32 +257,20 @@ public class ScriptService extends AbstractComponent implements Closeable {
             return compiled;
         }
 
-        verifyDynamicScripting(lang, scriptEngineService);
-
         if (scriptType == ScriptType.INDEXED) {
-            if (client == null) {
-                throw new ElasticsearchIllegalArgumentException("Got an indexed script with no Client registered.");
-            }
             final IndexedScript indexedScript = new IndexedScript(lang, script);
-            script = getScriptFromIndex(client, indexedScript.lang, indexedScript.id);
+            script = getScriptFromIndex(indexedScript.lang, indexedScript.id);
         }
 
         CompiledScript compiled = cache.getIfPresent(cacheKey);
         if (compiled == null) {
             //Either an un-cached inline script or an indexed script
-            // not the end of the world if we compile it twice...
             compiled = new CompiledScript(lang, scriptEngineService.compile(script));
             //Since the cache key is the script content itself we don't need to
             //invalidate/check the cache if an indexed script changes.
             cache.put(cacheKey, compiled);
         }
         return compiled;
-    }
-
-    private void verifyDynamicScripting(String lang, ScriptEngineService scriptEngineService) {
-        if (!dynamicScriptEnabled(lang, scriptEngineService)) {
-            throw new ScriptException("dynamic scripting for [" + lang + "] disabled");
-        }
     }
 
     public void queryScriptIndex(GetIndexedScriptRequest request, final ActionListener<GetResponse> listener) {
@@ -306,7 +290,10 @@ public class ScriptService extends AbstractComponent implements Closeable {
         return scriptLang;
     }
 
-    private String getScriptFromIndex(Client client, String scriptLang, String id) {
+    String getScriptFromIndex(String scriptLang, String id) {
+        if (client == null) {
+            throw new ElasticsearchIllegalArgumentException("Got an indexed script with no Client registered.");
+        }
         scriptLang = validateScriptLanguage(scriptLang);
         GetRequest getRequest = new GetRequest(SCRIPT_INDEX, scriptLang, id);
         GetResponse responseFields = client.get(getRequest).actionGet();
@@ -325,10 +312,16 @@ public class ScriptService extends AbstractComponent implements Closeable {
                 //Just try and compile it
                 //This will have the benefit of also adding the script to the cache if it compiles
                 try {
-                    CompiledScript compiledScript = compile(scriptLang, context.template(), ScriptType.INLINE);
-                    if (compiledScript == null) {
-                        throw new ElasticsearchIllegalArgumentException("Unable to parse [" + context.template() +
-                                "] lang [" + scriptLang + "] (ScriptService.compile returned null)");
+                    //we don't know yet what the script will be used for, but if all of the operations for this lang with
+                    //indexed scripts are disabled, it makes no sense to even compile it and cache it.
+                    if (isAnyScriptContextEnabled(scriptLang, getScriptEngineServiceForLang(scriptLang), ScriptType.INDEXED)) {
+                        CompiledScript compiledScript = compileInternal(scriptLang, context.template(), ScriptType.INLINE);
+                        if (compiledScript == null) {
+                            throw new ElasticsearchIllegalArgumentException("Unable to parse [" + context.template() +
+                                    "] lang [" + scriptLang + "] (ScriptService.compile returned null)");
+                        }
+                    } else {
+                        logger.warn("skipping compile of script [{}], lang [{}] as all scripted operations are disabled for indexed scripts", context.template(), scriptLang);
                     }
                 } catch (Exception e) {
                     throw new ElasticsearchIllegalArgumentException("Unable to parse [" + context.template() +
@@ -345,11 +338,11 @@ public class ScriptService extends AbstractComponent implements Closeable {
     public void putScriptToIndex(PutIndexedScriptRequest request, ActionListener<IndexResponse> listener) {
         String scriptLang = validateScriptLanguage(request.scriptLang());
         //verify that the script compiles
-        validate(request.safeSource(), scriptLang);
+        validate(request.source(), scriptLang);
 
         IndexRequest indexRequest = new IndexRequest(request).index(SCRIPT_INDEX).type(scriptLang).id(request.id())
                 .version(request.version()).versionType(request.versionType())
-                .source(request.safeSource(), true).opType(request.opType()).refresh(true); //Always refresh after indexing a template
+                .source(request.source()).opType(request.opType()).refresh(true); //Always refresh after indexing a template
         client.index(indexRequest, listener);
     }
 
@@ -392,8 +385,8 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles (or retrieves from cache) and executes the provided script
      */
-    public ExecutableScript executable(String lang, String script, ScriptType scriptType, Map<String, Object> vars) {
-        return executable(compile(lang, script, scriptType), vars);
+    public ExecutableScript executable(String lang, String script, ScriptType scriptType, ScriptContext scriptContext, Map<String, Object> vars) {
+        return executable(compile(lang, script, scriptType, scriptContext), vars);
     }
 
     /**
@@ -406,22 +399,36 @@ public class ScriptService extends AbstractComponent implements Closeable {
     /**
      * Compiles (or retrieves from cache) and executes the provided search script
      */
-    public SearchScript search(SearchLookup lookup, String lang, String script, ScriptType scriptType, @Nullable Map<String, Object> vars) {
-        CompiledScript compiledScript = compile(lang, script, scriptType);
+    public SearchScript search(SearchLookup lookup, String lang, String script, ScriptType scriptType, ScriptContext scriptContext, @Nullable Map<String, Object> vars) {
+        CompiledScript compiledScript = compile(lang, script, scriptType, scriptContext);
         return getScriptEngineServiceForLang(compiledScript.lang()).search(compiledScript.compiled(), lookup, vars);
     }
 
-    private boolean dynamicScriptEnabled(String lang, ScriptEngineService scriptEngineService) {
-        // Templating languages (mustache) and native scripts are always
-        // allowed, "native" executions are registered through plugins
-        if (this.dynamicScriptingDisabled == DynamicScriptDisabling.EVERYTHING_ALLOWED ||
-                NativeScriptEngineService.NAME.equals(lang) || MustacheScriptEngineService.NAME.equals(lang)) {
-            return true;
+    private boolean isAnyScriptContextEnabled(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType) {
+        for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
+            if (canExecuteScript(lang, scriptEngineService, scriptType, scriptContext)) {
+                return true;
+            }
         }
-        if (this.dynamicScriptingDisabled == DynamicScriptDisabling.ONLY_DISK_ALLOWED) {
-            return false;
+        return false;
+    }
+
+    private boolean canExecuteScript(String lang, ScriptEngineService scriptEngineService, ScriptType scriptType, ScriptContext scriptContext) {
+        assert lang != null;
+        if (scriptContextRegistry.isSupportedContext(scriptContext) == false) {
+            throw new ElasticsearchIllegalArgumentException("script context [" + scriptContext.getKey() + "] not supported");
         }
-        return scriptEngineService.sandboxed();
+        ScriptMode mode = scriptModes.getScriptMode(lang, scriptType, scriptContext);
+        switch (mode) {
+            case ON:
+                return true;
+            case OFF:
+                return false;
+            case SANDBOX:
+                return scriptEngineService.sandboxed();
+            default:
+                throw new ElasticsearchIllegalArgumentException("script mode [" + mode + "] not supported");
+        }
     }
 
     /**
@@ -474,11 +481,17 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     logger.warn("no script engine found for [{}]", scriptNameExt.v2());
                 } else {
                     try {
-                        logger.info("compiling script file [{}]", file.toAbsolutePath());
-                        try(InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), Charsets.UTF_8)) {
-                            String script = Streams.copyToString(reader);
-                            CacheKey cacheKey = newCacheKey(engineService, scriptNameExt.v1());
-                            staticCache.put(cacheKey, new CompiledScript(engineService.types()[0], engineService.compile(script)));
+                        //we don't know yet what the script will be used for, but if all of the operations for this lang
+                        // with file scripts are disabled, it makes no sense to even compile it and cache it.
+                        if (isAnyScriptContextEnabled(engineService.types()[0], engineService, ScriptType.FILE)) {
+                            logger.info("compiling script file [{}]", file.toAbsolutePath());
+                            try(InputStreamReader reader = new InputStreamReader(Files.newInputStream(file), Charsets.UTF_8)) {
+                                String script = Streams.copyToString(reader);
+                                CacheKey cacheKey = newCacheKey(engineService, scriptNameExt.v1());
+                                staticCache.put(cacheKey, new CompiledScript(engineService.types()[0], engineService.compile(script)));
+                            }
+                        } else {
+                            logger.warn("skipping compile of script file [{}] as all scripted operations are disabled for file scripts", file.toAbsolutePath());
                         }
                     } catch (Throwable e) {
                         logger.warn("failed to load/compile script [{}]", e, scriptNameExt.v1());
@@ -559,6 +572,11 @@ public class ScriptService extends AbstractComponent implements Closeable {
             } else {
                 out.writeVInt(INLINE_VAL); //Default to inline
             }
+        }
+
+        @Override
+        public String toString() {
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 

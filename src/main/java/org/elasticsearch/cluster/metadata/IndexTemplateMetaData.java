@@ -329,13 +329,7 @@ public class IndexTemplateMetaData {
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if ("settings".equals(currentFieldName)) {
                         ImmutableSettings.Builder templateSettingsBuilder = ImmutableSettings.settingsBuilder();
-                        for (Map.Entry<String, String> entry : SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered()).entrySet()) {
-                            if (!entry.getKey().startsWith("index.")) {
-                                templateSettingsBuilder.put("index." + entry.getKey(), entry.getValue());
-                            } else {
-                                templateSettingsBuilder.put(entry.getKey(), entry.getValue());
-                            }
-                        }
+                        templateSettingsBuilder.put(SettingsLoader.Helper.loadNestedFromMap(parser.mapOrdered())).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
                         builder.settings(templateSettingsBuilder.build());
                     } else if ("mappings".equals(currentFieldName)) {
                         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

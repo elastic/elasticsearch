@@ -42,9 +42,10 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -93,7 +94,7 @@ public class UpdateHelper extends AbstractComponent {
                 ctx.put("op", "create");
                 ctx.put("_source", upsertDoc);
                 try {
-                    ExecutableScript script = scriptService.executable(request.scriptLang, request.script, request.scriptType, request.scriptParams);
+                    ExecutableScript script = scriptService.executable(request.scriptLang, request.script, request.scriptType, ScriptContext.Standard.UPDATE, request.scriptParams);
                     script.setNextVar("ctx", ctx);
                     script.run();
                     // we need to unwrap the ctx...
@@ -117,16 +118,17 @@ public class UpdateHelper extends AbstractComponent {
                     update.setGetResult(getResult);
                     return new Result(update, Operation.NONE, upsertDoc, XContentType.JSON);
                 }
-                indexRequest.source((Map)ctx.get("_source"));
+                indexRequest.source((Map) ctx.get("_source"));
             }
 
             indexRequest.index(request.index()).type(request.type()).id(request.id())
                     // it has to be a "create!"
                     .create(true)                    
-                    .routing(request.routing())
                     .ttl(ttl)
                     .refresh(request.refresh())
-                    .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
+                    .routing(request.routing())
+                    .parent(request.parent())
+                    .consistencyLevel(request.consistencyLevel());
             indexRequest.operationThreaded(false);
             if (request.versionType() != VersionType.INTERNAL) {
                 // in all but the internal versioning mode, we want to create the new document using the given version.
@@ -191,7 +193,7 @@ public class UpdateHelper extends AbstractComponent {
             ctx.put("_source", sourceAndContent.v2());
 
             try {
-                ExecutableScript script = scriptService.executable(request.scriptLang, request.script, request.scriptType, request.scriptParams);
+                ExecutableScript script = scriptService.executable(request.scriptLang, request.script, request.scriptType, ScriptContext.Standard.UPDATE, request.scriptParams);
                 script.setNextVar("ctx", ctx);
                 script.run();
                 // we need to unwrap the ctx...
@@ -228,7 +230,7 @@ public class UpdateHelper extends AbstractComponent {
             final IndexRequest indexRequest = Requests.indexRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .source(updatedSourceAsMap, updateSourceContentType)
                     .version(updateVersion).versionType(request.versionType())
-                    .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel())
+                    .consistencyLevel(request.consistencyLevel())
                     .timestamp(timestamp).ttl(ttl)
                     .refresh(request.refresh());
             indexRequest.operationThreaded(false);
@@ -236,7 +238,7 @@ public class UpdateHelper extends AbstractComponent {
         } else if ("delete".equals(operation)) {
             DeleteRequest deleteRequest = Requests.deleteRequest(request.index()).type(request.type()).id(request.id()).routing(routing).parent(parent)
                     .version(updateVersion).versionType(request.versionType())
-                    .replicationType(request.replicationType()).consistencyLevel(request.consistencyLevel());
+                    .consistencyLevel(request.consistencyLevel());
             deleteRequest.operationThreaded(false);
             return new Result(deleteRequest, Operation.DELETE, updatedSourceAsMap, updateSourceContentType);
         } else if ("none".equals(operation)) {
@@ -274,7 +276,7 @@ public class UpdateHelper extends AbstractComponent {
         Map<String, GetField> fields = null;
         if (request.fields() != null && request.fields().length > 0) {
             SourceLookup sourceLookup = new SourceLookup();
-            sourceLookup.setNextSource(source);
+            sourceLookup.setSource(source);
             for (String field : request.fields()) {
                 if (field.equals("_source")) {
                     sourceRequested = true;

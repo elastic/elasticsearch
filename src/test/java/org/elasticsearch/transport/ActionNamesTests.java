@@ -19,6 +19,14 @@
 
 package org.elasticsearch.transport;
 
+import com.google.common.collect.Lists;
+import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.get.GetIndexAction;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryAction;
+import org.elasticsearch.action.exists.ExistsAction;
+import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
+import org.elasticsearch.search.action.SearchServiceTransportAction;
+import org.elasticsearch.repositories.VerifyNodeRepositoryAction;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -50,7 +58,6 @@ public class ActionNamesTests extends ElasticsearchIntegrationTest {
         for (String action : transportService.serverHandlers.keySet()) {
             assertThat("action doesn't belong to known category", action, either(startsWith("indices:admin")).or(startsWith("indices:monitor"))
                     .or(startsWith("indices:data/read")).or(startsWith("indices:data/write"))
-                    .or(startsWith("indices:data/benchmark"))
                     .or(startsWith("cluster:admin")).or(startsWith("cluster:monitor"))
                     .or(startsWith("internal:")));
         }

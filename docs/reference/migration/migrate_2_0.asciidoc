@@ -344,6 +344,12 @@ Deprecated script parameters `id`, `file`, and `scriptField` have been removed
 from all scriptable APIs. `script_id`, `script_file` and `script` should be used
 in their place.
 
+=== Plugins making use of scripts
+
+Plugins that make use of scripts must register their own script context through
+`ScriptModule`. Script contexts can be used as part of fine-grained settings to
+enable/disable scripts selectively.
+
 === Thrift and memcached transport
 
 The thrift and memcached transport plugins are no longer supported.  Instead, use

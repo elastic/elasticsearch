@@ -38,14 +38,7 @@ public interface ScriptContext {
      */
     enum Standard implements ScriptContext {
 
-        AGGS("aggs"), MAPPING("mapping"), SEARCH("search"), UPDATE("update"),
-        /**
-         * Generic custom operation exposed via plugin
-         *
-         * @deprecated create a new {@link org.elasticsearch.script.ScriptContext.Plugin} instance instead
-         */
-        @Deprecated
-        GENERIC_PLUGIN("plugin");
+        AGGS("aggs"), MAPPING("mapping"), SEARCH("search"), UPDATE("update");
 
         private final String key;
 

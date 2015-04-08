@@ -1378,8 +1378,8 @@
                         <configuration>
                             <outputDirectory>${project.build.directory}/generated-packaging/rpm/</outputDirectory>
                             <filters>
-                                <filter>src/packaging/common/packaging.properties</filter>
-                                <filter>src/packaging/rpm/packaging.properties</filter>
+                                <filter>${basedir}/src/packaging/common/packaging.properties</filter>
+                                <filter>${basedir}/src/packaging/rpm/packaging.properties</filter>
                             </filters>
                             <resources>
                                 <resource>

@@ -5,6 +5,13 @@
         <format>zip</format>
     </formats>
     <includeBaseDirectory>false</includeBaseDirectory>
+    <fileSets>
+        <fileSet>
+            <filtered>false</filtered>
+            <directory>bin/watcher</directory>
+            <outputDirectory>bin</outputDirectory>
+        </fileSet>
+    </fileSets>
     <dependencySets>
         <dependencySet>
             <outputDirectory>/</outputDirectory>

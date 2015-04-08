@@ -464,8 +464,7 @@ public class ClusterState implements ToXContent {
         }
 
         // routing nodes
-        // gets printed out even if only routing_table was requested for bw comp reasons
-        if (metrics.contains(Metric.ROUTING_TABLE) || metrics.contains(Metric.ROUTING_NODES)) {
+        if (metrics.contains(Metric.ROUTING_NODES)) {
             builder.startObject("routing_nodes");
             builder.startArray("unassigned");
             for (ShardRouting shardRouting : readOnlyRoutingNodes().unassigned()) {

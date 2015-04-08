@@ -78,7 +78,7 @@ public final class ScriptContextRegistry {
 
     private static ImmutableSet<String> reservedScriptContexts() {
         ImmutableSet.Builder<String> builder = ImmutableSet.builder();
-        for (ScriptService.ScriptType scriptType : ScriptService.ScriptType.values()) {
+        for (ScriptType scriptType : ScriptType.values()) {
             builder.add(scriptType.toString());
         }
         for (ScriptContext.Standard scriptContext : ScriptContext.Standard.values()) {

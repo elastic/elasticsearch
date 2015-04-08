@@ -54,7 +54,7 @@ public class ScriptFieldsParseElement implements SearchParseElement {
                 String fieldName = currentFieldName;
                 ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
                 String script = null;
-                ScriptService.ScriptType scriptType = null;
+                ScriptType scriptType = null;
                 Map<String, Object> params = null;
                 boolean ignoreException = false;
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

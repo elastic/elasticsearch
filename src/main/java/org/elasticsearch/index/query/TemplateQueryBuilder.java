@@ -20,7 +20,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,14 +35,14 @@ public class TemplateQueryBuilder extends BaseQueryBuilder {
     /** Template to fill.*/
     private String template;
 
-    private ScriptService.ScriptType templateType;
+    private ScriptType templateType;
 
     /**
      * @param template the template to use for that query.
      * @param vars the parameters to fill the template with.
      * */
     public TemplateQueryBuilder(String template, Map<String, Object> vars) {
-        this(template, ScriptService.ScriptType.INLINE, vars);
+        this(template, ScriptType.INLINE, vars);
     }
 
     /**
@@ -50,7 +50,7 @@ public class TemplateQueryBuilder extends BaseQueryBuilder {
      * @param vars the parameters to fill the template with.
      * @param templateType what kind of template (INLINE,FILE,ID)
      * */
-    public TemplateQueryBuilder(String template, ScriptService.ScriptType templateType, Map<String, Object> vars) {
+    public TemplateQueryBuilder(String template, ScriptType templateType, Map<String, Object> vars) {
         this.template = template;
         this.vars =vars;
         this.templateType = templateType;

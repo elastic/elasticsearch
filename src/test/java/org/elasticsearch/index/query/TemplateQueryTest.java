@@ -30,6 +30,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Before;
@@ -133,7 +134,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         vars.put("template", "all");
 
         TemplateQueryBuilder builder = new TemplateQueryBuilder(
-                "storedTemplate", ScriptService.ScriptType.FILE, vars);
+                "storedTemplate", ScriptType.FILE, vars);
         SearchResponse sr = client().prepareSearch().setQuery(builder)
                 .execute().actionGet();
         assertHitCount(sr, 2);
@@ -212,14 +213,14 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         templateParams.put("myValue", "foo");
 
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").setTemplateName("full-query-template")
-                .setTemplateParams(templateParams).setTemplateType(ScriptService.ScriptType.FILE).get();
+                .setTemplateParams(templateParams).setTemplateType(ScriptType.FILE).get();
         assertHitCount(searchResponse, 4);
         // size kicks in here...
         assertThat(searchResponse.getHits().getHits().length, is(2));
 
         templateParams.put("myField", "otherField");
         searchResponse = client().prepareSearch("test").setTypes("type").setTemplateName("full-query-template")
-                .setTemplateParams(templateParams).setTemplateType(ScriptService.ScriptType.FILE).get();
+                .setTemplateParams(templateParams).setTemplateType(ScriptType.FILE).get();
         assertHitCount(searchResponse, 1);
     }
 
@@ -267,7 +268,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         templateParams.put("fieldParam", "foo");
 
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").
-                setTemplateName("testTemplate").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+                setTemplateName("testTemplate").setTemplateType(ScriptType.INDEXED).setTemplateParams(templateParams).get();
         assertHitCount(searchResponse, 4);
 
         DeleteIndexedScriptResponse deleteResponse = client().prepareDeleteIndexedScript(MustacheScriptEngineService.NAME,"testTemplate").get();
@@ -277,7 +278,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         assertFalse(getResponse.isExists());
 
         client().prepareSearch("test").setTypes("type").
-                setTemplateName("/template_index/mustache/1000").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+                setTemplateName("/template_index/mustache/1000").setTemplateType(ScriptType.INDEXED).setTemplateParams(templateParams).get();
     }
 
     @Test
@@ -325,12 +326,12 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
         templateParams.put("fieldParam", "foo");
 
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").
-                setTemplateName("/mustache/1a").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+                setTemplateName("/mustache/1a").setTemplateType(ScriptType.INDEXED).setTemplateParams(templateParams).get();
         assertHitCount(searchResponse, 4);
 
         try {
             client().prepareSearch("test").setTypes("type").
-                    setTemplateName("/template_index/mustache/1000").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+                    setTemplateName("/template_index/mustache/1000").setTemplateType(ScriptType.INDEXED).setTemplateParams(templateParams).get();
             fail("shouldn't get here");
         } catch (SearchPhaseExecutionException spee) {
             //all good
@@ -338,26 +339,26 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
 
         try {
             searchResponse = client().prepareSearch("test").setTypes("type").
-                    setTemplateName("/myindex/mustache/1").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+                    setTemplateName("/myindex/mustache/1").setTemplateType(ScriptType.INDEXED).setTemplateParams(templateParams).get();
             assertFailures(searchResponse);
         } catch (SearchPhaseExecutionException spee) {
             //all good
         }
 
         searchResponse = client().prepareSearch("test").setTypes("type").
-                setTemplateName("1a").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+                setTemplateName("1a").setTemplateType(ScriptType.INDEXED).setTemplateParams(templateParams).get();
         assertHitCount(searchResponse, 4);
 
         templateParams.put("fieldParam", "bar");
         searchResponse = client().prepareSearch("test").setTypes("type").
-                setTemplateName("/mustache/2").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(templateParams).get();
+                setTemplateName("/mustache/2").setTemplateType(ScriptType.INDEXED).setTemplateParams(templateParams).get();
         assertHitCount(searchResponse, 1);
 
         Map<String, Object> vars = new HashMap<>();
         vars.put("fieldParam", "bar");
 
         TemplateQueryBuilder builder = new TemplateQueryBuilder(
-                "3", ScriptService.ScriptType.INDEXED, vars);
+                "3", ScriptType.INDEXED, vars);
         SearchResponse sr = client().prepareSearch().setQuery(builder)
                 .execute().actionGet();
         assertHitCount(sr, 1);
@@ -398,7 +399,7 @@ public class TemplateQueryTest extends ElasticsearchIntegrationTest {
       arrayTemplateParams.put("fieldParam", fieldParams);
 
       SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").
-              setTemplateName("/mustache/4").setTemplateType(ScriptService.ScriptType.INDEXED).setTemplateParams(arrayTemplateParams).get();
+              setTemplateName("/mustache/4").setTemplateType(ScriptType.INDEXED).setTemplateParams(arrayTemplateParams).get();
       assertHitCount(searchResponse, 5);
     }
 

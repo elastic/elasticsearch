@@ -70,10 +70,7 @@ import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
 import org.elasticsearch.indices.IndicesWarmer.WarmerContext;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptContextRegistry;
+import org.elasticsearch.script.*;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.dfs.CachedDfSource;
 import org.elasticsearch.search.dfs.DfsPhase;
@@ -665,7 +662,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                 parser = XContentFactory.xContent(request.templateSource()).createParser(request.templateSource());
                 templateContext = TemplateQueryParser.parse(parser, "params", "template");
 
-                if (templateContext.scriptType() == ScriptService.ScriptType.INLINE) {
+                if (templateContext.scriptType() == ScriptType.INLINE) {
                     //Try to double parse for nested template id/file
                     parser = null;
                     try {
@@ -674,11 +671,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
                     } catch (ElasticsearchParseException epe) {
                         //This was an non-nested template, the parse failure was due to this, it is safe to assume this refers to a file
                         //for backwards compatibility and keep going
-                        templateContext = new TemplateQueryParser.TemplateContext(ScriptService.ScriptType.FILE, templateContext.template(), templateContext.params());
+                        templateContext = new TemplateQueryParser.TemplateContext(ScriptType.FILE, templateContext.template(), templateContext.params());
                     }
                     if (parser != null) {
                         TemplateQueryParser.TemplateContext innerContext = TemplateQueryParser.parse(parser, "params");
-                        if (hasLength(innerContext.template()) && !innerContext.scriptType().equals(ScriptService.ScriptType.INLINE)) {
+                        if (hasLength(innerContext.template()) && !innerContext.scriptType().equals(ScriptType.INLINE)) {
                             //An inner template referring to a filename or id
                             templateContext = new TemplateQueryParser.TemplateContext(innerContext.scriptType(), innerContext.template(), templateContext.params());
                         }

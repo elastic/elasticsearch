@@ -66,7 +66,7 @@ import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptService.ScriptType;
+import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
 import java.util.ArrayList;

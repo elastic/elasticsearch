@@ -28,7 +28,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -128,7 +128,7 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public ScriptService.ScriptType templateType() {
+    public ScriptType templateType() {
         return shardSearchLocalRequest.templateType();
     }
 

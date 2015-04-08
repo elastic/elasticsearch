@@ -28,7 +28,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.Scroll;
 
 import java.io.IOException;
@@ -77,7 +77,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     private BytesReference extraSource;
     private BytesReference templateSource;
     private String templateName;
-    private ScriptService.ScriptType templateType;
+    private ScriptType templateType;
     private Map<String, Object> templateParams;
     private Boolean queryCache;
 
@@ -178,7 +178,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
     }
 
     @Override
-    public ScriptService.ScriptType templateType() {
+    public ScriptType templateType() {
         return templateType;
     }
 
@@ -221,7 +221,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
 
         templateSource = in.readBytesReference();
         templateName = in.readOptionalString();
-        templateType = ScriptService.ScriptType.readFrom(in);
+        templateType = ScriptType.readFrom(in);
         if (in.readBoolean()) {
             templateParams = (Map<String, Object>) in.readGenericValue();
         }
@@ -251,7 +251,7 @@ public class ShardSearchLocalRequest implements ShardSearchRequest {
 
         out.writeBytesReference(templateSource);
         out.writeOptionalString(templateName);
-        ScriptService.ScriptType.writeTo(templateType, out);
+        ScriptType.writeTo(templateType, out);
         boolean existTemplateParams = templateParams != null;
         out.writeBoolean(existTemplateParams);
         if (existTemplateParams) {

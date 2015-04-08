@@ -39,7 +39,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.script.ScriptParameterParser;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 
 import java.io.IOException;
 import java.util.Map;
@@ -61,7 +61,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
     @Nullable
     String script;
     @Nullable
-    ScriptService.ScriptType scriptType;
+    ScriptType scriptType;
     @Nullable
     String scriptLang;
     @Nullable
@@ -209,7 +209,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         return this.script;
     }
 
-    public ScriptService.ScriptType scriptType() { return this.scriptType; }
+    public ScriptType scriptType() { return this.scriptType; }
 
     public Map<String, Object> scriptParams() {
         return this.scriptParams;
@@ -219,7 +219,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * The script to execute. Note, make sure not to send different script each times and instead
      * use script params if possible with the same (automatically compiled) script.
      */
-    public UpdateRequest script(String script, ScriptService.ScriptType scriptType) {
+    public UpdateRequest script(String script, ScriptType scriptType) {
         this.script = script;
         this.scriptType = scriptType;
         return this;
@@ -231,7 +231,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      */
     public UpdateRequest script(String script) {
         this.script = script;
-        this.scriptType = ScriptService.ScriptType.INLINE;
+        this.scriptType = ScriptType.INLINE;
         return this;
     }
 
@@ -275,7 +275,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * The script to execute. Note, make sure not to send different script each times and instead
      * use script params if possible with the same (automatically compiled) script.
      */
-    public UpdateRequest script(String script, ScriptService.ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
+    public UpdateRequest script(String script, ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
         this.script = script;
         this.scriptType = scriptType;
         if (this.scriptParams != null) {
@@ -295,7 +295,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
      * @param scriptType   The script type
      * @param scriptParams The script parameters
      */
-    public UpdateRequest script(String script, @Nullable String scriptLang, ScriptService.ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
+    public UpdateRequest script(String script, @Nullable String scriptLang, ScriptType scriptType, @Nullable Map<String, Object> scriptParams) {
         this.script = script;
         this.scriptLang = scriptLang;
         this.scriptType = scriptType;
@@ -641,7 +641,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         parent = in.readOptionalString();
         script = in.readOptionalString();
         if(Strings.hasLength(script)) {
-            scriptType = ScriptService.ScriptType.readFrom(in);
+            scriptType = ScriptType.readFrom(in);
         }
         scriptLang = in.readOptionalString();
         scriptParams = in.readMap();
@@ -679,7 +679,7 @@ public class UpdateRequest extends InstanceShardOperationRequest<UpdateRequest> 
         out.writeOptionalString(parent);
         out.writeOptionalString(script);
         if (Strings.hasLength(script)) {
-            ScriptService.ScriptType.writeTo(scriptType, out);
+            ScriptType.writeTo(scriptType, out);
         }
         out.writeOptionalString(scriptLang);
         out.writeMap(scriptParams);

@@ -75,7 +75,7 @@ public class ScriptFilterParser implements FilterParser {
 
         String filterName = null;
         String currentFieldName = null;
-        ScriptService.ScriptType scriptType = null;
+        ScriptType scriptType = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -131,7 +131,7 @@ public class ScriptFilterParser implements FilterParser {
 
         private final SearchScript searchScript;
 
-        public ScriptFilter(String scriptLang, String script, ScriptService.ScriptType scriptType, Map<String, Object> params, ScriptService scriptService, SearchLookup searchLookup) {
+        public ScriptFilter(String scriptLang, String script, ScriptType scriptType, Map<String, Object> params, ScriptService scriptService, SearchLookup searchLookup) {
             this.script = script;
             this.params = params;
             this.searchScript = scriptService.search(searchLookup, scriptLang, script, scriptType, ScriptContext.Standard.SEARCH, newHashMap(params));

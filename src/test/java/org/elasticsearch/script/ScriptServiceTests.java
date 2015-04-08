@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.settings.NodeSettingsService;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;

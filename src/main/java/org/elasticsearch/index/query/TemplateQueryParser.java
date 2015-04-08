@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 
 import java.io.IOException;
@@ -49,11 +50,11 @@ public class TemplateQueryParser implements QueryParser {
 
     private final ScriptService scriptService;
 
-    private final static Map<String,ScriptService.ScriptType> parametersToTypes = new HashMap<>();
+    private final static Map<String,ScriptType> parametersToTypes = new HashMap<>();
     static {
-        parametersToTypes.put("query", ScriptService.ScriptType.INLINE);
-        parametersToTypes.put("file", ScriptService.ScriptType.FILE);
-        parametersToTypes.put("id", ScriptService.ScriptType.INDEXED);
+        parametersToTypes.put("query", ScriptType.INLINE);
+        parametersToTypes.put("file", ScriptType.FILE);
+        parametersToTypes.put("id", ScriptType.INDEXED);
     }
 
     @Inject
@@ -90,9 +91,9 @@ public class TemplateQueryParser implements QueryParser {
 
     public static TemplateContext parse(XContentParser parser, String paramsFieldname, String ... parameters) throws IOException {
 
-        Map<String,ScriptService.ScriptType> parameterMap = new HashMap<>(parametersToTypes);
+        Map<String,ScriptType> parameterMap = new HashMap<>(parametersToTypes);
         for (String parameter : parameters) {
-            parameterMap.put(parameter, ScriptService.ScriptType.INLINE);
+            parameterMap.put(parameter, ScriptType.INLINE);
         }
         return parse(parser,paramsFieldname,parameterMap);
     }
@@ -101,13 +102,13 @@ public class TemplateQueryParser implements QueryParser {
         return parse(parser,paramsFieldname,parametersToTypes);
     }
 
-    public static TemplateContext parse(XContentParser parser, String paramsFieldname, Map<String,ScriptService.ScriptType> parameterMap) throws IOException {
+    public static TemplateContext parse(XContentParser parser, String paramsFieldname, Map<String,ScriptType> parameterMap) throws IOException {
         Map<String, Object> params = null;
         String templateNameOrTemplateContent = null;
 
         String currentFieldName = null;
         XContentParser.Token token;
-        ScriptService.ScriptType type = null;
+        ScriptType type = null;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
@@ -131,9 +132,9 @@ public class TemplateQueryParser implements QueryParser {
     public static class TemplateContext {
         private Map<String, Object> params;
         private String template;
-        private ScriptService.ScriptType type;
+        private ScriptType type;
 
-        public TemplateContext(ScriptService.ScriptType type, String template, Map<String, Object> params) {
+        public TemplateContext(ScriptType type, String template, Map<String, Object> params) {
             this.params = params;
             this.template = template;
             this.type = type;
@@ -147,7 +148,7 @@ public class TemplateQueryParser implements QueryParser {
             return template;
         }
 
-        public ScriptService.ScriptType scriptType(){
+        public ScriptType scriptType(){
             return type;
         }
 

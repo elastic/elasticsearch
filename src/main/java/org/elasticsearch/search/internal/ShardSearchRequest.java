@@ -21,7 +21,7 @@ package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.Scroll;
 
 import java.io.IOException;
@@ -56,7 +56,7 @@ public interface ShardSearchRequest {
 
     String templateName();
 
-    ScriptService.ScriptType templateType();
+    ScriptType templateType();
 
     Map<String, Object> templateParams();
 

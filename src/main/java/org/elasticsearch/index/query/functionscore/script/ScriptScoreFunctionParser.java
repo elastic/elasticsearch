@@ -30,7 +30,6 @@ import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.script.*;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
@@ -57,7 +56,7 @@ public class ScriptScoreFunctionParser implements ScoreFunctionParser {
         ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
         String script = null;
         Map<String, Object> vars = null;
-        ScriptService.ScriptType scriptType = null;
+        ScriptType scriptType = null;
         String currentFieldName = null;
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

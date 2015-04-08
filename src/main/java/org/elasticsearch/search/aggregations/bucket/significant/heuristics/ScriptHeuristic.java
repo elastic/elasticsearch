@@ -47,13 +47,13 @@ public class ScriptHeuristic extends SignificanceHeuristic {
     ExecutableScript script = null;
     String scriptLang;
     String scriptString;
-    ScriptService.ScriptType scriptType;
+    ScriptType scriptType;
     Map<String, Object> params;
 
     public static final SignificanceHeuristicStreams.Stream STREAM = new SignificanceHeuristicStreams.Stream() {
         @Override
         public SignificanceHeuristic readResult(StreamInput in) throws IOException {
-            return new ScriptHeuristic(null, in.readOptionalString(), in.readString(), ScriptService.ScriptType.readFrom(in), in.readMap());
+            return new ScriptHeuristic(null, in.readOptionalString(), in.readString(), ScriptType.readFrom(in), in.readMap());
         }
 
         @Override
@@ -62,7 +62,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         }
     };
 
-    public ScriptHeuristic(ExecutableScript searchScript, String scriptLang, String scriptString, ScriptService.ScriptType scriptType, Map<String, Object> params) {
+    public ScriptHeuristic(ExecutableScript searchScript, String scriptLang, String scriptString, ScriptType scriptType, Map<String, Object> params) {
         subsetSizeHolder = new LongAccessor();
         supersetSizeHolder = new LongAccessor();
         subsetDfHolder = new LongAccessor();
@@ -121,7 +121,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
         out.writeString(STREAM.getName());
         out.writeOptionalString(scriptLang);
         out.writeString(scriptString);
-        ScriptService.ScriptType.writeTo(scriptType, out);
+        ScriptType.writeTo(scriptType, out);
         out.writeMap(params);
     }
 
@@ -140,7 +140,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             XContentParser.Token token;
             Map<String, Object> params = new HashMap<>();
             String currentFieldName = null;
-            ScriptService.ScriptType scriptType = ScriptService.ScriptType.INLINE;
+            ScriptType scriptType = ScriptType.INLINE;
             ScriptParameterParser scriptParameterParser = new ScriptParameterParser();
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token.equals(XContentParser.Token.FIELD_NAME)) {

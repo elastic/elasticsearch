@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterParseException;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 

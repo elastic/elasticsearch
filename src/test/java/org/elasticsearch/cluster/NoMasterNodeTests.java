@@ -35,7 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import org.junit.Test;
@@ -134,11 +134,11 @@ public class NoMasterNodeTests extends ElasticsearchIntegrationTest {
         );
 
         checkWriteAction(false, timeout,
-                client().prepareUpdate("test", "type1", "1").setScript("test script", ScriptService.ScriptType.INLINE).setTimeout(timeout));
+                client().prepareUpdate("test", "type1", "1").setScript("test script", ScriptType.INLINE).setTimeout(timeout));
 
 
         checkWriteAction(autoCreateIndex, timeout,
-                client().prepareUpdate("no_index", "type1", "1").setScript("test script", ScriptService.ScriptType.INLINE).setTimeout(timeout));
+                client().prepareUpdate("no_index", "type1", "1").setScript("test script", ScriptType.INLINE).setTimeout(timeout));
 
 
         checkWriteAction(false, timeout,

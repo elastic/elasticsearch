@@ -35,7 +35,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -71,7 +71,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 
     private BytesReference templateSource;
     private String templateName;
-    private ScriptService.ScriptType templateType;
+    private ScriptType templateType;
     private Map<String, Object> templateParams = Collections.emptyMap();
 
     private BytesReference source;
@@ -397,7 +397,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         this.templateName = templateName;
     }
 
-    public void templateType(ScriptService.ScriptType templateType) {
+    public void templateType(ScriptType templateType) {
         this.templateType = templateType;
     }
 
@@ -418,7 +418,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     /**
      * The name of the stored template
      */
-    public ScriptService.ScriptType templateType() {
+    public ScriptType templateType() {
         return templateType;
     }
 
@@ -519,7 +519,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 
         templateSource = in.readBytesReference();
         templateName = in.readOptionalString();
-        templateType = ScriptService.ScriptType.readFrom(in);
+        templateType = ScriptType.readFrom(in);
         if (in.readBoolean()) {
             templateParams = (Map<String, Object>) in.readGenericValue();
         }
@@ -552,7 +552,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 
         out.writeBytesReference(templateSource);
         out.writeOptionalString(templateName);
-        ScriptService.ScriptType.writeTo(templateType, out);
+        ScriptType.writeTo(templateType, out);
         boolean existTemplateParams = templateParams != null;
         out.writeBoolean(existTemplateParams);
         if (existTemplateParams) {

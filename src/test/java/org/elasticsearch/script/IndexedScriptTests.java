@@ -96,7 +96,7 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
         }
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {
-            client().prepareUpdate("test", "scriptTest", "1").setScript("script1", ScriptService.ScriptType.INDEXED).setScriptLang(GroovyScriptEngineService.NAME).get();
+            client().prepareUpdate("test", "scriptTest", "1").setScript("script1", ScriptType.INDEXED).setScriptLang(GroovyScriptEngineService.NAME).get();
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));
@@ -129,7 +129,7 @@ public class IndexedScriptTests extends ElasticsearchIntegrationTest {
         }
         client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
         try {
-            client().prepareUpdate("test", "scriptTest", "1").setScript("script1", ScriptService.ScriptType.INDEXED).setScriptLang(ExpressionScriptEngineService.NAME).get();
+            client().prepareUpdate("test", "scriptTest", "1").setScript("script1", ScriptType.INDEXED).setScriptLang(ExpressionScriptEngineService.NAME).get();
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));

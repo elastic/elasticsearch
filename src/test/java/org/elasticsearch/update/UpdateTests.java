@@ -38,7 +38,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
 import org.junit.Test;
@@ -79,7 +79,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
 
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
-                .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE)
+                .setScript("ctx._source.field += 1", ScriptType.INLINE)
                 .execute().actionGet();
         assertTrue(updateResponse.isCreated());
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -91,7 +91,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
 
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
-                .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE)
+                .setScript("ctx._source.field += 1", ScriptType.INLINE)
                 .execute().actionGet();
         assertFalse(updateResponse.isCreated());
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -122,7 +122,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("balance", openingBalance).endObject())
                 .setScriptedUpsert(true)
                 .addScriptParam("payment", 2)
-                .setScript(script, ScriptService.ScriptType.INLINE)
+                .setScript(script, ScriptType.INLINE)
                 .execute().actionGet();
         assertTrue(updateResponse.isCreated());
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -137,7 +137,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("balance", openingBalance).endObject())
                 .setScriptedUpsert(true)
                 .addScriptParam("payment", 2)
-                .setScript(script, ScriptService.ScriptType.INLINE)
+                .setScript(script, ScriptType.INLINE)
                 .execute().actionGet();
         assertFalse(updateResponse.isCreated());
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -184,7 +184,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
 
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
-                .setScript("ctx._source.extra = \"foo\"", ScriptService.ScriptType.INLINE)
+                .setScript("ctx._source.extra = \"foo\"", ScriptType.INLINE)
                 .setFields("_source")
                 .execute().actionGet();
 
@@ -196,7 +196,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
 
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
-                .setScript("ctx._source.extra = \"foo\"", ScriptService.ScriptType.INLINE)
+                .setScript("ctx._source.extra = \"foo\"", ScriptType.INLINE)
                 .setFields("_source")
                 .execute().actionGet();
 
@@ -215,44 +215,44 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         index("test", "type", "1", "text", "value"); // version is now 1
 
         assertThrows(client().prepareUpdate(indexOrAlias(), "type", "1")
-                        .setScript("ctx._source.text = 'v2'", ScriptService.ScriptType.INLINE).setVersion(2).execute(),
+                        .setScript("ctx._source.text = 'v2'", ScriptType.INLINE).setVersion(2).execute(),
                 VersionConflictEngineException.class);
 
         client().prepareUpdate(indexOrAlias(), "type", "1")
-                .setScript("ctx._source.text = 'v2'", ScriptService.ScriptType.INLINE).setVersion(1).get();
+                .setScript("ctx._source.text = 'v2'", ScriptType.INLINE).setVersion(1).get();
         assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(2l));
 
         // and again with a higher version..
         client().prepareUpdate(indexOrAlias(), "type", "1")
-                .setScript("ctx._source.text = 'v3'", ScriptService.ScriptType.INLINE).setVersion(2).get();
+                .setScript("ctx._source.text = 'v3'", ScriptType.INLINE).setVersion(2).get();
 
         assertThat(client().prepareGet("test", "type", "1").get().getVersion(), equalTo(3l));
 
         // after delete
         client().prepareDelete("test", "type", "1").get();
         assertThrows(client().prepareUpdate("test", "type", "1")
-                        .setScript("ctx._source.text = 'v2'", ScriptService.ScriptType.INLINE).setVersion(3).execute(),
+                        .setScript("ctx._source.text = 'v2'", ScriptType.INLINE).setVersion(3).execute(),
                 DocumentMissingException.class);
 
         // external versioning
         client().prepareIndex("test", "type", "2").setSource("text", "value").setVersion(10).setVersionType(VersionType.EXTERNAL).get();
 
         assertThrows(client().prepareUpdate(indexOrAlias(), "type", "2")
-                        .setScript("ctx._source.text = 'v2'", ScriptService.ScriptType.INLINE).setVersion(2)
+                        .setScript("ctx._source.text = 'v2'", ScriptType.INLINE).setVersion(2)
                         .setVersionType(VersionType.EXTERNAL).execute(),
                 ActionRequestValidationException.class);
 
         // upserts - the combination with versions is a bit weird. Test are here to ensure we do not change our behavior unintentionally
 
         // With internal versions, tt means "if object is there with version X, update it or explode. If it is not there, index.
-        client().prepareUpdate(indexOrAlias(), "type", "3").setScript("ctx._source.text = 'v2'", ScriptService.ScriptType.INLINE)
+        client().prepareUpdate(indexOrAlias(), "type", "3").setScript("ctx._source.text = 'v2'", ScriptType.INLINE)
                 .setVersion(10).setUpsert("{ \"text\": \"v0\" }").get();
         GetResponse get = get("test", "type", "3");
         assertThat(get.getVersion(), equalTo(1l));
         assertThat((String) get.getSource().get("text"), equalTo("v0"));
 
         // With force version
-        client().prepareUpdate(indexOrAlias(), "type", "4").setScript("ctx._source.text = 'v2'", ScriptService.ScriptType.INLINE)
+        client().prepareUpdate(indexOrAlias(), "type", "4").setScript("ctx._source.text = 'v2'", ScriptType.INLINE)
                 .setVersion(10).setVersionType(VersionType.FORCE).setUpsert("{ \"text\": \"v0\" }").get();
 
         get = get("test", "type", "4");
@@ -268,7 +268,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
     public void testIndexAutoCreation() throws Exception {
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
-                .setScript("ctx._source.extra = \"foo\"", ScriptService.ScriptType.INLINE)
+                .setScript("ctx._source.extra = \"foo\"", ScriptType.INLINE)
                 .setFields("_source")
                 .execute().actionGet();
 
@@ -286,7 +286,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
 
         try {
             client().prepareUpdate(indexOrAlias(), "type1", "1")
-                    .setScript("ctx._source.field++", ScriptService.ScriptType.INLINE).execute().actionGet();
+                    .setScript("ctx._source.field++", ScriptType.INLINE).execute().actionGet();
             fail();
         } catch (DocumentMissingException e) {
             // all is well
@@ -295,7 +295,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
 
         UpdateResponse updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
-                .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE).execute().actionGet();
+                .setScript("ctx._source.field += 1", ScriptType.INLINE).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(2L));
         assertFalse(updateResponse.isCreated());
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -306,7 +306,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         }
 
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
-                .setScript("ctx._source.field += count", ScriptService.ScriptType.INLINE)
+                .setScript("ctx._source.field += count", ScriptType.INLINE)
                 .addScriptParam("count", 3).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(3L));
         assertFalse(updateResponse.isCreated());
@@ -319,7 +319,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
 
         // check noop
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
-                .setScript("ctx.op = 'none'", ScriptService.ScriptType.INLINE).execute().actionGet();
+                .setScript("ctx.op = 'none'", ScriptType.INLINE).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(3L));
         assertFalse(updateResponse.isCreated());
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -331,7 +331,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
 
         // check delete
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
-                .setScript("ctx.op = 'delete'", ScriptService.ScriptType.INLINE).execute().actionGet();
+                .setScript("ctx.op = 'delete'", ScriptType.INLINE).execute().actionGet();
         assertThat(updateResponse.getVersion(), equalTo(4L));
         assertFalse(updateResponse.isCreated());
         assertThat(updateResponse.getIndex(), equalTo("test"));
@@ -346,13 +346,13 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         GetResponse getResponse = client().prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
         long ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
-        client().prepareUpdate(indexOrAlias(), "type1", "2").setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE).execute().actionGet();
+        client().prepareUpdate(indexOrAlias(), "type1", "2").setScript("ctx._source.field += 1", ScriptType.INLINE).execute().actionGet();
         getResponse = client().prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
         ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
 
         // check TTL update
-        client().prepareUpdate(indexOrAlias(), "type1", "2").setScript("ctx._ttl = 3600000", ScriptService.ScriptType.INLINE).execute().actionGet();
+        client().prepareUpdate(indexOrAlias(), "type1", "2").setScript("ctx._ttl = 3600000", ScriptType.INLINE).execute().actionGet();
         getResponse = client().prepareGet("test", "type1", "2").setFields("_ttl").execute().actionGet();
         ttl = ((Number) getResponse.getField("_ttl").getValue()).longValue();
         assertThat(ttl, greaterThan(0L));
@@ -361,7 +361,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         // check timestamp update
         client().prepareIndex("test", "type1", "3").setSource("field", 1).setRefresh(true).execute().actionGet();
         client().prepareUpdate(indexOrAlias(), "type1", "3")
-                .setScript("ctx._timestamp = \"2009-11-15T14:12:12\"", ScriptService.ScriptType.INLINE).execute().actionGet();
+                .setScript("ctx._timestamp = \"2009-11-15T14:12:12\"", ScriptType.INLINE).execute().actionGet();
         getResponse = client().prepareGet("test", "type1", "3").setFields("_timestamp").execute().actionGet();
         long timestamp = ((Number) getResponse.getField("_timestamp").getValue()).longValue();
         assertThat(timestamp, equalTo(1258294332000L));
@@ -369,7 +369,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         // check fields parameter
         client().prepareIndex("test", "type1", "1").setSource("field", 1).execute().actionGet();
         updateResponse = client().prepareUpdate(indexOrAlias(), "type1", "1")
-                .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE).setFields("_source", "field").execute().actionGet();
+                .setScript("ctx._source.field += 1", ScriptType.INLINE).setFields("_source", "field").execute().actionGet();
         assertThat(updateResponse.getIndex(), equalTo("test"));
         assertThat(updateResponse.getGetResult(), notNullValue());
         assertThat(updateResponse.getGetResult().getIndex(), equalTo("test"));
@@ -429,7 +429,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         try {
             client().prepareUpdate(indexOrAlias(), "type1", "1")
                     .setDoc(XContentFactory.jsonBuilder().startObject().field("field", 1).endObject())
-                    .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE)
+                    .setScript("ctx._source.field += 1", ScriptType.INLINE)
                     .execute().actionGet();
             fail("Should have thrown ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
@@ -445,7 +445,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         ensureGreen();
         try {
             client().prepareUpdate(indexOrAlias(), "type1", "1")
-                    .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE)
+                    .setScript("ctx._source.field += 1", ScriptType.INLINE)
                     .setDocAsUpsert(true)
                     .execute().actionGet();
             fail("Should have thrown ActionRequestValidationException");
@@ -513,7 +513,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                                 "assert ctx._ttl >= " + (ttl-3000) + " : \"ttl should be <= " + (ttl-3000) + " but was \" + ctx._ttl\n" +
                                 "ctx._source.content = ctx._source.content + delim + ctx._source.content;\n" +
                                 "ctx._source.field1 += 1;\n",
-                        ScriptService.ScriptType.INLINE)
+                        ScriptType.INLINE)
                 .setScriptParams(scriptParams)
                 .execute().actionGet();
 
@@ -538,7 +538,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                         "assert ctx._ttl == null : \"ttl should be null\"\n" +
                         "ctx._source.content = ctx._source.content + delim + ctx._source.content;\n" +
                         "ctx._source.field1 += 1;\n",
-                        ScriptService.ScriptType.INLINE)
+                        ScriptType.INLINE)
                 .setScriptParams(scriptParams)
                 .execute().actionGet();
 
@@ -571,13 +571,13 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                         for (int i = 0; i < numberOfUpdatesPerThread; i++) {
                             if (useBulkApi) {
                                 UpdateRequestBuilder updateRequestBuilder = client().prepareUpdate(indexOrAlias(), "type1", Integer.toString(i))
-                                        .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE)
+                                        .setScript("ctx._source.field += 1", ScriptType.INLINE)
                                         .setRetryOnConflict(Integer.MAX_VALUE)
                                         .setUpsert(jsonBuilder().startObject().field("field", 1).endObject());
                                 client().prepareBulk().add(updateRequestBuilder).execute().actionGet();
                             } else {
                                 client().prepareUpdate(indexOrAlias(), "type1", Integer.toString(i))
-                                        .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE)
+                                        .setScript("ctx._source.field += 1", ScriptType.INLINE)
                                         .setRetryOnConflict(Integer.MAX_VALUE)
                                         .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
                                         .execute().actionGet();
@@ -699,7 +699,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
                             updateRequestsOutstanding.acquire();
                             try {
                                 UpdateRequest ur = client().prepareUpdate("test", "type1", Integer.toString(j))
-                                        .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE)
+                                        .setScript("ctx._source.field += 1", ScriptType.INLINE)
                                         .setRetryOnConflict(retryOnConflict)
                                         .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
                                         .request();
@@ -799,7 +799,7 @@ public class UpdateTests extends ElasticsearchIntegrationTest {
         //All the previous operations should be complete or failed at this point
         for (int i = 0; i < numberOfIdsPerThread; ++i) {
             UpdateResponse ur = client().prepareUpdate("test", "type1", Integer.toString(i))
-                .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE)
+                .setScript("ctx._source.field += 1", ScriptType.INLINE)
                 .setRetryOnConflict(Integer.MAX_VALUE)
                 .setUpsert(jsonBuilder().startObject().field("field", 1).endObject())
                 .execute().actionGet();

@@ -42,7 +42,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
@@ -83,9 +83,9 @@ public class BulkTests extends ElasticsearchIntegrationTest {
 
         bulkResponse = client().prepareBulk()
                 .add(client().prepareUpdate().setIndex(indexOrAlias()).setType("type1").setId("1")
-                        .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE))
+                        .setScript("ctx._source.field += 1", ScriptType.INLINE))
                 .add(client().prepareUpdate().setIndex(indexOrAlias()).setType("type1").setId("2")
-                        .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE).setRetryOnConflict(3))
+                        .setScript("ctx._source.field += 1", ScriptType.INLINE).setRetryOnConflict(3))
                 .add(client().prepareUpdate().setIndex(indexOrAlias()).setType("type1").setId("3").setDoc(jsonBuilder().startObject().field("field1", "test").endObject()))
                 .execute().actionGet();
 
@@ -118,12 +118,12 @@ public class BulkTests extends ElasticsearchIntegrationTest {
 
         bulkResponse = client().prepareBulk()
                 .add(client().prepareUpdate().setIndex(indexOrAlias()).setType("type1").setId("6")
-                        .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE)
+                        .setScript("ctx._source.field += 1", ScriptType.INLINE)
                         .setUpsert(jsonBuilder().startObject().field("field", 0).endObject()))
                 .add(client().prepareUpdate().setIndex(indexOrAlias()).setType("type1").setId("7")
-                        .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE))
+                        .setScript("ctx._source.field += 1", ScriptType.INLINE))
                 .add(client().prepareUpdate().setIndex(indexOrAlias()).setType("type1").setId("2")
-                        .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE))
+                        .setScript("ctx._source.field += 1", ScriptType.INLINE))
                 .execute().actionGet();
 
         assertThat(bulkResponse.hasFailures(), equalTo(true));
@@ -216,11 +216,11 @@ public class BulkTests extends ElasticsearchIntegrationTest {
 
         bulkResponse = client().prepareBulk()
                 .add(client().prepareUpdate().setIndex("test").setType("type1").setId("1")
-                        .setScript("ctx._source.field += a", ScriptService.ScriptType.INLINE).setFields("field"))
+                        .setScript("ctx._source.field += a", ScriptType.INLINE).setFields("field"))
                 .add(client().prepareUpdate().setIndex("test").setType("type1").setId("2")
-                        .setScript("ctx._source.field += 1", ScriptService.ScriptType.INLINE).setFields("field"))
+                        .setScript("ctx._source.field += 1", ScriptType.INLINE).setFields("field"))
                 .add(client().prepareUpdate().setIndex("test").setType("type1").setId("3")
-                        .setScript("ctx._source.field += a", ScriptService.ScriptType.INLINE).setFields("field"))
+                        .setScript("ctx._source.field += a", ScriptType.INLINE).setFields("field"))
                 .execute().actionGet();
 
         assertThat(bulkResponse.hasFailures(), equalTo(true));
@@ -254,7 +254,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
             builder.add(
                     client().prepareUpdate()
                             .setIndex("test").setType("type1").setId(Integer.toString(i))
-                            .setScript("ctx._source.counter += 1", ScriptService.ScriptType.INLINE).setFields("counter")
+                            .setScript("ctx._source.counter += 1", ScriptType.INLINE).setFields("counter")
                             .setUpsert(jsonBuilder().startObject().field("counter", 1).endObject())
             );
         }
@@ -285,7 +285,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
             UpdateRequestBuilder updateBuilder = client().prepareUpdate()
                     .setIndex("test").setType("type1").setId(Integer.toString(i)).setFields("counter");
             if (i % 2 == 0) {
-                updateBuilder.setScript("ctx._source.counter += 1", ScriptService.ScriptType.INLINE);
+                updateBuilder.setScript("ctx._source.counter += 1", ScriptType.INLINE);
             } else {
                 updateBuilder.setDoc(jsonBuilder().startObject().field("counter", 2).endObject());
             }
@@ -315,7 +315,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
         for (int i = (numDocs / 2); i < maxDocs; i++) {
             builder.add(
                     client().prepareUpdate()
-                            .setIndex("test").setType("type1").setId(Integer.toString(i)).setScript("ctx._source.counter += 1", ScriptService.ScriptType.INLINE)
+                            .setIndex("test").setType("type1").setId(Integer.toString(i)).setScript("ctx._source.counter += 1", ScriptType.INLINE)
             );
         }
         response = builder.execute().actionGet();
@@ -340,7 +340,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
             builder.add(
                     client().prepareUpdate()
                             .setIndex("test").setType("type1").setId(Integer.toString(i))
-                            .setScript("ctx.op = \"none\"", ScriptService.ScriptType.INLINE)
+                            .setScript("ctx.op = \"none\"", ScriptType.INLINE)
             );
         }
         response = builder.execute().actionGet();
@@ -359,7 +359,7 @@ public class BulkTests extends ElasticsearchIntegrationTest {
             builder.add(
                     client().prepareUpdate()
                             .setIndex("test").setType("type1").setId(Integer.toString(i))
-                            .setScript("ctx.op = \"delete\"", ScriptService.ScriptType.INLINE)
+                            .setScript("ctx.op = \"delete\"", ScriptType.INLINE)
             );
         }
         response = builder.execute().actionGet();

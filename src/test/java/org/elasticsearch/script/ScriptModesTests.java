@@ -23,7 +23,6 @@ import com.google.common.collect.*;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.ImmutableSettings;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.expression.ExpressionScriptEngineService;
 import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;

@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
 import java.util.*;

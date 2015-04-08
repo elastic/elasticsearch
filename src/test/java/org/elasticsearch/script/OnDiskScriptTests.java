@@ -138,7 +138,7 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
             assertThat(ExceptionsHelper.detailedMessage(e), containsString("scripts of type [file], operation [search] and lang [mustache] are disabled"));
         }
         try {
-            client().prepareUpdate("test", "scriptTest", "1").setScript("script1", ScriptService.ScriptType.FILE).setScriptLang(MustacheScriptEngineService.NAME).get();
+            client().prepareUpdate("test", "scriptTest", "1").setScript("script1", ScriptType.FILE).setScriptLang(MustacheScriptEngineService.NAME).get();
             fail("update script should have been rejected");
         } catch(Exception e) {
             assertThat(e.getMessage(), containsString("failed to execute script"));

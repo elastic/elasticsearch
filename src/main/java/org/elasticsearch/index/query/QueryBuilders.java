@@ -23,7 +23,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.ScriptType;
 
 import java.util.Collection;
 import java.util.Map;
@@ -641,7 +641,7 @@ public abstract class QueryBuilders {
     /**
      * Facilitates creating template query requests
      */
-    public static TemplateQueryBuilder templateQuery(String template, ScriptService.ScriptType templateType, Map<String, Object> vars) {
+    public static TemplateQueryBuilder templateQuery(String template, ScriptType templateType, Map<String, Object> vars) {
         return new TemplateQueryBuilder(template, templateType, vars);
     }
 

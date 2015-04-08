@@ -34,10 +34,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparator
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.query.support.NestedInnerQueryParseSupport;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
-import org.elasticsearch.script.LeafSearchScript;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.*;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
@@ -70,7 +67,7 @@ public class ScriptSortParser implements SortParser {
 
         XContentParser.Token token;
         String currentName = parser.currentName();
-        ScriptService.ScriptType scriptType = ScriptService.ScriptType.INLINE;
+        ScriptType scriptType = ScriptType.INLINE;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentName = parser.currentName();
@@ -90,13 +87,13 @@ public class ScriptSortParser implements SortParser {
                     reverse = "desc".equals(parser.text());
                 } else if (ScriptService.SCRIPT_INLINE.match(currentName)) {
                     script = parser.text();
-                    scriptType = ScriptService.ScriptType.INLINE;
+                    scriptType = ScriptType.INLINE;
                 } else if (ScriptService.SCRIPT_ID.match(currentName)) {
                     script = parser.text();
-                    scriptType = ScriptService.ScriptType.INDEXED;
+                    scriptType = ScriptType.INDEXED;
                 } else if (ScriptService.SCRIPT_FILE.match(currentName)) {
                     script = parser.text();
-                    scriptType = ScriptService.ScriptType.FILE;
+                    scriptType = ScriptType.FILE;
                 } else if (ScriptService.SCRIPT_LANG.match(currentName)) {
                     scriptLang = parser.text();
                 } else if ("type".equals(currentName)) {

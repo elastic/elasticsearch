@@ -24,7 +24,6 @@ import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.util.HashMap;
 import java.util.Map;

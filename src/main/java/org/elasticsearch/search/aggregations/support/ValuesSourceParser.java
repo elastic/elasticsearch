@@ -63,7 +63,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
     private static class Input {
         String field = null;
         String script = null;
-        ScriptService.ScriptType scriptType = null;
+        ScriptType scriptType = null;
         String lang = null;
         Map<String, Object> params = null;
         ValueType valueType = null;

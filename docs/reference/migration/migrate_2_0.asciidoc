@@ -371,3 +371,9 @@ over AJAX instead:
 http.cors.enabled: true
 http.cors.allow-origin: /https?:\/\/localhost(:[0-9]+)?/
 ---------------
+
+=== Cluster state REST api
+
+The cluster state api doesn't return the `routing_nodes` section anymore when
+`routing_table` is requested. The newly introduced `routing_nodes` flag can
+be used separately to control whether `routing_nodes` should be returned.

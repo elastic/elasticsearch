@@ -611,8 +611,8 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                 .withTimeout(recoverySettings.internalActionLongTimeout());
 
         if (operation == null) {
-            logger.trace("[{}][{}] no translog operations to send to {}",
-                    indexName, shardId, request.targetNode());
+            logger.trace("[{}][{}] no translog operations (id: [{}]) to send to {}",
+                    indexName, shardId, snapshot.translogId(), request.targetNode());
         }
         while (operation != null) {
             if (shard.state() == IndexShardState.CLOSED) {
@@ -637,6 +637,13 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
 //                    recoverySettings.rateLimiter().pause(size);
 //                }
 
+
+                if (logger.isTraceEnabled()) {
+                    logger.trace("[{}][{}] sending batch of [{}][{}] (total: [{}], id: [{}]) translog operations to {}",
+                            indexName, shardId, ops, new ByteSizeValue(size),
+                            shard.translog().estimatedNumberOfOperations(),
+                            snapshot.translogId(), request.targetNode());
+                }
                 cancellableThreads.execute(new Interruptable() {
                     @Override
                     public void run() throws InterruptedException {
@@ -646,12 +653,6 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                                 recoveryOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                     }
                 });
-                if (logger.isTraceEnabled()) {
-                    logger.trace("[{}][{}] sent batch of [{}][{}] (total: [{}]) translog operations to {}",
-                            indexName, shardId, ops, new ByteSizeValue(size),
-                            shard.translog().estimatedNumberOfOperations(),
-                            request.targetNode());
-                }
 
                 ops = 0;
                 size = 0;
@@ -663,6 +664,12 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                 throw new ElasticsearchException("failed to get next operation from translog", ex);
             }        }
         // send the leftover
+        if (logger.isTraceEnabled()) {
+            logger.trace("[{}][{}] sending final batch of [{}][{}] (total: [{}], id: [{}]) translog operations to {}",
+                    indexName, shardId, ops, new ByteSizeValue(size),
+                    shard.translog().estimatedNumberOfOperations(),
+                    snapshot.translogId(), request.targetNode());
+        }
         if (!operations.isEmpty()) {
             cancellableThreads.execute(new Interruptable() {
                 @Override
@@ -674,12 +681,6 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                 }
             });
 
-        }
-        if (logger.isTraceEnabled()) {
-            logger.trace("[{}][{}] sent final batch of [{}][{}] (total: [{}]) translog operations to {}",
-                    indexName, shardId, ops, new ByteSizeValue(size),
-                    shard.translog().estimatedNumberOfOperations(),
-                    request.targetNode());
         }
         return totalOperations;
     }

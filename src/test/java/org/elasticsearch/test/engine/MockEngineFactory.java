@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.test.engine;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -28,7 +29,11 @@ import org.elasticsearch.index.engine.EngineFactory;
 public final class MockEngineFactory implements EngineFactory {
     @Override
     public Engine newReadWriteEngine(EngineConfig config, boolean skipTranslogRecovery) {
-        return new MockInternalEngine(config, skipTranslogRecovery);
+        if (IndexMetaData.isOnSharedFilesystem(config.getIndexSettings())) {
+            return new MockSharedFSEngine(config, skipTranslogRecovery);
+        } else {
+            return new MockInternalEngine(config, skipTranslogRecovery);
+        }
     }
 
     @Override

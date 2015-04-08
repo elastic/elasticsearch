@@ -116,7 +116,6 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.channels.ClosedByInterruptException;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -749,7 +748,9 @@ public class IndexShard extends AbstractIndexShardComponent {
                     if (flushEngine && this.flushOnClose) {
                         engine.flushAndClose();
                     }
-                } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
+                } finally {
+                    // playing safe here and close the engine even if the above
+                    // succeeds - close can be called multiple times.
                     IOUtils.close(engine);
                 }
             }
@@ -867,10 +868,14 @@ public class IndexShard extends AbstractIndexShardComponent {
     public void finalizeRecovery() {
         recoveryState().setStage(RecoveryState.Stage.FINALIZE);
         // clear unreferenced files
-        translog.clearUnreferenced();
+        clearUnreferencedTranslogs();
         engine().refresh("recovery_finalization");
         startScheduledTasksIfNeeded();
         engineConfig.setEnableGcDeletes(true);
+    }
+
+    protected void clearUnreferencedTranslogs() {
+        translog.clearUnreferenced();
     }
 
     /**
@@ -1228,7 +1233,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     protected Engine newEngine(boolean skipTranslogRecovery, EngineConfig config) {
         return engineFactory.newReadWriteEngine(config, skipTranslogRecovery);
     }
-
 
     /**
      * Returns <code>true</code> iff this shard allows primary promotion, otherwise <code>false</code>

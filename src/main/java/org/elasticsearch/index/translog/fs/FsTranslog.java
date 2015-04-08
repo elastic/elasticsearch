@@ -39,7 +39,6 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.translog.*;
 
 import java.io.EOFException;
@@ -47,7 +46,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
 import java.nio.file.*;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -432,6 +430,8 @@ public class FsTranslog extends AbstractIndexShardComponent implements Translog 
                         final Matcher matcher = PARSE_ID_PATTERN.matcher(fileName);
                         if (matcher.matches()) {
                             maxId = Math.max(maxId, Long.parseLong(matcher.group(1)));
+                            logger.trace("found translog: [{}], maxId: [{}], location: [{}]",
+                                    fileName, maxId, location);
                         }
                     } catch (NumberFormatException ex) {
                         logger.warn("Couldn't parse translog id from file " + translogFile + " skipping");

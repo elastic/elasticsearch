@@ -101,7 +101,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     }
 
     void setupCluster() throws Exception {
-        ListenableFuture<List<String>> replicas = internalCluster().startNodesAsync(2); // for replicas
+        ListenableFuture<List<String>> replicas = internalCluster().startNodesAsync(1); // for replicas
 
         File dataDir = newTempDir(LifecycleScope.SUITE);
         ImmutableSettings.Builder nodeSettings = ImmutableSettings.builder()
@@ -291,7 +291,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     }
 
     void assertNewReplicasWork(String indexName) throws Exception {
-        final int numReplicas = randomIntBetween(1, 2);
+        final int numReplicas = 1;
         logger.debug("Creating [{}] replicas for index [{}]", numReplicas, indexName);
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.builder()
                         .put("number_of_replicas", numReplicas)

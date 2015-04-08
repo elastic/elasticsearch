@@ -16,6 +16,7 @@ import org.elasticsearch.watcher.actions.Actions;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionRegistry;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputRegistry;
 import org.elasticsearch.watcher.throttle.Throttler;

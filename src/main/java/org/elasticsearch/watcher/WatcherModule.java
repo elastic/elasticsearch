@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.actions.ActionModule;
 import org.elasticsearch.watcher.client.WatcherClientModule;
 import org.elasticsearch.watcher.condition.ConditionModule;
+import org.elasticsearch.watcher.execution.ExecutionModule;
 import org.elasticsearch.watcher.history.HistoryModule;
 import org.elasticsearch.watcher.input.InputModule;
 import org.elasticsearch.watcher.license.LicenseModule;
@@ -56,6 +57,7 @@ public class WatcherModule extends AbstractModule implements SpawnModules {
                 new InputModule(),
                 new ActionModule(),
                 new HistoryModule(),
+                new ExecutionModule(),
                 new WatcherShieldModule(settings));
     }
 

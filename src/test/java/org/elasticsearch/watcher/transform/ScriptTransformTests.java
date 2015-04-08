@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.transform;
 
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableList;
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.collect.ImmutableSet;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.Variables;

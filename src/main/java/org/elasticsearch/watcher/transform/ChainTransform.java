@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.transform;
 
 import org.elasticsearch.watcher.WatcherSettingsException;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.support.init.InitializingService;
 import org.elasticsearch.common.ParseField;

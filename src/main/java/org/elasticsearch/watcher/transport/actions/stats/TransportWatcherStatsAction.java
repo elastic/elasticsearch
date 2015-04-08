@@ -18,7 +18,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.WatcherBuild;
 import org.elasticsearch.watcher.WatcherVersion;
-import org.elasticsearch.watcher.history.HistoryService;
+import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.license.LicenseService;
 import org.elasticsearch.watcher.transport.actions.WatcherTransportAction;
 import org.elasticsearch.watcher.watch.WatchService;
@@ -29,15 +29,15 @@ import org.elasticsearch.watcher.watch.WatchService;
 public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherStatsRequest, WatcherStatsResponse> {
 
     private final WatchService watchService;
-    private final HistoryService historyService;
+    private final ExecutionService executionService;
 
     @Inject
     public TransportWatcherStatsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, ActionFilters actionFilters, WatchService watchService,
-                                       HistoryService historyService, LicenseService licenseService) {
+                                       ExecutionService executionService, LicenseService licenseService) {
         super(settings, WatcherStatsAction.NAME, transportService, clusterService, threadPool, actionFilters, licenseService);
         this.watchService = watchService;
-        this.historyService = historyService;
+        this.executionService = executionService;
     }
 
     @Override
@@ -59,9 +59,9 @@ public class TransportWatcherStatsAction extends WatcherTransportAction<WatcherS
     protected void masterOperation(WatcherStatsRequest request, ClusterState state, ActionListener<WatcherStatsResponse> listener) throws ElasticsearchException {
         WatcherStatsResponse statsResponse = new WatcherStatsResponse();
         statsResponse.setWatchServiceState(watchService.state());
-        statsResponse.setWatchExecutionQueueSize(historyService.queueSize());
+        statsResponse.setWatchExecutionQueueSize(executionService.queueSize());
         statsResponse.setWatchesCount(watchService.watchesCount());
-        statsResponse.setWatchExecutionQueueMaxSize(historyService.largestQueueSize());
+        statsResponse.setWatchExecutionQueueMaxSize(executionService.largestQueueSize());
         statsResponse.setVersion(WatcherVersion.CURRENT);
         statsResponse.setBuild(WatcherBuild.CURRENT);
         listener.onResponse(statsResponse);

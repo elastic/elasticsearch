@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.transform.TransformRegistry;
 import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 
 import java.io.IOException;
 

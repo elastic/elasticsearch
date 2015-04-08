@@ -12,7 +12,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.history.HistoryService;
+import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.trigger.Trigger;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerService;
@@ -34,16 +34,16 @@ public class WatchServiceTests extends ElasticsearchTestCase {
     private TriggerService triggerService;
     private WatchStore watchStore;
     private WatchService watchService;
-    private HistoryService historyService;
+    private ExecutionService executionService;
     private WatchLockService watchLockService;
 
     @Before
     public void init() throws Exception {
         triggerService = mock(TriggerService.class);
         watchStore = mock(WatchStore.class);
-        historyService =  mock(HistoryService.class);
+        executionService =  mock(ExecutionService.class);
         watchLockService = mock(WatchLockService.class);
-        watchService = new WatchService(ImmutableSettings.EMPTY, triggerService, watchStore, historyService, watchLockService);
+        watchService = new WatchService(ImmutableSettings.EMPTY, triggerService, watchStore, executionService, watchLockService);
         Field field = WatchService.class.getDeclaredField("state");
         field.setAccessible(true);
         AtomicReference<WatchService.State> state = (AtomicReference<WatchService.State>) field.get(watchService);

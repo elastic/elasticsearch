@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.condition.simple;
 
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionException;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -70,6 +70,13 @@ public class AlwaysFalseCondition extends Condition<Condition.Result> {
 
         @Override
         public AlwaysFalseCondition parse(XContentParser parser) throws IOException {
+            if (parser.currentToken() != XContentParser.Token.START_OBJECT){
+                throw new ConditionException("unable to parse [" + TYPE + "] condition. expected a start object token, found [" + parser.currentToken() + "]");
+            }
+            XContentParser.Token token = parser.nextToken();
+            if (token != XContentParser.Token.END_OBJECT) {
+                throw new ConditionException("unable to parse [" + TYPE + "] condition. expected an empty object, but found an object with [" + token + "]");
+            }
             return new AlwaysFalseCondition(logger);
         }
 
@@ -90,7 +97,7 @@ public class AlwaysFalseCondition extends Condition<Condition.Result> {
 
         public static final SourceBuilder INSTANCE = new SourceBuilder();
 
-        private SourceBuilder() {
+        public SourceBuilder() {
         }
 
         @Override

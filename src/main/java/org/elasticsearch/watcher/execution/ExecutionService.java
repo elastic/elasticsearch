@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.history;
+package org.elasticsearch.watcher.execution;
 
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -14,8 +14,11 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.actions.ActionWrapper;
 import org.elasticsearch.watcher.condition.Condition;
+import org.elasticsearch.watcher.history.HistoryStore;
+import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.support.Callback;
 import org.elasticsearch.watcher.support.clock.Clock;
@@ -24,7 +27,10 @@ import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.TriggerEngine;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 import org.elasticsearch.watcher.trigger.TriggerService;
-import org.elasticsearch.watcher.watch.*;
+import org.elasticsearch.watcher.watch.Watch;
+import org.elasticsearch.watcher.watch.WatchExecution;
+import org.elasticsearch.watcher.watch.WatchLockService;
+import org.elasticsearch.watcher.watch.WatchStore;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,7 +41,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  */
-public class HistoryService extends AbstractComponent {
+public class ExecutionService extends AbstractComponent {
 
     private final HistoryStore historyStore;
     private final WatchExecutor executor;
@@ -48,17 +54,17 @@ public class HistoryService extends AbstractComponent {
     private final AtomicInteger initializationRetries = new AtomicInteger();
 
     @Inject
-    public HistoryService(Settings settings, HistoryStore historyStore, WatchExecutor executor,
-                          WatchStore watchStore, WatchLockService watchLockService, TriggerService triggerService,
-                          ClusterService clusterService, Clock clock) {
+    public ExecutionService(Settings settings, HistoryStore historyStore, WatchExecutor executor,
+                            WatchStore watchStore, WatchLockService watchLockService, TriggerService triggerService,
+                            ClusterService clusterService, Clock clock) {
         super(settings);
         this.historyStore = historyStore;
         this.executor = executor;
         this.watchStore = watchStore;
         this.watchLockService = watchLockService;
         this.clusterService = clusterService;
-        this.clock = clock;
         triggerService.register(new SchedulerListener());
+        this.clock = clock;
     }
 
     public void start(ClusterState state, Callback<ClusterState> callback) {
@@ -74,22 +80,22 @@ public class HistoryService extends AbstractComponent {
             return;
         }
         if (started.compareAndSet(false, true)) {
-            logger.debug("starting history service");
+            logger.debug("starting execution service");
             executeRecords(records);
-            logger.debug("started history service");
+            logger.debug("started execution service");
         }
         callback.onSuccess(state);
     }
 
     public void stop() {
         if (started.compareAndSet(true, false)) {
-            logger.debug("stopping history service");
+            logger.debug("stopping execution service");
             // We could also rely on the shutdown in #updateSettings call, but
             // this is a forceful shutdown that also interrupts the worker threads in the threadpool
             List<Runnable> cancelledTasks = new ArrayList<>();
             executor.queue().drainTo(cancelledTasks);
             logger.debug("cancelled [{}] queued tasks", cancelledTasks.size());
-            logger.debug("stopped history service");
+            logger.debug("stopped execution service");
         }
     }
 
@@ -105,14 +111,14 @@ public class HistoryService extends AbstractComponent {
         return executor.largestPoolSize();
     }
 
-    void execute(Watch watch, TriggerEvent event) throws HistoryException {
-        if (!started.get()) {
-            throw new ElasticsearchIllegalStateException("not started");
+    public WatchRecord execute(WatchExecutionContext ctx) throws IOException {
+        WatchRecord watchRecord = new WatchRecord(ctx.id(), ctx.watch(), ctx.triggerEvent());
+        WatchExecution execution = executeInner(ctx);
+        watchRecord.seal(execution);
+        if (ctx.recordInHistory()) {
+            historyStore.put(watchRecord);
         }
-        WatchRecord watchRecord = new WatchRecord(watch, event);
-        logger.debug("saving watch record [{}]", watch.name());
-        historyStore.put(watchRecord);
-        executeAsync(watchRecord, watch);
+        return watchRecord;
     }
 
     /*
@@ -125,9 +131,9 @@ public class HistoryService extends AbstractComponent {
        triggered (it'll have its history record)
     */
 
-    void executeAsync(WatchRecord watchRecord, Watch watch) {
+    private void executeAsync(WatchExecutionContext ctx, WatchRecord watchRecord) {
         try {
-            executor.execute(new WatchExecutionTask(watchRecord, watch));
+            executor.execute(new WatchExecutionTask(ctx, watchRecord));
         } catch (EsRejectedExecutionException e) {
             logger.debug("failed to execute triggered watch [{}]", watchRecord.name());
             watchRecord.update(WatchRecord.State.FAILED, "failed to run triggered watch [" + watchRecord.name() + "] due to thread pool capacity");
@@ -135,16 +141,42 @@ public class HistoryService extends AbstractComponent {
         }
     }
 
-    WatchExecution execute(WatchExecutionContext ctx) throws IOException {
+
+    private void executeWatch(Watch watch, TriggerEvent event) throws WatcherException {
+        if (!started.get()) {
+            throw new ElasticsearchIllegalStateException("not started");
+        }
+        TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, clock.now(), event);
+        WatchRecord watchRecord = new WatchRecord(ctx.id(), watch, event);
+        if (ctx.recordInHistory()) {
+            logger.debug("saving watch record [{}] for watch [{}]", watchRecord.id(), watch.name());
+            historyStore.put(watchRecord);
+        }
+        executeAsync(ctx, watchRecord);
+    }
+
+
+    WatchExecution executeInner(WatchExecutionContext ctx) throws IOException {
         Watch watch = ctx.watch();
-        Input.Result inputResult = watch.input().execute(ctx);
-        ctx.onInputResult(inputResult);
-        Condition.Result conditionResult = watch.condition().execute(ctx);
-        ctx.onConditionResult(conditionResult);
+
+        Input.Result inputResult = ctx.inputResult();
+        if (inputResult == null) {
+            inputResult = watch.input().execute(ctx);
+            ctx.onInputResult(inputResult);
+        }
+        Condition.Result conditionResult = ctx.conditionResult();
+        if (conditionResult == null) {
+            conditionResult = watch.condition().execute(ctx);
+            ctx.onConditionResult(conditionResult);
+        }
 
         if (conditionResult.met()) {
-            Throttler.Result throttleResult = watch.throttler().throttle(ctx);
-            ctx.onThrottleResult(throttleResult);
+
+            Throttler.Result throttleResult = ctx.throttleResult();
+            if (throttleResult == null) {
+                throttleResult = watch.throttler().throttle(ctx);
+                ctx.onThrottleResult(throttleResult);
+            }
 
             if (!throttleResult.throttle()) {
                 Transform transform = watch.transform();
@@ -159,6 +191,7 @@ public class HistoryService extends AbstractComponent {
             }
         }
         return ctx.finish();
+
     }
 
     void executeRecords(Collection<WatchRecord> records) {
@@ -170,7 +203,8 @@ public class HistoryService extends AbstractComponent {
                 logger.warn("unable to find watch [{}] in watch store. perhaps it has been deleted. skipping...", record.name());
                 continue;
             }
-            executeAsync(record, watch);
+            TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, clock.now(), record.triggerEvent());
+            executeAsync(ctx, record);
             counter++;
         }
         logger.debug("executed [{}] watches from the watch history", counter);
@@ -205,34 +239,37 @@ public class HistoryService extends AbstractComponent {
     private final class WatchExecutionTask implements Runnable {
 
         private final WatchRecord watchRecord;
-        private final Watch watch;
 
-        private WatchExecutionTask(WatchRecord watchRecord, Watch watch) {
+        private final WatchExecutionContext ctx;
+
+        private WatchExecutionTask(WatchExecutionContext ctx, WatchRecord watchRecord) {
             this.watchRecord = watchRecord;
-            this.watch = watch;
+            this.ctx = ctx;
         }
 
         @Override
         public void run() {
             if (!started.get()) {
-                logger.debug("can't initiate watch execution as history service is not started, ignoring it...");
+                logger.debug("can't initiate watch execution as execution service is not started, ignoring it...");
                 return;
             }
-            WatchLockService.Lock lock = watchLockService.acquire(watch.name());
+            WatchLockService.Lock lock = watchLockService.acquire(ctx.watch().name());
             try {
                 watchRecord.update(WatchRecord.State.CHECKING, null);
                 logger.debug("checking watch [{}]", watchRecord.name());
-                WatchExecutionContext ctx = new WatchExecutionContext(watchRecord.id(), watch, clock.now(), watchRecord.triggerEvent());
-                WatchExecution execution = execute(ctx);
+                WatchExecution execution = executeInner(ctx);
                 watchRecord.seal(execution);
-                historyStore.update(watchRecord);
+                if (ctx.recordInHistory()) {
+                    historyStore.update(watchRecord);
+                }
             } catch (Exception e) {
                 if (started()) {
                     logger.warn("failed to execute watch [{}]", e, watchRecord.name());
                     try {
                         watchRecord.update(WatchRecord.State.FAILED, e.getMessage());
-                        historyStore.update(watchRecord);
-                        
+                        if (ctx.recordInHistory()) {
+                            historyStore.update(watchRecord);
+                        }
                     } catch (Exception e2) {
                         logger.error("failed to update watch record [{}] failure [{}]", e2, watchRecord, e.getMessage());
                     }
@@ -259,7 +296,7 @@ public class HistoryService extends AbstractComponent {
                 return;
             }
             try {
-                HistoryService.this.execute(watch, event);
+                ExecutionService.this.executeWatch(watch, event);
             } catch (Exception e) {
                 logger.error("failed to execute watch [{}]", e, name);
             }

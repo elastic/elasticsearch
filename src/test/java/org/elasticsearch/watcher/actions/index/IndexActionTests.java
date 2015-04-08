@@ -6,10 +6,15 @@
 package org.elasticsearch.watcher.actions.index;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.joda.time.DateTime;
+import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.script.ScriptService;
@@ -19,6 +24,8 @@ import org.elasticsearch.watcher.actions.email.service.Authentication;
 import org.elasticsearch.watcher.actions.email.service.Email;
 import org.elasticsearch.watcher.actions.email.service.EmailService;
 import org.elasticsearch.watcher.actions.email.service.Profile;
+import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.http.HttpClient;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
@@ -26,7 +33,6 @@ import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
 import org.junit.Test;
 
 import java.util.HashMap;
@@ -35,8 +41,7 @@ import java.util.Map;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -47,7 +52,7 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
 
         IndexAction action = new IndexAction(logger, ClientProxy.of(client()), "test-index", "test-type");
         final String account = "account1";
-        Watch alert = WatcherTestUtils.createTestWatch("testAlert",
+        Watch watch = WatcherTestUtils.createTestWatch("testAlert",
                 ClientProxy.of(client()),
                 ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
                 new HttpClient(ImmutableSettings.EMPTY),
@@ -63,11 +68,11 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
                     }
                 },
                 logger);
-        WatchExecutionContext ctx = new WatchExecutionContext("testid", alert, new DateTime(), new ScheduleTriggerEvent(new DateTime(), new DateTime()));
+        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, new DateTime(), new ScheduleTriggerEvent(new DateTime(), new DateTime()));
 
         Map<String, Object> payloadMap = new HashMap<>();
         payloadMap.put("test", "foo");
-        IndexAction.Result result = action.execute("_id", ctx, new Payload.Simple(payloadMap));
+        IndexAction.Result.IndexResult result = (IndexAction.Result.IndexResult) action.execute("_id", ctx, new Payload.Simple(payloadMap));
 
         assertThat(result.success(), equalTo(true));
         Map<String, Object> responseData = result.response().data();
@@ -134,10 +139,24 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
     @Test @Repeat(iterations =30)
     public void testParser_Result() throws Exception {
         boolean success = randomBoolean();
+        boolean simulated = randomBoolean();
 
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("success", success);
-        if (success) {
+        Payload.Simple requestPayload = null;
+        if (simulated) {
+            IndexRequest request = new IndexRequest("testindex").type("testtype");
+            XContentBuilder resultBuilder = XContentFactory.jsonBuilder().prettyPrint();
+            resultBuilder.startObject();
+            resultBuilder.field("data", new HashMap<String, Object>());
+            resultBuilder.field("timestamp", new DateTime(DateTimeZone.UTC));
+            resultBuilder.endObject();
+            request.source(resultBuilder);
+
+            requestPayload = new Payload.Simple(request.sourceAsMap());
+            builder.field(IndexAction.Parser.SIMULATED_REQUEST_FIELD.getPreferredName(), requestPayload);
+        }
+        else if (success) {
             Map<String,Object> data = new HashMap<>();
             data.put("created", true);
             data.put("id", "0");
@@ -154,16 +173,49 @@ public class IndexActionTests extends ElasticsearchIntegrationTest {
         IndexAction.Result result = new IndexAction.Parser(ImmutableSettings.EMPTY, ClientProxy.of(client()))
                 .parseResult(parser);
 
-        assertThat(result.success(), is(success));
-        if (success) {
-            Map<String, Object> responseData = result.response().data();
-            assertThat(responseData.get("created"), equalTo((Object)Boolean.TRUE));
-            assertThat(responseData.get("version"), equalTo((Object) 1));
-            assertThat(responseData.get("type").toString(), equalTo("test-type"));
-            assertThat(responseData.get("index").toString(), equalTo("test-index"));
-        }  else {
-            assertThat(result.reason, is("_reason"));
+        if (simulated){
+            assertThat(result, instanceOf(IndexAction.Result.Simulated.class));
+            assertThat(((IndexAction.Result.Simulated) result).indexRequest(), equalTo((Payload)requestPayload));
+        } else {
+            assertThat(result.success(), is(success));
+            assertThat(result, instanceOf(IndexAction.Result.IndexResult.class));
+            if (success) {
+                Map<String, Object> responseData = ((IndexAction.Result.IndexResult)result).response().data();
+                assertThat(responseData.get("created"), equalTo((Object) Boolean.TRUE));
+                assertThat(responseData.get("version"), equalTo((Object) 1));
+                assertThat(responseData.get("type").toString(), equalTo("test-type"));
+                assertThat(responseData.get("index").toString(), equalTo("test-index"));
+            } else {
+                assertThat(((IndexAction.Result.IndexResult)result).reason, is("_reason"));
+            }
         }
+    }
+
+    @Test
+    public void testParser_Result_Simulated_SelfGenerated() throws Exception {
+        IndexRequest request = new IndexRequest("testindex").type("testtype");
+        XContentBuilder resultBuilder = XContentFactory.jsonBuilder().prettyPrint();
+        resultBuilder.startObject();
+        resultBuilder.field("data", new HashMap<String, Object>());
+        resultBuilder.field("timestamp", new DateTime(DateTimeZone.UTC));
+        resultBuilder.endObject();
+        request.source(resultBuilder);
+        Payload.Simple requestPayload = new Payload.Simple(request.sourceAsMap());
+
+        IndexAction.Result.Simulated simulatedResult = new IndexAction.Result.Simulated(requestPayload);
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        simulatedResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        BytesReference bytes = builder.bytes();
+        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        parser.nextToken();
+
+        IndexAction.Result result = new IndexAction.Parser(ImmutableSettings.EMPTY, ClientProxy.of(client()))
+                .parseResult(parser);
+
+        assertThat(result, instanceOf(IndexAction.Result.Simulated.class));
+        assertThat(((IndexAction.Result.Simulated) result).indexRequest(), equalTo((Payload)requestPayload));
     }
 
 }

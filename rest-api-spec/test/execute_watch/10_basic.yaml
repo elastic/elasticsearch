@@ -1,0 +1,79 @@
+---
+"Test execute watch api":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      put_watch:
+        id: "my_exe_watch"
+        body:  > 
+          {
+          "trigger" : {
+            "schedule" : { "cron" : "0 0/1 * * * ?" }
+            },
+            "input" : {
+            "search" : {
+              "request" : {
+                "indices" : [ "logstash*" ],
+                "body" : {
+                  "query" : {
+                    "filtered": {
+                      "query": {
+                        "match": {
+                          "response": 404
+                          }
+                        },
+                        "filter": {
+                          "range": {
+                            "@timestamp" : {
+                              "from": "{{ctx.trigger.scheduled_time}}||-5m",
+                              "to": "{{ctx.trigger.triggered_time}}"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "condition" : {
+              "script" : {
+                "script" : "ctx.payload.hits.total > 1"
+              }
+            },
+            "actions" : {
+              "EmailAdmin" : {
+                "email" : {
+                  "to" : "someone@domain.host.com",
+                  "subject" : "404 recently encountered"
+                }
+              }
+            }
+          }
+  - match: { _id: "my_exe_watch" }
+
+  - do:
+      execute_watch:
+        id: "my_exe_watch"
+        body: >
+          {
+            "ignore_condition" : true,
+            "ignore_throttle" : true,
+            "simulated_actions" : "_all",
+            "alternative_input" : {
+              "foo" : "bar"
+            },
+            "trigger_data" : {
+              "scheduled_time" : "now"
+            },
+            "record_in_history" : true
+            }
+  - match: { "watch_id": "my_exe_watch" }
+  - match: { "watch_execution.condition_result.always_true": {} }
+  - match: { "state": "executed" }
+  - match: { "trigger_event.manual.trigger_data.scheduled_time": "now" } 
+  - match: { "watch_execution.input_result.simple.payload.foo": "bar" }
+  - match: { "watch_execution.actions_results.EmailAdmin.email.success" : true }
+  - match: { "watch_execution.actions_results.EmailAdmin.email.simulated_email.subject" : "404 recently encountered" }

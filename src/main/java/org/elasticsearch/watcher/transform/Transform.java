@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.transform;
 
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.ToXContent;

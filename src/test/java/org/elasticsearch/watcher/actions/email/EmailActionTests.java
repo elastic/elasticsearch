@@ -10,7 +10,9 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.settings.ImmutableSettings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -20,7 +22,7 @@ import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.support.template.ScriptTemplate;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -287,6 +289,7 @@ public class EmailActionTests extends ElasticsearchTestCase {
     @Test @Repeat(iterations = 20)
     public void testParser_Result() throws Exception {
         boolean success = randomBoolean();
+        boolean simulated = randomBoolean();
         Email email = Email.builder().id("_id")
                 .from(new Email.Address("from@domain"))
                 .to(Email.AddressList.parse("to@domain"))
@@ -297,7 +300,10 @@ public class EmailActionTests extends ElasticsearchTestCase {
 
         XContentBuilder builder = jsonBuilder().startObject()
                 .field("success", success);
-        if (success) {
+        if (simulated) {
+            builder.field("simulated_email", email);
+        }
+        else if (success) {
             builder.field("email", email);
             builder.field("account", "_account");
         } else {
@@ -309,15 +315,46 @@ public class EmailActionTests extends ElasticsearchTestCase {
         parser.nextToken();
         EmailAction.Result result = new EmailAction.Parser(ImmutableSettings.EMPTY, mock(EmailService.class), new TemplateMock.Parser())
                 .parseResult(parser);
-        assertThat(result.success(), is(success));
-        if (success) {
-            assertThat(result, instanceOf(EmailAction.Result.Success.class));
-            assertThat(((EmailAction.Result.Success) result).email(), equalTo(email));
-            assertThat(((EmailAction.Result.Success) result).account(), is("_account"));
+
+        if (simulated) {
+            assertThat(result, instanceOf(EmailAction.Result.Simulated.class));
+            assertThat(((EmailAction.Result.Simulated) result).email(), equalTo(email));
         } else {
-            assertThat(result, instanceOf(EmailAction.Result.Failure.class));
-            assertThat(((EmailAction.Result.Failure) result).reason(), is("_reason"));
+            assertThat(result.success(), is(success));
+            if (success) {
+                assertThat(result, instanceOf(EmailAction.Result.Success.class));
+                assertThat(((EmailAction.Result.Success) result).email(), equalTo(email));
+                assertThat(((EmailAction.Result.Success) result).account(), is("_account"));
+            } else {
+                assertThat(result, instanceOf(EmailAction.Result.Failure.class));
+                assertThat(((EmailAction.Result.Failure) result).reason(), is("_reason"));
+            }
         }
+    }
+
+    @Test
+    public void testParser_Result_Simulated_SelfGenerated() throws Exception {
+        Email email = Email.builder().id("_id")
+                .from(new Email.Address("from@domain"))
+                .to(Email.AddressList.parse("to@domain"))
+                .sentDate(new DateTime())
+                .subject("_subject")
+                .textBody("_text_body")
+                .build();
+
+        EmailAction.Result.Simulated simulatedResult = new EmailAction.Result.Simulated(email);
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        simulatedResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        BytesReference bytes = builder.bytes();
+        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        parser.nextToken();
+        EmailAction.Result result = new EmailAction.Parser(ImmutableSettings.EMPTY, mock(EmailService.class), new TemplateMock.Parser())
+                .parseResult(parser);
+
+        assertThat(result, instanceOf(EmailAction.Result.Simulated.class));
+        assertThat(((EmailAction.Result.Simulated) result).email(), equalTo(email));
     }
 
     @Test(expected = EmailException.class)

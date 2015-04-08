@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.condition.simple;
 
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionException;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -96,7 +96,7 @@ public class AlwaysTrueCondition extends Condition<Condition.Result> {
 
         public static final SourceBuilder INSTANCE = new SourceBuilder();
 
-        private SourceBuilder() {
+        public SourceBuilder() {
         }
 
         @Override

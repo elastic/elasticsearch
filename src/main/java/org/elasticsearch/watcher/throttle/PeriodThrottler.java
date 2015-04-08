@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.throttle;
 
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.common.joda.time.PeriodType;
 import org.elasticsearch.common.unit.TimeValue;

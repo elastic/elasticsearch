@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 
 /**
- * A delete watch request to delete an watch by name (id)
+ * A ack watch request to ack a watch by name (id)
  */
 public class AckWatchRequest extends MasterNodeOperationRequest<AckWatchRequest> {
 

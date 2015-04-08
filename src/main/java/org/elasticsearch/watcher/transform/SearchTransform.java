@@ -8,7 +8,7 @@ package org.elasticsearch.watcher.transform;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.SearchRequestEquivalence;

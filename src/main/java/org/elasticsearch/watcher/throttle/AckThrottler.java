@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.throttle;
 
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 
 import static org.elasticsearch.watcher.support.WatcherDateUtils.formatDate;
 

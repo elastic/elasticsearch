@@ -10,13 +10,14 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.WatcherPlugin;
-import org.elasticsearch.watcher.history.HistoryModule;
-import org.elasticsearch.watcher.history.WatchExecutor;
+import org.elasticsearch.watcher.execution.ExecutionModule;
+import org.elasticsearch.watcher.execution.WatchExecutor;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.support.clock.ClockModule;
 import org.elasticsearch.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.watcher.trigger.TriggerModule;
+import org.elasticsearch.watcher.trigger.manual.ManualTriggerEngine;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -64,10 +65,10 @@ public class TimeWarpedWatcherPlugin extends WatcherPlugin {
                     // to control time in tests
                     modules.add(new MockClockModule());
 
-                } else if (module instanceof HistoryModule) {
-                    // replacing the history module so all the watches will be
-                    // executed on the same thread as the schedule fire
-                    modules.add(new MockHistoryModule());
+                } else if (module instanceof ExecutionModule) {
+                    // replacing the execution module so all the watches will be
+                    // executed on the same thread as the trigger engine
+                    modules.add(new MockExecutionModule());
 
                 } else {
                     modules.add(module);
@@ -81,6 +82,7 @@ public class TimeWarpedWatcherPlugin extends WatcherPlugin {
             @Override
             protected void registerStandardEngines() {
                 registerEngine(ScheduleTriggerEngineMock.class);
+                registerEngine(ManualTriggerEngine.class);
             }
         }
 
@@ -92,9 +94,9 @@ public class TimeWarpedWatcherPlugin extends WatcherPlugin {
             }
         }
 
-        public static class MockHistoryModule extends HistoryModule {
+        public static class MockExecutionModule extends ExecutionModule {
 
-            public MockHistoryModule() {
+            public MockExecutionModule() {
                 super(SameThreadExecutor.class);
             }
 

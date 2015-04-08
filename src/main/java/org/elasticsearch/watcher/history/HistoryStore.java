@@ -89,7 +89,7 @@ public class HistoryStore extends AbstractComponent {
      * tries to load all watch records that await execution. If for some reason the records could not be
      * loaded (e.g. the not all primary shards of the history index are active), returns {@code null}.
      */
-    Collection<WatchRecord> loadRecords(ClusterState state, WatchRecord.State recordState) {
+    public Collection<WatchRecord> loadRecords(ClusterState state, WatchRecord.State recordState) {
         String[] indices = state.metaData().concreteIndices(IndicesOptions.lenientExpandOpen(), INDEX_PREFIX + "*");
         if (indices.length == 0) {
             logger.debug("No .watch_history indices found. skipping loading awaiting watch records");

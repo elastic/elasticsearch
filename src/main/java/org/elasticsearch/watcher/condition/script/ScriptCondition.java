@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.condition.script;
 
 import org.elasticsearch.watcher.WatcherSettingsException;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionException;
 import org.elasticsearch.watcher.support.Script;

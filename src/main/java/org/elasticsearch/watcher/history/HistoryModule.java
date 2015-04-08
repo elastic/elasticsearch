@@ -11,22 +11,14 @@ import org.elasticsearch.common.inject.AbstractModule;
  */
 public class HistoryModule extends AbstractModule {
 
-    private final Class<? extends WatchExecutor> executorClass;
 
     public HistoryModule() {
-        this(InternalWatchExecutor.class);
     }
 
-    protected HistoryModule(Class<? extends WatchExecutor> executorClass) {
-        this.executorClass = executorClass;
-    }
 
     @Override
     protected void configure() {
         bind(WatchRecord.Parser.class).asEagerSingleton();
         bind(HistoryStore.class).asEagerSingleton();
-        bind(HistoryService.class).asEagerSingleton();
-        bind(executorClass).asEagerSingleton();
-        bind(WatchExecutor.class).to(executorClass);
     }
 }

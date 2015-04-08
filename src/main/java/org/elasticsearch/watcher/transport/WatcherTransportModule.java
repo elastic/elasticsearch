@@ -14,6 +14,8 @@ import org.elasticsearch.watcher.transport.actions.get.GetWatchAction;
 import org.elasticsearch.watcher.transport.actions.get.TransportGetWatchAction;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.watcher.transport.actions.put.TransportPutWatchAction;
+import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchAction;
+import org.elasticsearch.watcher.transport.actions.execute.TransportExecuteWatchAction;
 import org.elasticsearch.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.watcher.transport.actions.service.TransportWatcherServiceAction;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsAction;
@@ -37,6 +39,7 @@ public class WatcherTransportModule extends AbstractModule implements PreProcess
             actionModule.registerAction(WatcherStatsAction.INSTANCE, TransportWatcherStatsAction.class);
             actionModule.registerAction(AckWatchAction.INSTANCE, TransportAckWatchAction.class);
             actionModule.registerAction(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class);
+            actionModule.registerAction(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class);
         }
     }
 

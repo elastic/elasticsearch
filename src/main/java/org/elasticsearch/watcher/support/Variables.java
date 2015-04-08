@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.support;
 
 import org.elasticsearch.watcher.trigger.TriggerEvent;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.common.joda.time.DateTime;
 

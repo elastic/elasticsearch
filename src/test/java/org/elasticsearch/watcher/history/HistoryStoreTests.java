@@ -75,7 +75,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         when(watch.input()).thenReturn(null);
         when(watch.metadata()).thenReturn(null);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
-        WatchRecord watchRecord = new WatchRecord(watch, event);
+        WatchRecord watchRecord = new WatchRecord("_name#1970-01-01T00:00:00.000Z", watch, event);
 
         IndexResponse indexResponse = mock(IndexResponse.class);
         long version = randomLong();
@@ -94,7 +94,7 @@ public class HistoryStoreTests extends ElasticsearchTestCase {
         when(watch.input()).thenReturn(null);
         when(watch.metadata()).thenReturn(null);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC));
-        WatchRecord watchRecord = new WatchRecord(watch, event);
+        WatchRecord watchRecord = new WatchRecord("_name#1970-01-01T00:00:00.000Z", watch, event);
         watchRecord.version(4l);
 
         IndexResponse indexResponse = mock(IndexResponse.class);

@@ -19,9 +19,9 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionException;
 import org.elasticsearch.watcher.actions.ActionSettingsException;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -64,21 +64,26 @@ public class IndexAction extends Action<IndexAction.Result> {
             indexRequest.source(resultBuilder);
         } catch (IOException ioe) {
             logger.error("failed to execute index action [{}] for watch [{}]", ioe, actionId, ctx.watch().name());
-            return new Result(null, "failed to index payload. " + ioe.getMessage(), false);
+            return new Result.IndexResult(null, "failed to index payload. " + ioe.getMessage(), false);
         }
 
         try {
-            IndexResponse response = client.index(indexRequest);
-            Map<String,Object> data = new HashMap<>();
-            data.put("created", response.isCreated());
-            data.put("id", response.getId());
-            data.put("version", response.getVersion());
-            data.put("type", response.getType());
-            data.put("index", response.getIndex());
-            return new Result(new Payload.Simple(data), null, response.isCreated());
+            Map<String, Object> data = new HashMap<>();
+            if (ctx.simulateAction(actionId)) {
+                return new Result.Simulated(new Payload.Simple(indexRequest.sourceAsMap()));
+            } else {
+                IndexResponse response = client.index(indexRequest);
+                data.put("created", response.isCreated());
+                data.put("id", response.getId());
+                data.put("version", response.getVersion());
+                data.put("type", response.getType());
+                data.put("index", response.getIndex());
+                return new Result.IndexResult(new Payload.Simple(data), null, response.isCreated());
+            }
+
         } catch (ElasticsearchException e) {
             logger.error("failed to index result for watch [{}]", e, ctx.watch().name());
-            return new Result(null, "failed to build index request. " + e.getMessage(), false);
+            return new Result.IndexResult(null, "failed to build index request. " + e.getMessage(), false);
         }
     }
 
@@ -116,6 +121,7 @@ public class IndexAction extends Action<IndexAction.Result> {
         public static final ParseField TYPE_FIELD = new ParseField("type");
         public static final ParseField REASON_FIELD = new ParseField("reason");
         public static final ParseField RESPONSE_FIELD = new ParseField("response");
+        public static final ParseField SIMULATED_REQUEST_FIELD = new ParseField("simulated_request");
 
         private final ClientProxy client;
 
@@ -169,9 +175,10 @@ public class IndexAction extends Action<IndexAction.Result> {
             Boolean success = null;
             Payload payload = null;
             String reason = null;
-
+            Payload simulatedRequest = null;
             XContentParser.Token token;
             String currentFieldName = null;
+
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -190,6 +197,8 @@ public class IndexAction extends Action<IndexAction.Result> {
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (RESPONSE_FIELD.match(currentFieldName)) {
                         payload = new Payload.Simple(parser.map());
+                    } else if (SIMULATED_REQUEST_FIELD.match(currentFieldName)) {
+                        simulatedRequest = new Payload.Simple(parser.map());
                     } else {
                         throw new ActionException("could not parse index result. unexpected object field [" + currentFieldName + "]");
                     }
@@ -198,40 +207,71 @@ public class IndexAction extends Action<IndexAction.Result> {
                 }
             }
 
+            if (simulatedRequest != null) {
+                return new Result.Simulated(simulatedRequest);
+            }
             if (success == null) {
                 throw new ActionException("could not parse index result. expected boolean field [success]");
             }
 
-            return new Result(payload, reason, success);
+            return new Result.IndexResult(payload, reason, success);
         }
     }
 
-    public static class Result extends Action.Result {
+    public abstract static class Result extends Action.Result {
 
-        final Payload response;
-        final String reason;
-
-        public Result(Payload response, String reason, boolean isCreated) {
-            super(TYPE, isCreated);
-            this.response = response;
-            this.reason = reason;
+        protected Result(String type, boolean success) {
+            super(type, success);
         }
 
-        public Payload response() {
-            return response;
-        }
+        public static class IndexResult extends Result {
+            final Payload response;
+            final String reason;
 
-        @Override
-        protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
-            if (reason != null) {
-                builder.field(Parser.REASON_FIELD.getPreferredName(), reason);
+            public IndexResult(Payload response, String reason, boolean isCreated) {
+                super(TYPE, isCreated);
+                this.response = response;
+                this.reason = reason;
             }
-            if (response != null) {
-                builder.field(Parser.RESPONSE_FIELD.getPreferredName(), response());
+
+            public Payload response() {
+                return response;
             }
-            return builder;
+
+            @Override
+            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+                if (reason != null) {
+                    builder.field(Parser.REASON_FIELD.getPreferredName(), reason);
+                }
+                if (response != null) {
+                    builder.field(Parser.RESPONSE_FIELD.getPreferredName(), response());
+                }
+                return builder;
+            }
         }
+
+        public static class Simulated extends Result {
+
+            private final Payload indexRequest;
+
+            protected Simulated(Payload indexRequest) {
+                super(TYPE, true);
+                this.indexRequest = indexRequest;
+            }
+
+            public Payload indexRequest() {
+                return indexRequest;
+            }
+
+            @Override
+            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+                return builder.field(Parser.SIMULATED_REQUEST_FIELD.getPreferredName(), indexRequest);
+            }
+        }
+
     }
+
+
 
     public static class SourceBuilder extends Action.SourceBuilder<SourceBuilder> {
 

@@ -28,7 +28,7 @@ import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTests;
 import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;

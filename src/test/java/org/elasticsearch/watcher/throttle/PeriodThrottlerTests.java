@@ -7,7 +7,7 @@ package org.elasticsearch.watcher.throttle;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.joda.time.PeriodType;

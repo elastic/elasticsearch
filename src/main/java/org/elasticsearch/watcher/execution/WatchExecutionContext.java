@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.watch;
+package org.elasticsearch.watcher.execution;
 
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.watcher.actions.Actions;
@@ -13,6 +13,9 @@ import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
+import org.elasticsearch.watcher.watch.Payload;
+import org.elasticsearch.watcher.watch.Watch;
+import org.elasticsearch.watcher.watch.WatchExecution;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -20,7 +23,7 @@ import java.util.Map;
 /**
  *
  */
-public class WatchExecutionContext {
+public abstract class WatchExecutionContext {
 
     private final String id;
     private final Watch watch;
@@ -35,12 +38,22 @@ public class WatchExecutionContext {
 
     private Payload payload;
 
-    public WatchExecutionContext(String id, Watch watch, DateTime executionTime, TriggerEvent triggerEvent) {
-        this.id = id;
+    public WatchExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent) {
         this.watch = watch;
         this.executionTime = executionTime;
         this.triggerEvent = triggerEvent;
+        this.id = generateId(watch.name(), triggerEvent.triggeredTime());
     }
+
+    /**
+     * @return true if this action should be simulated
+     */
+    public abstract boolean simulateAction(String actionId);
+
+    /**
+     * @return true if this execution should be recorded in the .watch_history index
+     */
+    public abstract boolean recordInHistory();
 
     public String id() {
         return id;
@@ -114,4 +127,7 @@ public class WatchExecutionContext {
         return new WatchExecution(this);
     }
 
+    static String generateId(String name, DateTime time) {
+        return name + "#" + time.toDateTimeISO();
+    }
 }

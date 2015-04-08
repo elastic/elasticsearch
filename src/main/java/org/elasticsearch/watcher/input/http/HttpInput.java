@@ -24,7 +24,7 @@ import org.elasticsearch.watcher.support.http.HttpRequest;
 import org.elasticsearch.watcher.support.http.HttpResponse;
 import org.elasticsearch.watcher.support.http.TemplatedHttpRequest;
 import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 
 import java.io.IOException;
 import java.util.HashSet;

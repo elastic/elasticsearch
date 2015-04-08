@@ -33,9 +33,10 @@ import org.elasticsearch.watcher.support.template.ValueTemplate;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.junit.Before;
@@ -97,8 +98,7 @@ public class HttpInputTests extends ElasticsearchTestCase {
                 null,
                 null,
                 new Watch.Status());
-        WatchExecutionContext ctx = new WatchExecutionContext("test-watch1",
-                watch,
+        WatchExecutionContext ctx = new TriggeredExecutionContext(watch,
                 new DateTime(0, DateTimeZone.UTC),
                 new ScheduleTriggerEvent(new DateTime(0, DateTimeZone.UTC), new DateTime(0, DateTimeZone.UTC)));
         HttpInput.Result result = input.execute(ctx);

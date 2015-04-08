@@ -10,6 +10,7 @@ import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.SpawnModules;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
+import org.elasticsearch.watcher.trigger.manual.ManualTriggerEngine;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 
 import java.util.HashSet;
@@ -32,6 +33,7 @@ public class TriggerModule extends AbstractModule implements SpawnModules {
 
     protected void registerStandardEngines() {
         registerEngine(ScheduleModule.triggerEngineType());
+        registerEngine(ManualTriggerEngine.class);
     }
 
     @Override

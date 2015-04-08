@@ -9,7 +9,7 @@ import org.elasticsearch.watcher.client.WatcherAction;
 import org.elasticsearch.client.Client;
 
 /**
- * This action acks an watch in memory, and the index
+ * This action acks a watch in memory, and the index
  */
 public class AckWatchAction extends WatcherAction<AckWatchRequest, AckWatchResponse, AckWatchRequestBuilder> {
 

@@ -9,7 +9,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.watcher.WatcherSettingsException;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.condition.ConditionException;
 import org.elasticsearch.watcher.support.Script;

@@ -36,7 +36,7 @@ public class HistoryStoreLifeCycleTest extends AbstractWatcherIntegrationTests {
         for (int i = 0; i < watchRecords.length; i++) {
             DateTime dateTime = new DateTime(i, DateTimeZone.UTC);
             ScheduleTriggerEvent event = new ScheduleTriggerEvent(dateTime, dateTime);
-            watchRecords[i] = new WatchRecord(watch, event);
+            watchRecords[i] = new WatchRecord("_record" + i,watch, event);
             historyStore.put(watchRecords[i]);
             GetResponse getResponse = client().prepareGet(HistoryStore.getHistoryIndexNameForTime(dateTime), HistoryStore.DOC_TYPE, watchRecords[i].id())
                     .setVersion(1)

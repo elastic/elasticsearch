@@ -103,7 +103,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
 
         DateTime now = DateTime.now(DateTimeZone.UTC);
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(now, now);
-        WatchRecord watchRecord = new WatchRecord(watch, event);
+        WatchRecord watchRecord = new WatchRecord("_record", watch, event);
         String actionHistoryIndex = HistoryStore.getHistoryIndexNameForTime(now);
 
         createIndex(actionHistoryIndex);
@@ -162,7 +162,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTests {
                 assertThat(putWatchResponse.isCreated(), is(true));
 
                 ScheduleTriggerEvent event = new ScheduleTriggerEvent(historyIndexDate, historyIndexDate);
-                WatchRecord watchRecord = new WatchRecord(watch, event);
+                WatchRecord watchRecord = new WatchRecord("_record-" + i + "-" + j,watch, event);
 
                 XContentBuilder jsonBuilder2 = jsonBuilder();
                 watchRecord.toXContent(jsonBuilder2, ToXContent.EMPTY_PARAMS);

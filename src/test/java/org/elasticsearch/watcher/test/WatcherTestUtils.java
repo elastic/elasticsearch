@@ -44,7 +44,7 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 
 import javax.mail.internet.AddressException;
 import java.util.ArrayList;

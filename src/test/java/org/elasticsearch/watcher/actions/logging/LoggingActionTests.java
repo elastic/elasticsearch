@@ -6,22 +6,26 @@
 package org.elasticsearch.watcher.actions.logging;
 
 import com.carrotsearch.randomizedtesting.annotations.Repeat;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableMap;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.ActionException;
 import org.elasticsearch.watcher.actions.email.service.Attachment;
+import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.template.ValueTemplate;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 import org.junit.Test;
@@ -79,7 +83,7 @@ public class LoggingActionTests extends ElasticsearchTestCase {
 
         Watch watch = mock(Watch.class);
         when(watch.name()).thenReturn("_watch_name");
-        WatchExecutionContext ctx = new WatchExecutionContext("_ctx_id", watch, now, new ScheduleTriggerEvent(now, now));
+        WatchExecutionContext ctx = new TriggeredExecutionContext(watch, now, new ScheduleTriggerEvent(now, now));
 
         LoggingAction.Result result = action.execute("_id", ctx, new Payload.Simple());
         verifyLogger(actionLogger, level, text);
@@ -245,6 +249,57 @@ public class LoggingActionTests extends ElasticsearchTestCase {
         assertThat(result.success(), is(false));
         assertThat(result, Matchers.instanceOf(LoggingAction.Result.Failure.class));
         assertThat(((LoggingAction.Result.Failure) result).reason(), is(reason));
+    }
+
+    @Test @Repeat(iterations = 30)
+    public void testParser_Result_Simulated() throws Exception {
+
+        Settings settings = ImmutableSettings.EMPTY;
+        ValueTemplate.Parser templateParser = new ValueTemplate.Parser();
+        LoggingAction.Parser parser = new LoggingAction.Parser(settings, templateParser);
+
+        String text = randomAsciiOfLength(10);
+        XContentBuilder builder = jsonBuilder().startObject()
+                .field("success", true)
+                .field("simulated_logged_text", text)
+                .endObject();
+
+        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        xContentParser.nextToken();
+
+        // will fail as there's no text
+        LoggingAction.Result result = parser.parseResult(xContentParser);
+        assertThat(result, Matchers.notNullValue());
+        assertThat(result.success(), is(true));
+        assertThat(result, Matchers.instanceOf(LoggingAction.Result.Simulated.class));
+        assertThat(((LoggingAction.Result.Simulated) result).loggedText(), is(text));
+    }
+
+    @Test
+    public void testParser_Result_Simulated_SelfGenerated() throws Exception {
+        Settings settings = ImmutableSettings.EMPTY;
+        ValueTemplate.Parser templateParser = new ValueTemplate.Parser();
+        LoggingAction.Parser actionParser = new LoggingAction.Parser(settings, templateParser);
+        String text = randomAsciiOfLength(10);
+
+        LoggingAction.Result.Simulated simulatedResult = new LoggingAction.Result.Simulated(text);
+
+        XContentBuilder builder = XContentFactory.jsonBuilder();
+        simulatedResult.toXContent(builder, ToXContent.EMPTY_PARAMS);
+
+        BytesReference bytes = builder.bytes();
+        XContentParser parser = JsonXContent.jsonXContent.createParser(bytes);
+        parser.nextToken();
+
+        XContentParser xContentParser = JsonXContent.jsonXContent.createParser(builder.bytes());
+        xContentParser.nextToken();
+
+        // will fail as there's no text
+        LoggingAction.Result result = actionParser.parseResult(xContentParser);
+        assertThat(result, Matchers.notNullValue());
+        assertThat(result.success(), is(true));
+        assertThat(result, Matchers.instanceOf(LoggingAction.Result.Simulated.class));
+        assertThat(((LoggingAction.Result.Simulated) result).loggedText(), is(text));
     }
 
     @Test(expected = ActionException.class)

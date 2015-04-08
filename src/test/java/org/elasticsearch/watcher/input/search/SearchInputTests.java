@@ -19,8 +19,8 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
-import org.elasticsearch.watcher.actions.Actions;
 import org.elasticsearch.watcher.actions.ActionWrapper;
+import org.elasticsearch.watcher.actions.Actions;
 import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
 import org.elasticsearch.watcher.input.Input;
 import org.elasticsearch.watcher.input.InputException;
@@ -33,9 +33,10 @@ import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTrigger;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
+import org.elasticsearch.watcher.execution.TriggeredExecutionContext;
 import org.elasticsearch.watcher.watch.Payload;
 import org.elasticsearch.watcher.watch.Watch;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -69,8 +70,8 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         SearchInput searchInput = new SearchInput(logger,
                 ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
                 ClientProxy.of(client()), request, null);
-        WatchExecutionContext ctx = new WatchExecutionContext("test-watch",
-                new Watch("test-alert",
+        WatchExecutionContext ctx = new TriggeredExecutionContext(
+                new Watch("test-watch",
                         new ClockMock(),
                         mock(LicenseService.class),
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),
@@ -107,8 +108,8 @@ public class SearchInputTests extends ElasticsearchIntegrationTest {
         SearchInput searchInput = new SearchInput(logger,
                 ScriptServiceProxy.of(internalCluster().getInstance(ScriptService.class)),
                 ClientProxy.of(client()), request, null);
-        WatchExecutionContext ctx = new WatchExecutionContext("test-watch",
-                new Watch("test-alert",
+        WatchExecutionContext ctx = new TriggeredExecutionContext(
+                new Watch("test-watch",
                         new ClockMock(),
                         mock(LicenseService.class),
                         new ScheduleTrigger(new IntervalSchedule(new IntervalSchedule.Interval(1, IntervalSchedule.Interval.Unit.MINUTES))),

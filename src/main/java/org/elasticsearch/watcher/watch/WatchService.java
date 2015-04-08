@@ -14,7 +14,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.watcher.WatcherException;
-import org.elasticsearch.watcher.history.HistoryService;
+import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.support.Callback;
 import org.elasticsearch.watcher.trigger.TriggerService;
 
@@ -27,17 +27,17 @@ public class WatchService extends AbstractComponent {
     private final TriggerService triggerService;
     private final WatchStore watchStore;
     private final WatchLockService watchLockService;
-    private final HistoryService historyService;
+    private final ExecutionService executionService;
     private final AtomicReference<State> state = new AtomicReference<>(State.STOPPED);
 
     @Inject
-    public WatchService(Settings settings, TriggerService triggerService, WatchStore watchStore, HistoryService historyService,
+    public WatchService(Settings settings, TriggerService triggerService, WatchStore watchStore, ExecutionService executionService,
                         WatchLockService watchLockService) {
         super(settings);
         this.triggerService = triggerService;
         this.watchStore = watchStore;
         this.watchLockService = watchLockService;
-        this.historyService = historyService;
+        this.executionService = executionService;
     }
 
     public void start(ClusterState clusterState) {
@@ -45,12 +45,12 @@ public class WatchService extends AbstractComponent {
             logger.info("starting watch service...");
             watchLockService.start();
 
-            // Try to load watch store before the history service, b/c action depends on watch store
-            watchStore.start(clusterState, new Callback<ClusterState>(){
+            // Try to load watch store before the execution service, b/c action depends on watch store
+            watchStore.start(clusterState, new Callback<ClusterState>() {
 
                 @Override
                 public void onSuccess(ClusterState clusterState) {
-                    historyService.start(clusterState, new Callback<ClusterState>() {
+                    executionService.start(clusterState, new Callback<ClusterState>() {
 
                         @Override
                         public void onSuccess(ClusterState clusterState) {
@@ -78,7 +78,7 @@ public class WatchService extends AbstractComponent {
         if (state.compareAndSet(State.STARTED, State.STOPPING)) {
             logger.info("stopping watch service...");
             watchLockService.stop();
-            historyService.stop();
+            executionService.stop();
             triggerService.stop();
             watchStore.stop();
             state.set(State.STOPPED);

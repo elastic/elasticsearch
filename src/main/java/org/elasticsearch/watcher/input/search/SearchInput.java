@@ -30,7 +30,7 @@ import org.elasticsearch.watcher.support.XContentFilterKeysUtils;
 import org.elasticsearch.watcher.support.init.proxy.ClientProxy;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 
 import java.io.IOException;
 import java.util.HashSet;

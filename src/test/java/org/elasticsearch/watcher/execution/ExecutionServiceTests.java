@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.history;
+package org.elasticsearch.watcher.execution;
 
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.joda.time.DateTime;
@@ -11,13 +11,15 @@ import org.elasticsearch.common.joda.time.DateTimeZone;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.elasticsearch.watcher.actions.Action;
-import org.elasticsearch.watcher.actions.Actions;
 import org.elasticsearch.watcher.actions.ActionWrapper;
+import org.elasticsearch.watcher.actions.Actions;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.simple.AlwaysFalseCondition;
 import org.elasticsearch.watcher.condition.simple.AlwaysTrueCondition;
+import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.support.clock.SystemClock;
+import org.elasticsearch.watcher.support.clock.Clock;
+import org.elasticsearch.watcher.support.clock.ClockMock;
 import org.elasticsearch.watcher.throttle.Throttler;
 import org.elasticsearch.watcher.transform.Transform;
 import org.elasticsearch.watcher.trigger.TriggerService;
@@ -35,13 +37,13 @@ import static org.mockito.Mockito.*;
 
 /**
  */
-public class HistoryServiceTests extends ElasticsearchTestCase {
+public class ExecutionServiceTests extends ElasticsearchTestCase {
 
     private Payload payload;
     private Input input;
     private Input.Result inputResult;
 
-    private HistoryService historyService;
+    private ExecutionService executionService;
 
     @Before
     public void init() throws Exception {
@@ -57,7 +59,8 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         WatchLockService watchLockService = mock(WatchLockService.class);
         TriggerService triggerService = mock(TriggerService.class);
         ClusterService clusterService = mock(ClusterService.class);
-        historyService = new HistoryService(ImmutableSettings.EMPTY, historyStore, executor, watchStore, watchLockService, triggerService, clusterService, SystemClock.INSTANCE);
+        Clock clock = new ClockMock();
+        executionService = new ExecutionService(ImmutableSettings.EMPTY, historyStore, executor, watchStore, watchLockService, triggerService, clusterService, clock);
     }
 
     @Test
@@ -92,8 +95,8 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         DateTime now = DateTime.now(DateTimeZone.UTC);
 
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(now, now);
-        WatchExecutionContext context = new WatchExecutionContext("1", watch, now, event);
-        WatchExecution watchExecution = historyService.execute(context);
+        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event);
+        WatchExecution watchExecution = executionService.executeInner(context);
         assertThat(watchExecution.conditionResult(), sameInstance(conditionResult));
         assertThat(watchExecution.transformResult(), sameInstance(transformResult));
         assertThat(watchExecution.throttleResult(), sameInstance(throttleResult));
@@ -138,8 +141,8 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         DateTime now = DateTime.now(DateTimeZone.UTC);
 
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(now, now);
-        WatchExecutionContext context = new WatchExecutionContext("1", watch, now, event);
-        WatchExecution watchExecution = historyService.execute(context);
+        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event);
+        WatchExecution watchExecution = executionService.executeInner(context);
         assertThat(watchExecution.inputResult(), sameInstance(inputResult));
         assertThat(watchExecution.conditionResult(), sameInstance(conditionResult));
         assertThat(watchExecution.throttleResult(), sameInstance(throttleResult));
@@ -184,8 +187,8 @@ public class HistoryServiceTests extends ElasticsearchTestCase {
         DateTime now = DateTime.now(DateTimeZone.UTC);
 
         ScheduleTriggerEvent event = new ScheduleTriggerEvent(now, now);
-        WatchExecutionContext context = new WatchExecutionContext("1", watch, now, event);
-        WatchExecution watchExecution = historyService.execute(context);
+        WatchExecutionContext context = new TriggeredExecutionContext(watch, now, event);
+        WatchExecution watchExecution = executionService.executeInner(context);
         assertThat(watchExecution.inputResult(), sameInstance(inputResult));
         assertThat(watchExecution.conditionResult(), sameInstance(conditionResult));
         assertThat(watchExecution.throttleResult(), nullValue());

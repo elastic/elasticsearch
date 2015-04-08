@@ -6,7 +6,7 @@
 package org.elasticsearch.watcher.throttle;
 
 import org.elasticsearch.watcher.license.LicenseService;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.test.ElasticsearchTestCase;
 import org.junit.Test;
 

@@ -7,6 +7,8 @@ package org.elasticsearch.watcher.client;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.Client;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.watcher.transport.actions.ack.AckWatchRequest;
 import org.elasticsearch.watcher.transport.actions.ack.AckWatchRequestBuilder;
@@ -23,6 +25,10 @@ import org.elasticsearch.watcher.transport.actions.put.PutWatchAction;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchRequest;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchRequestBuilder;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
+import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchAction;
+import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchRequest;
+import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchRequestBuilder;
+import org.elasticsearch.watcher.transport.actions.execute.ExecuteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.service.WatcherServiceAction;
 import org.elasticsearch.watcher.transport.actions.service.WatcherServiceRequest;
 import org.elasticsearch.watcher.transport.actions.service.WatcherServiceRequestBuilder;
@@ -31,8 +37,6 @@ import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsAction;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsRequest;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsRequestBuilder;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.inject.Inject;
 
 /**
  */
@@ -46,13 +50,13 @@ public class WatcherClient {
     }
 
     /**
-     * Creates a request builder that gets an watch by name (id)
+     * Creates a request builder that gets an watch by id
      *
-     * @param watchName the name (id) of the watch
+     * @param id the id of the watch
      * @return The request builder
      */
-    public GetWatchRequestBuilder prepareGetWatch(String watchName) {
-        return new GetWatchRequestBuilder(client, watchName);
+    public GetWatchRequestBuilder prepareGetWatch(String id) {
+        return new GetWatchRequestBuilder(client, id);
     }
 
     /**
@@ -77,7 +81,7 @@ public class WatcherClient {
     /**
      * Gets an watch from the watch index
      *
-     * @param request The get watch request with the watch name (id)
+     * @param request The get watch request with the watch id
      * @return The response containing the GetResponse for this watch
      */
     public ActionFuture<GetWatchResponse> getWatch(GetWatchRequest request) {
@@ -85,13 +89,13 @@ public class WatcherClient {
     }
 
     /**
-     * Creates a request builder to delete an watch by name (id)
+     * Creates a request builder to delete an watch by id
      *
-     * @param watchName the name (id) of the watch
+     * @param id the id of the watch
      * @return The request builder
      */
-    public DeleteWatchRequestBuilder prepareDeleteWatch(String watchName) {
-        return new DeleteWatchRequestBuilder(client, watchName);
+    public DeleteWatchRequestBuilder prepareDeleteWatch(String id) {
+        return new DeleteWatchRequestBuilder(client, id);
     }
 
     /**
@@ -106,7 +110,7 @@ public class WatcherClient {
     /**
      * Deletes an watch
      *
-     * @param request The delete request with the watch name (id) to be deleted
+     * @param request The delete request with the watch id to be deleted
      * @param listener The listener for the delete watch response containing the DeleteResponse for this action
      */
     public void deleteWatch(DeleteWatchRequest request, ActionListener<DeleteWatchResponse> listener) {
@@ -116,7 +120,7 @@ public class WatcherClient {
     /**
      * Deletes an watch
      *
-     * @param request The delete request with the watch name (id) to be deleted
+     * @param request The delete request with the watch id to be deleted
      * @return The response containing the DeleteResponse for this action
      */
     public ActionFuture<DeleteWatchResponse> deleteWatch(DeleteWatchRequest request) {
@@ -126,11 +130,11 @@ public class WatcherClient {
     /**
      * Creates a request builder to build a request to put an watch
      *
-     * @param watchName The name of the watch to put
+     * @param id The id of the watch to put
      * @return The builder to create the watch
      */
-    public PutWatchRequestBuilder preparePutWatch(String watchName) {
-        return new PutWatchRequestBuilder(client, watchName);
+    public PutWatchRequestBuilder preparePutWatch(String id) {
+        return new PutWatchRequestBuilder(client, id);
     }
 
     /**
@@ -192,13 +196,13 @@ public class WatcherClient {
     }
 
     /**
-     * Creates a request builder to ack a watch by name (id)
+     * Creates a request builder to ack a watch by id
      *
-     * @param watcherName the name (id) of the watch
+     * @param id the id of the watch
      * @return The request builder
      */
-    public AckWatchRequestBuilder prepareAckWatch(String watcherName) {
-        return new AckWatchRequestBuilder(client, watcherName);
+    public AckWatchRequestBuilder prepareAckWatch(String id) {
+        return new AckWatchRequestBuilder(client, id);
     }
 
     /**
@@ -213,7 +217,7 @@ public class WatcherClient {
     /**
      * Ack a watch
      *
-     * @param request The ack request with the watch name (id) to be acked
+     * @param request The ack request with the watch id to be acked
      * @param listener The listener for the ack watch response
      */
     public void ackWatch(AckWatchRequest request, ActionListener<AckWatchResponse> listener) {
@@ -223,7 +227,7 @@ public class WatcherClient {
     /**
      * Acks an watch
      *
-     * @param request The ack request with the watch name (id) to be acked
+     * @param request The ack request with the watch id to be acked
      * @return The AckWatchResponse
      */
     public ActionFuture<AckWatchResponse> ackWatch(AckWatchRequest request) {
@@ -250,4 +254,46 @@ public class WatcherClient {
     public ActionFuture<WatcherServiceResponse> watcherService(WatcherServiceRequest request) {
         return client.execute(WatcherServiceAction.INSTANCE, request);
     }
+
+
+
+    /**
+     * Creates a request builder to execute a watch by id
+     *
+     * @param id the id of the watch
+     * @return The request builder
+     */
+    public ExecuteWatchRequestBuilder prepareExecuteWatch(String id) {
+        return new ExecuteWatchRequestBuilder(client, id);
+    }
+
+    /**
+     * Creates a request builder that executes a watch
+     *
+     * @return The request builder
+     */
+    public ExecuteWatchRequestBuilder prepareExecuteWatch() {
+        return new ExecuteWatchRequestBuilder(client);
+    }
+
+    /**
+     * executes a watch
+     *
+     * @param request The run request with the watch id to be executed
+     * @param listener The listener for the run watch response
+     */
+    public void executeWatch(ExecuteWatchRequest request, ActionListener<ExecuteWatchResponse> listener) {
+        client.execute(ExecuteWatchAction.INSTANCE, request, listener);
+    }
+
+    /**
+     * Executes an watch
+     *
+     * @param request The execute request with the watch id to be executed
+     * @return The AckWatchResponse
+     */
+    public ActionFuture<ExecuteWatchResponse> executeWatch(ExecuteWatchRequest request) {
+        return client.execute(ExecuteWatchAction.INSTANCE, request);
+    }
+
 }

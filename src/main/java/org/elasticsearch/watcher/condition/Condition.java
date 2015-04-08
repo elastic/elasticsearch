@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.watcher.condition;
 
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.ToXContent;

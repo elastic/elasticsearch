@@ -16,11 +16,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.ActionException;
 import org.elasticsearch.watcher.actions.ActionSettingsException;
+import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Variables;
 import org.elasticsearch.watcher.support.template.ScriptTemplate;
 import org.elasticsearch.watcher.support.template.Template;
 import org.elasticsearch.watcher.watch.Payload;
-import org.elasticsearch.watcher.watch.WatchExecutionContext;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -71,6 +71,10 @@ public class LoggingAction extends Action<LoggingAction.Result> {
     protected LoggingAction.Result execute(String actionId, WatchExecutionContext ctx, Payload payload) throws IOException {
         try {
             String text = template.render(Variables.createCtxModel(ctx, payload));
+            if (ctx.simulateAction(actionId)) {
+                return new Result.Simulated(text);
+            }
+
             level.log(actionLogger, text);
             return new Result.Success(text);
         } catch (Exception e) {
@@ -152,6 +156,25 @@ public class LoggingAction extends Action<LoggingAction.Result> {
                 return builder.field(Parser.REASON_FIELD.getPreferredName(), reason);
             }
         }
+
+        public static class Simulated extends Result {
+
+            private final String loggedText;
+
+            protected Simulated(String loggedText) {
+                super(true);
+                this.loggedText = loggedText;
+            }
+
+            public String loggedText() {
+                return loggedText;
+            }
+
+            @Override
+            protected XContentBuilder xContentBody(XContentBuilder builder, Params params) throws IOException {
+                return builder.field(Parser.SIMULATED_LOGGED_TEXT_FIELD.getPreferredName(), loggedText);
+            }
+        }
     }
 
     public static class Parser implements Action.Parser<LoggingAction.Result, LoggingAction> {
@@ -160,6 +183,7 @@ public class LoggingAction extends Action<LoggingAction.Result> {
         static final ParseField LEVEL_FIELD = new ParseField("level");
         static final ParseField TEXT_FIELD = new ParseField("text");
         static final ParseField LOGGED_TEXT_FIELD = new ParseField("logged_text");
+        static final ParseField SIMULATED_LOGGED_TEXT_FIELD = new ParseField("simulated_logged_text");
         static final ParseField REASON_FIELD = new ParseField("reason");
 
         private final Settings settings;
@@ -237,6 +261,7 @@ public class LoggingAction extends Action<LoggingAction.Result> {
         public LoggingAction.Result parseResult(XContentParser parser) throws IOException {
             Boolean success = null;
             String loggedText = null;
+            String simulatedLoggedText = null;
             String reason = null;
 
             XContentParser.Token token;
@@ -247,35 +272,41 @@ public class LoggingAction extends Action<LoggingAction.Result> {
                 } else if (token == XContentParser.Token.VALUE_STRING) {
                     if (LOGGED_TEXT_FIELD.match(currentFieldName)) {
                         loggedText = parser.text();
+                    } else if (SIMULATED_LOGGED_TEXT_FIELD.match(currentFieldName)) {
+                        simulatedLoggedText = parser.text();
                     } else if (REASON_FIELD.match(currentFieldName)) {
                         reason = parser.text();
                     } else {
-                        throw new ActionException("could not parse index result. unexpected string field [" + currentFieldName + "]");
+                        throw new ActionException("could not parse logging result. unexpected string field [" + currentFieldName + "]");
                     }
                 } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                         if (Action.Result.SUCCESS_FIELD.match(currentFieldName)) {
                             success = parser.booleanValue();
-                        } else {
-                            throw new ActionException("could not parse index result. unexpected boolean field [" + currentFieldName + "]");
+                        }else {
+                            throw new ActionException("could not parse logging result. unexpected boolean field [" + currentFieldName + "]");
                         }
                 } else {
-                    throw new ActionException("could not parse index result. unexpected token [" + token + "]");
+                    throw new ActionException("could not parse logging result. unexpected token [" + token + "]");
                 }
             }
 
             if (success == null) {
-                throw new ActionException("could not parse index result. expected boolean field [success]");
+                throw new ActionException("could not parse logging result. expected boolean field [success]");
+            }
+
+            if (simulatedLoggedText != null) {
+                return new Result.Simulated(simulatedLoggedText);
             }
 
             if (success) {
                 if (loggedText == null) {
-                    throw new ActionException("could not parse successful index result. expected string field [logged_text]");
+                    throw new ActionException("could not parse successful logging result. expected string field [logged_text]");
                 }
                 return new Result.Success(loggedText);
             }
 
             if (reason == null) {
-                throw new ActionException("could not parse failed index result. expected string field [reason]");
+                throw new ActionException("could not parse failed logging result. expected string field [reason]");
             }
 
             return new Result.Failure(reason);

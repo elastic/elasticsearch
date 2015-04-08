@@ -9,7 +9,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.joda.time.DateTime;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.shield.ShieldException;
+import org.elasticsearch.watcher.WatcherException;
 import org.elasticsearch.watcher.support.WatcherDateUtils;
 import org.elasticsearch.watcher.trigger.TriggerEvent;
 
@@ -76,7 +76,7 @@ public class ScheduleTriggerEvent extends TriggerEvent {
         return new ScheduleTriggerEvent(triggeredTime, scheduledTime);
     }
 
-    public static class ParseException extends ShieldException {
+    public static class ParseException extends WatcherException {
 
         public ParseException(String msg) {
             super(msg);

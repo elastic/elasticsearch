@@ -57,6 +57,8 @@ import org.elasticsearch.search.aggregations.metrics.tophits.TopHitsParser;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountParser;
 import org.elasticsearch.search.aggregations.reducers.Reducer;
 import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeParser;
+import org.elasticsearch.search.aggregations.reducers.movavg.MovAvgParser;
+import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModelModule;
 
 import java.util.List;
 
@@ -101,6 +103,7 @@ public class AggregationModule extends AbstractModule implements SpawnModules{
         aggParsers.add(ChildrenParser.class);
 
         reducerParsers.add(DerivativeParser.class);
+        reducerParsers.add(MovAvgParser.class);
     }
 
     /**
@@ -129,7 +132,7 @@ public class AggregationModule extends AbstractModule implements SpawnModules{
 
     @Override
     public Iterable<? extends Module> spawnModules() {
-        return ImmutableList.of(new SignificantTermsHeuristicModule());
+        return ImmutableList.of(new SignificantTermsHeuristicModule(), new MovAvgModelModule());
     }
 
 }

@@ -17,21 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers;
+package org.elasticsearch.search.aggregations.reducers.movavg.models;
 
-import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeBuilder;
-import org.elasticsearch.search.aggregations.reducers.movavg.MovAvgBuilder;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
-public final class ReducerBuilders {
+import java.io.IOException;
 
-    private ReducerBuilders() {
-    }
-
-    public static final DerivativeBuilder derivative(String name) {
-        return new DerivativeBuilder(name);
-    }
-
-    public static final MovAvgBuilder smooth(String name) {
-        return new MovAvgBuilder(name);
-    }
+/**
+ * Represents the common interface that all moving average models share.  Moving
+ * average models are used by the MovAvg reducer
+ */
+public interface MovAvgModelBuilder extends ToXContent {
+    public abstract XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
 }

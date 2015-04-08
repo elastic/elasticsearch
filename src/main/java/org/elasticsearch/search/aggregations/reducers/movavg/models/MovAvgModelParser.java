@@ -17,21 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.search.aggregations.reducers;
+package org.elasticsearch.search.aggregations.reducers.movavg.models;
 
-import org.elasticsearch.search.aggregations.reducers.derivative.DerivativeBuilder;
-import org.elasticsearch.search.aggregations.reducers.movavg.MovAvgBuilder;
 
-public final class ReducerBuilders {
+import org.elasticsearch.common.Nullable;
 
-    private ReducerBuilders() {
-    }
+import java.util.Map;
 
-    public static final DerivativeBuilder derivative(String name) {
-        return new DerivativeBuilder(name);
-    }
+/**
+ * Common interface for parsers used by the various Moving Average models
+ */
+public interface MovAvgModelParser {
+    public MovAvgModel parse(@Nullable Map<String, Object> settings);
 
-    public static final MovAvgBuilder smooth(String name) {
-        return new MovAvgBuilder(name);
-    }
+    public String getName();
 }

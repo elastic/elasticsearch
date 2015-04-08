@@ -39,13 +39,14 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.index.translog.TranslogStreams;
+import org.elasticsearch.index.translog.*;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.channels.ClosedChannelException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.concurrent.ThreadLocalRandom;
+import java.nio.file.*;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 

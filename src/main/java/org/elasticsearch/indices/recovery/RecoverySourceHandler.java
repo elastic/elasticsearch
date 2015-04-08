@@ -605,6 +605,10 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
                 .withType(TransportRequestOptions.Type.RECOVERY)
                 .withTimeout(recoverySettings.internalActionLongTimeout());
 
+        if (operation == null) {
+            logger.trace("[{}][{}] no translog operations (id: [{}]) to send to {}",
+                    indexName, shardId, snapshot.translogId(), request.targetNode());
+        }
         while (operation != null) {
             if (shard.state() == IndexShardState.CLOSED) {
                 throw new IndexShardClosedException(request.shardId());
@@ -628,6 +632,13 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
 //                    recoverySettings.rateLimiter().pause(size);
 //                }
 
+
+                if (logger.isTraceEnabled()) {
+                    logger.trace("[{}][{}] sending batch of [{}][{}] (total: [{}], id: [{}]) translog operations to {}",
+                            indexName, shardId, ops, new ByteSizeValue(size),
+                            shard.translog().estimatedNumberOfOperations(),
+                            snapshot.translogId(), request.targetNode());
+                }
                 cancellableThreads.execute(new Interruptable() {
                     @Override
                     public void run() throws InterruptedException {
@@ -645,6 +656,12 @@ public class RecoverySourceHandler implements Engine.RecoveryHandler {
             operation = snapshot.next();
         }
         // send the leftover
+        if (logger.isTraceEnabled()) {
+            logger.trace("[{}][{}] sending final batch of [{}][{}] (total: [{}], id: [{}]) translog operations to {}",
+                    indexName, shardId, ops, new ByteSizeValue(size),
+                    shard.translog().estimatedNumberOfOperations(),
+                    snapshot.translogId(), request.targetNode());
+        }
         if (!operations.isEmpty()) {
             cancellableThreads.execute(new Interruptable() {
                 @Override

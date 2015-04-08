@@ -18,10 +18,19 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+
 public class InternalEngineFactory implements EngineFactory {
     @Override
     public Engine newReadWriteEngine(EngineConfig config) {
-        return new InternalEngine(config);
+        // On a shared filesystem, we need to handle recovery slightly
+        // differently. We take no translog snapshots because a flush is forced
+        // when the engine is closed during phase1
+        if (IndexMetaData.isOnSharedFilesystem(config.getIndexSettings())) {
+            return new SharedFSEngine(config);
+        } else {
+            return new InternalEngine(config);
+        }
     }
 
     @Override

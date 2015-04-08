@@ -114,18 +114,6 @@ public final class InnerHitsContext {
 
         @Override
         public TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException {
-            TopDocsCollector topDocsCollector;
-            int topN = from() + size();
-            if (sort() != null) {
-                try {
-                    topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores());
-                } catch (IOException e) {
-                    throw ExceptionsHelper.convertToElastic(e);
-                }
-            } else {
-                topDocsCollector = TopScoreDocCollector.create(topN);
-            }
-
             Filter rawParentFilter;
             if (parentObjectMapper == null) {
                 rawParentFilter = NonNestedDocsFilter.INSTANCE;
@@ -135,8 +123,26 @@ public final class InnerHitsContext {
             BitDocIdSetFilter parentFilter = context.bitsetFilterCache().getBitDocIdSetFilter(rawParentFilter);
             Filter childFilter = context.filterCache().cache(childObjectMapper.nestedTypeFilter(), null, context.queryParserService().autoFilterCachePolicy());
             Query q = new FilteredQuery(query, new NestedChildrenFilter(parentFilter, childFilter, hitContext));
-            context.searcher().search(q, topDocsCollector);
-            return topDocsCollector.topDocs(from(), size());
+
+            if (size() == 0) {
+                TotalHitCountCollector collector = new TotalHitCountCollector();
+                context.searcher().search(q, collector);
+                return new TopDocs(collector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
+            } else {
+                int topN = from() + size();
+                TopDocsCollector topDocsCollector;
+                if (sort() != null) {
+                    try {
+                        topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores());
+                    } catch (IOException e) {
+                        throw ExceptionsHelper.convertToElastic(e);
+                    }
+                } else {
+                    topDocsCollector = TopScoreDocCollector.create(topN);
+                }
+                context.searcher().search(q, topDocsCollector);
+                return topDocsCollector.topDocs(from(), size());
+            }
         }
 
         // A filter that only emits the nested children docs of a specific nested parent doc
@@ -250,14 +256,6 @@ public final class InnerHitsContext {
 
         @Override
         public TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException {
-            TopDocsCollector topDocsCollector;
-            int topN = from() + size();
-            if (sort() != null) {
-                topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores());
-            } else {
-                topDocsCollector = TopScoreDocCollector.create(topN);
-            }
-
             final String term;
             final String field;
             if (documentMapper.parentFieldMapper().active()) {
@@ -281,11 +279,28 @@ public final class InnerHitsContext {
             }
             Filter filter = new TermFilter(new Term(field, term)); // Only include docs that have the current hit as parent
             Filter typeFilter = documentMapper.typeFilter(); // Only include docs that have this inner hits type.
-            context.searcher().search(
-                    new FilteredQuery(query, new AndFilter(Arrays.asList(filter, typeFilter))),
-                    topDocsCollector
-            );
-            return topDocsCollector.topDocs(from(), size());
+
+            if (size() == 0) {
+                TotalHitCountCollector collector = new TotalHitCountCollector();
+                context.searcher().search(
+                        new FilteredQuery(query, new AndFilter(Arrays.asList(filter, typeFilter))),
+                        collector
+                );
+                return new TopDocs(collector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
+            } else {
+                int topN = from() + size();
+                TopDocsCollector topDocsCollector;
+                if (sort() != null) {
+                    topDocsCollector = TopFieldCollector.create(sort(), topN, true, trackScores(), trackScores());
+                } else {
+                    topDocsCollector = TopScoreDocCollector.create(topN);
+                }
+                context.searcher().search(
+                        new FilteredQuery(query, new AndFilter(Arrays.asList(filter, typeFilter))),
+                        topDocsCollector
+                );
+                return topDocsCollector.topDocs(from(), size());
+            }
         }
     }
 }

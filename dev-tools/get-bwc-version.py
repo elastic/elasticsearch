@@ -61,7 +61,11 @@ def main():
   else:
     filename = '%s.tar.gz' % version_dir
 
-  url = 'https://download.elasticsearch.org/elasticsearch/elasticsearch/%s' % filename
+  if c.version == '1.2.0':
+    # 1.2.0 was pulled from download.elasticsearch.org because of routing bug:
+    url = 'http://central.maven.org/maven2/org/elasticsearch/elasticsearch/1.2.0/%s' % filename
+  else:
+    url = 'https://download.elasticsearch.org/elasticsearch/elasticsearch/%s' % filename
   print('Downloading %s' % url)
   urllib.request.urlretrieve(url, filename)
 

@@ -59,8 +59,8 @@ public class PageCacheRecycler extends AbstractComponent {
         assert searchThreadPool != null;
         final int maxSize = searchThreadPool.getMax();
         if (maxSize <= 0) {
-            // happens with cached thread pools, let's assume there are at most 3x ${number of processors} threads
-            return 3 * EsExecutors.boundedNumberOfProcessors(settings);
+            // happens with cached thread pools, let's assume there are at most 2x ${number of processors} threads
+            return 2 * EsExecutors.boundedNumberOfProcessors(settings);
         } else {
             return maxSize;
         }

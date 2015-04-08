@@ -132,7 +132,6 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
                 .listenerThreaded(true)
                 .operationThreaded(true);
 
-        request.beforeLocalFork();
         getAction.execute(getRequest, new ActionListener<GetResponse>() {
             @Override
             public void onResponse(GetResponse getResponse) {
@@ -221,7 +220,7 @@ public class TransportMoreLikeThisAction extends HandledTransportAction<MoreLike
                 searchRequest.extraSource(extraSource);
 
                 if (request.searchSource() != null) {
-                    searchRequest.source(request.searchSource(), request.searchSourceUnsafe());
+                    searchRequest.source(request.searchSource());
                 }
 
                 searchAction.execute(searchRequest, new ActionListener<SearchResponse>() {

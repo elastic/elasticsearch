@@ -36,7 +36,6 @@ import org.elasticsearch.index.Index;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 /**
  * Handles writing and loading both {@link MetaData} and {@link IndexMetaData}
@@ -47,22 +46,20 @@ public class MetaStateService extends AbstractComponent {
 
     static final String GLOBAL_STATE_FILE_PREFIX = "global-";
     private static final String INDEX_STATE_FILE_PREFIX = "state-";
-    static final Pattern GLOBAL_STATE_FILE_PATTERN = Pattern.compile(GLOBAL_STATE_FILE_PREFIX + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
-    static final Pattern INDEX_STATE_FILE_PATTERN = Pattern.compile(INDEX_STATE_FILE_PREFIX + "(\\d+)(" + MetaDataStateFormat.STATE_FILE_EXTENSION + ")?");
-    private static final String GLOBAL_STATE_LOG_TYPE = "[_global]";
 
     private final NodeEnvironment nodeEnv;
 
     private final XContentType format;
     private final ToXContent.Params formatParams;
     private final ToXContent.Params gatewayModeFormatParams;
+    private final MetaDataStateFormat<IndexMetaData> indexStateFormat;
+    private final MetaDataStateFormat<MetaData> globalStateFormat;
 
     @Inject
     public MetaStateService(Settings settings, NodeEnvironment nodeEnv) {
         super(settings);
         this.nodeEnv = nodeEnv;
         this.format = XContentType.fromRestContentType(settings.get(FORMAT_SETTING, "smile"));
-
         if (this.format == XContentType.SMILE) {
             Map<String, String> params = Maps.newHashMap();
             params.put("binary", "true");
@@ -77,6 +74,9 @@ public class MetaStateService extends AbstractComponent {
             gatewayModeParams.put(MetaData.CONTEXT_MODE_PARAM, MetaData.CONTEXT_MODE_GATEWAY);
             gatewayModeFormatParams = new ToXContent.MapParams(gatewayModeParams);
         }
+        indexStateFormat = indexStateFormat(format, formatParams);
+        globalStateFormat = globalStateFormat(format, gatewayModeFormatParams);
+
     }
 
     /**
@@ -109,15 +109,14 @@ public class MetaStateService extends AbstractComponent {
      */
     @Nullable
     IndexMetaData loadIndexState(String index) throws IOException {
-        return MetaDataStateFormat.loadLatestState(logger, indexStateFormat(format, formatParams, true),
-                INDEX_STATE_FILE_PATTERN, "[" + index + "]", nodeEnv.indexPaths(new Index(index)));
+        return indexStateFormat.loadLatestState(logger, nodeEnv.indexPaths(new Index(index)));
     }
 
     /**
      * Loads the global state, *without* index state, see {@link #loadFullState()} for that.
      */
     MetaData loadGlobalState() throws IOException {
-        return MetaDataStateFormat.loadLatestState(logger, globalStateFormat(format, gatewayModeFormatParams, true), GLOBAL_STATE_FILE_PATTERN, GLOBAL_STATE_LOG_TYPE, nodeEnv.nodeDataPaths());
+        return globalStateFormat.loadLatestState(logger, nodeEnv.nodeDataPaths());
     }
 
     /**
@@ -125,10 +124,8 @@ public class MetaStateService extends AbstractComponent {
      */
     void writeIndex(String reason, IndexMetaData indexMetaData, @Nullable IndexMetaData previousIndexMetaData) throws Exception {
         logger.trace("[{}] writing state, reason [{}]", indexMetaData.index(), reason);
-        final boolean deleteOldFiles = previousIndexMetaData != null && previousIndexMetaData.version() != indexMetaData.version();
-        final MetaDataStateFormat<IndexMetaData> writer = indexStateFormat(format, formatParams, deleteOldFiles);
         try {
-            writer.write(indexMetaData, INDEX_STATE_FILE_PREFIX, indexMetaData.version(),
+            indexStateFormat.write(indexMetaData, indexMetaData.version(),
                     nodeEnv.indexPaths(new Index(indexMetaData.index())));
         } catch (Throwable ex) {
             logger.warn("[{}]: failed to write index state", ex, indexMetaData.index());
@@ -140,12 +137,11 @@ public class MetaStateService extends AbstractComponent {
      * Writes the global state, *without* the indices states.
      */
     void writeGlobalState(String reason, MetaData metaData) throws Exception {
-        logger.trace("{} writing state, reason [{}]", GLOBAL_STATE_LOG_TYPE, reason);
-        final MetaDataStateFormat<MetaData> writer = globalStateFormat(format, gatewayModeFormatParams, true);
+        logger.trace("[_global] writing state, reason [{}]",  reason);
         try {
-            writer.write(metaData, GLOBAL_STATE_FILE_PREFIX, metaData.version(), nodeEnv.nodeDataPaths());
+            globalStateFormat.write(metaData, metaData.version(), nodeEnv.nodeDataPaths());
         } catch (Throwable ex) {
-            logger.warn("{}: failed to write global state", ex, GLOBAL_STATE_LOG_TYPE);
+            logger.warn("[_global]: failed to write global state", ex);
             throw new IOException("failed to write global state", ex);
         }
     }
@@ -153,8 +149,8 @@ public class MetaStateService extends AbstractComponent {
     /**
      * Returns a StateFormat that can read and write {@link MetaData}
      */
-    static MetaDataStateFormat<MetaData> globalStateFormat(XContentType format, final ToXContent.Params formatParams, final boolean deleteOldFiles) {
-        return new MetaDataStateFormat<MetaData>(format, deleteOldFiles) {
+    static MetaDataStateFormat<MetaData> globalStateFormat(XContentType format, final ToXContent.Params formatParams) {
+        return new MetaDataStateFormat<MetaData>(format, GLOBAL_STATE_FILE_PREFIX) {
 
             @Override
             public void toXContent(XContentBuilder builder, MetaData state) throws IOException {
@@ -171,8 +167,8 @@ public class MetaStateService extends AbstractComponent {
     /**
      * Returns a StateFormat that can read and write {@link IndexMetaData}
      */
-    static MetaDataStateFormat<IndexMetaData> indexStateFormat(XContentType format, final ToXContent.Params formatParams, boolean deleteOldFiles) {
-        return new MetaDataStateFormat<IndexMetaData>(format, deleteOldFiles) {
+    static MetaDataStateFormat<IndexMetaData> indexStateFormat(XContentType format, final ToXContent.Params formatParams) {
+        return new MetaDataStateFormat<IndexMetaData>(format, INDEX_STATE_FILE_PREFIX) {
 
             @Override
             public void toXContent(XContentBuilder builder, IndexMetaData state) throws IOException {

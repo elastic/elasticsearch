@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.recovery;
 
+import com.google.common.base.Predicate;
+import com.google.common.base.Predicates;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -25,19 +27,19 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.RecoveriesCollection;
-import org.elasticsearch.indices.recovery.RecoveryFailedException;
-import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.indices.recovery.*;
 import org.elasticsearch.test.ElasticsearchSingleNodeTest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Test;
 
+import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class RecoveriesCollectionTests extends ElasticsearchSingleNodeTest {
@@ -56,11 +58,7 @@ public class RecoveriesCollectionTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testLastAccessTimeUpdate() throws Exception {
-        createIndex("test",
-                ImmutableSettings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .build());
-        ensureGreen();
+        createIndex();
         final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
         final long recoveryId = startRecovery(collection);
         try (RecoveriesCollection.StatusRef status = collection.getStatus(recoveryId)) {
@@ -80,11 +78,7 @@ public class RecoveriesCollectionTests extends ElasticsearchSingleNodeTest {
 
     @Test
     public void testRecoveryTimeout() throws InterruptedException {
-        createIndex("test",
-                ImmutableSettings.builder()
-                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .build());
-        ensureGreen();
+        createIndex();
         final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
         final AtomicBoolean failed = new AtomicBoolean();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -108,6 +102,70 @@ public class RecoveriesCollectionTests extends ElasticsearchSingleNodeTest {
         }
 
     }
+
+    @Test
+    public void testRecoveryCancellationNoPredicate() throws Exception {
+        createIndex();
+        final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
+        final long recoveryId = startRecovery(collection);
+        final long recoveryId2 = startRecovery(collection);
+        try (RecoveriesCollection.StatusRef statusRef = collection.getStatus(recoveryId)) {
+            ShardId shardId = statusRef.status().shardId();
+            assertTrue("failed to cancel recoveries", collection.cancelRecoveriesForShard(shardId, "test"));
+            assertThat("all recoveries should be cancelled", collection.size(), equalTo(0));
+        } finally {
+            collection.cancelRecovery(recoveryId, "meh");
+            collection.cancelRecovery(recoveryId2, "meh");
+        }
+    }
+
+    @Test
+    public void testRecoveryCancellationPredicate() throws Exception {
+        createIndex();
+        final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
+        final long recoveryId = startRecovery(collection);
+        final long recoveryId2 = startRecovery(collection);
+        final ArrayList<AutoCloseable> toClose = new ArrayList<>();
+        try {
+            RecoveriesCollection.StatusRef statusRef = collection.getStatus(recoveryId);
+            toClose.add(statusRef);
+            ShardId shardId = statusRef.status().shardId();
+            assertFalse("should not have cancelled recoveries", collection.cancelRecoveriesForShard(shardId, "test", Predicates.<RecoveryStatus>alwaysFalse()));
+            final Predicate<RecoveryStatus> shouldCancel = new Predicate<RecoveryStatus>() {
+                @Override
+                public boolean apply(RecoveryStatus status) {
+                    return status.recoveryId() == recoveryId;
+                }
+            };
+            assertTrue("failed to cancel recoveries", collection.cancelRecoveriesForShard(shardId, "test", shouldCancel));
+            assertThat("we should still have on recovery", collection.size(), equalTo(1));
+            statusRef = collection.getStatus(recoveryId);
+            toClose.add(statusRef);
+            assertNull("recovery should have been deleted", statusRef);
+            statusRef = collection.getStatus(recoveryId2);
+            toClose.add(statusRef);
+            assertNotNull("recovery should NOT have been deleted", statusRef);
+
+        } finally {
+            // TODO: do we want a lucene IOUtils version of this?
+            for (AutoCloseable closeable : toClose) {
+                if (closeable != null) {
+                    closeable.close();
+                }
+            }
+            collection.cancelRecovery(recoveryId, "meh");
+            collection.cancelRecovery(recoveryId2, "meh");
+        }
+    }
+
+    protected void createIndex() {
+        createIndex("test",
+                ImmutableSettings.builder()
+                        .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1, IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
+                        .build());
+        ensureGreen();
+    }
+
 
     long startRecovery(RecoveriesCollection collection) {
         return startRecovery(collection, listener, TimeValue.timeValueMinutes(60));

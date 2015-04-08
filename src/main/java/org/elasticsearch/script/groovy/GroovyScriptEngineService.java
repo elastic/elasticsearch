@@ -19,10 +19,12 @@
 
 package org.elasticsearch.script.groovy;
 
-import com.google.common.collect.ImmutableSet;
 import groovy.lang.Binding;
 import groovy.lang.GroovyClassLoader;
 import groovy.lang.Script;
+
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.codehaus.groovy.ast.ClassCodeExpressionTransformer;
@@ -43,12 +45,23 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.ScoreAccessor;
+import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -179,18 +192,26 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-        try {
-            Map<String, Object> allVars = new HashMap<>();
-            allVars.putAll(lookup.asMap());
-            if (vars != null) {
-                allVars.putAll(vars);
+    public SearchScript search(final Object compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
+        return new SearchScript() {
+
+            @Override
+            public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+                final LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
+                Map<String, Object> allVars = new HashMap<>();
+                allVars.putAll(leafLookup.asMap());
+                if (vars != null) {
+                    allVars.putAll(vars);
+                }
+                Script scriptObject;
+                try {
+                    scriptObject = createScript(compiledScript, allVars);
+                } catch (InstantiationException | IllegalAccessException e) {
+                    throw new ScriptException("failed to build search script", e);
+                }
+                return new GroovyScript(scriptObject, leafLookup, logger);
             }
-            Script scriptObject = createScript(compiledScript, allVars);
-            return new GroovyScript(scriptObject, lookup, this.logger);
-        } catch (Exception e) {
-            throw new ScriptException("failed to build search script", e);
-        }
+        };
     }
 
     @Override
@@ -216,10 +237,10 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         return "Script" + counter.incrementAndGet() + ".groovy";
     }
 
-    public static final class GroovyScript implements ExecutableScript, SearchScript {
+    public static final class GroovyScript implements ExecutableScript, LeafSearchScript {
 
         private final Script script;
-        private final SearchLookup lookup;
+        private final LeafSearchLookup lookup;
         private final Map<String, Object> variables;
         private final ESLogger logger;
 
@@ -228,7 +249,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         }
 
         @SuppressWarnings("unchecked")
-        public GroovyScript(Script script, @Nullable SearchLookup lookup, ESLogger logger) {
+        public GroovyScript(Script script, @Nullable LeafSearchLookup lookup, ESLogger logger) {
             this.script = script;
             this.lookup = lookup;
             this.logger = logger;
@@ -241,16 +262,9 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         }
 
         @Override
-        public void setNextReader(LeafReaderContext context) {
+        public void setDocument(int doc) {
             if (lookup != null) {
-                lookup.setNextReader(context);
-            }
-        }
-
-        @Override
-        public void setNextDocId(int doc) {
-            if (lookup != null) {
-                lookup.setNextDocId(doc);
+                lookup.setDocument(doc);
             }
         }
 
@@ -261,9 +275,9 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         }
 
         @Override
-        public void setNextSource(Map<String, Object> source) {
+        public void setSource(Map<String, Object> source) {
             if (lookup != null) {
-                lookup.source().setNextSource(source);
+                lookup.source().setSource(source);
             }
         }
 

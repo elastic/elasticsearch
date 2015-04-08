@@ -18,9 +18,11 @@
  */
 package org.elasticsearch.script;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
@@ -31,6 +33,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 //Use Suite scope so that paths get set correctly
@@ -41,19 +44,22 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
     public Settings nodeSettings(int nodeOrdinal) {
         //Set path so ScriptService will pick up the test scripts
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal))
-                .put("path.conf", this.getResourcePath("config")).build();
+                .put("path.conf", this.getResourcePath("config"))
+                .put("script.engine.expression.file.aggs", "off")
+                .put("script.engine.mustache.file.aggs", "off")
+                .put("script.engine.mustache.file.search", "off")
+                .put("script.engine.mustache.file.mapping", "off")
+                .put("script.engine.mustache.file.update", "off").build();
     }
 
     @Test
     public void testFieldOnDiskScript()  throws ExecutionException, InterruptedException {
-
         List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}"));
         builders.add(client().prepareIndex("test", "scriptTest", "2").setSource("{\"theField\":\"foo 2\"}"));
         builders.add(client().prepareIndex("test", "scriptTest", "3").setSource("{\"theField\":\"foo 3\"}"));
         builders.add(client().prepareIndex("test", "scriptTest", "4").setSource("{\"theField\":\"foo 4\"}"));
         builders.add(client().prepareIndex("test", "scriptTest", "5").setSource("{\"theField\":\"bar\"}"));
-
         indexRandom(true, builders);
 
         String query = "{ \"query\" : { \"match_all\": {}} , \"script_fields\" : { \"test1\" : { \"script_file\" : \"script1\" }, \"test2\" : { \"script_file\" : \"script2\", \"params\":{\"factor\":3}  }}, size:1}";
@@ -67,14 +73,12 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
 
     @Test
     public void testOnDiskScriptsSameNameDifferentLang()  throws ExecutionException, InterruptedException {
-
         List<IndexRequestBuilder> builders = new ArrayList<>();
         builders.add(client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}"));
         builders.add(client().prepareIndex("test", "scriptTest", "2").setSource("{\"theField\":\"foo 2\"}"));
         builders.add(client().prepareIndex("test", "scriptTest", "3").setSource("{\"theField\":\"foo 3\"}"));
         builders.add(client().prepareIndex("test", "scriptTest", "4").setSource("{\"theField\":\"foo 4\"}"));
         builders.add(client().prepareIndex("test", "scriptTest", "5").setSource("{\"theField\":\"bar\"}"));
-
         indexRandom(true, builders);
 
         String query = "{ \"query\" : { \"match_all\": {}} , \"script_fields\" : { \"test1\" : { \"script_file\" : \"script1\" }, \"test2\" : { \"script_file\" : \"script1\", \"lang\":\"expression\"  }}, size:1}";
@@ -84,5 +88,61 @@ public class OnDiskScriptTests extends ElasticsearchIntegrationTest {
         SearchHit sh = searchResponse.getHits().getAt(0);
         assertThat((Integer)sh.field("test1").getValue(), equalTo(2));
         assertThat((Double)sh.field("test2").getValue(), equalTo(10d));
+    }
+
+    @Test
+    public void testPartiallyDisabledOnDiskScripts() throws ExecutionException, InterruptedException {
+        //test that although aggs are disabled for expression, search scripts work fine
+        List<IndexRequestBuilder> builders = new ArrayList<>();
+        builders.add(client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}"));
+        builders.add(client().prepareIndex("test", "scriptTest", "2").setSource("{\"theField\":\"foo 2\"}"));
+        builders.add(client().prepareIndex("test", "scriptTest", "3").setSource("{\"theField\":\"foo 3\"}"));
+        builders.add(client().prepareIndex("test", "scriptTest", "4").setSource("{\"theField\":\"foo 4\"}"));
+        builders.add(client().prepareIndex("test", "scriptTest", "5").setSource("{\"theField\":\"bar\"}"));
+
+        indexRandom(true, builders);
+
+        String source = "{\"aggs\": {\"test\": { \"terms\" : { \"script_file\":\"script1\", \"lang\": \"expression\" } } } }";
+        try {
+            client().prepareSearch("test").setSource(source).get();
+            fail("aggs script should have been rejected");
+        } catch(Exception e) {
+            assertThat(ExceptionsHelper.detailedMessage(e), containsString("scripts of type [file], operation [aggs] and lang [expression] are disabled"));
+        }
+
+        String query = "{ \"query\" : { \"match_all\": {}} , \"script_fields\" : { \"test1\" : { \"script_file\" : \"script1\", \"lang\":\"expression\" }}, size:1}";
+        SearchResponse searchResponse = client().prepareSearch().setSource(query).setIndices("test").setTypes("scriptTest").get();
+        assertHitCount(searchResponse, 5);
+        assertTrue(searchResponse.getHits().hits().length == 1);
+        SearchHit sh = searchResponse.getHits().getAt(0);
+        assertThat((Double)sh.field("test1").getValue(), equalTo(10d));
+    }
+
+    @Test
+    public void testAllOpsDisabledOnDiskScripts() {
+        //whether we even compile or cache the on disk scripts doesn't change the end result (the returned error)
+        client().prepareIndex("test", "scriptTest", "1").setSource("{\"theField\":\"foo\"}").get();
+        refresh();
+        String source = "{\"aggs\": {\"test\": { \"terms\" : { \"script_file\":\"script1\", \"lang\": \"mustache\" } } } }";
+        try {
+            client().prepareSearch("test").setSource(source).get();
+            fail("aggs script should have been rejected");
+        } catch(Exception e) {
+            assertThat(ExceptionsHelper.detailedMessage(e), containsString("scripts of type [file], operation [aggs] and lang [mustache] are disabled"));
+        }
+        String query = "{ \"query\" : { \"match_all\": {}} , \"script_fields\" : { \"test1\" : { \"script_file\" : \"script1\", \"lang\":\"mustache\" }}, size:1}";
+        try {
+            client().prepareSearch().setSource(query).setIndices("test").setTypes("scriptTest").get();
+            fail("search script should have been rejected");
+        } catch(Exception e) {
+            assertThat(ExceptionsHelper.detailedMessage(e), containsString("scripts of type [file], operation [search] and lang [mustache] are disabled"));
+        }
+        try {
+            client().prepareUpdate("test", "scriptTest", "1").setScript("script1", ScriptService.ScriptType.FILE).setScriptLang(MustacheScriptEngineService.NAME).get();
+            fail("update script should have been rejected");
+        } catch(Exception e) {
+            assertThat(e.getMessage(), containsString("failed to execute script"));
+            assertThat(ExceptionsHelper.detailedMessage(e), containsString("scripts of type [file], operation [update] and lang [mustache] are disabled"));
+        }
     }
 }

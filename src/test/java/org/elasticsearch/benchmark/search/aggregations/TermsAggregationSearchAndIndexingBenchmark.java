@@ -306,7 +306,7 @@ public class TermsAggregationSearchAndIndexingBenchmark {
             while (run) {
                 try {
                     SearchResponse searchResponse = Method.AGGREGATION.addTermsAgg(client.prepareSearch()
-                            .setSearchType(SearchType.COUNT)
+                            .setSize(0)
                             .setQuery(matchAllQuery()), "test", field, executionHint)
                             .execute().actionGet();
                     if (searchResponse.getHits().totalHits() != COUNT) {

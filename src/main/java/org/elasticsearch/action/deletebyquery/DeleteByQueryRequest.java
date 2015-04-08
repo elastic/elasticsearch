@@ -56,7 +56,6 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<DeleteByQueryRequest> {
 
     private BytesReference source;
-    private boolean sourceUnsafe;
 
     private String[] types = Strings.EMPTY_ARRAY;
     @Nullable
@@ -94,9 +93,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
      * The source to execute.
      */
     public BytesReference source() {
-        if (sourceUnsafe) {
-            source = source.copyBytesArray();
-        }
         return source;
     }
 
@@ -105,7 +101,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
      */
     public DeleteByQueryRequest source(QuerySourceBuilder sourceBuilder) {
         this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        this.sourceUnsafe = false;
         return this;
     }
 
@@ -115,7 +110,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
      */
     public DeleteByQueryRequest source(String query) {
         this.source = new BytesArray(query.getBytes(Charsets.UTF_8));
-        this.sourceUnsafe = false;
         return this;
     }
 
@@ -135,7 +129,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
 
     public DeleteByQueryRequest source(XContentBuilder builder) {
         this.source = builder.bytes();
-        this.sourceUnsafe = false;
         return this;
     }
 
@@ -143,21 +136,18 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
      * The source to execute.
      */
     public DeleteByQueryRequest source(byte[] source) {
-        return source(source, 0, source.length, false);
+        return source(source, 0, source.length);
     }
 
     /**
      * The source to execute.
      */
-    public DeleteByQueryRequest source(byte[] source, int offset, int length, boolean unsafe) {
-        this.source = new BytesArray(source, offset, length);
-        this.sourceUnsafe = unsafe;
-        return this;
+    public DeleteByQueryRequest source(byte[] source, int offset, int length) {
+        return source(new BytesArray(source, offset, length));
     }
 
-    public DeleteByQueryRequest source(BytesReference source, boolean unsafe) {
+    public DeleteByQueryRequest source(BytesReference source) {
         this.source = source;
-        this.sourceUnsafe = unsafe;
         return this;
     }
 
@@ -202,7 +192,6 @@ public class DeleteByQueryRequest extends IndicesReplicationOperationRequest<Del
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        sourceUnsafe = false;
         source = in.readBytesReference();
         routing = in.readOptionalString();
         types = in.readStringArray();

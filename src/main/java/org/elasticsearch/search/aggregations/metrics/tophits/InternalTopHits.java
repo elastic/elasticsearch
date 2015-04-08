@@ -154,7 +154,7 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeVInt(from);
         out.writeVInt(size);
-        Lucene.writeTopDocs(out, topDocs, 0);
+        Lucene.writeTopDocs(out, topDocs);
         searchHits.writeTo(out);
     }
 

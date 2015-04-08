@@ -195,13 +195,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener, final Semaphore mdLock) {
 
         ImmutableSettings.Builder updatedSettingsBuilder = ImmutableSettings.settingsBuilder();
-        for (Map.Entry<String, String> entry : request.settings().getAsMap().entrySet()) {
-            if (!entry.getKey().startsWith("index.")) {
-                updatedSettingsBuilder.put("index." + entry.getKey(), entry.getValue());
-            } else {
-                updatedSettingsBuilder.put(entry.getKey(), entry.getValue());
-            }
-        }
+        updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         request.settings(updatedSettingsBuilder.build());
 
         clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {

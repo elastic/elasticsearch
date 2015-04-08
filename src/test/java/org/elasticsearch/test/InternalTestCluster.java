@@ -29,6 +29,7 @@ import com.google.common.collect.*;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.SettableFuture;
+
 import org.apache.lucene.util.AbstractRandomizedTest;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -86,10 +87,12 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.SearchServiceModule;
 import org.elasticsearch.test.cache.recycler.MockBigArraysModule;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecyclerModule;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.engine.MockEngineFactory;
+import org.elasticsearch.test.search.MockSearchServiceModule;
 import org.elasticsearch.test.store.MockFSIndexStoreModule;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -161,7 +164,6 @@ public final class InternalTestCluster extends TestCluster {
     static final int DEFAULT_MIN_NUM_CLIENT_NODES = 0;
     static final int DEFAULT_MAX_NUM_CLIENT_NODES = 1;
 
-    static final boolean DEFAULT_ENABLE_RANDOM_BENCH_NODES = true;
     static final boolean DEFAULT_ENABLE_HTTP_PIPELINING = true;
 
     public static final String NODE_MODE = nodeMode();
@@ -188,8 +190,6 @@ public final class InternalTestCluster extends TestCluster {
 
     private final int numSharedClientNodes;
 
-    private final boolean enableRandomBenchNodes;
-
     private final SettingsSource settingsSource;
 
     private final ExecutorService executor;
@@ -201,15 +201,14 @@ public final class InternalTestCluster extends TestCluster {
 
     private ServiceDisruptionScheme activeDisruptionScheme;
 
-    public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes, boolean enableRandomBenchNodes,
+    public InternalTestCluster(long clusterSeed, int minNumDataNodes, int maxNumDataNodes, String clusterName, int numClientNodes,
                                boolean enableHttpPipelining, int jvmOrdinal, String nodePrefix) {
-        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableRandomBenchNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
+        this(clusterSeed, minNumDataNodes, maxNumDataNodes, clusterName, DEFAULT_SETTINGS_SOURCE, numClientNodes, enableHttpPipelining, jvmOrdinal, nodePrefix);
     }
 
     public InternalTestCluster(long clusterSeed,
                                int minNumDataNodes, int maxNumDataNodes, String clusterName, SettingsSource settingsSource, int numClientNodes,
-                               boolean enableRandomBenchNodes, boolean enableHttpPipelining,
-                               int jvmOrdinal, String nodePrefix) {
+                                boolean enableHttpPipelining, int jvmOrdinal, String nodePrefix) {
         super(clusterSeed);
         this.clusterName = clusterName;
 
@@ -237,8 +236,6 @@ public final class InternalTestCluster extends TestCluster {
             }
         }
         assert this.numSharedClientNodes >= 0;
-
-        this.enableRandomBenchNodes = enableRandomBenchNodes;
 
         this.nodePrefix = nodePrefix;
 
@@ -275,7 +272,6 @@ public final class InternalTestCluster extends TestCluster {
         builder.put("http.port", basePort+101 + "-" + (basePort+200));
         builder.put("config.ignore_system_properties", true);
         builder.put("node.mode", NODE_MODE);
-        builder.put("script.disable_dynamic", false);
         builder.put("http.pipelining", enableHttpPipelining);
         builder.put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, false);
         builder.put(NodeEnvironment.SETTING_CUSTOM_DATA_PATH_ENABLED, true);
@@ -367,6 +363,7 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(PageCacheRecyclerModule.CACHE_IMPL, MockPageCacheRecyclerModule.class.getName());
             builder.put(BigArraysModule.IMPL, MockBigArraysModule.class.getName());
             builder.put(TransportModule.TRANSPORT_SERVICE_TYPE_KEY, MockTransportService.class.getName());
+            builder.put(SearchServiceModule.IMPL, MockSearchServiceModule.class.getName());
         }
         if (isLocalTransportConfigured()) {
             builder.put(TransportModule.TRANSPORT_TYPE_KEY, AssertingLocalTransport.class.getName());
@@ -938,10 +935,6 @@ public final class InternalTestCluster extends TestCluster {
             if (nodeAndClient == null) {
                 changed = true;
                 Builder clientSettingsBuilder = ImmutableSettings.builder().put("node.client", true);
-                if (enableRandomBenchNodes && usually(random)) {
-                    //client nodes might also be bench nodes
-                    clientSettingsBuilder.put("node.bench", true);
-                }
                 nodeAndClient = buildNode(i, sharedNodesSeeds[i], clientSettingsBuilder.build(), Version.CURRENT);
                 nodeAndClient.node.start();
                 logger.info("Start Shared Node [{}] not shared", nodeAndClient.name);
@@ -1486,11 +1479,6 @@ public final class InternalTestCluster extends TestCluster {
         return dataAndMasterNodes().size();
     }
 
-    @Override
-    public int numBenchNodes() {
-        return benchNodeAndClients().size();
-    }
-
     public void setDisruptionScheme(ServiceDisruptionScheme scheme) {
         clearDisruptionScheme();
         scheme.applyToCluster(this);
@@ -1573,17 +1561,6 @@ public final class InternalTestCluster extends TestCluster {
         @Override
         public boolean apply(NodeAndClient nodeAndClient) {
             return DiscoveryNode.clientNode(nodeAndClient.node.settings());
-        }
-    }
-
-    private synchronized Collection<NodeAndClient> benchNodeAndClients() {
-        return Collections2.filter(nodes.values(), new BenchNodePredicate());
-    }
-
-    private static final class BenchNodePredicate implements Predicate<NodeAndClient> {
-        @Override
-        public boolean apply(NodeAndClient nodeAndClient) {
-            return nodeAndClient.node.settings().getAsBoolean("node.bench", false);
         }
     }
 

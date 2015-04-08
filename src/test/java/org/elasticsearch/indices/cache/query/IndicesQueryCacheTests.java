@@ -48,7 +48,7 @@ public class IndicesQueryCacheTests extends ElasticsearchIntegrationTest {
         // This is not a random example: serialization with time zones writes shared strings
         // which used to not work well with the query cache because of the handles stream output
         // see #9500
-        final SearchResponse r1 = client().prepareSearch("index").setSearchType(SearchType.COUNT)
+        final SearchResponse r1 = client().prepareSearch("index").setSize(0).setSearchType(SearchType.QUERY_THEN_FETCH)
             .addAggregation(dateHistogram("histo").field("f").timeZone("+01:00").minDocCount(0).interval(DateHistogramInterval.MONTH)).get();
         assertSearchResponse(r1);
 
@@ -56,7 +56,7 @@ public class IndicesQueryCacheTests extends ElasticsearchIntegrationTest {
         assertThat(client().admin().indices().prepareStats("index").setQueryCache(true).get().getTotal().getQueryCache().getMemorySizeInBytes(), greaterThan(0l));
 
         for (int i = 0; i < 10; ++i) {
-            final SearchResponse r2 = client().prepareSearch("index").setSearchType(SearchType.COUNT)
+            final SearchResponse r2 = client().prepareSearch("index").setSize(0).setSearchType(SearchType.QUERY_THEN_FETCH)
                     .addAggregation(dateHistogram("histo").field("f").timeZone("+01:00").minDocCount(0).interval(DateHistogramInterval.MONTH)).get();
             assertSearchResponse(r2);
             Histogram h1 = r1.getAggregations().get("histo");

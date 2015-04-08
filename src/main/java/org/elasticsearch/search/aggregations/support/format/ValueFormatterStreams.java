@@ -38,6 +38,7 @@ public class ValueFormatterStreams {
             case ValueFormatter.DateTime.ID: formatter = new ValueFormatter.DateTime(); break;
             case ValueFormatter.Number.Pattern.ID: formatter = new ValueFormatter.Number.Pattern(); break;
             case ValueFormatter.GeoHash.ID: formatter = ValueFormatter.GEOHASH; break;
+            case ValueFormatter.BooleanFormatter.ID: formatter = ValueFormatter.BOOLEAN; break;
             default: throw new ElasticsearchIllegalArgumentException("Unknown value formatter with id [" + id + "]");
         }
         formatter.readFrom(in);

@@ -348,7 +348,7 @@ public class RelocationTests extends ElasticsearchIntegrationTest {
             logger.debug("--> verifying all searches return the same number of docs");
             long expectedCount = -1;
             for (Client client : clients()) {
-                SearchResponse response = client.prepareSearch("test").setPreference("_local").setSearchType(SearchType.COUNT).get();
+                SearchResponse response = client.prepareSearch("test").setPreference("_local").setSize(0).get();
                 assertNoFailures(response);
                 if (expectedCount < 0) {
                     expectedCount = response.getHits().totalHits();

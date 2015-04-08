@@ -124,18 +124,16 @@ public class FiltersFunctionScoreQuery extends Query {
         // TODO: needsScores
         // if we dont need scores, just return the underlying Weight?
         Weight subQueryWeight = subQuery.createWeight(searcher, needsScores);
-        return new CustomBoostFactorWeight(this, subQueryWeight, filterFunctions.length);
+        return new CustomBoostFactorWeight(this, subQueryWeight);
     }
 
     class CustomBoostFactorWeight extends Weight {
 
         final Weight subQueryWeight;
-        final Bits[] docSets;
 
-        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight, int filterFunctionLength) throws IOException {
+        public CustomBoostFactorWeight(Query parent, Weight subQueryWeight) throws IOException {
             super(parent);
             this.subQueryWeight = subQueryWeight;
-            this.docSets = new Bits[filterFunctionLength];
         }
 
         @Override
@@ -159,12 +157,14 @@ public class FiltersFunctionScoreQuery extends Query {
             if (subQueryScorer == null) {
                 return null;
             }
+            final LeafScoreFunction[] functions = new LeafScoreFunction[filterFunctions.length];
+            final Bits[] docSets = new Bits[filterFunctions.length];
             for (int i = 0; i < filterFunctions.length; i++) {
                 FilterFunction filterFunction = filterFunctions[i];
-                filterFunction.function.setNextReader(context);
+                functions[i] = filterFunction.function.getLeafScoreFunction(context);
                 docSets[i] = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(), filterFunction.filter.getDocIdSet(context, acceptDocs));
             }
-            return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, docSets, combineFunction, minScore);
+            return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, functions, docSets, combineFunction, minScore);
         }
 
         @Override
@@ -188,8 +188,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 Bits docSet = DocIdSets.asSequentialAccessBits(context.reader().maxDoc(),
                         filterFunction.filter.getDocIdSet(context, context.reader().getLiveDocs()));
                 if (docSet.get(doc)) {
-                    filterFunction.function.setNextReader(context);
-                    Explanation functionExplanation = filterFunction.function.explainScore(doc, subQueryExpl.getValue());
+                    Explanation functionExplanation = filterFunction.function.getLeafScoreFunction(context).explainScore(doc, subQueryExpl);
                     double factor = functionExplanation.getValue();
                     float sc = CombineFunction.toFloat(factor);
                     ComplexExplanation filterExplanation = new ComplexExplanation(true, sc, "function score, product of:");
@@ -255,13 +254,15 @@ public class FiltersFunctionScoreQuery extends Query {
     static class FiltersFunctionFactorScorer extends CustomBoostFactorScorer {
         private final FilterFunction[] filterFunctions;
         private final ScoreMode scoreMode;
+        private final LeafScoreFunction[] functions;
         private final Bits[] docSets;
 
         private FiltersFunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreMode scoreMode, FilterFunction[] filterFunctions,
-                                            float maxBoost, Bits[] docSets, CombineFunction scoreCombiner, Float minScore) throws IOException {
+                                            float maxBoost, LeafScoreFunction[] functions, Bits[] docSets, CombineFunction scoreCombiner, Float minScore) throws IOException {
             super(w, scorer, maxBoost, scoreCombiner, minScore);
             this.scoreMode = scoreMode;
             this.filterFunctions = filterFunctions;
+            this.functions = functions;
             this.docSets = docSets;
         }
 
@@ -273,7 +274,7 @@ public class FiltersFunctionScoreQuery extends Query {
             if (scoreMode == ScoreMode.First) {
                 for (int i = 0; i < filterFunctions.length; i++) {
                     if (docSets[i].get(docId)) {
-                        factor = filterFunctions[i].function.score(docId, subQueryScore);
+                        factor = functions[i].score(docId, subQueryScore);
                         break;
                     }
                 }
@@ -281,7 +282,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 double maxFactor = Double.NEGATIVE_INFINITY;
                 for (int i = 0; i < filterFunctions.length; i++) {
                     if (docSets[i].get(docId)) {
-                        maxFactor = Math.max(filterFunctions[i].function.score(docId, subQueryScore), maxFactor);
+                        maxFactor = Math.max(functions[i].score(docId, subQueryScore), maxFactor);
                     }
                 }
                 if (maxFactor != Float.NEGATIVE_INFINITY) {
@@ -291,7 +292,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 double minFactor = Double.POSITIVE_INFINITY;
                 for (int i = 0; i < filterFunctions.length; i++) {
                     if (docSets[i].get(docId)) {
-                        minFactor = Math.min(filterFunctions[i].function.score(docId, subQueryScore), minFactor);
+                        minFactor = Math.min(functions[i].score(docId, subQueryScore), minFactor);
                     }
                 }
                 if (minFactor != Float.POSITIVE_INFINITY) {
@@ -300,7 +301,7 @@ public class FiltersFunctionScoreQuery extends Query {
             } else if (scoreMode == ScoreMode.Multiply) {
                 for (int i = 0; i < filterFunctions.length; i++) {
                     if (docSets[i].get(docId)) {
-                        factor *= filterFunctions[i].function.score(docId, subQueryScore);
+                        factor *= functions[i].score(docId, subQueryScore);
                     }
                 }
             } else { // Avg / Total
@@ -308,7 +309,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 float weightSum = 0;
                 for (int i = 0; i < filterFunctions.length; i++) {
                     if (docSets[i].get(docId)) {
-                        totalFactor += filterFunctions[i].function.score(docId, subQueryScore);
+                        totalFactor += functions[i].score(docId, subQueryScore);
                         if (filterFunctions[i].function instanceof WeightFactorFunction) {
                             weightSum+= ((WeightFactorFunction)filterFunctions[i].function).getWeight();
                         } else {

@@ -43,6 +43,7 @@ import org.elasticsearch.index.fielddata.SortingBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortingNumericDocValues;
 import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
+import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.aggregations.support.ValuesSource.WithScript.BytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
@@ -188,16 +189,15 @@ public abstract class ValuesSource {
 
         public static class Script extends Bytes {
 
-            private final ScriptBytesValues values;
+            private final SearchScript script;
 
             public Script(SearchScript script) {
-                values = new ScriptBytesValues(script);
+                this.script = script;
             }
 
             @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                values.script().setNextReader(context);
-                return values;
+                return new ScriptBytesValues(script.getLeafSearchScript(context));
             }
 
             @Override
@@ -263,28 +263,25 @@ public abstract class ValuesSource {
 
             @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                script.setNextReader(context);
-                return new ValuesSource.WithScript.BytesValues(delegate.bytesValues(context), script);
+                return new ValuesSource.WithScript.BytesValues(delegate.bytesValues(context), script.getLeafSearchScript(context));
             }
 
             @Override
             public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
-                script.setNextReader(context);
-                return new LongValues(delegate.longValues(context), script);
+                return new LongValues(delegate.longValues(context), script.getLeafSearchScript(context));
             }
 
             @Override
             public SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException {
-                script.setNextReader(context);
-                return new DoubleValues(delegate.doubleValues(context), script);
+                return new DoubleValues(delegate.doubleValues(context), script.getLeafSearchScript(context));
             }
 
             static class LongValues extends SortingNumericDocValues implements ScorerAware {
 
                 private final SortedNumericDocValues longValues;
-                private final SearchScript script;
+                private final LeafSearchScript script;
 
-                public LongValues(SortedNumericDocValues values, SearchScript script) {
+                public LongValues(SortedNumericDocValues values, LeafSearchScript script) {
                     this.longValues = values;
                     this.script = script;
                 }
@@ -293,7 +290,7 @@ public abstract class ValuesSource {
                 public void setDocument(int doc) {
                     longValues.setDocument(doc);
                     resize(longValues.count());
-                    script.setNextDocId(doc);
+                    script.setDocument(doc);
                     for (int i = 0; i < count(); ++i) {
                         script.setNextVar("_value", longValues.valueAt(i));
                         values[i] = script.runAsLong();
@@ -310,9 +307,9 @@ public abstract class ValuesSource {
             static class DoubleValues extends SortingNumericDoubleValues implements ScorerAware {
 
                 private final SortedNumericDoubleValues doubleValues;
-                private final SearchScript script;
+                private final LeafSearchScript script;
 
-                public DoubleValues(SortedNumericDoubleValues values, SearchScript script) {
+                public DoubleValues(SortedNumericDoubleValues values, LeafSearchScript script) {
                     this.doubleValues = values;
                     this.script = script;
                 }
@@ -321,7 +318,7 @@ public abstract class ValuesSource {
                 public void setDocument(int doc) {
                     doubleValues.setDocument(doc);
                     resize(doubleValues.count());
-                    script.setNextDocId(doc);
+                    script.setDocument(doc);
                     for (int i = 0; i < count(); ++i) {
                         script.setNextVar("_value", doubleValues.valueAt(i));
                         values[i] = script.runAsDouble();
@@ -381,20 +378,17 @@ public abstract class ValuesSource {
 
             @Override
             public SortedNumericDocValues longValues(LeafReaderContext context) throws IOException {
-                script.setNextReader(context);
-                return new ScriptLongValues(script);
+                return new ScriptLongValues(script.getLeafSearchScript(context));
             }
 
             @Override
             public SortedNumericDoubleValues doubleValues(LeafReaderContext context) throws IOException {
-                script.setNextReader(context);
-                return new ScriptDoubleValues(script);
+                return new ScriptDoubleValues(script.getLeafSearchScript(context));
             }
 
             @Override
             public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-                script.setNextReader(context);
-                return new ScriptBytesValues(script);
+                return new ScriptBytesValues(script.getLeafSearchScript(context));
             }
 
             @Override
@@ -425,16 +419,15 @@ public abstract class ValuesSource {
 
         @Override
         public SortedBinaryDocValues bytesValues(LeafReaderContext context) throws IOException {
-            script.setNextReader(context);
-            return new BytesValues(delegate.bytesValues(context), script);
+            return new BytesValues(delegate.bytesValues(context), script.getLeafSearchScript(context));
         }
 
         static class BytesValues extends SortingBinaryDocValues implements ScorerAware {
 
             private final SortedBinaryDocValues bytesValues;
-            private final SearchScript script;
+            private final LeafSearchScript script;
 
-            public BytesValues(SortedBinaryDocValues bytesValues, SearchScript script) {
+            public BytesValues(SortedBinaryDocValues bytesValues, LeafSearchScript script) {
                 this.bytesValues = bytesValues;
                 this.script = script;
             }

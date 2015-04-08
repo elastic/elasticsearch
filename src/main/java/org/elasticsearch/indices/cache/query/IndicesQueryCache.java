@@ -54,6 +54,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -87,6 +88,8 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
     public static final String INDICES_CACHE_QUERY_SIZE = "indices.cache.query.size";
     public static final String INDICES_CACHE_QUERY_EXPIRE = "indices.cache.query.expire";
     public static final String INDICES_CACHE_QUERY_CONCURRENCY_LEVEL = "indices.cache.query.concurrency_level";
+
+    private static final Set<SearchType> CACHEABLE_SEARCH_TYPES = EnumSet.of(SearchType.QUERY_THEN_FETCH, SearchType.QUERY_AND_FETCH);
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
@@ -177,10 +180,20 @@ public class IndicesQueryCache extends AbstractComponent implements RemovalListe
         if (hasLength(request.templateSource())) {
             return false;
         }
-        // for now, only enable it for search type count
-        if (context.searchType() != SearchType.COUNT) {
+
+        // for now, only enable it for requests with no hits
+        if (context.size() != 0) {
             return false;
         }
+
+        // We cannot cache with DFS because results depend not only on the content of the index but also
+        // on the overridden statistics. So if you ran two queries on the same index with different stats
+        // (because an other shard was updated) you would get wrong results because of the scores
+        // (think about top_hits aggs or scripts using the score)
+        if (!CACHEABLE_SEARCH_TYPES.contains(context.searchType())) {
+            return false;
+        }
+
         IndexMetaData index = clusterService.state().getMetaData().index(request.index());
         if (index == null) { // in case we didn't yet have the cluster state, or it just got deleted
             return false;

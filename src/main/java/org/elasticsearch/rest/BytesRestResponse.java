@@ -34,48 +34,46 @@ public class BytesRestResponse extends RestResponse {
 
     private final RestStatus status;
     private final BytesReference content;
-    private final boolean contentThreadSafe;
     private final String contentType;
 
     public BytesRestResponse(RestStatus status) {
-        this(status, TEXT_CONTENT_TYPE, BytesArray.EMPTY, true);
+        this(status, TEXT_CONTENT_TYPE, BytesArray.EMPTY);
     }
 
     /**
      * Creates a new response based on {@link XContentBuilder}.
      */
     public BytesRestResponse(RestStatus status, XContentBuilder builder) {
-        this(status, builder.contentType().restContentType(), builder.bytes(), true);
+        this(status, builder.contentType().restContentType(), builder.bytes());
     }
 
     /**
      * Creates a new plain text response.
      */
     public BytesRestResponse(RestStatus status, String content) {
-        this(status, TEXT_CONTENT_TYPE, new BytesArray(content), true);
+        this(status, TEXT_CONTENT_TYPE, new BytesArray(content));
     }
 
     /**
      * Creates a new plain text response.
      */
     public BytesRestResponse(RestStatus status, String contentType, String content) {
-        this(status, contentType, new BytesArray(content), true);
+        this(status, contentType, new BytesArray(content));
     }
 
     /**
      * Creates a binary response.
      */
     public BytesRestResponse(RestStatus status, String contentType, byte[] content) {
-        this(status, contentType, new BytesArray(content), true);
+        this(status, contentType, new BytesArray(content));
     }
 
     /**
      * Creates a binary response.
      */
-    public BytesRestResponse(RestStatus status, String contentType, BytesReference content, boolean contentThreadSafe) {
+    public BytesRestResponse(RestStatus status, String contentType, BytesReference content) {
         this.status = status;
         this.content = content;
-        this.contentThreadSafe = contentThreadSafe;
         this.contentType = contentType;
     }
 
@@ -96,17 +94,11 @@ public class BytesRestResponse extends RestResponse {
         if (t instanceof HasRestHeaders) {
             addHeaders(((HasRestHeaders) t).getHeaders());
         }
-        this.contentThreadSafe = true;
     }
 
     @Override
     public String contentType() {
         return this.contentType;
-    }
-
-    @Override
-    public boolean contentThreadSafe() {
-        return this.contentThreadSafe;
     }
 
     @Override
@@ -120,32 +112,42 @@ public class BytesRestResponse extends RestResponse {
     }
 
     private static XContentBuilder convert(RestChannel channel, RestStatus status, Throwable t) throws IOException {
-        XContentBuilder builder = channel.newBuilder().startObject()
-                .field("error", detailedMessage(t))
-                .field("status", status.getStatus());
-        if (t != null && channel.request().paramAsBoolean("error_trace", false)) {
-            builder.startObject("error_trace");
-            boolean first = true;
-            int counter = 0;
-            while (t != null) {
-                // bail if there are more than 10 levels, becomes useless really...
-                if (counter++ > 10) {
-                    break;
-                }
-                if (!first) {
-                    builder.startObject("cause");
-                }
-                buildThrowable(t, builder);
-                if (!first) {
-                    builder.endObject();
-                }
-                t = t.getCause();
-                first = false;
+        XContentBuilder builder = channel.newBuilder().startObject();
+        if (t == null) {
+            builder.field("error", "Unknown");
+        } else if (channel.detailedErrorsEnabled()) {
+            builder.field("error", detailedMessage(t));
+            if (channel.request().paramAsBoolean("error_trace", false)) {
+                buildErrorTrace(t, builder);
             }
-            builder.endObject();
+        } else {
+            builder.field("error", simpleMessage(t));
         }
+        builder.field("status", status.getStatus());
         builder.endObject();
         return builder;
+    }
+
+    private static void buildErrorTrace(Throwable t, XContentBuilder builder) throws IOException {
+        builder.startObject("error_trace");
+        boolean first = true;
+        int counter = 0;
+        while (t != null) {
+            // bail if there are more than 10 levels, becomes useless really...
+            if (counter++ > 10) {
+                break;
+            }
+            if (!first) {
+                builder.startObject("cause");
+            }
+            buildThrowable(t, builder);
+            if (!first) {
+                builder.endObject();
+            }
+            t = t.getCause();
+            first = false;
+        }
+        builder.endObject();
     }
 
     private static void buildThrowable(Throwable t, XContentBuilder builder) throws IOException {
@@ -162,5 +164,21 @@ public class BytesRestResponse extends RestResponse {
             }
             builder.endObject();
         }
+    }
+
+    /*
+     * Builds a simple error string from the message of the first ElasticsearchException
+     */
+    private static String simpleMessage(Throwable t) throws IOException {
+        int counter = 0;
+        Throwable next = t;
+        while (next != null && counter++ < 10) {
+            if (t instanceof ElasticsearchException) {
+                return next.getClass().getSimpleName() + "[" + next.getMessage() + "]";
+            }
+            next = next.getCause();
+        }
+
+        return "No ElasticsearchException found";
     }
 }

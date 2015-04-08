@@ -46,6 +46,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.cache.recycler.MockBigArrays;
 import org.elasticsearch.test.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
+import org.elasticsearch.test.search.MockSearchService;
 import org.elasticsearch.test.store.MockDirectoryHelper;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.*;
@@ -210,6 +211,16 @@ public abstract class ElasticsearchTestCase extends AbstractRandomizedTest {
     @After
     public void ensureAllArraysReleased() throws Exception {
         MockBigArrays.ensureAllArraysAreReleased();
+    }
+
+    @After
+    public void ensureAllSearchContextsReleased() throws Exception {
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                MockSearchService.assertNoInFLightContext();
+            }
+        });
     }
 
     public static boolean hasUnclosedWrapper() {

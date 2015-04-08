@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -99,7 +100,7 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
             }
             params.put("_aggs", aggregationObjects);
             ExecutableScript script = reduceContext.scriptService().executable(firstAggregation.scriptLang, firstAggregation.reduceScript,
-                    firstAggregation.scriptType, params);
+                    firstAggregation.scriptType, ScriptContext.Standard.AGGS, params);
             aggregation = script.run();
         } else {
             aggregation = aggregationObjects;

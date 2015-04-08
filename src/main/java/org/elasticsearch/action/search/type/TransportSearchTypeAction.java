@@ -20,7 +20,9 @@
 package org.elasticsearch.action.search.type;
 
 import com.carrotsearch.hppc.IntArrayList;
+
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.NoShardAvailableActionException;
@@ -135,7 +137,6 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                 listener.onResponse(new SearchResponse(InternalSearchResponse.empty(), null, 0, 0, buildTookInMillis(), ShardSearchFailure.EMPTY_ARRAY));
                 return;
             }
-            request.beforeStart();
             int shardIndex = -1;
             for (final ShardIterator shardIt : shardsIts) {
                 shardIndex++;
@@ -325,7 +326,9 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
             // we only release search context that we did not fetch from if we are not scrolling
             if (request.scroll() == null) {
                 for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults.asList()) {
-                    if (docIdsToLoad.get(entry.index) == null) {
+                    final TopDocs topDocs = entry.value.queryResult().queryResult().topDocs();
+                    if (topDocs != null && topDocs.scoreDocs.length > 0 // the shard had matches
+                            && docIdsToLoad.get(entry.index) == null) { // but none of them made it to the global top docs
                         try {
                             DiscoveryNode node = nodes.get(entry.value.queryResult().shardTarget().nodeId());
                             if (node != null) { // should not happen (==null) but safeguard anyhow

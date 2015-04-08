@@ -105,10 +105,10 @@ public class QueryPhase implements SearchPhase {
 
             Query query = searchContext.query();
 
-            TopDocs topDocs;
+            final TopDocs topDocs;
             int numDocs = searchContext.from() + searchContext.size();
 
-            if (searchContext.searchType() == SearchType.COUNT || numDocs == 0) {
+            if (searchContext.size() == 0) { // no matter what the value of from is
                 TotalHitCountCollector collector = new TotalHitCountCollector();
                 searchContext.searcher().search(query, collector);
                 topDocs = new TopDocs(collector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);

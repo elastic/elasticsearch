@@ -71,7 +71,7 @@ public class FieldDataFilterIntegrationTests extends ElasticsearchIntegrationTes
         }
         refresh();
         SearchResponse searchResponse = client().prepareSearch()
-                .setSearchType(SearchType.COUNT)
+                .setSize(0)
                 .setQuery(matchAllQuery())
                 .addAggregation(terms("name").field("name"))
                 .addAggregation(terms("not_filtered").field("not_filtered")).get();

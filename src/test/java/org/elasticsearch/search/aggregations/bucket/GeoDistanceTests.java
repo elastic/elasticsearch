@@ -425,7 +425,8 @@ public class GeoDistanceTests extends ElasticsearchIntegrationTest {
         assertThat(bucket, Matchers.notNullValue());
 
         Range geoDistance = bucket.getAggregations().get("geo_dist");
-        List<Range.Bucket> buckets = new ArrayList<>(geoDistance.getBuckets());
+        // TODO: use diamond once JI-9019884 is fixed
+        List<Range.Bucket> buckets = new ArrayList<Range.Bucket>(geoDistance.getBuckets());
         assertThat(geoDistance, Matchers.notNullValue());
         assertThat(geoDistance.getName(), equalTo("geo_dist"));
         assertThat(buckets.size(), is(1));

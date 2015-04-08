@@ -324,4 +324,44 @@ public class ImmutableSettingsTests extends ElasticsearchTestCase {
         assertThat(settings.get("value.data"), is("1"));
         assertThat(settings.get("value"), is(nullValue()));
     }
+
+    @Test
+    public void testPrefixNormalization() {
+
+        Settings settings = settingsBuilder().normalizePrefix("foo.").build();
+
+        assertThat(settings.names().size(), equalTo(0));
+
+        settings = settingsBuilder()
+                .put("bar", "baz")
+                .normalizePrefix("foo.")
+                .build();
+
+        assertThat(settings.getAsMap().size(), equalTo(1));
+        assertThat(settings.get("bar"), nullValue());
+        assertThat(settings.get("foo.bar"), equalTo("baz"));
+
+
+        settings = settingsBuilder()
+                .put("bar", "baz")
+                .put("foo.test", "test")
+                .normalizePrefix("foo.")
+                .build();
+
+        assertThat(settings.getAsMap().size(), equalTo(2));
+        assertThat(settings.get("bar"), nullValue());
+        assertThat(settings.get("foo.bar"), equalTo("baz"));
+        assertThat(settings.get("foo.test"), equalTo("test"));
+
+        settings = settingsBuilder()
+                .put("foo.test", "test")
+                .normalizePrefix("foo.")
+                .build();
+
+
+        assertThat(settings.getAsMap().size(), equalTo(1));
+        assertThat(settings.get("foo.test"), equalTo("test"));
+    }
+
+
 }

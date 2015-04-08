@@ -19,16 +19,20 @@
 
 package org.elasticsearch.search.functionscore;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.AbstractDoubleSearchScript;
+import org.elasticsearch.script.AbstractSearchScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ExplainableSearchScript;
+import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.NativeScriptFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -47,6 +51,7 @@ import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilde
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.termFilter;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.scriptFunction;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
@@ -77,7 +82,7 @@ public class ExplainableScriptTests extends ElasticsearchIntegrationTest {
         client().admin().indices().prepareRefresh().execute().actionGet();
         ensureYellow();
         SearchResponse response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                searchSource().explain(true).query(functionScoreQuery(termFilter("text", "text")).add(scriptFunction("native_explainable_script", "native")).boostMode("sum")))).actionGet();
+                searchSource().explain(true).query(functionScoreQuery(termQuery("text", "text")).add(scriptFunction("native_explainable_script", "native")).boostMode("replace")))).actionGet();
 
         ElasticsearchAssertions.assertNoFailures(response);
         SearchHits hits = response.getHits();
@@ -86,6 +91,8 @@ public class ExplainableScriptTests extends ElasticsearchIntegrationTest {
         for (SearchHit hit : hits.getHits()) {
             assertThat(hit.getId(), equalTo(Integer.toString(idCounter)));
             assertThat(hit.explanation().toString(), containsString(Double.toString(idCounter) + " = This script returned " + Double.toString(idCounter)));
+            assertThat(hit.explanation().toString(), containsString("1.0 = tf(freq=1.0), with freq of"));
+            assertThat(hit.explanation().getDetails().length, equalTo(2));
             idCounter--;
         }
     }
@@ -97,16 +104,20 @@ public class ExplainableScriptTests extends ElasticsearchIntegrationTest {
         }
     }
 
-    static class MyScript extends AbstractDoubleSearchScript implements ExplainableSearchScript {
+    static class MyScript extends AbstractDoubleSearchScript implements ExplainableSearchScript, ExecutableScript {
+
+        @Override
+        public Explanation explain(Explanation subQueryScore) throws IOException {
+            Explanation exp = new Explanation((float) (runAsDouble()), "This script returned " + runAsDouble());
+            Explanation scoreExp = new Explanation(subQueryScore.getValue(), "_score: ");
+            scoreExp.addDetail(subQueryScore);
+            exp.addDetail(scoreExp);
+            return exp;
+        }
 
         @Override
         public double runAsDouble() {
             return ((Number) ((ScriptDocValues) doc().get("number_field")).getValues().get(0)).doubleValue();
-        }
-
-        @Override
-        public Explanation explain(float score) throws IOException {
-            return new Explanation((float) (runAsDouble()), "This script returned " + runAsDouble());
         }
     }
 }

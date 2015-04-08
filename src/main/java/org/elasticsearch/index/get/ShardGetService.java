@@ -21,6 +21,7 @@ package org.elasticsearch.index.get;
 
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Sets;
+
 import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
@@ -51,6 +52,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -238,7 +240,7 @@ public class ShardGetService extends AbstractIndexShardComponent {
                         } else {
                             if (searchLookup == null) {
                                 searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
-                                searchLookup.source().setNextSource(source.source);
+                                searchLookup.source().setSource(source.source);
                             }
 
                             FieldMapper<?> fieldMapper = docMapper.mappers().smartNameFieldMapper(field);
@@ -370,9 +372,9 @@ public class ShardGetService extends AbstractIndexShardComponent {
                 } else if (!fieldMapper.mapper().fieldType().stored() && !fieldMapper.mapper().isGenerated()) {
                     if (searchLookup == null) {
                         searchLookup = new SearchLookup(mapperService, fieldDataService, new String[]{type});
-                        searchLookup.setNextReader(docIdAndVersion.context);
-                        searchLookup.source().setNextSource(source);
-                        searchLookup.setNextDocId(docIdAndVersion.docId);
+                        LeafSearchLookup leafSearchLookup = searchLookup.getLeafSearchLookup(docIdAndVersion.context);
+                        searchLookup.source().setSource(source);
+                        leafSearchLookup.setDocument(docIdAndVersion.docId);
                     }
 
                     List<Object> values = searchLookup.source().extractRawValues(field);

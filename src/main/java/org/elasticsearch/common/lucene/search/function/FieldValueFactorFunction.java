@@ -37,7 +37,6 @@ public class FieldValueFactorFunction extends ScoreFunction {
     private final float boostFactor;
     private final Modifier modifier;
     private final IndexNumericFieldData indexFieldData;
-    private SortedNumericDoubleValues values;
 
     public FieldValueFactorFunction(String field, float boostFactor, Modifier modifierType, IndexNumericFieldData indexFieldData) {
         super(CombineFunction.MULT);
@@ -48,36 +47,38 @@ public class FieldValueFactorFunction extends ScoreFunction {
     }
 
     @Override
-    public void setNextReader(LeafReaderContext context) {
-        this.values = this.indexFieldData.load(context).getDoubleValues();
-    }
+    public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) {
+        final SortedNumericDoubleValues values = this.indexFieldData.load(ctx).getDoubleValues();
+        return new LeafScoreFunction() {
 
-    @Override
-    public double score(int docId, float subQueryScore) {
-        this.values.setDocument(docId);
-        final int numValues = this.values.count();
-        if (numValues > 0) {
-            double val = this.values.valueAt(0) * boostFactor;
-            double result = modifier.apply(val);
-            if (Double.isNaN(result) || Double.isInfinite(result)) {
-                throw new ElasticsearchException("Result of field modification [" + modifier.toString() +
-                        "(" + val + ")] must be a number");
+            @Override
+            public double score(int docId, float subQueryScore) {
+                values.setDocument(docId);
+                final int numValues = values.count();
+                if (numValues > 0) {
+                    double val = values.valueAt(0) * boostFactor;
+                    double result = modifier.apply(val);
+                    if (Double.isNaN(result) || Double.isInfinite(result)) {
+                        throw new ElasticsearchException("Result of field modification [" + modifier.toString() +
+                                "(" + val + ")] must be a number");
+                    }
+                    return result;
+                } else {
+                    throw new ElasticsearchException("Missing value for field [" + field + "]");
+                }
             }
-            return result;
-        } else {
-            throw new ElasticsearchException("Missing value for field [" + field + "]");
-        }
-    }
 
-    @Override
-    public Explanation explainScore(int docId, float subQueryScore) {
-        Explanation exp = new Explanation();
-        String modifierStr = modifier != null ? modifier.toString() : "";
-        double score = score(docId, subQueryScore);
-        exp.setValue(CombineFunction.toFloat(score));
-        exp.setDescription("field value function: " +
-                modifierStr + "(" + "doc['" + field + "'].value * factor=" + boostFactor + ")");
-        return exp;
+            @Override
+            public Explanation explainScore(int docId, Explanation subQueryScore) {
+                Explanation exp = new Explanation();
+                String modifierStr = modifier != null ? modifier.toString() : "";
+                double score = score(docId, subQueryScore.getValue());
+                exp.setValue(CombineFunction.toFloat(score));
+                exp.setDescription("field value function: " +
+                        modifierStr + "(" + "doc['" + field + "'].value * factor=" + boostFactor + ")");
+                return exp;
+            }
+        };
     }
 
     /**

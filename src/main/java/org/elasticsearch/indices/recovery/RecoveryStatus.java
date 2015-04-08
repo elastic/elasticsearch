@@ -85,6 +85,7 @@ public class RecoveryStatus extends AbstractRefCounted {
         this.store = indexShard.store();
         // make sure the store is not released until we are done.
         store.incRef();
+        indexShard.recoveryStats().incCurrentAsTarget();
     }
 
     private final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
@@ -239,6 +240,7 @@ public class RecoveryStatus extends AbstractRefCounted {
         } finally {
             // free store. increment happens in constructor
             store.decRef();
+            indexShard.recoveryStats().decCurrentAsTarget();
         }
     }
 

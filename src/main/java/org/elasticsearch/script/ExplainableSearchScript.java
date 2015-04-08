@@ -47,13 +47,15 @@ import java.io.IOException;
  * This is currently not used inside elasticsearch but it is used, see for example here:
  * https://github.com/elasticsearch/elasticsearch/issues/8561
  */
-public interface ExplainableSearchScript extends SearchScript {
+public interface ExplainableSearchScript extends LeafSearchScript {
 
     /**
      * Build the explanation of the current document being scored
+     * The script score needs the Explanation of the sub query score because it might use _score and
+     * want to explain how that was computed.
      *
-     * @param score the score
+     * @param subQueryScore the Explanation for _score
      */
-    Explanation explain(float score) throws IOException;
+    Explanation explain(Explanation subQueryScore) throws IOException;
 
 }

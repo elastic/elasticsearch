@@ -70,16 +70,13 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
     private String preference;
 
     private BytesReference templateSource;
-    private boolean templateSourceUnsafe;
     private String templateName;
     private ScriptService.ScriptType templateType;
     private Map<String, Object> templateParams = Collections.emptyMap();
 
     private BytesReference source;
-    private boolean sourceUnsafe;
 
     private BytesReference extraSource;
-    private boolean extraSourceUnsafe;
     private Boolean queryCache;
 
     private Scroll scroll;
@@ -104,14 +101,11 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         this.routing = searchRequest.routing;
         this.preference = searchRequest.preference;
         this.templateSource = searchRequest.templateSource;
-        this.templateSourceUnsafe = searchRequest.templateSourceUnsafe;
         this.templateName = searchRequest.templateName;
         this.templateType = searchRequest.templateType;
         this.templateParams = searchRequest.templateParams;
         this.source = searchRequest.source;
-        this.sourceUnsafe = searchRequest.sourceUnsafe;
         this.extraSource = searchRequest.extraSource;
-        this.extraSourceUnsafe = searchRequest.extraSourceUnsafe;
         this.queryCache = searchRequest.queryCache;
         this.scroll = searchRequest.scroll;
         this.types = searchRequest.types;
@@ -150,23 +144,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 //            validationException = addValidationError("search source is missing", validationException);
 //        }
         return validationException;
-    }
-
-    public void beforeStart() {
-        // we always copy over if needed, the reason is that a request might fail while being search remotely
-        // and then we need to keep the buffer around
-        if (source != null && sourceUnsafe) {
-            source = source.copyBytesArray();
-            sourceUnsafe = false;
-        }
-        if (extraSource != null && extraSourceUnsafe) {
-            extraSource = extraSource.copyBytesArray();
-            extraSourceUnsafe = false;
-        }
-        if (templateSource != null && templateSourceUnsafe) {
-            templateSource = templateSource.copyBytesArray();
-            templateSourceUnsafe = false;
-        }
     }
 
     /**
@@ -273,7 +250,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      */
     public SearchRequest source(SearchSourceBuilder sourceBuilder) {
         this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        this.sourceUnsafe = false;
         return this;
     }
 
@@ -283,7 +259,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      */
     public SearchRequest source(String source) {
         this.source = new BytesArray(source);
-        this.sourceUnsafe = false;
         return this;
     }
 
@@ -302,7 +277,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 
     public SearchRequest source(XContentBuilder builder) {
         this.source = builder.bytes();
-        this.sourceUnsafe = false;
         return this;
     }
 
@@ -310,7 +284,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * The search source to execute.
      */
     public SearchRequest source(byte[] source) {
-        return source(source, 0, source.length, false);
+        return source(source, 0, source.length);
     }
 
 
@@ -318,22 +292,14 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * The search source to execute.
      */
     public SearchRequest source(byte[] source, int offset, int length) {
-        return source(source, offset, length, false);
+        return source(new BytesArray(source, offset, length));
     }
 
     /**
      * The search source to execute.
      */
-    public SearchRequest source(byte[] source, int offset, int length, boolean unsafe) {
-        return source(new BytesArray(source, offset, length), unsafe);
-    }
-
-    /**
-     * The search source to execute.
-     */
-    public SearchRequest source(BytesReference source, boolean unsafe) {
+    public SearchRequest source(BytesReference source) {
         this.source = source;
-        this.sourceUnsafe = unsafe;
         return this;
     }
 
@@ -360,7 +326,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             return this;
         }
         this.extraSource = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        this.extraSourceUnsafe = false;
         return this;
     }
 
@@ -376,7 +341,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 
     public SearchRequest extraSource(XContentBuilder builder) {
         this.extraSource = builder.bytes();
-        this.extraSourceUnsafe = false;
         return this;
     }
 
@@ -385,7 +349,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      */
     public SearchRequest extraSource(String source) {
         this.extraSource = new BytesArray(source);
-        this.extraSourceUnsafe = false;
         return this;
     }
 
@@ -393,38 +356,29 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      * Allows to provide additional source that will be used as well.
      */
     public SearchRequest extraSource(byte[] source) {
-        return extraSource(source, 0, source.length, false);
+        return extraSource(source, 0, source.length);
     }
 
     /**
      * Allows to provide additional source that will be used as well.
      */
     public SearchRequest extraSource(byte[] source, int offset, int length) {
-        return extraSource(source, offset, length, false);
+        return extraSource(new BytesArray(source, offset, length));
     }
 
     /**
      * Allows to provide additional source that will be used as well.
      */
-    public SearchRequest extraSource(byte[] source, int offset, int length, boolean unsafe) {
-        return extraSource(new BytesArray(source, offset, length), unsafe);
-    }
-
-    /**
-     * Allows to provide additional source that will be used as well.
-     */
-    public SearchRequest extraSource(BytesReference source, boolean unsafe) {
+    public SearchRequest extraSource(BytesReference source) {
         this.extraSource = source;
-        this.extraSourceUnsafe = unsafe;
         return this;
     }
 
     /**
      * Allows to provide template as source.
      */
-    public SearchRequest templateSource(BytesReference template, boolean unsafe) {
+    public SearchRequest templateSource(BytesReference template) {
         this.templateSource = template;
-        this.templateSourceUnsafe = unsafe;
         return this;
     }
 
@@ -433,7 +387,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
      */
     public SearchRequest templateSource(String template) {
         this.templateSource = new BytesArray(template);
-        this.templateSourceUnsafe = false;
         return this;
     }
 
@@ -558,16 +511,12 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
             scroll = readScroll(in);
         }
 
-        sourceUnsafe = false;
         source = in.readBytesReference();
-
-        extraSourceUnsafe = false;
         extraSource = in.readBytesReference();
 
         types = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
 
-        templateSourceUnsafe = false;
         templateSource = in.readBytesReference();
         templateName = in.readOptionalString();
         templateType = ScriptService.ScriptType.readFrom(in);

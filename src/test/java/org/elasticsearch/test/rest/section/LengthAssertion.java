@@ -53,7 +53,7 @@ public class LengthAssertion extends Assertion {
         } else if (actualValue instanceof Map) {
             assertThat(errorMessage(), ((Map) actualValue).keySet().size(), equalTo(length));
         } else {
-            throw new UnsupportedOperationException("value is of unsupported type [" + actualValue.getClass().getSimpleName() + "]");
+            throw new UnsupportedOperationException("value is of unsupported type [" + safeClass(actualValue) + "]");
         }
     }
 

@@ -215,7 +215,7 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
 
     public GeoShapeFieldMapper(FieldMapper.Names names, SpatialPrefixTree tree, String defaultStrategyName, double distanceErrorPct,
                                Orientation shapeOrientation, FieldType fieldType, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
-        super(names, 1, fieldType, null, null, null, null, null, null, indexSettings, multiFields, copyTo);
+        super(names, 1, fieldType, false, null, null, null, null, null, indexSettings, multiFields, copyTo);
         this.recursiveStrategy = new RecursivePrefixTreeStrategy(tree, names.indexName());
         this.recursiveStrategy.setDistErrPct(distanceErrorPct);
         this.termStrategy = new TermQueryPrefixTreeStrategy(tree, names.indexName());
@@ -232,11 +232,6 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
     @Override
     public FieldDataType defaultFieldDataType() {
         return null;
-    }
-
-    @Override
-    public boolean hasDocValues() {
-        return false;
     }
 
     @Override
@@ -291,6 +286,10 @@ public class GeoShapeFieldMapper extends AbstractFieldMapper<String> {
 
         if (includeDefaults || defaultStrategy.getDistErrPct() != Defaults.DISTANCE_ERROR_PCT) {
             builder.field(Names.DISTANCE_ERROR_PCT, defaultStrategy.getDistErrPct());
+        }
+
+        if (includeDefaults || orientation() != Defaults.ORIENTATION) {
+            builder.field(Names.ORIENTATION, orientation());
         }
     }
 

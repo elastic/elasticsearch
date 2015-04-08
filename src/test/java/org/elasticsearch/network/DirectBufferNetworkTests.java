@@ -93,13 +93,7 @@ public class DirectBufferNetworkTests extends ElasticsearchIntegrationTest {
         logger.info("validating large direct buffer not allocated");
         validateNoLargeDirectBufferAllocated();
     }
-
-    private static HttpRequestBuilder httpClient() {
-        HttpServerTransport httpServerTransport = internalCluster().getDataNodeInstance(HttpServerTransport.class);
-        InetSocketAddress address = ((InetSocketTransportAddress) httpServerTransport.boundAddress().publishAddress()).address();
-        return new HttpRequestBuilder(HttpClients.createDefault()).host(address.getHostName()).port(address.getPort());
-    }
-
+    
     /**
      * Validates that all the thread local allocated ByteBuffer in sun.nio under the Util$BufferCache
      * are not greater than 1mb.

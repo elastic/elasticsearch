@@ -69,9 +69,8 @@ on all data and master nodes. The following settings are supported:
 `compress`:: Turns on compression of the snapshot files. Compression is applied only to metadata files (index mapping and settings). Data files are not compressed. Defaults to `true`.
 `chunk_size`:: Big files can be broken down into chunks during snapshotting if needed. The chunk size can be specified in bytes or by
  using size value notation, i.e. 1g, 10m, 5k. Defaults to `null` (unlimited chunk size).
-`max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `20mb` per second.
-`max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `20mb` per second.
-`verify`:: Verify repository upon creation. Defaults to `true`.
+`max_restore_bytes_per_sec`:: Throttles per node restore rate. Defaults to `40mb` per second.
+`max_snapshot_bytes_per_sec`:: Throttles per node snapshot rate. Defaults to `40mb` per second.
 
 [float]
 ===== Read-only URL Repository
@@ -95,8 +94,21 @@ Other repository backends are available in these official plugins:
 [float]
 ===== Repository Verification
 When a repository is registered, it's immediately verified on all master and data nodes to make sure that it is functional
-on all nodes currently present in the cluster. The verification process can also be executed manually by running the
-following command:
+on all nodes currently present in the cluster. The `verify` parameter can be used to explicitly disable the repository
+verification when registering or updating a repository:
+
+[source,js]
+-----------------------------------
+$ curl -XPUT 'http://localhost:9200/_snapshot/s3_repository?verify=false' -d '{
+    "type": "s3",
+    "settings": {
+        "bucket": "my_s3_bucket",
+        "region": "eu-west-1",
+    }
+}'
+-----------------------------------
+
+The verification process can also be executed manually by running the following command:
 
 [source,js]
 -----------------------------------

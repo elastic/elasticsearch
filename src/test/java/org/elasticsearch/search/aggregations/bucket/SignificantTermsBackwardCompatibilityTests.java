@@ -73,7 +73,8 @@ public class SignificantTermsBackwardCompatibilityTests extends ElasticsearchBac
     }
 
     private void index01Docs(String type, String settings) throws ExecutionException, InterruptedException {
-        String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"" + type + "\"}}}}";
+        String mappings = "{\"doc\": {\"properties\":{\"" + TEXT_FIELD + "\": {\"type\":\"" + type + "\"},\"" + CLASS_FIELD
+                + "\": {\"type\":\"string\"}}}}";
         assertAcked(prepareCreate(INDEX_NAME).setSettings(settings).addMapping("doc", mappings));
         String[] gb = {"0", "1"};
         List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();

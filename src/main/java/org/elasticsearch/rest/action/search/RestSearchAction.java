@@ -89,9 +89,9 @@ public class RestSearchAction extends BaseRestHandler {
         boolean isTemplateRequest = request.path().endsWith("/template");
         if (request.hasContent()) {
             if (isTemplateRequest) {
-                searchRequest.templateSource(request.content(), request.contentUnsafe());
+                searchRequest.templateSource(request.content());
             } else {
-                searchRequest.source(request.content(), request.contentUnsafe());
+                searchRequest.source(request.content());
             }
         } else {
             String source = request.param("source");
@@ -242,27 +242,6 @@ public class RestSearchAction extends BaseRestHandler {
                     }
                 } else {
                     searchSourceBuilder.sort(sort);
-                }
-            }
-        }
-
-        String sIndicesBoost = request.param("indices_boost");
-        if (sIndicesBoost != null) {
-            if (searchSourceBuilder == null) {
-                searchSourceBuilder = new SearchSourceBuilder();
-            }
-            String[] indicesBoost = Strings.splitStringByCommaToArray(sIndicesBoost);
-            for (String indexBoost : indicesBoost) {
-                int divisor = indexBoost.indexOf(',');
-                if (divisor == -1) {
-                    throw new ElasticsearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], no ','");
-                }
-                String indexName = indexBoost.substring(0, divisor);
-                String sBoost = indexBoost.substring(divisor + 1);
-                try {
-                    searchSourceBuilder.indexBoost(indexName, Float.parseFloat(sBoost));
-                } catch (NumberFormatException e) {
-                    throw new ElasticsearchIllegalArgumentException("Illegal index boost [" + indexBoost + "], boost not a float number");
                 }
             }
         }

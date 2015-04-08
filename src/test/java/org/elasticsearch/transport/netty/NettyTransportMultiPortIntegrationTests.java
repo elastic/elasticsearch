@@ -37,7 +37,7 @@ import static org.elasticsearch.test.ElasticsearchIntegrationTest.ClusterScope;
 import static org.elasticsearch.test.ElasticsearchIntegrationTest.Scope;
 import static org.hamcrest.Matchers.*;
 
-@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, enableRandomBenchNodes = false, numClientNodes = 0)
+@ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0)
 public class NettyTransportMultiPortIntegrationTests extends ElasticsearchIntegrationTest {
 
     private static int randomPort = -1;

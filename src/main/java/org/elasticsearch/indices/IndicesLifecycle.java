@@ -147,6 +147,27 @@ public interface IndicesLifecycle {
         }
 
         /**
+         * Called before the index shard gets deleted from disk
+         * Note: this method is only executed on the first attempt of deleting the shard. Retries are will not invoke
+         * this method.
+         * @param shardId The shard id
+         * @param indexSettings the shards index settings
+         */
+        public void beforeIndexShardDeleted(ShardId shardId, @IndexSettings Settings indexSettings) {
+        }
+
+        /**
+         * Called after the index shard has been deleted from disk.
+         *
+         * Note: this method is only called if the deletion of the shard did finish without an exception
+         *
+         * @param shardId The shard id
+         * @param indexSettings the shards index settings
+         */
+        public void afterIndexShardDeleted(ShardId shardId, @IndexSettings Settings indexSettings) {
+        }
+
+        /**
          * Called after a shard's {@link org.elasticsearch.index.shard.IndexShardState} changes.
          * The order of concurrent events is preserved. The execution must be lightweight.
          *

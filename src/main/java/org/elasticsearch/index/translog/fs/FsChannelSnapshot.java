@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.translog.fs;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.common.io.stream.BytesStreamInput;
 import org.elasticsearch.index.translog.TranslogStreams;
@@ -130,7 +132,8 @@ public class FsChannelSnapshot implements Translog.Snapshot {
             }
             cacheBuffer.flip();
             position += opSize;
-            return TranslogStreams.readTranslogOperation(new BytesStreamInput(cacheBuffer.array(), 0, opSize, true));
+            BytesArray bytesArray = new BytesArray(cacheBuffer.array(), 0, opSize);
+            return TranslogStreams.readTranslogOperation(new BytesStreamInput(bytesArray.copyBytesArray()));
         } catch (IOException e) {
             throw new ElasticsearchException("unexpected exception reading from translog snapshot of " + this.channelReference.file(), e);
         }

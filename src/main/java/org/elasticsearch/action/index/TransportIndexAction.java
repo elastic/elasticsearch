@@ -85,7 +85,6 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     protected void doExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
         // if we don't have a master, we don't have metadata, that's fine, let it find a master using create index API
         if (autoCreateIndex.shouldAutoCreate(request.index(), clusterService.state())) {
-            request.beforeLocalFork(); // we fork on another thread...
             CreateIndexRequest createIndexRequest = new CreateIndexRequest(request);
             createIndexRequest.index(request.index());
             createIndexRequest.mapping(request.type());
@@ -122,7 +121,7 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
     }
 
     @Override
-    protected boolean resolveRequest(ClusterState state, InternalRequest request, ActionListener<IndexResponse> indexResponseActionListener) {
+    protected void resolveRequest(ClusterState state, InternalRequest request, ActionListener<IndexResponse> indexResponseActionListener) {
         MetaData metaData = clusterService.state().metaData();
 
         MappingMetaData mappingMd = null;
@@ -130,7 +129,6 @@ public class TransportIndexAction extends TransportShardReplicationOperationActi
             mappingMd = metaData.index(request.concreteIndex()).mappingOrDefault(request.request().type());
         }
         request.request().process(metaData, mappingMd, allowIdGeneration, request.concreteIndex());
-        return true;
     }
 
     private void innerExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -31,7 +30,6 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.hamcrest.Matchers;
-import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -45,7 +43,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
-@AwaitsFix(bugUrl="https://issues.apache.org/jira/browse/LUCENE-6271")
 public class IndexLookupTests extends ElasticsearchIntegrationTest {
 
     String includeAllFlag = "_FREQUENCIES | _OFFSETS | _PAYLOADS | _POSITIONS | _CACHE";

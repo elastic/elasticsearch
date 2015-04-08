@@ -98,7 +98,7 @@ public enum PreBuiltTokenFilters {
             if (version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_4_4_0)) {
                 return new StopFilter(tokenStream, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
             } else {
-                @SuppressWarnings("deprecated")
+                @SuppressWarnings("deprecation")
                 final TokenStream filter = new Lucene43StopFilter(true, tokenStream, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
                 return filter;
             }
@@ -111,7 +111,7 @@ public enum PreBuiltTokenFilters {
             if (version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_4_4_0)) {
                 return new TrimFilter(tokenStream);
             } else {
-                @SuppressWarnings("deprecated")
+                @SuppressWarnings("deprecation")
                 final TokenStream filter = new Lucene43TrimFilter(tokenStream, true);
                 return filter;
             }
@@ -138,7 +138,7 @@ public enum PreBuiltTokenFilters {
             if (version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_4_4_0)) {
                 return new LengthFilter(tokenStream, 0, Integer.MAX_VALUE);
             } else {
-                @SuppressWarnings("deprecated")
+                @SuppressWarnings("deprecation")
                 final TokenStream filter = new Lucene43LengthFilter(true, tokenStream, 0, Integer.MAX_VALUE);
                 return filter;
             }
@@ -200,7 +200,7 @@ public enum PreBuiltTokenFilters {
             if (version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_4_4_0)) {
                 return new NGramTokenFilter(tokenStream);
             } else {
-                @SuppressWarnings("deprecated")
+                @SuppressWarnings("deprecation")
                 final TokenStream filter = new Lucene43NGramTokenFilter(tokenStream);
                 return filter;
             }
@@ -213,7 +213,7 @@ public enum PreBuiltTokenFilters {
             if (version.luceneVersion.onOrAfter(org.apache.lucene.util.Version.LUCENE_4_4_0)) {
                 return new EdgeNGramTokenFilter(tokenStream, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE);
             } else {
-                @SuppressWarnings("deprecated")
+                @SuppressWarnings("deprecation")
                 final TokenStream filter = new Lucene43EdgeNGramTokenFilter(tokenStream, EdgeNGramTokenFilter.DEFAULT_MIN_GRAM_SIZE, EdgeNGramTokenFilter.DEFAULT_MAX_GRAM_SIZE);
                 return filter;
             }

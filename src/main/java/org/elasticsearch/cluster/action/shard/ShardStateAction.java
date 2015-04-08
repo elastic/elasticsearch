@@ -92,13 +92,17 @@ public class ShardStateAction extends AbstractComponent {
 
     private void innerShardFailed(final ShardRouting shardRouting, final String indexUUID, final String reason, final DiscoveryNode masterNode) {
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, reason);
-        transportService.sendRequest(masterNode,
-                SHARD_FAILED_ACTION_NAME, shardRoutingEntry, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
-                    @Override
-                    public void handleException(TransportException exp) {
-                        logger.warn("failed to send failed shard to {}", exp, masterNode);
-                    }
-                });
+        if (clusterService.localNode().equals(masterNode)) {
+            innerShardFailed(shardRoutingEntry);
+        } else {
+            transportService.sendRequest(masterNode,
+                    SHARD_FAILED_ACTION_NAME, shardRoutingEntry, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                        @Override
+                        public void handleException(TransportException exp) {
+                            logger.warn("failed to send failed shard to {}", exp, masterNode);
+                        }
+                    });
+        }
     }
 
     public void shardStarted(final ShardRouting shardRouting, String indexUUID, final String reason) throws ElasticsearchException {
@@ -116,17 +120,20 @@ public class ShardStateAction extends AbstractComponent {
 
         logger.debug("sending shard started for {}", shardRoutingEntry);
 
-        transportService.sendRequest(masterNode,
-                SHARD_STARTED_ACTION_NAME, new ShardRoutingEntry(shardRouting, indexUUID, reason), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
-                    @Override
-                    public void handleException(TransportException exp) {
-                        logger.warn("failed to send shard started to [{}]", exp, masterNode);
-                    }
-
-                });
+        if (clusterService.localNode().equals(masterNode)) {
+            innerShardStarted(shardRoutingEntry);
+        } else {
+            transportService.sendRequest(masterNode,
+                    SHARD_STARTED_ACTION_NAME, new ShardRoutingEntry(shardRouting, indexUUID, reason), new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                        @Override
+                        public void handleException(TransportException exp) {
+                            logger.warn("failed to send shard started to [{}]", exp, masterNode);
+                        }
+                    });
+        }
     }
 
-    private void handleShardFailureOnMaster(final ShardRoutingEntry shardRoutingEntry) {
+    private void innerShardFailed(final ShardRoutingEntry shardRoutingEntry) {
         logger.warn("{} received shard failed for {}", shardRoutingEntry.shardRouting.shardId(), shardRoutingEntry);
         failedShardQueue.add(shardRoutingEntry);
         clusterService.submitStateUpdateTask("shard-failed (" + shardRoutingEntry.shardRouting + "), reason [" + shardRoutingEntry.reason + "]", Priority.HIGH, new ProcessedClusterStateUpdateTask() {
@@ -189,7 +196,7 @@ public class ShardStateAction extends AbstractComponent {
         });
     }
 
-    private void shardStartedOnMaster(final ShardRoutingEntry shardRoutingEntry) {
+    private void innerShardStarted(final ShardRoutingEntry shardRoutingEntry) {
         logger.debug("received shard started for {}", shardRoutingEntry);
         // buffer shard started requests, and the state update tasks will simply drain it
         // this is to optimize the number of "started" events we generate, and batch them
@@ -296,7 +303,7 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {
-            handleShardFailureOnMaster(request);
+            innerShardFailed(request);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
 
@@ -315,7 +322,7 @@ public class ShardStateAction extends AbstractComponent {
 
         @Override
         public void messageReceived(ShardRoutingEntry request, TransportChannel channel) throws Exception {
-            shardStartedOnMaster(request);
+            innerShardStarted(request);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
 

@@ -61,7 +61,17 @@ public class NodeMappingRefreshAction extends AbstractComponent {
             logger.warn("can't send mapping refresh for [{}][{}], no master known.", request.index(), Strings.arrayToCommaDelimitedString(request.types()));
             return;
         }
-        transportService.sendRequest(nodes.masterNode(), ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
+
+        if (nodes.localNodeMaster()) {
+            innerMappingRefresh(request);
+        } else {
+            transportService.sendRequest(nodes.masterNode(),
+                    ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);
+        }
+    }
+
+    private void innerMappingRefresh(NodeMappingRefreshRequest request) {
+        metaDataMappingService.refreshMapping(request.index(), request.indexUUID(), request.types());
     }
 
     private class NodeMappingRefreshTransportHandler extends BaseTransportRequestHandler<NodeMappingRefreshRequest> {
@@ -73,7 +83,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
 
         @Override
         public void messageReceived(NodeMappingRefreshRequest request, TransportChannel channel) throws Exception {
-            metaDataMappingService.refreshMapping(request.index(), request.indexUUID(), request.types());
+            innerMappingRefresh(request);
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
 

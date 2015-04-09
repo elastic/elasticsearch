@@ -88,7 +88,8 @@ public abstract class Engine implements Closeable {
         this.engineConfig = engineConfig;
         this.shardId = engineConfig.getShardId();
         this.store = engineConfig.getStore();
-        this.logger = Loggers.getLogger(getClass(), engineConfig.getIndexSettings(), engineConfig.getShardId());
+        this.logger = Loggers.getLogger(Engine.class, // we use the engine class directly here to make sure all subclasses have the same logger name
+                engineConfig.getIndexSettings(), engineConfig.getShardId());
         this.failedEngineListener = engineConfig.getFailedEngineListener();
         this.deletionPolicy = engineConfig.getDeletionPolicy();
     }

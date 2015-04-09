@@ -163,6 +163,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
 
         this.nodeIndicesPaths = new Path[nodePaths.length];
         for (int i = 0; i < nodePaths.length; i++) {
+            logger.info("path " + nodePaths[i] + " spins?=" + IOUtils.spins(nodePaths[i]));
             nodeIndicesPaths[i] = nodePaths[i].resolve(INDICES_FOLDER);
         }
     }

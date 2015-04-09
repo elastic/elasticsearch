@@ -305,7 +305,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.builder()
                         .put("number_of_replicas", numReplicas)
         ).execute().actionGet());
-        ensureGreen(TimeValue.timeValueMinutes(1), indexName);
+        ensureGreen(TimeValue.timeValueMinutes(2), indexName);
         logger.debug("--> index [{}] is green, took [{}]", indexName, TimeValue.timeValueMillis(System.currentTimeMillis() - startTime));
         logger.debug("--> recovery status:\n{}", XContentHelper.toString(client().admin().indices().prepareRecoveries(indexName).get()));
 

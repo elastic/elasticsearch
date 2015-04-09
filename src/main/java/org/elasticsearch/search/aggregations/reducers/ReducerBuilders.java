@@ -36,7 +36,7 @@ public final class ReducerBuilders {
         return new MaxBucketBuilder(name);
     }
 
-    public static final MovAvgBuilder smooth(String name) {
+    public static final MovAvgBuilder movingAvg(String name) {
         return new MovAvgBuilder(name);
     }
 }

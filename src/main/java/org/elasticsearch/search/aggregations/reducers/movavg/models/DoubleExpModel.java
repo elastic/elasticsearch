@@ -53,10 +53,25 @@ public class DoubleExpModel extends MovAvgModel {
         this.beta = beta;
     }
 
+    /**
+     * Predicts the next `n` values in the series, using the smoothing model to generate new values.
+     * Unlike the other moving averages, double-exp has forecasting/prediction built into the algorithm.
+     * Prediction is more than simply adding the next prediction to the window and repeating.  Double-exp
+     * will extrapolate into the future by applying the trend information to the smoothed data.
+     *
+     * @param values            Collection of numerics to movingAvg, usually windowed
+     * @param numPredictions    Number of newly generated predictions to return
+     * @param <T>               Type of numeric
+     * @return                  Returns an array of doubles, since most smoothing methods operate on floating points
+     */
+    @Override
+    public <T extends Number> double[] predict(Collection<T> values, int numPredictions) {
+        return next(values, numPredictions);
+    }
 
     @Override
     public <T extends Number> double next(Collection<T> values) {
-        return next(values, 1).get(0);
+        return next(values, 1)[0];
     }
 
     /**
@@ -68,7 +83,12 @@ public class DoubleExpModel extends MovAvgModel {
      * @param <T>    Type T extending Number
      * @return       Returns a Double containing the moving avg for the window
      */
-    public <T extends Number> List<Double> next(Collection<T> values, int numForecasts) {
+    public <T extends Number> double[] next(Collection<T> values, int numForecasts) {
+
+        if (values.size() == 0) {
+            return emptyPredictions(numForecasts);
+        }
+
         // Smoothed value
         double s = 0;
         double last_s = 0;
@@ -97,9 +117,9 @@ public class DoubleExpModel extends MovAvgModel {
             last_b = b;
         }
 
-        List<Double> forecastValues = new ArrayList<>(numForecasts);
+        double[] forecastValues = new double[numForecasts];
         for (int i = 0; i < numForecasts; i++) {
-            forecastValues.add(s + (i * b));
+            forecastValues[i] = s + (i * b);
         }
 
         return forecastValues;

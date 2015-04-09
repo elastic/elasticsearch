@@ -46,6 +46,7 @@ public class MovAvgParser implements Reducer.Parser {
     public static final ParseField MODEL = new ParseField("model");
     public static final ParseField WINDOW = new ParseField("window");
     public static final ParseField SETTINGS = new ParseField("settings");
+    public static final ParseField PREDICT = new ParseField("predict");
 
     private final MovAvgModelParserMapper movAvgModelParserMapper;
 
@@ -65,10 +66,12 @@ public class MovAvgParser implements Reducer.Parser {
         String currentFieldName = null;
         String[] bucketsPaths = null;
         String format = null;
+
         GapPolicy gapPolicy = GapPolicy.IGNORE;
         int window = 5;
         Map<String, Object> settings = null;
         String model = "simple";
+        int predict = 0;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -76,6 +79,16 @@ public class MovAvgParser implements Reducer.Parser {
             } else if (token == XContentParser.Token.VALUE_NUMBER) {
                 if (WINDOW.match(currentFieldName)) {
                     window = parser.intValue();
+                    if (window <= 0) {
+                        throw new SearchParseException(context, "[" + currentFieldName + "] value must be a positive, " +
+                                "non-zero integer.  Value supplied was [" + predict + "] in [" + reducerName + "].");
+                    }
+                } else if (PREDICT.match(currentFieldName)) {
+                    predict = parser.intValue();
+                    if (predict <= 0) {
+                        throw new SearchParseException(context, "[" + currentFieldName + "] value must be a positive, " +
+                                "non-zero integer.  Value supplied was [" + predict + "] in [" + reducerName + "].");
+                    }
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + reducerName + "]: ["
                             + currentFieldName + "].");
@@ -119,7 +132,7 @@ public class MovAvgParser implements Reducer.Parser {
 
         if (bucketsPaths == null) {
             throw new SearchParseException(context, "Missing required field [" + BUCKETS_PATH.getPreferredName()
-                    + "] for smooth aggregation [" + reducerName + "]");
+                    + "] for movingAvg aggregation [" + reducerName + "]");
         }
 
         ValueFormatter formatter = null;
@@ -135,7 +148,7 @@ public class MovAvgParser implements Reducer.Parser {
         MovAvgModel movAvgModel = modelParser.parse(settings);
 
 
-        return new MovAvgReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy, window, movAvgModel);
+        return new MovAvgReducer.Factory(reducerName, bucketsPaths, formatter, gapPolicy, window, predict, movAvgModel);
     }
 
 

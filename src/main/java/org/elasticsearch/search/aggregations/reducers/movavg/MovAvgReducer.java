@@ -27,12 +27,9 @@ import org.elasticsearch.ElasticsearchIllegalStateException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.reducers.BucketHelpers.GapPolicy;
@@ -44,6 +41,7 @@ import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.reducers.movavg.models.MovAvgModelStreams;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
+import org.joda.time.DateTime;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -80,17 +78,19 @@ public class MovAvgReducer extends Reducer {
     private GapPolicy gapPolicy;
     private int window;
     private MovAvgModel model;
+    private int predict;
 
     public MovAvgReducer() {
     }
 
     public MovAvgReducer(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
-                         int window, MovAvgModel model, Map<String, Object> metadata) {
+                         int window, int predict, MovAvgModel model, Map<String, Object> metadata) {
         super(name, bucketsPaths, metadata);
         this.formatter = formatter;
         this.gapPolicy = gapPolicy;
         this.window = window;
         this.model = model;
+        this.predict = predict;
     }
 
     @Override
@@ -107,8 +107,14 @@ public class MovAvgReducer extends Reducer {
         List newBuckets = new ArrayList<>();
         EvictingQueue<Double> values = EvictingQueue.create(this.window);
 
+        long lastKey = 0;
+        long interval = Long.MAX_VALUE;
+        Object currentKey;
+
         for (InternalHistogram.Bucket bucket : buckets) {
             Double thisBucketValue = resolveBucketValue(histo, bucket, bucketsPaths()[0], gapPolicy);
+            currentKey = bucket.getKey();
+
             if (thisBucketValue != null) {
                 values.offer(thisBucketValue);
 
@@ -117,14 +123,46 @@ public class MovAvgReducer extends Reducer {
 
                 List<InternalAggregation> aggs = new ArrayList<>(Lists.transform(bucket.getAggregations().asList(), FUNCTION));
                 aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<Reducer>(), metaData()));
-                InternalHistogram.Bucket newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(), new InternalAggregations(
+                InternalHistogram.Bucket newBucket = factory.createBucket(currentKey, bucket.getDocCount(), new InternalAggregations(
                         aggs), bucket.getKeyed(), bucket.getFormatter());
                 newBuckets.add(newBucket);
+
             } else {
                 newBuckets.add(bucket);
             }
+
+            if (predict > 0) {
+                if (currentKey instanceof Number) {
+                    interval = Math.min(interval, ((Number) bucket.getKey()).longValue() - lastKey);
+                    lastKey  = ((Number) bucket.getKey()).longValue();
+                } else if (currentKey instanceof DateTime) {
+                    interval = Math.min(interval, ((DateTime) bucket.getKey()).getMillis() - lastKey);
+                    lastKey = ((DateTime) bucket.getKey()).getMillis();
+                } else {
+                    throw new AggregationExecutionException("Expected key of type Number or DateTime but got [" + currentKey + "]");
+                }
+            }
+
         }
-        //return factory.create(histo.getName(), newBuckets, histo);
+
+
+        if (buckets.size() > 0 && predict > 0) {
+
+            boolean keyed;
+            ValueFormatter formatter;
+            keyed = buckets.get(0).getKeyed();
+            formatter = buckets.get(0).getFormatter();
+
+            double[] predictions = model.predict(values, predict);
+            for (int i = 0; i < predictions.length; i++) {
+                List<InternalAggregation> aggs = new ArrayList<>();
+                aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, new ArrayList<Reducer>(), metaData()));
+                InternalHistogram.Bucket newBucket = factory.createBucket(lastKey + (interval * (i + 1)), 0, new InternalAggregations(
+                        aggs), keyed, formatter);
+                newBuckets.add(newBucket);
+            }
+        }
+
         return factory.create(newBuckets, histo);
     }
 
@@ -133,7 +171,9 @@ public class MovAvgReducer extends Reducer {
         formatter = ValueFormatterStreams.readOptional(in);
         gapPolicy = GapPolicy.readFrom(in);
         window = in.readVInt();
+        predict = in.readVInt();
         model = MovAvgModelStreams.read(in);
+
     }
 
     @Override
@@ -141,7 +181,9 @@ public class MovAvgReducer extends Reducer {
         ValueFormatterStreams.writeOptional(formatter, out);
         gapPolicy.writeTo(out);
         out.writeVInt(window);
+        out.writeVInt(predict);
         model.writeTo(out);
+
     }
 
     public static class Factory extends ReducerFactory {
@@ -150,19 +192,21 @@ public class MovAvgReducer extends Reducer {
         private GapPolicy gapPolicy;
         private int window;
         private MovAvgModel model;
+        private int predict;
 
         public Factory(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy,
-                       int window, MovAvgModel model) {
+                       int window, int predict, MovAvgModel model) {
             super(name, TYPE.name(), bucketsPaths);
             this.formatter = formatter;
             this.gapPolicy = gapPolicy;
             this.window = window;
             this.model = model;
+            this.predict = predict;
         }
 
         @Override
         protected Reducer createInternal(Map<String, Object> metaData) throws IOException {
-            return new MovAvgReducer(name, bucketsPaths, formatter, gapPolicy, window, model, metaData);
+            return new MovAvgReducer(name, bucketsPaths, formatter, gapPolicy, window, predict, model, metaData);
         }
 
         @Override

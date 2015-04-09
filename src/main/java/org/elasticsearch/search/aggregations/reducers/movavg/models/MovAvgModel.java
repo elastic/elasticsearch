@@ -19,6 +19,8 @@
 
 package org.elasticsearch.search.aggregations.reducers.movavg.models;
 
+import com.google.common.collect.EvictingQueue;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -29,11 +31,60 @@ public abstract class MovAvgModel {
     /**
      * Returns the next value in the series, according to the underlying smoothing model
      *
-     * @param values    Collection of numerics to smooth, usually windowed
+     * @param values    Collection of numerics to movingAvg, usually windowed
      * @param <T>       Type of numeric
      * @return          Returns a double, since most smoothing methods operate on floating points
      */
     public abstract <T extends Number> double next(Collection<T> values);
+
+    /**
+     * Predicts the next `n` values in the series, using the smoothing model to generate new values.
+     * Default prediction mode is to simply continuing calling <code>next()</code> and adding the
+     * predicted value back into the windowed buffer.
+     *
+     * @param values            Collection of numerics to movingAvg, usually windowed
+     * @param numPredictions    Number of newly generated predictions to return
+     * @param <T>               Type of numeric
+     * @return                  Returns an array of doubles, since most smoothing methods operate on floating points
+     */
+    public <T extends Number> double[] predict(Collection<T> values, int numPredictions) {
+        double[] predictions = new double[numPredictions];
+
+        // If there are no values, we can't do anything.  Return an array of NaNs.
+        if (values.size() == 0) {
+            return emptyPredictions(numPredictions);
+        }
+
+        // special case for one prediction, avoids allocation
+        if (numPredictions < 1) {
+            throw new ElasticsearchIllegalArgumentException("numPredictions may not be less than 1.");
+        } else if (numPredictions == 1){
+            predictions[0] = next(values);
+            return predictions;
+        }
+
+        // nocommit
+        // I don't like that it creates a new queue here
+        // The alternative to this is to just use `values` directly, but that would "consume" values
+        // and potentially change state elsewhere.  Maybe ok?
+        Collection<Number> predictionBuffer = EvictingQueue.create(values.size());
+        predictionBuffer.addAll(values);
+
+        for (int i = 0; i < numPredictions; i++) {
+            predictions[i] = next(predictionBuffer);
+
+            // Add the last value to the buffer, so we can keep predicting
+            predictionBuffer.add(predictions[i]);
+        }
+
+        return predictions;
+    }
+
+    protected double[] emptyPredictions(int numPredictions) {
+        double[] predictions = new double[numPredictions];
+        Arrays.fill(predictions, Double.NaN);
+        return predictions;
+    }
 
     /**
      * Write the model to the output stream

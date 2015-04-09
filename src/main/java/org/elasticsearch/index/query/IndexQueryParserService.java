@@ -22,8 +22,8 @@ package org.elasticsearch.index.query;
 import com.google.common.collect.ImmutableMap;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -94,7 +94,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
 
     final BitsetFilterCache bitsetFilterCache;
 
-    final FilterCachingPolicy autoFilterCachePolicy;
+    final QueryCachingPolicy autoFilterCachePolicy;
 
     private final Map<String, QueryParser> queryParsers;
 
@@ -111,7 +111,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
                                    ScriptService scriptService, AnalysisService analysisService,
                                    MapperService mapperService, IndexCache indexCache, IndexFieldDataService fieldDataService,
                                    BitsetFilterCache bitsetFilterCache,
-                                   FilterCachingPolicy autoFilterCachePolicy,
+                                   QueryCachingPolicy autoFilterCachePolicy,
                                    @Nullable SimilarityService similarityService,
                                    @Nullable Map<String, QueryParserFactory> namedQueryParsers,
                                    @Nullable Map<String, FilterParserFactory> namedFilterParsers) {
@@ -185,7 +185,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         return this.defaultField;
     }
 
-    public FilterCachingPolicy autoFilterCachePolicy() {
+    public QueryCachingPolicy autoFilterCachePolicy() {
         return autoFilterCachePolicy;
     }
 

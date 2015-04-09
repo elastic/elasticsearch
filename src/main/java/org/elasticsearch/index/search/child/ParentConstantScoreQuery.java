@@ -85,7 +85,7 @@ public class ParentConstantScoreQuery extends Query {
         final long maxOrd;
         List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
         if (globalIfd == null || leaves.isEmpty()) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         } else {
             AtomicParentChildFieldData afd = globalIfd.load(leaves.get(0));
             SortedDocValues globalValues = afd.getOrdinalsValues(parentType);
@@ -93,7 +93,7 @@ public class ParentConstantScoreQuery extends Query {
         }
 
         if (maxOrd == 0) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         }
 
         final Query parentQuery = rewrittenParentQuery;
@@ -103,7 +103,7 @@ public class ParentConstantScoreQuery extends Query {
         indexSearcher.search(parentQuery, collector);
 
         if (collector.parentCount() == 0) {
-            return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         }
 
         return new ChildrenWeight(this, childrenFilter, collector, globalIfd);

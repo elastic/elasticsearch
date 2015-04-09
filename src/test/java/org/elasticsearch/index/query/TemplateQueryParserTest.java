@@ -19,6 +19,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
@@ -116,7 +117,7 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
 
         TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
         Query query = parser.parse(context);
-        assertTrue("Parsing template query failed.", query instanceof ConstantScoreQuery);
+        assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
 
     @Test
@@ -128,6 +129,6 @@ public class TemplateQueryParserTest extends ElasticsearchTestCase {
 
         TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
         Query query = parser.parse(context);
-        assertTrue("Parsing template query failed.", query instanceof ConstantScoreQuery);
+        assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
 }

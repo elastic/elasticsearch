@@ -24,12 +24,14 @@ import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermFilter;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
@@ -40,7 +42,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.AndFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.Uid;
@@ -55,7 +57,6 @@ import org.elasticsearch.search.internal.FilteredSearchContext;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -284,16 +285,16 @@ public final class InnerHitsContext {
                     term = (String) fieldsVisitor.fields().get(ParentFieldMapper.NAME).get(0);
                 }
             }
-            Filter filter = new TermFilter(new Term(field, term)); // Only include docs that have the current hit as parent
+            Filter filter = Queries.wrap(new TermQuery(new Term(field, term))); // Only include docs that have the current hit as parent
             Filter typeFilter = documentMapper.typeFilter(); // Only include docs that have this inner hits type.
 
+            BooleanQuery filteredQuery = new BooleanQuery();
+            filteredQuery.add(query, Occur.MUST);
+            filteredQuery.add(filter, Occur.FILTER);
+            filteredQuery.add(typeFilter, Occur.FILTER);
             if (size() == 0) {
-                TotalHitCountCollector collector = new TotalHitCountCollector();
-                context.searcher().search(
-                        new FilteredQuery(query, new AndFilter(Arrays.asList(filter, typeFilter))),
-                        collector
-                );
-                return new TopDocs(collector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
+                final int count = context.searcher().count(filteredQuery);
+                return new TopDocs(count, Lucene.EMPTY_SCORE_DOCS, 0);
             } else {
                 int topN = from() + size();
                 TopDocsCollector topDocsCollector;
@@ -302,10 +303,7 @@ public final class InnerHitsContext {
                 } else {
                     topDocsCollector = TopScoreDocCollector.create(topN);
                 }
-                context.searcher().search(
-                        new FilteredQuery(query, new AndFilter(Arrays.asList(filter, typeFilter))),
-                        topDocsCollector
-                );
+                context.searcher().search( filteredQuery, topDocsCollector);
                 return topDocsCollector.topDocs(from(), size());
             }
         }

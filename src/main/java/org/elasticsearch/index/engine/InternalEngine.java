@@ -635,7 +635,9 @@ public class InternalEngine extends Engine {
                             long translogId = translogIdGenerator.incrementAndGet();
                             translog.newTransientTranslog(translogId);
                             indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
+                            logger.trace("starting commit for flush; commitTranslog=true");
                             commitIndexWriter(indexWriter);
+                            logger.trace("finished commit for flush");
                             // we need to refresh in order to clear older version values
                             refresh("version_table_flush");
                             // we need to move transient to current only after we refresh
@@ -658,7 +660,9 @@ public class InternalEngine extends Engine {
                     try {
                         long translogId = translog.currentId();
                         indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
+                        logger.trace("starting commit for flush; commitTranslog=false");
                         commitIndexWriter(indexWriter);
+                        logger.trace("finished commit for flush");
                     } catch (Throwable e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }

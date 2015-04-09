@@ -51,7 +51,6 @@ import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 
 import java.io.File;
 import java.lang.reflect.Modifier;
@@ -189,7 +188,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         }
     }
 
-    @Ignore
+    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/10434")
     public void testOldIndexes() throws Exception {
         // Enable logging of all file deletions while we try to debug this tricky rare test failure (#9822):
         Loggers.getLogger("test.engine.lucene.iw.ifd").setLevel("TRACE");

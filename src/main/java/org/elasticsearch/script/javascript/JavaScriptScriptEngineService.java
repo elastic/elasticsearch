@@ -29,9 +29,11 @@ import org.elasticsearch.script.*;
 import org.elasticsearch.script.javascript.support.NativeList;
 import org.elasticsearch.script.javascript.support.NativeMap;
 import org.elasticsearch.script.javascript.support.ScriptValueConverter;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.mozilla.javascript.*;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -121,26 +123,33 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
     }
 
     @Override
-    public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
+    public SearchScript search(final Object compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
         Context ctx = Context.enter();
         try {
             ctx.setWrapFactory(wrapFactory);
 
-            Scriptable scope = ctx.newObject(globalScope);
+            final Scriptable scope = ctx.newObject(globalScope);
             scope.setPrototype(globalScope);
             scope.setParentScope(null);
 
-            for (Map.Entry<String, Object> entry : lookup.asMap().entrySet()) {
-                ScriptableObject.putProperty(scope, entry.getKey(), entry.getValue());
-            }
+            return new SearchScript() {
 
-            if (vars != null) {
-                for (Map.Entry<String, Object> entry : vars.entrySet()) {
+              @Override
+              public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+                final LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
+                for (Map.Entry<String, Object> entry : leafLookup.asMap().entrySet()) {
                     ScriptableObject.putProperty(scope, entry.getKey(), entry.getValue());
                 }
-            }
 
-            return new JavaScriptSearchScript((Script) compiledScript, scope, lookup);
+                if (vars != null) {
+                    for (Map.Entry<String, Object> entry : vars.entrySet()) {
+                        ScriptableObject.putProperty(scope, entry.getKey(), entry.getValue());
+                    }
+                }
+
+                return new JavaScriptSearchScript((Script) compiledScript, scope, leafLookup);
+              }
+            };
         } finally {
             Context.exit();
         }
@@ -208,15 +217,15 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
         }
     }
 
-    public static class JavaScriptSearchScript implements SearchScript {
+    public static class JavaScriptSearchScript implements LeafSearchScript {
 
         private final Script script;
 
         private final Scriptable scope;
 
-        private final SearchLookup lookup;
+        private final LeafSearchLookup lookup;
 
-        public JavaScriptSearchScript(Script script, Scriptable scope, SearchLookup lookup) {
+        public JavaScriptSearchScript(Script script, Scriptable scope, LeafSearchLookup lookup) {
             this.script = script;
             this.scope = scope;
             this.lookup = lookup;
@@ -225,18 +234,16 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
         @Override
         public void setScorer(Scorer scorer) {
             Context ctx = Context.enter();
-            ScriptableObject.putProperty(scope, "_score", wrapFactory.wrapAsJavaObject(ctx, scope, new ScoreAccessor(scorer), ScoreAccessor.class));
-            Context.exit();
+            try {
+              ScriptableObject.putProperty(scope, "_score", wrapFactory.wrapAsJavaObject(ctx, scope, new ScoreAccessor(scorer), ScoreAccessor.class));
+            } finally {
+              Context.exit();
+            }
         }
 
         @Override
-        public void setNextReader(LeafReaderContext context) {
-            lookup.setNextReader(context);
-        }
-
-        @Override
-        public void setNextDocId(int doc) {
-            lookup.setNextDocId(doc);
+        public void setDocument(int doc) {
+            lookup.setDocument(doc);
         }
 
         @Override
@@ -245,8 +252,8 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
         }
 
         @Override
-        public void setNextSource(Map<String, Object> source) {
-            lookup.source().setNextSource(source);
+        public void setSource(Map<String, Object> source) {
+            lookup.source().setSource(source);
         }
 
         @Override

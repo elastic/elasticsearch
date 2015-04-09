@@ -36,6 +36,7 @@ public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
     private GapPolicy gapPolicy;
     private MovAvgModelBuilder modelBuilder;
     private Integer window;
+    private Integer predict;
 
     public MovAvgBuilder(String name) {
         super(name, MovAvgReducer.TYPE.name());
@@ -81,6 +82,19 @@ public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
         return this;
     }
 
+    /**
+     * Sets the number of predictions that should be returned.  Each prediction will be spaced at
+     * the intervals specified in the histogram.  E.g "predict: 2" will return two new buckets at the
+     * end of the histogram with the predicted values.
+     *
+     * @param numPredictions Number of predictions to make
+     * @return Returns the builder to continue chaining
+     */
+    public MovAvgBuilder predict(int numPredictions) {
+        this.predict = numPredictions;
+        return this;
+    }
+
 
     @Override
     protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
@@ -95,6 +109,9 @@ public class MovAvgBuilder extends ReducerBuilder<MovAvgBuilder> {
         }
         if (window != null) {
             builder.field(MovAvgParser.WINDOW.getPreferredName(), window);
+        }
+        if (predict != null) {
+            builder.field(MovAvgParser.PREDICT.getPreferredName(), predict);
         }
         return builder;
     }

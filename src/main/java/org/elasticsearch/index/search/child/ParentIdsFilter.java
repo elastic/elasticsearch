@@ -24,10 +24,12 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.queries.TermFilter;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
@@ -38,7 +40,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.LongBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.lucene.search.AndFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.index.mapper.Uid;
@@ -46,8 +48,6 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * Advantages over using this filter over Lucene's TermsFilter in the parent child context:
@@ -63,13 +63,12 @@ final class ParentIdsFilter extends Filter {
         if (numFoundParents == 1) {
             BytesRef id = globalValues.lookupOrd((int) parentOrds.nextSetBit(0));
             if (nonNestedDocsFilter != null) {
-                List<Filter> filters = Arrays.asList(
-                        new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))),
-                        nonNestedDocsFilter
-                );
-                return new AndFilter(filters);
+                BooleanQuery bq = new BooleanQuery();
+                bq.add(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))), Occur.MUST);
+                bq.add(nonNestedDocsFilter, Occur.MUST);
+                return Queries.wrap(bq);
             } else {
-                return new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
+                return Queries.wrap(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))));
             }
         } else {
             BytesRefHash parentIds= null;
@@ -96,13 +95,12 @@ final class ParentIdsFilter extends Filter {
         if (numFoundParents == 1) {
             BytesRef id = globalValues.lookupOrd((int) parentIdxs.get(0));
             if (nonNestedDocsFilter != null) {
-                List<Filter> filters = Arrays.asList(
-                        new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))),
-                        nonNestedDocsFilter
-                );
-                return new AndFilter(filters);
+                BooleanQuery bq = new BooleanQuery();
+                bq.add(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))), Occur.MUST);
+                bq.add(nonNestedDocsFilter, Occur.MUST);
+                return Queries.wrap(bq);
             } else {
-                return new TermFilter(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id)));
+                return Queries.wrap(new TermQuery(new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(parentType, id))));
             }
         } else {
             BytesRefHash parentIds = null;

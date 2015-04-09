@@ -23,6 +23,7 @@ import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilterCachingPolicy;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
@@ -55,7 +56,7 @@ public class NestedAggregator extends SingleBucketAggregator {
     private DocIdSetIterator childDocs;
     private BitSet parentDocs;
 
-    public NestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parentAggregator, Map<String, Object> metaData, FilterCachingPolicy filterCachingPolicy) throws IOException {
+    public NestedAggregator(String name, AggregatorFactories factories, ObjectMapper objectMapper, AggregationContext aggregationContext, Aggregator parentAggregator, Map<String, Object> metaData, QueryCachingPolicy filterCachingPolicy) throws IOException {
         super(name, factories, aggregationContext, parentAggregator, metaData);
         childFilter = aggregationContext.searchContext().filterCache().cache(objectMapper.nestedTypeFilter(), null, filterCachingPolicy);
     }
@@ -142,12 +143,12 @@ public class NestedAggregator extends SingleBucketAggregator {
     public static class Factory extends AggregatorFactory {
 
         private final String path;
-        private final FilterCachingPolicy filterCachingPolicy;
+        private final QueryCachingPolicy queryCachingPolicy;
 
-        public Factory(String name, String path, FilterCachingPolicy filterCachingPolicy) {
+        public Factory(String name, String path, QueryCachingPolicy queryCachingPolicy) {
             super(name, InternalNested.TYPE.name());
             this.path = path;
-            this.filterCachingPolicy = filterCachingPolicy;
+            this.queryCachingPolicy = queryCachingPolicy;
         }
 
         @Override
@@ -166,7 +167,7 @@ public class NestedAggregator extends SingleBucketAggregator {
             if (!objectMapper.nested().isNested()) {
                 throw new AggregationExecutionException("[nested] nested path [" + path + "] is not nested");
             }
-            return new NestedAggregator(name, factories, objectMapper, context, parent, metaData, filterCachingPolicy);
+            return new NestedAggregator(name, factories, objectMapper, context, parent, metaData, queryCachingPolicy);
         }
 
         private final static class Unmapped extends NonCollectingAggregator {

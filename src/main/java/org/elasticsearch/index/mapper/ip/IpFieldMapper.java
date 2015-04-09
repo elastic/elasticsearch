@@ -26,7 +26,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -254,10 +254,10 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public Filter rangeFilter(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, @Nullable QueryParseContext context) {
-        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
+        return Queries.wrap(NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 lowerTerm == null ? null : parseValue(lowerTerm),
                 upperTerm == null ? null : parseValue(upperTerm),
-                includeLower, includeUpper);
+                includeLower, includeUpper));
     }
 
     @Override
@@ -274,10 +274,10 @@ public class IpFieldMapper extends NumberFieldMapper<Long> {
             return null;
         }
         final long value = ipToLong(nullValue);
-        return NumericRangeFilter.newLongRange(names.indexName(), precisionStep,
+        return Queries.wrap(NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 value,
                 value,
-                true, true);
+                true, true));
     }
 
     @Override

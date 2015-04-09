@@ -29,12 +29,13 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LogByteSizeMergePolicy;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.queries.TermFilter;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.join.BitDocIdSetFilter;
 import org.apache.lucene.store.RAMDirectory;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ElasticsearchTestCase;
@@ -71,7 +72,7 @@ public class BitSetFilterCacheTest extends ElasticsearchTestCase {
         IndexSearcher searcher = new IndexSearcher(reader);
 
         BitsetFilterCache cache = new BitsetFilterCache(new Index("test"), ImmutableSettings.EMPTY);
-        BitDocIdSetFilter filter = cache.getBitDocIdSetFilter(new TermFilter(new Term("field", "value")));
+        BitDocIdSetFilter filter = cache.getBitDocIdSetFilter(Queries.wrap(new TermQuery(new Term("field", "value"))));
         TopDocs docs = searcher.search(new ConstantScoreQuery(filter), 1);
         assertThat(docs.totalHits, equalTo(3));
 

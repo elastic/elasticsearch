@@ -24,7 +24,8 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.NumericRangeFilter;
+import org.apache.lucene.search.NumericRangeQuery;
+import org.apache.lucene.search.QueryWrapperFilter;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -243,10 +244,9 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         } finally {
             SearchContext.removeCurrent();
         }
-        assertThat(filter, instanceOf(NumericRangeFilter.class));
-        NumericRangeFilter<Long> rangeFilter = (NumericRangeFilter<Long>) filter;
-        assertThat(rangeFilter.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(11).millis()).getMillis()));
-        assertThat(rangeFilter.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(10).millis()).getMillis()));
+        NumericRangeQuery<Long> rangeQuery = (NumericRangeQuery<Long>) ((QueryWrapperFilter) filter).getQuery();
+        assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(11).millis()).getMillis()));
+        assertThat(rangeQuery.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(10).millis()).getMillis()));
     }
     
     public void testDayWithoutYearFormat() throws Exception {
@@ -271,10 +271,9 @@ public class SimpleDateMappingTests extends ElasticsearchSingleNodeTest {
         } finally {
             SearchContext.removeCurrent();
         }
-        assertThat(filter, instanceOf(NumericRangeFilter.class));
-        NumericRangeFilter<Long> rangeFilter = (NumericRangeFilter<Long>) filter;
-        assertThat(rangeFilter.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(35).millis()).getMillis()));
-        assertThat(rangeFilter.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(34).millis()).getMillis()));
+        NumericRangeQuery<Long> rangeQuery = (NumericRangeQuery<Long>) ((QueryWrapperFilter) filter).getQuery();
+        assertThat(rangeQuery.getMax(), equalTo(new DateTime(TimeValue.timeValueHours(35).millis()).getMillis()));
+        assertThat(rangeQuery.getMin(), equalTo(new DateTime(TimeValue.timeValueHours(34).millis()).getMillis()));
     }
     
     public void testIgnoreMalformedOption() throws Exception {

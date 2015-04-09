@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BitsFilteredDocIdSet;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -170,7 +171,7 @@ public class ChildrenQuery extends Query {
         IndexParentChildFieldData globalIfd = ifd.loadGlobal(searcher.getIndexReader());
         if (globalIfd == null) {
             // No docs of the specified type exist on this shard
-            return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
+            return new BooleanQuery().createWeight(searcher, needsScores);
         }
         IndexSearcher indexSearcher = new IndexSearcher(searcher.getIndexReader());
         indexSearcher.setSimilarity(searcher.getSimilarity());
@@ -215,7 +216,7 @@ public class ChildrenQuery extends Query {
             indexSearcher.search(childQuery, collector);
             numFoundParents = collector.foundParents();
             if (numFoundParents == 0) {
-                return Queries.newMatchNoDocsQuery().createWeight(searcher, needsScores);
+                return new BooleanQuery().createWeight(searcher, needsScores);
             }
             abort = false;
         } finally {

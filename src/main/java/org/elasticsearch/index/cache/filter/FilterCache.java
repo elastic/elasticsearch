@@ -20,7 +20,7 @@
 package org.elasticsearch.index.cache.filter;
 
 import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilterCachingPolicy;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.HashedBytesRef;
 import org.elasticsearch.index.IndexComponent;
@@ -48,7 +48,7 @@ public interface FilterCache extends IndexComponent, Closeable {
 
     String type();
 
-    Filter cache(Filter filterToCache, @Nullable HashedBytesRef cacheKey, FilterCachingPolicy policy);
+    Filter cache(Filter filterToCache, @Nullable HashedBytesRef cacheKey, QueryCachingPolicy policy);
 
     void clear(Object reader);
 

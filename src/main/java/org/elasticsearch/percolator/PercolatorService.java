@@ -25,6 +25,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.memory.ExtendedMemoryIndex;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.FilteredQuery;
@@ -50,7 +51,7 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.XBooleanFilter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.BytesText;
 import org.elasticsearch.common.text.StringText;
@@ -796,10 +797,10 @@ public class PercolatorService extends AbstractComponent {
 
         final Filter filter;
         if (context.aliasFilter() != null) {
-            XBooleanFilter booleanFilter = new XBooleanFilter();
+            BooleanQuery booleanFilter = new BooleanQuery();
             booleanFilter.add(context.aliasFilter(), BooleanClause.Occur.MUST);
             booleanFilter.add(percolatorTypeFilter, BooleanClause.Occur.MUST);
-            filter = booleanFilter;
+            filter = Queries.wrap(booleanFilter);
         } else {
             filter = percolatorTypeFilter;
         }

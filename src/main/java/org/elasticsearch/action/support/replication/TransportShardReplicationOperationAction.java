@@ -649,44 +649,7 @@ public abstract class TransportShardReplicationOperationAction<Request extends S
 
                 });
             } else {
-                if (internalRequest.request().operationThreaded()) {
-                    try {
-                        threadPool.executor(executor).execute(new AbstractRunnable() {
-                            @Override
-                            protected void doRun() {
-                                try {
-                                    shardOperationOnReplica(shardRequest);
-                                    state.onReplicaSuccess();
-                                } catch (Throwable e) {
-                                    state.onReplicaFailure(nodeId, e);
-                                    failReplicaIfNeeded(shard.index(), shard.id(), e);
-                                }
-                            }
-
-                            // we must never reject on because of thread pool capacity on replicas
-                            @Override
-                            public boolean isForceExecution() {
-                                return true;
-                            }
-
-                            @Override
-                            public void onFailure(Throwable t) {
-                                state.onReplicaFailure(nodeId, t);
-                            }
-                        });
-                    } catch (Throwable e) {
-                        failReplicaIfNeeded(shard.index(), shard.id(), e);
-                        state.onReplicaFailure(nodeId, e);
-                    }
-                } else {
-                    try {
-                        shardOperationOnReplica(shardRequest);
-                        state.onReplicaSuccess();
-                    } catch (Throwable e) {
-                        failReplicaIfNeeded(shard.index(), shard.id(), e);
-                        state.onReplicaFailure(nodeId, e);
-                    }
-                }
+                throw new ElasticsearchIllegalStateException("detected primary and replica of shard [" + shard.index() + "][" + shard.id() + "] on same node!");
             }
         }
 

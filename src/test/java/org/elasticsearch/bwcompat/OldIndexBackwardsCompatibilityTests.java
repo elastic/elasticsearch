@@ -192,7 +192,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         }
     }
 
-    @TestLogging("indices.recovery:TRACE")
+    @TestLogging("test.engine:TRACE,index.engine:TRACE,test.engine.lucene:INFO,index.engine.lucene:INFO")
     public void testOldIndexes() throws Exception {
         // Enable logging of all file deletions while we try to debug this tricky rare test failure (#9822):
         Loggers.getLogger("test.engine.lucene.iw.ifd").setLevel("TRACE");

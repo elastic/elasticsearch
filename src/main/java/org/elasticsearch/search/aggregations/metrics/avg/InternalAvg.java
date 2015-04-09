@@ -82,10 +82,10 @@ public class InternalAvg extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalAvg doReduce(ReduceContext reduceContext) {
+    public InternalAvg doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         long count = 0;
         double sum = 0;
-        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+        for (InternalAggregation aggregation : aggregations) {
             count += ((InternalAvg) aggregation).count;
             sum += ((InternalAvg) aggregation).sum;
         }

@@ -23,7 +23,6 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -33,7 +32,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.*;
-
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -261,6 +259,7 @@ public class ClusterState implements ToXContent {
         NODES("nodes"),
         METADATA("metadata"),
         ROUTING_TABLE("routing_table"),
+        ROUTING_NODES("routing_nodes"),
         CUSTOMS("customs");
 
         private static Map<String, Metric> valueToEnum;
@@ -465,7 +464,7 @@ public class ClusterState implements ToXContent {
         }
 
         // routing nodes
-        if (metrics.contains(Metric.ROUTING_TABLE)) {
+        if (metrics.contains(Metric.ROUTING_NODES)) {
             builder.startObject("routing_nodes");
             builder.startArray("unassigned");
             for (ShardRouting shardRouting : readOnlyRoutingNodes().unassigned()) {

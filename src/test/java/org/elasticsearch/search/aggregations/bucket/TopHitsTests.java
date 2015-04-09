@@ -46,7 +46,6 @@ import org.junit.Test;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
@@ -266,6 +265,38 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
             assertThat((Long) hits.getAt(0).sortValues()[0], equalTo(higestSortValue));
             assertThat((Long) hits.getAt(1).sortValues()[0], equalTo(higestSortValue - 1));
             assertThat((Long) hits.getAt(2).sortValues()[0], equalTo(higestSortValue - 2));
+
+            assertThat(hits.getAt(0).sourceAsMap().size(), equalTo(4));
+        }
+    }
+
+    @Test
+    public void testBreadthFirst() throws Exception {
+        // breadth_first will be ignored since we need scores
+        SearchResponse response = client().prepareSearch("idx").setTypes("type")
+                .addAggregation(terms("terms")
+                        .executionHint(randomExecutionHint())
+                        .collectMode(SubAggCollectionMode.BREADTH_FIRST)
+                        .field(TERMS_AGGS_FIELD)
+                        .subAggregation(topHits("hits").setSize(3))
+                ).get();
+
+        assertSearchResponse(response);
+
+        Terms terms = response.getAggregations().get("terms");
+        assertThat(terms, notNullValue());
+        assertThat(terms.getName(), equalTo("terms"));
+        assertThat(terms.getBuckets().size(), equalTo(5));
+
+        for (int i = 0; i < 5; i++) {
+            Terms.Bucket bucket = terms.getBucketByKey("val" + i);
+            assertThat(bucket, notNullValue());
+            assertThat(key(bucket), equalTo("val" + i));
+            assertThat(bucket.getDocCount(), equalTo(10l));
+            TopHits topHits = bucket.getAggregations().get("hits");
+            SearchHits hits = topHits.getHits();
+            assertThat(hits.totalHits(), equalTo(10l));
+            assertThat(hits.getHits().length, equalTo(3));
 
             assertThat(hits.getAt(0).sourceAsMap().size(), equalTo(4));
         }
@@ -529,37 +560,6 @@ public class TopHitsTests extends ElasticsearchIntegrationTest {
             fail();
         } catch (SearchPhaseExecutionException e) {
             assertThat(e.getMessage(), containsString("Aggregator [top_tags_hits] of type [top_hits] cannot accept sub-aggregations"));
-        }
-    }
-    
-    @Test
-    public void testFailDeferredOnlyWhenScorerIsUsed() throws Exception {
-        // No track_scores or score based sort defined in top_hits agg, so don't fail:
-        SearchResponse response = client().prepareSearch("idx")
-                .setTypes("type")
-                .addAggregation(
-                        terms("terms").executionHint(randomExecutionHint()).field(TERMS_AGGS_FIELD)
-                                .collectMode(SubAggCollectionMode.BREADTH_FIRST)
-                                .subAggregation(topHits("hits").addSort(SortBuilders.fieldSort(SORT_FIELD).order(SortOrder.DESC))))
-                .get();
-        assertSearchResponse(response);
-
-        // Score based, so fail with deferred aggs:
-        try {
-            client().prepareSearch("idx")
-                    .setTypes("type")
-                    .addAggregation(
-                            terms("terms").executionHint(randomExecutionHint()).field(TERMS_AGGS_FIELD)
-                                    .collectMode(SubAggCollectionMode.BREADTH_FIRST)
-                                    .subAggregation(topHits("hits")))
-                    .get();
-            fail();
-        } catch (Exception e) {
-            // It is considered a parse failure if the search request asks for top_hits
-            // under an aggregation with collect_mode set to breadth_first as this would
-            // require the buffering of scores alongside each document ID and that is a
-            // a RAM cost we are not willing to pay 
-            assertThat(e.getMessage(), containsString("ElasticsearchIllegalStateException"));
         }
     }
 

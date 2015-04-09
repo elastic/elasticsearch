@@ -146,13 +146,13 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
     }
 
     @Override
-    public InternalExtendedStats doReduce(ReduceContext reduceContext) {
+    public InternalExtendedStats doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double sumOfSqrs = 0;
-        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+        for (InternalAggregation aggregation : aggregations) {
             InternalExtendedStats stats = (InternalExtendedStats) aggregation;
             sumOfSqrs += stats.getSumOfSquares();
         }
-        final InternalStats stats = super.doReduce(reduceContext);
+        final InternalStats stats = super.doReduce(aggregations, reduceContext);
         return new InternalExtendedStats(name, stats.getCount(), stats.getSum(), stats.getMin(), stats.getMax(), sumOfSqrs, sigma,
                 valueFormatter, reducers(), getMetaData());
     }

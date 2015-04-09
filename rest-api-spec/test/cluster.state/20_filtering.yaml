@@ -81,6 +81,18 @@ setup:
   - is_false: nodes
   - is_false: metadata
   - is_true: routing_table
+  - is_false: routing_nodes
+
+---
+"Filtering the cluster state by routing nodes only should work":
+  - do:
+      cluster.state:
+        metric: [ routing_nodes ]
+
+  - is_false: blocks
+  - is_false: nodes
+  - is_false: metadata
+  - is_false: routing_table
   - is_true: routing_nodes
 
 ---

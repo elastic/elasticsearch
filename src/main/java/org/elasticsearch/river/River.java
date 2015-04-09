@@ -22,7 +22,9 @@ package org.elasticsearch.river;
 /**
  * Allows to import data into elasticsearch via plugin
  * Gets allocated on a node and eventually automatically re-allocated if needed
+ * @deprecated See blog post https://www.elastic.co/blog/deprecating_rivers
  */
+@Deprecated
 public interface River extends RiverComponent {
 
     /**

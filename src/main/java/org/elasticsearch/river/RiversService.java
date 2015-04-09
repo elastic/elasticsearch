@@ -126,6 +126,7 @@ public class RiversService extends AbstractLifecycleComponent<RiversService> {
             return;
         }
 
+        logger.info("rivers have been deprecated. Read https://www.elastic.co/blog/deprecating_rivers");
         logger.debug("creating river [{}][{}]", riverName.type(), riverName.name());
 
         try {

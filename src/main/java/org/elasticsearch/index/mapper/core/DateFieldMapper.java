@@ -488,13 +488,14 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
         }
 
         if (value != null) {
+            final long timestamp = timeUnit.toMillis(value);
             if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-                CustomLongNumericField field = new CustomLongNumericField(this, value, fieldType);
+                CustomLongNumericField field = new CustomLongNumericField(this, timestamp, fieldType);
                 field.setBoost(boost);
                 fields.add(field);
             }
             if (hasDocValues()) {
-                addDocValue(context, fields, value);
+                addDocValue(context, fields, timestamp);
             }
         }
     }
@@ -553,8 +554,7 @@ public class DateFieldMapper extends NumberFieldMapper<Long> {
             return dateTimeFormatter.parser().parseMillis(value);
         } catch (RuntimeException e) {
             try {
-                long time = Long.parseLong(value);
-                return timeUnit.toMillis(time);
+                return Long.parseLong(value);
             } catch (NumberFormatException e1) {
                 throw new MapperParsingException("failed to parse date field [" + value + "], tried both date format [" + dateTimeFormatter.format() + "], and timestamp number with locale [" + dateTimeFormatter.locale() + "]", e);
             }

@@ -103,7 +103,12 @@ public abstract class AggregatorBase extends Aggregator {
      */
     @Override
     public boolean needsScores() {
-        return collectableSubAggregators.needsScores();
+        for (Aggregator agg : subAggregators) {
+            if (agg.needsScores()) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public Map<String, Object> metaData() {
@@ -153,6 +158,7 @@ public abstract class AggregatorBase extends Aggregator {
         }
         collectableSubAggregators = BucketCollector.wrap(collectors);
         doPreCollection();
+        collectableSubAggregators.preCollection();
     }
 
     /**

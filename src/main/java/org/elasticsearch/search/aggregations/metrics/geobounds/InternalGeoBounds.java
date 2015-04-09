@@ -75,7 +75,7 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
     }
     
     @Override
-    public InternalAggregation doReduce(ReduceContext reduceContext) {
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double top = Double.NEGATIVE_INFINITY;
         double bottom = Double.POSITIVE_INFINITY;
         double posLeft = Double.POSITIVE_INFINITY;
@@ -83,7 +83,7 @@ public class InternalGeoBounds extends InternalMetricsAggregation implements Geo
         double negLeft = Double.POSITIVE_INFINITY;
         double negRight = Double.NEGATIVE_INFINITY;
 
-        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+        for (InternalAggregation aggregation : aggregations) {
             InternalGeoBounds bounds = (InternalGeoBounds) aggregation;
 
             if (bounds.top > top) {

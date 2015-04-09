@@ -49,7 +49,7 @@ public class SignificantStringTermsAggregator extends StringTermsAggregator {
 
     public SignificantStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
             BucketCountThresholds bucketCountThresholds,
-            IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent,
+            IncludeExclude.StringFilter includeExclude, AggregationContext aggregationContext, Aggregator parent,
  SignificantTermsAggregatorFactory termsAggFactory, List<Reducer> reducers, Map<String, Object> metaData)
             throws IOException {
 

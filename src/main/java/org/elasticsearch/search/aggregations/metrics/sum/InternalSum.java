@@ -79,9 +79,9 @@ public class InternalSum extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalSum doReduce(ReduceContext reduceContext) {
+    public InternalSum doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double sum = 0;
-        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+        for (InternalAggregation aggregation : aggregations) {
             sum += ((InternalSum) aggregation).sum;
         }
         return new InternalSum(name, sum, valueFormatter, reducers(), getMetaData());

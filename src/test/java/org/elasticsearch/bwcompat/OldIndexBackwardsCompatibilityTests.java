@@ -31,11 +31,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.merge.policy.MergePolicyModule;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.rest.action.admin.indices.upgrade.UpgradeTest;
 import org.elasticsearch.search.SearchHit;
@@ -46,6 +49,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.index.merge.NoMergePolicyProvider;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
@@ -97,11 +101,12 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         return ImmutableSettings.builder()
                 .put(Node.HTTP_ENABLED, true) // for _upgrade
                 .put(MergePolicyModule.MERGE_POLICY_TYPE_KEY, NoMergePolicyProvider.class) // disable merging so no segments will be upgraded
+                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, 30) // increase recovery speed for small files
                 .build();
     }
 
     void setupCluster() throws Exception {
-        ListenableFuture<List<String>> replicas = internalCluster().startNodesAsync(2); // for replicas
+        ListenableFuture<List<String>> replicas = internalCluster().startNodesAsync(1); // for replicas
 
         Path dataDir = newTempDirPath(LifecycleScope.SUITE);
         ImmutableSettings.Builder nodeSettings = ImmutableSettings.builder()
@@ -153,6 +158,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     }
 
     void unloadIndex(String indexName) throws Exception {
+        client().admin().indices().prepareFlush(indexName).setWaitIfOngoing(true).setForce(true).get(); // temporary for debugging
         ElasticsearchAssertions.assertAcked(client().admin().indices().prepareDelete(indexName).get());
         ElasticsearchAssertions.assertAllFilesClosed();
     }
@@ -190,12 +196,25 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         }
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "times out often , see : https://github.com/elastic/elasticsearch/issues/10434")
     public void testOldIndexes() throws Exception {
         setupCluster();
 
         Collections.shuffle(indexes, getRandom());
         for (String index : indexes) {
+            if (index.equals("index-0.90.13.zip") == false) {
+                long startTime = System.currentTimeMillis();
+                logger.info("--> Testing old index " + index);
+                assertOldIndexWorks(index);
+                logger.info("--> Done testing " + index + ", took " + ((System.currentTimeMillis() - startTime) / 1000.0) + " seconds");
+            }
+        }
+    }
+
+    @TestLogging("test.engine:TRACE,index.engine:TRACE,test.engine.lucene:TRACE,index.engine.lucene:TRACE")
+    public void testShitSlowIndex() throws Exception {
+        setupCluster();
+        for (int i = 0; i < 5; i++) {
+            String index = "index-0.90.13.zip";
             long startTime = System.currentTimeMillis();
             logger.info("--> Testing old index " + index);
             assertOldIndexWorks(index);
@@ -295,12 +314,15 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     }
 
     void assertNewReplicasWork(String indexName) throws Exception {
-        final int numReplicas = randomIntBetween(1, 2);
-        logger.debug("Creating [{}] replicas for index [{}]", numReplicas, indexName);
+        final int numReplicas = 1;
+        final long startTime = System.currentTimeMillis();
+        logger.debug("--> creating [{}] replicas for index [{}]", numReplicas, indexName);
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.builder()
                         .put("number_of_replicas", numReplicas)
         ).execute().actionGet());
-        ensureGreen(indexName);
+        ensureGreen(TimeValue.timeValueMinutes(1), indexName);
+        logger.debug("--> index [{}] is green, took [{}]", indexName, TimeValue.timeValueMillis(System.currentTimeMillis() - startTime));
+        logger.debug("--> recovery status:\n{}", XContentHelper.toString(client().admin().indices().prepareRecoveries(indexName).get()));
 
         // TODO: do something with the replicas! query? index?
     }

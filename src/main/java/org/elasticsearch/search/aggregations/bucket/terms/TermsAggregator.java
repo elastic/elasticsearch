@@ -45,7 +45,7 @@ public abstract class TermsAggregator extends BucketsAggregator {
         private Explicit<Long> shardMinDocCount;
         private Explicit<Integer> requiredSize;
         private Explicit<Integer> shardSize;
-        
+
         public BucketCountThresholds(long minDocCount, long shardMinDocCount, int requiredSize, int shardSize) {
             this.minDocCount = new Explicit<>(minDocCount, false);
             this.shardMinDocCount =  new Explicit<>(shardMinDocCount, false);
@@ -159,7 +159,9 @@ public abstract class TermsAggregator extends BucketsAggregator {
 
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
-        return (collectMode == SubAggCollectionMode.BREADTH_FIRST) && (!aggsUsedForSorting.contains(aggregator));
+        return collectMode == SubAggCollectionMode.BREADTH_FIRST
+                && aggregator.needsScores() == false
+                && !aggsUsedForSorting.contains(aggregator);
     }
-    
+
 }

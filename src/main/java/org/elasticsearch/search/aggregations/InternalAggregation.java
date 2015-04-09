@@ -93,18 +93,12 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
     public static class ReduceContext {
 
-        private final List<InternalAggregation> aggregations;
         private final BigArrays bigArrays;
         private ScriptService scriptService;
 
-        public ReduceContext(List<InternalAggregation> aggregations, BigArrays bigArrays, ScriptService scriptService) {
-            this.aggregations = aggregations;
+        public ReduceContext(BigArrays bigArrays, ScriptService scriptService) {
             this.bigArrays = bigArrays;
             this.scriptService = scriptService;
-        }
-
-        public List<InternalAggregation> aggregations() {
-            return aggregations;
         }
 
         public BigArrays bigArrays() {
@@ -153,15 +147,15 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      * try reusing an existing get instance (typically the first in the given list) to save on redundant object
      * construction.
      */
-    public final InternalAggregation reduce(ReduceContext reduceContext) {
-        InternalAggregation aggResult = doReduce(reduceContext);
+    public final InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        InternalAggregation aggResult = doReduce(aggregations, reduceContext);
         for (Reducer reducer : reducers) {
             aggResult = reducer.reduce(aggResult, reduceContext);
         }
         return aggResult;
     }
 
-    public abstract InternalAggregation doReduce(ReduceContext reduceContext);
+    public abstract InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
 
     @Override
     public Object getProperty(String path) {

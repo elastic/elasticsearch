@@ -217,6 +217,8 @@ You can disable that check using `plugins.check_lucene: false`.
 [[river]]
 ==== River Plugins
 
+deprecated[1.5.0,Rivers have been deprecated.  See https://www.elastic.co/blog/deprecating_rivers for more details]
+
 .Supported by Elasticsearch
 * https://github.com/elasticsearch/elasticsearch-river-couchdb[CouchDB River Plugin]
 * https://github.com/elasticsearch/elasticsearch-river-rabbitmq[RabbitMQ River Plugin]

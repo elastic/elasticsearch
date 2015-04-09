@@ -50,7 +50,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
     public GlobalOrdinalsSignificantTermsAggregator(String name, AggregatorFactories factories,
             ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, BucketCountThresholds bucketCountThresholds,
-            IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent,
+                                                    IncludeExclude.OrdinalsFilter includeExclude, AggregationContext aggregationContext, Aggregator parent,
             SignificantTermsAggregatorFactory termsAggFactory, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
 
         super(name, factories, valuesSource, null, bucketCountThresholds, includeExclude, aggregationContext, parent,
@@ -65,8 +65,8 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 super.collect(doc, bucket);
-        numCollectedDocs++;
-    }
+                numCollectedDocs++;
+            }
         };
     }
 
@@ -152,7 +152,7 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
 
         private final LongHash bucketOrds;
 
-        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+        public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource, BucketCountThresholds bucketCountThresholds, IncludeExclude.OrdinalsFilter includeExclude, AggregationContext aggregationContext, Aggregator parent, SignificantTermsAggregatorFactory termsAggFactory, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
             super(name, factories, valuesSource, bucketCountThresholds, includeExclude, aggregationContext, parent, termsAggFactory, reducers, metaData);
             bucketOrds = new LongHash(1, aggregationContext.bigArrays());
         }
@@ -164,20 +164,20 @@ public class GlobalOrdinalsSignificantTermsAggregator extends GlobalOrdinalsStri
                 @Override
                 public void collect(int doc, long bucket) throws IOException {
                     assert bucket == 0;
-            numCollectedDocs++;
-            globalOrds.setDocument(doc);
-            final int numOrds = globalOrds.cardinality();
-            for (int i = 0; i < numOrds; i++) {
-                final long globalOrd = globalOrds.ordAt(i);
-                long bucketOrd = bucketOrds.add(globalOrd);
-                if (bucketOrd < 0) {
-                    bucketOrd = -1 - bucketOrd;
+                    numCollectedDocs++;
+                    globalOrds.setDocument(doc);
+                    final int numOrds = globalOrds.cardinality();
+                    for (int i = 0; i < numOrds; i++) {
+                        final long globalOrd = globalOrds.ordAt(i);
+                        long bucketOrd = bucketOrds.add(globalOrd);
+                        if (bucketOrd < 0) {
+                            bucketOrd = -1 - bucketOrd;
                             collectExistingBucket(sub, doc, bucketOrd);
-                } else {
+                        } else {
                             collectBucket(sub, doc, bucketOrd);
                         }
+                    }
                 }
-            }
             };
         }
 

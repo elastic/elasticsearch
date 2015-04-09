@@ -80,9 +80,9 @@ public class InternalMin extends InternalNumericMetricsAggregation.SingleValue i
     }
 
     @Override
-    public InternalMin doReduce(ReduceContext reduceContext) {
+    public InternalMin doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         double min = Double.POSITIVE_INFINITY;
-        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+        for (InternalAggregation aggregation : aggregations) {
             min = Math.min(min, ((InternalMin) aggregation).min);
         }
         return new InternalMin(getName(), min, this.valueFormatter, reducers(), getMetaData());

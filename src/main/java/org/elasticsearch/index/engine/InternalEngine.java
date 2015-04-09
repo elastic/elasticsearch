@@ -998,6 +998,11 @@ public class InternalEngine extends Engine {
     }
 
     @Override
+    public boolean hasUncommittedChanges() {
+        return indexWriter.hasUncommittedChanges();
+    }
+
+    @Override
     protected SearcherManager getSearcherManager() {
         return searcherManager;
     }

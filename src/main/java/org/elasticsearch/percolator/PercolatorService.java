@@ -19,11 +19,19 @@
 package org.elasticsearch.percolator;
 
 import com.carrotsearch.hppc.ByteObjectOpenHashMap;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.memory.ExtendedMemoryIndex;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.FilteredQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CloseableThreadLocal;
 import org.elasticsearch.ElasticsearchException;
@@ -58,14 +66,21 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.stats.ShardPercolateService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.search.nested.NonNestedDocsFilter;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.percolator.QueryCollector.*;
+import org.elasticsearch.percolator.QueryCollector.Count;
+import org.elasticsearch.percolator.QueryCollector.Match;
+import org.elasticsearch.percolator.QueryCollector.MatchAndScore;
+import org.elasticsearch.percolator.QueryCollector.MatchAndSort;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchShardTarget;
@@ -83,7 +98,9 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.index.mapper.SourceToParse.source;
-import static org.elasticsearch.percolator.QueryCollector.*;
+import static org.elasticsearch.percolator.QueryCollector.count;
+import static org.elasticsearch.percolator.QueryCollector.match;
+import static org.elasticsearch.percolator.QueryCollector.matchAndScore;
 
 public class PercolatorService extends AbstractComponent {
 
@@ -834,7 +851,7 @@ public class PercolatorService extends AbstractComponent {
         for (PercolateShardResponse shardResult : shardResults) {
             aggregationsList.add(shardResult.aggregations());
         }
-        return InternalAggregations.reduce(aggregationsList, new ReduceContext(null, bigArrays, scriptService));
+        return InternalAggregations.reduce(aggregationsList, new ReduceContext(bigArrays, scriptService));
     }
 
 }

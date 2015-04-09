@@ -60,8 +60,7 @@ abstract class AbstractInternalPercentiles extends InternalNumericMetricsAggrega
     public abstract double value(double key);
 
     @Override
-    public AbstractInternalPercentiles reduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
+    public AbstractInternalPercentiles reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         TDigestState merged = null;
         for (InternalAggregation aggregation : aggregations) {
             final AbstractInternalPercentiles percentiles = (AbstractInternalPercentiles) aggregation;

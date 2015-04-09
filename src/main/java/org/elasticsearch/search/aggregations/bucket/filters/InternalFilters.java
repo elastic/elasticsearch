@@ -191,8 +191,7 @@ public class InternalFilters extends InternalMultiBucketAggregation implements F
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<List<Bucket>> bucketsList = null;
         for (InternalAggregation aggregation : aggregations) {
             InternalFilters filters = (InternalFilters) aggregation;

@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -68,10 +67,10 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms {
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
-        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        for (InternalAggregation aggregation : aggregations) {
             if (!(aggregation instanceof UnmappedSignificantTerms)) {
-                return aggregation.reduce(reduceContext);
+                return aggregation.reduce(aggregations, reduceContext);
             }
         }
         return this;

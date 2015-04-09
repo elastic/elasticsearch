@@ -81,10 +81,10 @@ public class UnmappedTerms extends InternalTerms {
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
-        for (InternalAggregation agg : reduceContext.aggregations()) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        for (InternalAggregation agg : aggregations) {
             if (!(agg instanceof UnmappedTerms)) {
-                return agg.reduce(reduceContext);
+                return agg.reduce(aggregations, reduceContext);
             }
         }
         return this;

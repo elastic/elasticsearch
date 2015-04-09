@@ -157,19 +157,19 @@ public class NodeEnvironment extends AbstractComponent implements Closeable{
                 try {
                     FileStore fileStore = getFileStore(file);
                     boolean spins = IOUtils.spins(file);
-                        sb.append(", free_space [")
-                          .append(new ByteSizeValue(fileStore.getUnallocatedSpace()))
-                          .append("], usable_space [")
-                          .append(new ByteSizeValue(fileStore.getUsableSpace()))
-                          .append("], total_space [")
-                          .append(new ByteSizeValue(fileStore.getTotalSpace()))
-                          .append("], spins? [")
-                          .append(spins ? "possibly" : "no")
-                          .append("], mount [")
-                          .append(fileStore)
-                          .append("], type [")
-                          .append(fileStore.type())
-                          .append(']');
+                    sb.append(", free_space [")
+                        .append(new ByteSizeValue(fileStore.getUnallocatedSpace()))
+                        .append("], usable_space [")
+                        .append(new ByteSizeValue(fileStore.getUsableSpace()))
+                        .append("], total_space [")
+                        .append(new ByteSizeValue(fileStore.getTotalSpace()))
+                        .append("], spins? [")
+                        .append(spins ? "possibly" : "no")
+                        .append("], mount [")
+                        .append(fileStore)
+                        .append("], type [")
+                        .append(fileStore.type())
+                        .append(']');
                 } catch (Exception e) {
                     sb.append(", ignoring exception gathering filesystem details: " + e);
                 }

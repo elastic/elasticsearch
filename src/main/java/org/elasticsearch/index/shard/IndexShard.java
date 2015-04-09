@@ -242,7 +242,6 @@ public class IndexShard extends AbstractIndexShardComponent {
                 threadPool, indexingService, indexSettingsService, warmer, store, deletionPolicy, translog, mergePolicyProvider, mergeScheduler,
                 analysisService.defaultIndexAnalyzer(), similarityService.similarity(), codecService, failedEngineListener);
 
-
         logger.debug("state: [CREATED]");
 
         this.checkIndexOnStartup = indexSettings.get("index.shard.check_on_startup", "false");

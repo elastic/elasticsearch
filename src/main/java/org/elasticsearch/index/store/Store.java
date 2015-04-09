@@ -563,7 +563,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * @throws IOException if an IOException occurs
      */
     public void cleanup(String reason, Set<String> filesToClean) throws IOException {
-        failIfCorrupted();
         metadataLock.writeLock().lock();
         try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
             if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock
@@ -605,7 +604,6 @@ public class Store extends AbstractIndexShardComponent implements CloseableIndex
      * @throws ElasticsearchIllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
      */
     public void cleanupAndVerify(String reason, MetadataSnapshot sourceMetaData) throws IOException {
-        failIfCorrupted();
         metadataLock.writeLock().lock();
         try {
             cleanup(reason, sourceMetaData.asMap().keySet());

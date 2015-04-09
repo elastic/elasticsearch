@@ -87,8 +87,7 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
     }
 
     @Override
-    public InternalAggregation doReduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         InternalSearchHits[] shardHits = new InternalSearchHits[aggregations.size()];
 
         final TopDocs reducedTopDocs;
@@ -98,8 +97,8 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
             if (topDocs instanceof TopFieldDocs) {
                 Sort sort = new Sort(((TopFieldDocs) topDocs).fields);
                 shardDocs = new TopFieldDocs[aggregations.size()];
-        for (int i = 0; i < shardDocs.length; i++) {
-            InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
+                for (int i = 0; i < shardDocs.length; i++) {
+                    InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
                     shardDocs[i] = (TopFieldDocs) topHitsAgg.topDocs;
                     shardHits[i] = topHitsAgg.searchHits;
                 }
@@ -108,11 +107,11 @@ public class InternalTopHits extends InternalMetricsAggregation implements TopHi
                 shardDocs = new TopDocs[aggregations.size()];
                 for (int i = 0; i < shardDocs.length; i++) {
                     InternalTopHits topHitsAgg = (InternalTopHits) aggregations.get(i);
-            shardDocs[i] = topHitsAgg.topDocs;
-            shardHits[i] = topHitsAgg.searchHits;
-            }
+                    shardDocs[i] = topHitsAgg.topDocs;
+                    shardHits[i] = topHitsAgg.searchHits;
+                }
                 reducedTopDocs = TopDocs.merge(from, size, shardDocs);
-        }
+            }
 
             final int[] tracker = new int[shardHits.length];
             InternalSearchHit[] hits = new InternalSearchHit[reducedTopDocs.scoreDocs.length];

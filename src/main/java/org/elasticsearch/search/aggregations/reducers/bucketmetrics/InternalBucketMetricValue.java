@@ -83,7 +83,7 @@ public class InternalBucketMetricValue extends InternalNumericMetricsAggregation
     }
 
     @Override
-    public InternalAggregation doReduce(ReduceContext reduceContext) {
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         throw new UnsupportedOperationException("Not supported");
     }
 

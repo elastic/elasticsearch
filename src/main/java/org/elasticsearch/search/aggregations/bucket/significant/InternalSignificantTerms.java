@@ -160,8 +160,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     }
 
     @Override
-    public InternalAggregation doReduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
 
         long globalSubsetSize = 0;
         long globalSupersetSize = 0;

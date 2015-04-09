@@ -166,8 +166,7 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
     }
 
     @Override
-    public InternalAggregation doReduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
 
         Multimap<Object, InternalTerms.Bucket> buckets = ArrayListMultimap.create();
         long sumDocCountError = 0;

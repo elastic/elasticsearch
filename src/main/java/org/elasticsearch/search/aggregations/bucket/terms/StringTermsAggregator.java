@@ -47,11 +47,11 @@ public class StringTermsAggregator extends AbstractStringTermsAggregator {
 
     private final ValuesSource valuesSource;
     protected final BytesRefHash bucketOrds;
-    private final IncludeExclude includeExclude;
+    private final IncludeExclude.StringFilter includeExclude;
 
     public StringTermsAggregator(String name, AggregatorFactories factories, ValuesSource valuesSource,
             Terms.Order order, BucketCountThresholds bucketCountThresholds,
- IncludeExclude includeExclude, AggregationContext aggregationContext,
+ IncludeExclude.StringFilter includeExclude, AggregationContext aggregationContext,
             Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<Reducer> reducers,
             Map<String, Object> metaData) throws IOException {
 

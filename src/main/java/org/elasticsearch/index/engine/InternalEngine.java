@@ -621,7 +621,9 @@ public class InternalEngine extends Engine {
                             long translogId = translogIdGenerator.incrementAndGet();
                             translog.newTransientTranslog(translogId);
                             indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
+                            logger.trace("starting commit for flush; commitTranslog=true");
                             commitIndexWriter(indexWriter);
+                            logger.trace("finished commit for flush");
                             // we need to refresh in order to clear older version values
                             refresh("version_table_flush");
                             // we need to move transient to current only after we refresh
@@ -648,7 +650,9 @@ public class InternalEngine extends Engine {
                     try {
                         long translogId = translog.currentId();
                         indexWriter.setCommitData(Collections.singletonMap(Translog.TRANSLOG_ID_KEY, Long.toString(translogId)));
+                        logger.trace("starting commit for flush; commitTranslog=false");
                         commitIndexWriter(indexWriter);
+                        logger.trace("finished commit for flush");
                     } catch (Throwable e) {
                         throw new FlushFailedEngineException(shardId, e);
                     }
@@ -770,9 +774,12 @@ public class InternalEngine extends Engine {
     public SnapshotIndexCommit snapshotIndex() throws EngineException {
         // we have to flush outside of the readlock otherwise we might have a problem upgrading
         // the to a write lock when we fail the engine in this operation
+        logger.trace("start flush for snapshot");
         flush(false, false, true);
+        logger.trace("finish flush for snapshot");
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
+            logger.trace("pulling snapshot");
             return deletionPolicy.snapshot();
         } catch (IOException e) {
             throw new SnapshotFailedEngineException(shardId, e);
@@ -902,6 +909,11 @@ public class InternalEngine extends Engine {
         if (isClosed.compareAndSet(false, true)) {
             assert rwl.isWriteLockedByCurrentThread() || failEngineLock.isHeldByCurrentThread() : "Either the write lock must be held or the engine must be currently be failing itself";
             try {
+                try {
+                    translog.sync();
+                } catch (IOException ex) {
+                    logger.warn("failed to sync translog");
+                }
                 this.versionMap.clear();
                 logger.trace("close searcherManager");
                 try {

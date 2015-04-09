@@ -208,6 +208,9 @@ public class XContentHelper {
             if (params.paramAsBoolean("pretty", true)) {
                 builder.prettyPrint();
             }
+            if (params.paramAsBoolean("human", true)) {
+                builder.humanReadable(true);
+            }
             builder.startObject();
             toXContent.toXContent(builder, params);
             builder.endObject();

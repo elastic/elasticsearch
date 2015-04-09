@@ -245,7 +245,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
         public R create(List<B> ranges, R prototype) {
             return (R) new InternalRange<>(prototype.name, ranges, prototype.formatter, prototype.keyed, prototype.reducers(),
                     prototype.metaData);
-        }
+    }
 
         @Override
         public B createBucket(InternalAggregations aggregations, B prototype) {
@@ -295,8 +295,7 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
     }
 
     @Override
-    public InternalAggregation doReduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         @SuppressWarnings("unchecked")
         List<Bucket>[] rangeList = new List[ranges.size()];
         for (int i = 0; i < rangeList.length; ++i) {

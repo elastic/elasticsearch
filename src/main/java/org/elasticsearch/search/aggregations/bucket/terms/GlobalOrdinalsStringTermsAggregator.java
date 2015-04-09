@@ -59,7 +59,7 @@ import java.util.Map;
 public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggregator {
 
     protected final ValuesSource.Bytes.WithOrdinals.FieldData valuesSource;
-    protected final IncludeExclude includeExclude;
+    protected final IncludeExclude.OrdinalsFilter includeExclude;
 
     // TODO: cache the acceptedglobalValues per aggregation definition.
     // We can't cache this yet in ValuesSource, since ValuesSource is reused per field for aggs during the execution.
@@ -73,7 +73,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
 
     public GlobalOrdinalsStringTermsAggregator(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
                                                Terms.Order order, BucketCountThresholds bucketCountThresholds,
-                                               IncludeExclude includeExclude, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
+                                               IncludeExclude.OrdinalsFilter includeExclude, AggregationContext aggregationContext, Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
         super(name, factories, aggregationContext, parent, order, bucketCountThresholds, collectionMode, showTermDocCountError, reducers,
                 metaData);
         this.valuesSource = valuesSource;
@@ -265,7 +265,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         private final LongHash bucketOrds;
 
         public WithHash(String name, AggregatorFactories factories, ValuesSource.Bytes.WithOrdinals.FieldData valuesSource,
-                        Terms.Order order, BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, AggregationContext aggregationContext,
+                        Terms.Order order, BucketCountThresholds bucketCountThresholds, IncludeExclude.OrdinalsFilter includeExclude, AggregationContext aggregationContext,
                         Aggregator parent, SubAggCollectionMode collectionMode, boolean showTermDocCountError, List<Reducer> reducers, Map<String, Object> metaData) throws IOException {
             super(name, factories, valuesSource, order, bucketCountThresholds, includeExclude, aggregationContext, parent, collectionMode, showTermDocCountError, reducers, metaData);
             bucketOrds = new LongHash(1, aggregationContext.bigArrays());
@@ -416,7 +416,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 }
                 final long ord = i - 1; // remember we do +1 when counting
                 final long globalOrd = mapping == null ? ord : mapping.getGlobalOrd(ord);
-                    incrementBucketDocCount(globalOrd, inc);
+                incrementBucketDocCount(globalOrd, inc);
             }
         }
     }

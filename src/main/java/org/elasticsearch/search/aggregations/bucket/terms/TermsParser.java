@@ -46,7 +46,7 @@ public class TermsParser implements Aggregator.Parser {
     public AggregatorFactory parse(String aggregationName, XContentParser parser, SearchContext context) throws IOException {
         TermsParametersParser aggParser = new TermsParametersParser();
         ValuesSourceParser vsParser = ValuesSourceParser.any(aggregationName, StringTerms.TYPE, context).scriptable(true).formattable(true).build();
-        IncludeExclude.Parser incExcParser = new IncludeExclude.Parser(aggregationName, StringTerms.TYPE, context);
+        IncludeExclude.Parser incExcParser = new IncludeExclude.Parser();
         aggParser.parse(aggregationName, parser, context, vsParser, incExcParser);
 
         List<OrderElement> orderElements = aggParser.getOrderElements();

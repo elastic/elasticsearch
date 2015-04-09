@@ -403,7 +403,7 @@ public class SearchPhaseController extends AbstractComponent {
                 for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
                     aggregationsList.add((InternalAggregations) entry.value.queryResult().aggregations());
                 }
-                aggregations = InternalAggregations.reduce(aggregationsList, new ReduceContext(null, bigArrays, scriptService));
+                aggregations = InternalAggregations.reduce(aggregationsList, new ReduceContext(bigArrays, scriptService));
             }
         }
 
@@ -412,7 +412,7 @@ public class SearchPhaseController extends AbstractComponent {
             if (reducers != null) {
                 List<InternalAggregation> newAggs = new ArrayList<>(Lists.transform(aggregations.asList(), Reducer.AGGREGATION_TRANFORM_FUNCTION));
                 for (SiblingReducer reducer : reducers) {
-                    InternalAggregation newAgg = reducer.doReduce(new InternalAggregations(newAggs), new ReduceContext(null, bigArrays,
+                    InternalAggregation newAgg = reducer.doReduce(new InternalAggregations(newAggs), new ReduceContext(bigArrays,
                             scriptService));
                     newAggs.add(newAgg);
                 }

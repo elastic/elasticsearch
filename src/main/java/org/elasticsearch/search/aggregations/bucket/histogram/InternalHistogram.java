@@ -191,7 +191,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
         public ValueFormatter getFormatter() {
             return formatter;
-        }
+    }
 
         public boolean getKeyed() {
             return keyed;
@@ -335,8 +335,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     }
 
-    private List<B> reduceBuckets(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
+    private List<B> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
 
         final PriorityQueue<IteratorAndCurrent<B>> pq = new PriorityQueue<IteratorAndCurrent<B>>(aggregations.size()) {
             @Override
@@ -450,8 +449,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     }
 
     @Override
-    public InternalAggregation doReduce(ReduceContext reduceContext) {
-        List<B> reducedBuckets = reduceBuckets(reduceContext);
+    public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        List<B> reducedBuckets = reduceBuckets(aggregations, reduceContext);
 
         // adding empty buckets if needed
         if (minDocCount == 0) {

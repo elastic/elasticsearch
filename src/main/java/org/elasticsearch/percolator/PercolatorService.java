@@ -851,18 +851,18 @@ public class PercolatorService extends AbstractComponent {
         if (shardResults.size() == 1) {
             aggregations = shardResults.get(0).aggregations();
         } else {
-            List<InternalAggregations> aggregationsList = new ArrayList<>(shardResults.size());
-            for (PercolateShardResponse shardResult : shardResults) {
-                aggregationsList.add(shardResult.aggregations());
-            }
-            aggregations = InternalAggregations.reduce(aggregationsList, new ReduceContext(null, bigArrays, scriptService));
+        List<InternalAggregations> aggregationsList = new ArrayList<>(shardResults.size());
+        for (PercolateShardResponse shardResult : shardResults) {
+            aggregationsList.add(shardResult.aggregations());
+        }
+            aggregations = InternalAggregations.reduce(aggregationsList, new ReduceContext(bigArrays, scriptService));
         }
         if (aggregations != null) {
             List<SiblingReducer> reducers = shardResults.get(0).reducers();
             if (reducers != null) {
                 List<InternalAggregation> newAggs = new ArrayList<>(Lists.transform(aggregations.asList(), Reducer.AGGREGATION_TRANFORM_FUNCTION));
                 for (SiblingReducer reducer : reducers) {
-                    InternalAggregation newAgg = reducer.doReduce(new InternalAggregations(newAggs), new ReduceContext(null, bigArrays,
+                    InternalAggregation newAgg = reducer.doReduce(new InternalAggregations(newAggs), new ReduceContext(bigArrays,
                             scriptService));
                     newAggs.add(newAgg);
                 }

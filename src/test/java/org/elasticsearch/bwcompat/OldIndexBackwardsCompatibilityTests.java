@@ -158,7 +158,6 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
     }
 
     void unloadIndex(String indexName) throws Exception {
-        client().admin().indices().prepareFlush(indexName).setWaitIfOngoing(true).setForce(true).get(); // temporary for debugging
         ElasticsearchAssertions.assertAcked(client().admin().indices().prepareDelete(indexName).get());
         ElasticsearchAssertions.assertAllFilesClosed();
     }
@@ -201,20 +200,6 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
 
         Collections.shuffle(indexes, getRandom());
         for (String index : indexes) {
-            if (index.equals("index-0.90.13.zip") == false) {
-                long startTime = System.currentTimeMillis();
-                logger.info("--> Testing old index " + index);
-                assertOldIndexWorks(index);
-                logger.info("--> Done testing " + index + ", took " + ((System.currentTimeMillis() - startTime) / 1000.0) + " seconds");
-            }
-        }
-    }
-
-    @TestLogging("test.engine:TRACE,index.engine:TRACE,test.engine.lucene:TRACE,index.engine.lucene:TRACE")
-    public void testShitSlowIndex() throws Exception {
-        setupCluster();
-        for (int i = 0; i < 5; i++) {
-            String index = "index-0.90.13.zip";
             long startTime = System.currentTimeMillis();
             logger.info("--> Testing old index " + index);
             assertOldIndexWorks(index);

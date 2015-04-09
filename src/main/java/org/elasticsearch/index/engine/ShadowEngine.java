@@ -216,4 +216,9 @@ public class ShadowEngine extends Engine {
             }
         }
     }
+
+    @Override
+    public boolean hasUncommittedChanges() {
+        return false;
+    }
 }

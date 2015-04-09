@@ -19,12 +19,14 @@
 
 package org.elasticsearch.test.store;
 
-import com.carrotsearch.randomizedtesting.SeedUtils;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.MMapDirectory;
-import org.apache.lucene.store.MockDirectoryWrapper;
 import org.apache.lucene.store.MockDirectoryWrapper.Throttling;
+import org.apache.lucene.store.MockDirectoryWrapper;
+import org.apache.lucene.store.NRTCachingDirectory;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -32,8 +34,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.fs.*;
+import com.carrotsearch.randomizedtesting.SeedUtils;
 
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.util.Collection;
 import java.util.Random;
 import java.util.Set;
 
@@ -122,11 +127,26 @@ public class MockDirectoryHelper {
         private final boolean crash;
         private volatile RuntimeException closeException;
         private final Object lock = new Object();
+        private final Set<String> superUnSyncedFiles;
+        private final Random superRandomState;
 
         public ElasticsearchMockDirectoryWrapper(Random random, Directory delegate, ESLogger logger, boolean crash) {
             super(random, delegate);
             this.crash = crash;
             this.logger = logger;
+
+            // TODO: remove all this and cutover to MockFS (DisableFsyncFS) instead
+            try {
+                Field field = MockDirectoryWrapper.class.getDeclaredField("unSyncedFiles");
+                field.setAccessible(true);
+                superUnSyncedFiles = (Set<String>) field.get(this);
+
+                field = MockDirectoryWrapper.class.getDeclaredField("randomState");
+                field.setAccessible(true);
+                superRandomState = (Random) field.get(this);
+            } catch (ReflectiveOperationException roe) {
+                throw new RuntimeException(roe);
+            }
         }
 
         @Override
@@ -144,7 +164,32 @@ public class MockDirectoryHelper {
             }
         }
 
+        /**
+         * Returns true if {@link #in} must sync its files.
+         * Currently, only {@link NRTCachingDirectory} requires sync'ing its files
+         * because otherwise they are cached in an internal {@link RAMDirectory}. If
+         * other directories require that too, they should be added to this method.
+         */
+        private boolean mustSync() {
+            Directory delegate = in;
+            while (delegate instanceof FilterDirectory) {
+                if (delegate instanceof NRTCachingDirectory) {
+                    return true;
+                }
+                delegate = ((FilterDirectory) delegate).getDelegate();
+            }
+            return delegate instanceof NRTCachingDirectory;
+        }
 
+        @Override
+        public synchronized void sync(Collection<String> names) throws IOException {
+            // don't wear out our hardware so much in tests.
+            if (LuceneTestCase.rarely(superRandomState) || mustSync()) {
+                super.sync(names);
+            } else {
+                superUnSyncedFiles.removeAll(names);
+            }
+        }
 
         public void awaitClosed(long timeout) throws InterruptedException {
             synchronized (lock) {

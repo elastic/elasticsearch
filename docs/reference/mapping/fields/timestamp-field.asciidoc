@@ -122,8 +122,6 @@ You can also set the default value to any date respecting <<mapping-timestamp-fi
 
 If you don't provide any timestamp value, _timestamp will be set to this default value.
 
-coming[1.5.0]
-
 In elasticsearch 1.4, we allowed setting explicitly `"default":null` which is not possible anymore
 as we added a new `ignore_missing` setting.
 When reading an index created with elasticsearch 1.4 and using this, we automatically update it by

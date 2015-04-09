@@ -323,6 +323,6 @@ appender section contains the destinations for the logs. Extensive information
 on how to customize logging and all the supported appenders can be found on
 the http://logging.apache.org/log4j/1.2/manual.html[log4j documentation].
 
-coming[1.5.0] Additional Appenders and other logging classes provided by 
+Additional Appenders and other logging classes provided by 
 http://logging.apache.org/log4j/extras/[log4j-extras] are also available, 
 out of the box.

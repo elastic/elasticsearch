@@ -44,6 +44,10 @@ import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
 import org.elasticsearch.action.explain.ExplainResponse;
+import org.elasticsearch.action.fieldstats.FieldStatsAction;
+import org.elasticsearch.action.fieldstats.FieldStatsRequest;
+import org.elasticsearch.action.fieldstats.FieldStatsRequestBuilder;
+import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
@@ -549,5 +553,20 @@ public abstract class AbstractClient implements Client {
     @Override
     public ClearScrollRequestBuilder prepareClearScroll() {
         return new ClearScrollRequestBuilder(this);
+    }
+
+    @Override
+    public void fieldStats(FieldStatsRequest request, ActionListener<FieldStatsResponse> listener) {
+        execute(FieldStatsAction.INSTANCE, request, listener);
+    }
+
+    @Override
+    public ActionFuture<FieldStatsResponse> fieldStats(FieldStatsRequest request) {
+        return execute(FieldStatsAction.INSTANCE, request);
+    }
+
+    @Override
+    public FieldStatsRequestBuilder prepareFieldStats() {
+        return new FieldStatsRequestBuilder(this);
     }
 }

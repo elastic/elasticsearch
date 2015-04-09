@@ -27,6 +27,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
@@ -34,6 +35,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -170,7 +172,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
         if (value instanceof BytesRef) {
             return Numbers.bytesToFloat((BytesRef) value);
         }
-        return Float.parseFloat(value.toString());
+        return java.lang.Float.parseFloat(value.toString());
     }
 
     @Override
@@ -186,14 +188,14 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
             return ((Number) value).floatValue();
         }
         if (value instanceof BytesRef) {
-            return Float.parseFloat(((BytesRef) value).utf8ToString());
+            return java.lang.Float.parseFloat(((BytesRef) value).utf8ToString());
         }
-        return Float.parseFloat(value.toString());
+        return java.lang.Float.parseFloat(value.toString());
     }
 
     @Override
     public Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        float iValue = Float.parseFloat(value);
+        float iValue = java.lang.Float.parseFloat(value);
         final float iSim = fuzziness.asFloat();
         return NumericRangeQuery.newFloatRange(names.indexName(), precisionStep,
                 iValue - iSim,
@@ -260,13 +262,13 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
                     }
                     value = nullValue;
                 } else {
-                    value = Float.parseFloat(sExternalValue);
+                    value = java.lang.Float.parseFloat(sExternalValue);
                 }
             } else {
                 value = ((Number) externalValue).floatValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(names.fullName(), Float.toString(value), boost);
+                context.allEntries().addText(names.fullName(), java.lang.Float.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -367,6 +369,15 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
 
     }
 
+    @Override
+    public FieldStats stats(Terms terms, int maxDoc) throws IOException {
+        float minValue = NumericUtils.sortableIntToFloat(NumericUtils.getMinInt(terms));
+        float maxValue = NumericUtils.sortableIntToFloat(NumericUtils.getMaxInt(terms));
+        return new FieldStats.Float(
+                maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
+        );
+    }
+
     public static class CustomFloatNumericField extends CustomNumericField {
 
         private final float number;
@@ -389,7 +400,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
 
         @Override
         public String numericAsString() {
-            return Float.toString(number);
+            return java.lang.Float.toString(number);
         }
     }
 

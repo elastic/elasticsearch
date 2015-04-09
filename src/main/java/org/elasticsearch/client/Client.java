@@ -38,6 +38,9 @@ import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.action.explain.ExplainRequest;
 import org.elasticsearch.action.explain.ExplainRequestBuilder;
 import org.elasticsearch.action.explain.ExplainResponse;
+import org.elasticsearch.action.fieldstats.FieldStatsRequest;
+import org.elasticsearch.action.fieldstats.FieldStatsRequestBuilder;
+import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.get.*;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -681,6 +684,12 @@ public interface Client extends ElasticsearchClient<Client>, Releasable {
      * Clears the search contexts associated with specified scroll ids.
      */
     void clearScroll(ClearScrollRequest request, ActionListener<ClearScrollResponse> listener);
+
+    FieldStatsRequestBuilder prepareFieldStats();
+
+    ActionFuture<FieldStatsResponse> fieldStats(FieldStatsRequest request);
+
+    void fieldStats(FieldStatsRequest request, ActionListener<FieldStatsResponse> listener);
 
     /**
      * Returns this clients settings

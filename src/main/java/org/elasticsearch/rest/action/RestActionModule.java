@@ -84,6 +84,7 @@ import org.elasticsearch.rest.action.cat.*;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
 import org.elasticsearch.rest.action.deletebyquery.RestDeleteByQueryAction;
 import org.elasticsearch.rest.action.explain.RestExplainAction;
+import org.elasticsearch.rest.action.fieldstats.RestFieldStatsAction;
 import org.elasticsearch.rest.action.get.RestGetAction;
 import org.elasticsearch.rest.action.get.RestGetSourceAction;
 import org.elasticsearch.rest.action.get.RestHeadAction;
@@ -228,6 +229,8 @@ public class RestActionModule extends AbstractModule {
         bind(RestPutIndexedScriptAction.class).asEagerSingleton();
         bind(RestDeleteIndexedScriptAction.class).asEagerSingleton();
 
+
+        bind(RestFieldStatsAction.class).asEagerSingleton();
 
         // cat API
         Multibinder<AbstractCatAction> catActionMultibinder = Multibinder.newSetBinder(binder(), AbstractCatAction.class);

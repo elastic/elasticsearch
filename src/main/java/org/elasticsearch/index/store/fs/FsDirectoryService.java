@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 
 import org.apache.lucene.store.*;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -76,6 +77,7 @@ public abstract class FsDirectoryService extends DirectoryService implements Sto
         for (int i = 0; i < dirs.length; i++) {
             Files.createDirectories(locations[i]);
             Directory wrapped = newFSDirectory(locations[i], buildLockFactory());
+            logger.info("path " + locations[i] + " spins?=" + IOUtils.spins(wrapped));
             dirs[i] = new RateLimitedFSDirectory(wrapped, this, this) ;
         }
         return dirs;

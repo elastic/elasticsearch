@@ -51,7 +51,7 @@ similar to the one used in the <<docs-multi-get,Multi GET API>>.
 }
 --------------------------------------------------
 
-coming[1.5.0] Finally, users can also provide documents not necessarily
+added[1.5.0] Finally, users can also provide documents not necessarily
 present in the index using a syntax is similar to
 <<docs-termvectors-artificial-doc,artificial documents>>.
 

@@ -295,7 +295,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         assertAcked(client().admin().indices().prepareUpdateSettings(indexName).setSettings(ImmutableSettings.builder()
                         .put("number_of_replicas", numReplicas)
         ).execute().actionGet());
-        ensureGreen(TimeValue.timeValueMinutes(1), indexName);
+        ensureGreen(TimeValue.timeValueMinutes(2), indexName);
 
         // TODO: do something with the replicas! query? index?
     }

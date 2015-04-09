@@ -19,6 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterService;
@@ -105,6 +107,7 @@ public class TermQueryBuilderTest extends ElasticsearchTestCase {
         context = new QueryParseContext(index, queryParserService);
         testQuery = createTestQuery();
         String contentString = createXContent(testQuery).string();
+        System.out.println(contentString);
         parser = XContentFactory.xContent(contentString).createParser(contentString);
     }
 
@@ -137,7 +140,8 @@ public class TermQueryBuilderTest extends ElasticsearchTestCase {
         TermQueryBuilder newQuery = injector.getInstance(TermQueryBuilder.class);
         newQuery.fromXContent(context);
         // compare these
-        assertThat(testQuery.getBoost(), is(newQuery.getBoost()));
+        assertNotSame(newQuery, testQuery);
+        assertThat(newQuery, is(testQuery));
     }
 
     @Test
@@ -150,7 +154,7 @@ public class TermQueryBuilderTest extends ElasticsearchTestCase {
         TermQueryBuilder newQuery = injector.getInstance(TermQueryBuilder.class);
         newQuery.fromXContent(context);
         Query query = newQuery.toQuery(context);
-        // compare these
+        // compare these TODO how to assert more on lucene query
         assertThat(query.getBoost(), is(testQuery.getBoost()));
     }
 
@@ -163,12 +167,20 @@ public class TermQueryBuilderTest extends ElasticsearchTestCase {
         TermQueryBuilder deserializedQuery = new TermQueryBuilder();
         deserializedQuery.readFrom(bytesStreamInput);
 
-        assertThat(deserializedQuery.getBoost(), equalTo(testQuery.getBoost()));
-        assertThat(createXContent(testQuery).string(), is(createXContent(deserializedQuery).string()));
+        assertNotSame(testQuery, deserializedQuery);
+        assertThat(testQuery, is(deserializedQuery));
     }
 
-    private TermQueryBuilder createTestQuery() {
-        TermQueryBuilder query = new TermQueryBuilder(randomAsciiOfLength(8), randomAsciiOfLength(8));
+    public static TermQueryBuilder createTestQuery() {
+        Object value;
+        switch (randomIntBetween(0, 3)) {
+            case 0: value = randomBoolean(); break;
+            case 1: value = randomAsciiOfLength(8); break;
+            case 2: value = randomInt(10000); break;
+            case 3: value = randomDouble(); break;
+            default: value = randomAsciiOfLength(8);
+        }
+        TermQueryBuilder query = new TermQueryBuilder(randomAsciiOfLength(8), value);
         if (randomBoolean()) {
             query.boost(2.0f / randomIntBetween(1, 20));
         }

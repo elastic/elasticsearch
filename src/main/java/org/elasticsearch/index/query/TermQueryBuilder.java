@@ -222,9 +222,9 @@ public class TermQueryBuilder extends BaseQueryBuilder implements QueryParser, S
                     currentFieldName = parser.currentName();
                 } else {
                     if ("term".equals(currentFieldName)) {
-                        value = parser.objectBytes();
+                        value = parser.objectText();
                     } else if ("value".equals(currentFieldName)) {
-                        value = parser.objectBytes();
+                        value = parser.objectText();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
                     } else if ("_name".equals(currentFieldName)) {
@@ -236,7 +236,7 @@ public class TermQueryBuilder extends BaseQueryBuilder implements QueryParser, S
             }
             parser.nextToken();
         } else {
-            value = parser.text();
+            value = parser.objectText();
             // move to the next token
             parser.nextToken();
         }
@@ -275,7 +275,7 @@ public class TermQueryBuilder extends BaseQueryBuilder implements QueryParser, S
         out.writeFloat(boost);
         out.writeOptionalString(queryName);
     }
-    
+
     @Override
     public int hashCode() {
         int hash = super.hashCode();
@@ -301,7 +301,7 @@ public class TermQueryBuilder extends BaseQueryBuilder implements QueryParser, S
                Objects.equals(boost, other.boost)&&
                Objects.equals(queryName, other.queryName);
     }
-    
+
     /**
      * Return a prime (31) times the staring hash and object's hash, if non-null
      */

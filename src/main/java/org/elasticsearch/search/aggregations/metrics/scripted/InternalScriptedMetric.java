@@ -82,13 +82,13 @@ public class InternalScriptedMetric extends InternalMetricsAggregation implement
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
         List<Object> aggregationObjects = new ArrayList<>();
-        for (InternalAggregation aggregation : reduceContext.aggregations()) {
+        for (InternalAggregation aggregation : aggregations) {
             InternalScriptedMetric mapReduceAggregation = (InternalScriptedMetric) aggregation;
             aggregationObjects.add(mapReduceAggregation.aggregation());
         }
-        InternalScriptedMetric firstAggregation = ((InternalScriptedMetric) reduceContext.aggregations().get(0));
+        InternalScriptedMetric firstAggregation = ((InternalScriptedMetric) aggregations.get(0));
         Object aggregation;
         if (firstAggregation.reduceScript != null) {
             Map<String, Object> params;

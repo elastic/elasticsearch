@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -89,18 +88,12 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
 
     public static class ReduceContext {
 
-        private final List<InternalAggregation> aggregations;
         private final BigArrays bigArrays;
         private ScriptService scriptService;
 
-        public ReduceContext(List<InternalAggregation> aggregations, BigArrays bigArrays, ScriptService scriptService) {
-            this.aggregations = aggregations;
+        public ReduceContext(BigArrays bigArrays, ScriptService scriptService) {
             this.bigArrays = bigArrays;
             this.scriptService = scriptService;
-        }
-
-        public List<InternalAggregation> aggregations() {
-            return aggregations;
         }
 
         public BigArrays bigArrays() {
@@ -146,7 +139,7 @@ public abstract class InternalAggregation implements Aggregation, ToXContent, St
      * try reusing an existing get instance (typically the first in the given list) to save on redundant object
      * construction.
      */
-    public abstract InternalAggregation reduce(ReduceContext reduceContext);
+    public abstract InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext);
 
     @Override
     public Object getProperty(String path) {

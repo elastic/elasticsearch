@@ -297,8 +297,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     }
 
-    private List<B> reduceBuckets(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
+    private List<B> reduceBuckets(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
 
         final PriorityQueue<IteratorAndCurrent<B>> pq = new PriorityQueue<IteratorAndCurrent<B>>(aggregations.size()) {
             @Override
@@ -412,8 +411,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
-        List<B> reducedBuckets = reduceBuckets(reduceContext);
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+        List<B> reducedBuckets = reduceBuckets(aggregations, reduceContext);
 
         // adding empty buckets if needed
         if (minDocCount == 0) {

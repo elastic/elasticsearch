@@ -162,8 +162,7 @@ public abstract class InternalTerms extends InternalMultiBucketAggregation imple
     }
 
     @Override
-    public InternalAggregation reduce(ReduceContext reduceContext) {
-        List<InternalAggregation> aggregations = reduceContext.aggregations();
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
 
         Multimap<Object, InternalTerms.Bucket> buckets = ArrayListMultimap.create();
         long sumDocCountError = 0;

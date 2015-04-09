@@ -76,17 +76,19 @@ public class AggregationPhase implements SearchPhase {
             Aggregator[] aggregators;
             try {
                 aggregators = context.aggregations().factories().createTopLevelAggregators(aggregationContext);
+                for (int i = 0; i < aggregators.length; i++) {
+                    if (aggregators[i] instanceof GlobalAggregator == false) {
+                        collectors.add(aggregators[i]);
+                    }
+                }
+                context.aggregations().aggregators(aggregators);
+                if (!collectors.isEmpty()) {
+                    final BucketCollector collector = BucketCollector.wrap(collectors);
+                    collector.preCollection();
+                    context.searcher().queryCollectors().put(AggregationPhase.class, collector);
+                }
             } catch (IOException e) {
                 throw new AggregationInitializationException("Could not initialize aggregators", e);
-            }
-            for (int i = 0; i < aggregators.length; i++) {
-                if (aggregators[i] instanceof GlobalAggregator == false) {
-                    collectors.add(aggregators[i]);
-                }
-            }
-            context.aggregations().aggregators(aggregators);
-            if (!collectors.isEmpty()) {
-                context.searcher().queryCollectors().put(AggregationPhase.class, (BucketCollector.wrap(collectors)));
             }
         }
     }
@@ -113,14 +115,15 @@ public class AggregationPhase implements SearchPhase {
 
         // optimize the global collector based execution
         if (!globals.isEmpty()) {
-            BucketCollector collector = BucketCollector.wrap(globals);
+            BucketCollector globalsCollector = BucketCollector.wrap(globals);
             Query query = new ConstantScoreQuery(Queries.MATCH_ALL_FILTER);
             Filter searchFilter = context.searchFilter(context.types());
             if (searchFilter != null) {
                 query = new FilteredQuery(query, searchFilter);
             }
             try {
-                context.searcher().search(query, collector);
+                globalsCollector.preCollection();
+                context.searcher().search(query, globalsCollector);
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "Failed to execute global aggregators", e);
             }

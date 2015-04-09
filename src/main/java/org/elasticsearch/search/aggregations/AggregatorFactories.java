@@ -44,15 +44,6 @@ public class AggregatorFactories {
         this.factories = factories;
     }
 
-    private static Aggregator createAndRegisterContextAware(AggregationContext context, AggregatorFactory factory, Aggregator parent, boolean collectsFromSingleBucket) throws IOException {
-        final Aggregator aggregator = factory.create(context, parent, collectsFromSingleBucket);
-        // Once the aggregator is fully constructed perform any initialisation -
-        // can't do everything in constructors if Aggregator base class needs
-        // to delegate to subclasses as part of construction.
-        aggregator.preCollection();
-        return aggregator;
-    }
-
     /**
      * Create all aggregators so that they can be consumed with multiple buckets.
      */
@@ -64,7 +55,7 @@ public class AggregatorFactories {
             // propagate the fact that only bucket 0 will be collected with single-bucket
             // aggs
             final boolean collectsFromSingleBucket = false;
-            aggregators[i] = createAndRegisterContextAware(parent.context(), factories[i], parent, collectsFromSingleBucket);
+            aggregators[i] = factories[i].create(parent.context(), parent, collectsFromSingleBucket);
         }
         return aggregators;
     }
@@ -75,7 +66,7 @@ public class AggregatorFactories {
         for (int i = 0; i < factories.length; i++) {
             // top-level aggs only get called with bucket 0
             final boolean collectsFromSingleBucket = true;
-            aggregators[i] = createAndRegisterContextAware(ctx, factories[i], null, collectsFromSingleBucket);
+            aggregators[i] = factories[i].create(ctx, null, collectsFromSingleBucket);
         }
         return aggregators;
     }

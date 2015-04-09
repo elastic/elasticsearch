@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
@@ -33,6 +34,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -355,6 +357,15 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
 
     }
 
+    @Override
+    public FieldStats stats(Terms terms, int maxDoc) throws IOException {
+        double minValue = NumericUtils.sortableLongToDouble(NumericUtils.getMinLong(terms));
+        double maxValue = NumericUtils.sortableLongToDouble(NumericUtils.getMaxLong(terms));
+        return new org.elasticsearch.action.fieldstats.FieldStats.Double(
+                maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
+        );
+    }
+
     public static class CustomDoubleNumericField extends CustomNumericField {
 
         private final double number;
@@ -377,7 +388,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
 
         @Override
         public String numericAsString() {
-            return Double.toString(number);
+            return java.lang.Double.toString(number);
         }
     }
 
@@ -385,7 +396,7 @@ public class DoubleFieldMapper extends NumberFieldMapper<Double> {
 
         public static final FieldType TYPE = new FieldType();
         static {
-          TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
+            TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
           TYPE.freeze();
         }
 

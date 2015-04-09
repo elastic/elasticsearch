@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -33,6 +34,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -361,6 +363,15 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
 
     }
 
+    @Override
+    public FieldStats stats(Terms terms, int maxDoc) throws IOException {
+        float minValue = NumericUtils.sortableIntToFloat(NumericUtils.getMinInt(terms));
+        float maxValue = NumericUtils.sortableIntToFloat(NumericUtils.getMaxInt(terms));
+        return new org.elasticsearch.action.fieldstats.FieldStats.Float(
+                maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
+        );
+    }
+
     public static class CustomFloatNumericField extends CustomNumericField {
 
         private final float number;
@@ -383,7 +394,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
 
         @Override
         public String numericAsString() {
-            return Float.toString(number);
+            return java.lang.Float.toString(number);
         }
     }
 
@@ -391,7 +402,7 @@ public class FloatFieldMapper extends NumberFieldMapper<Float> {
 
         public static final FieldType TYPE = new FieldType();
         static {
-          TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
+            TYPE.setDocValueType(FieldInfo.DocValuesType.BINARY);
           TYPE.freeze();
         }
 

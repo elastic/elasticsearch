@@ -23,6 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeFilter;
 import org.apache.lucene.search.NumericRangeQuery;
@@ -31,6 +32,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -333,6 +335,15 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         }
     }
 
+    @Override
+    public FieldStats stats(Terms terms, int maxDoc) throws IOException {
+        long minValue = NumericUtils.getMinLong(terms);
+        long maxValue = NumericUtils.getMaxLong(terms);
+        return new org.elasticsearch.action.fieldstats.FieldStats.Long(
+                maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
+        );
+    }
+
     public static class CustomLongNumericField extends CustomNumericField {
 
         private final long number;
@@ -355,7 +366,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
 
         @Override
         public String numericAsString() {
-            return Long.toString(number);
+            return java.lang.Long.toString(number);
         }
     }
 }

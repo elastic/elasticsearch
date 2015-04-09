@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
@@ -31,6 +32,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
+import org.elasticsearch.action.fieldstats.FieldStats;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
@@ -165,7 +167,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         if (value instanceof BytesRef) {
             return Numbers.bytesToLong((BytesRef) value);
         }
-        return Long.parseLong(value.toString());
+        return java.lang.Long.parseLong(value.toString());
     }
 
     @Override
@@ -177,7 +179,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
 
     @Override
     public Query fuzzyQuery(String value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions) {
-        long iValue = Long.parseLong(value);
+        long iValue = java.lang.Long.parseLong(value);
         final long iSim = fuzziness.asLong();
         return NumericRangeQuery.newLongRange(names.indexName(), precisionStep,
                 iValue - iSim,
@@ -244,13 +246,13 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
                     }
                     value = nullValue;
                 } else {
-                    value = Long.parseLong(sExternalValue);
+                    value = java.lang.Long.parseLong(sExternalValue);
                 }
             } else {
                 value = ((Number) externalValue).longValue();
             }
             if (context.includeInAll(includeInAll, this)) {
-                context.allEntries().addText(names.fullName(), Long.toString(value), boost);
+                context.allEntries().addText(names.fullName(), java.lang.Long.toString(value), boost);
             }
         } else {
             XContentParser parser = context.parser();
@@ -338,6 +340,15 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
         }
     }
 
+    @Override
+    public FieldStats stats(Terms terms, int maxDoc) throws IOException {
+        long minValue = NumericUtils.getMinLong(terms);
+        long maxValue = NumericUtils.getMaxLong(terms);
+        return new FieldStats.Long(
+                maxDoc, terms.getDocCount(), terms.getSumDocFreq(), terms.getSumTotalTermFreq(), minValue, maxValue
+        );
+    }
+
     public static class CustomLongNumericField extends CustomNumericField {
 
         private final long number;
@@ -360,7 +371,7 @@ public class LongFieldMapper extends NumberFieldMapper<Long> {
 
         @Override
         public String numericAsString() {
-            return Long.toString(number);
+            return java.lang.Long.toString(number);
         }
     }
 }

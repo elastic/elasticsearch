@@ -507,4 +507,23 @@ public class RecoveryStateTest extends ElasticsearchTestCase {
         readWriteIndex.join();
         assertThat(readWriteIndex.error.get(), equalTo(null));
     }
+
+    @Test
+    public void testFileHashCodeAndEquals() {
+        File f = new File("foo", randomIntBetween(0, 100), randomBoolean());
+        File anotherFile = new File(f.name(), f.length(), f.reused());
+        assertEquals(f, anotherFile);
+        assertEquals(f.hashCode(), anotherFile.hashCode());
+        int iters = randomIntBetween(10, 100);
+        for (int i = 0; i < iters; i++) {
+            f = new File("foo", randomIntBetween(0, 100), randomBoolean());
+            anotherFile = new File(f.name(), randomIntBetween(0, 100), randomBoolean());
+            if (f.equals(anotherFile)) {
+                assertEquals(f.hashCode(), anotherFile.hashCode());
+            } else if (f.hashCode() != anotherFile.hashCode()) {
+               assertFalse(f.equals(anotherFile));
+            }
+        }
+
+    }
 }

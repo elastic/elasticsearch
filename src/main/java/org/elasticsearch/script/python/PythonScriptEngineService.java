@@ -19,21 +19,28 @@
 
 package org.elasticsearch.script.python;
 
+import java.io.IOException;
+import java.util.Map;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.script.*;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.LeafSearchScript;
+import org.elasticsearch.script.ScoreAccessor;
+import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.python.core.Py;
 import org.python.core.PyCode;
 import org.python.core.PyObject;
 import org.python.core.PyStringMap;
 import org.python.util.PythonInterpreter;
-
-import java.util.Map;
 
 /**
  *
@@ -76,8 +83,14 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
     }
 
     @Override
-    public SearchScript search(Object compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-        return new PythonSearchScript((PyCode) compiledScript, vars, lookup);
+    public SearchScript search(final Object compiledScript, final SearchLookup lookup, @Nullable final Map<String, Object> vars) {
+        return new SearchScript() {
+            @Override
+            public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+                final LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
+                return new PythonSearchScript((PyCode) compiledScript, vars, leafLookup);
+            }
+        };
     }
 
     @Override
@@ -143,15 +156,15 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         }
     }
 
-    public class PythonSearchScript implements SearchScript {
+    public class PythonSearchScript implements LeafSearchScript {
 
         private final PyCode code;
 
         private final PyStringMap pyVars;
 
-        private final SearchLookup lookup;
+        private final LeafSearchLookup lookup;
 
-        public PythonSearchScript(PyCode code, Map<String, Object> vars, SearchLookup lookup) {
+        public PythonSearchScript(PyCode code, Map<String, Object> vars, LeafSearchLookup lookup) {
             this.code = code;
             this.pyVars = new PyStringMap();
             for (Map.Entry<String, Object> entry : lookup.asMap().entrySet()) {
@@ -171,18 +184,13 @@ public class PythonScriptEngineService extends AbstractComponent implements Scri
         }
 
         @Override
-        public void setNextReader(LeafReaderContext context) {
-            lookup.setNextReader(context);
+        public void setDocument(int doc) {
+            lookup.setDocument(doc);
         }
 
         @Override
-        public void setNextDocId(int doc) {
-            lookup.setNextDocId(doc);
-        }
-
-        @Override
-        public void setNextSource(Map<String, Object> source) {
-            lookup.source().setNextSource(source);
+        public void setSource(Map<String, Object> source) {
+            lookup.source().setSource(source);
         }
 
         @Override

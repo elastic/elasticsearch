@@ -135,7 +135,7 @@ public class MockDirectoryHelper {
             this.crash = crash;
             this.logger = logger;
 
-            // TODO: remove this silliness on Lucene upgrade:
+            // TODO: remove all this and cutover to MockFS (DisableFsyncFS) instead
             try {
                 Field field = MockDirectoryWrapper.class.getDeclaredField("unSyncedFiles");
                 field.setAccessible(true);

@@ -156,11 +156,15 @@ public class RecoveryTarget extends AbstractComponent {
         assert recoveryStatus.sourceNode() != null : "can't do a recovery without a source node";
 
         logger.trace("collecting local files for {}", recoveryStatus);
-        final Map<String, StoreFileMetaData> existingFiles;
+        Map<String, StoreFileMetaData> existingFiles;
         try {
             existingFiles = recoveryStatus.store().getMetadataOrEmpty().asMap();
+        } catch (IOException e) {
+            logger.warn("error while listing local files, recover as if there are none", e);
+            existingFiles = Store.MetadataSnapshot.EMPTY.asMap();
         } catch (Exception e) {
-            logger.debug("error while listing local files, recovery as if there are none", e);
+            // this will be logged as warning later on...
+            logger.trace("unexpected error while listing local files, failing recovery", e);
             onGoingRecoveries.failRecovery(recoveryStatus.recoveryId(),
                     new RecoveryFailedException(recoveryStatus.state(), "failed to list local files", e), true);
             return;

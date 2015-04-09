@@ -905,8 +905,8 @@
                         <configuration>
                             <outputDirectory>${project.build.directory}/generated-packaging/deb/</outputDirectory>
                             <filters>
-                                <filter>src/packaging/common/packaging.properties</filter>
-                                <filter>src/packaging/deb/packaging.properties</filter>
+                                <filter>${basedir}/src/packaging/common/packaging.properties</filter>
+                                <filter>${basedir}/src/packaging/deb/packaging.properties</filter>
                             </filters>
                             <resources>
                                 <resource>

@@ -195,7 +195,7 @@ public class OldIndexBackwardsCompatibilityTests extends ElasticsearchIntegratio
         }
     }
 
-    @TestLogging("indices.recovery:TRACE")
+    @TestLogging("test.engine:TRACE,index.engine:TRACE,test.engine.lucene:INFO,index.engine.lucene:INFO")
     public void testOldIndexes() throws Exception {
         setupCluster();
 

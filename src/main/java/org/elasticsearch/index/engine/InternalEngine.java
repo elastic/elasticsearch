@@ -770,9 +770,12 @@ public class InternalEngine extends Engine {
     public SnapshotIndexCommit snapshotIndex() throws EngineException {
         // we have to flush outside of the readlock otherwise we might have a problem upgrading
         // the to a write lock when we fail the engine in this operation
+        logger.trace("start flush for snapshot");
         flush(false, false, true);
+        logger.trace("finish flush for snapshot");
         try (ReleasableLock lock = readLock.acquire()) {
             ensureOpen();
+            logger.trace("pulling snapshot");
             return deletionPolicy.snapshot();
         } catch (IOException e) {
             throw new SnapshotFailedEngineException(shardId, e);

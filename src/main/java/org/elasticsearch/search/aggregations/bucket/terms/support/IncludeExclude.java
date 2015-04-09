@@ -20,22 +20,30 @@ package org.elasticsearch.search.aggregations.bucket.terms.support;
 
 import com.carrotsearch.hppc.LongOpenHashSet;
 import com.carrotsearch.hppc.LongSet;
+
 import org.apache.lucene.index.RandomAccessOrds;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.util.*;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.LongBitSet;
+import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.CompiledAutomaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.SortedSet;
+import java.util.TreeSet;
 
 /**
  * Defines the include/exclude regular expression filtering for string terms aggregation. In this filtering logic,
@@ -43,8 +51,8 @@ import java.util.regex.Pattern;
  */
 public class IncludeExclude {
 
-    // The includeValue and excludeValue ByteRefs which are the result of the parsing 
-    // process are converted into a LongFilter when used on numeric fields 
+    // The includeValue and excludeValue ByteRefs which are the result of the parsing
+    // process are converted into a LongFilter when used on numeric fields
     // in the index.
     public static class LongFilter {
         private LongSet valids;
@@ -72,152 +80,145 @@ public class IncludeExclude {
         }
     }
 
-    private final Matcher include;
-    private final Matcher exclude;
-    private final CharsRefBuilder scratch = new CharsRefBuilder();
-    private Set<BytesRef> includeValues;
-    private Set<BytesRef> excludeValues;
-    private final boolean hasRegexTest;
+    // Only used for the 'map' execution mode (ie. scripts)
+    public static class StringFilter {
+
+        private final ByteRunAutomaton runAutomaton;
+
+        private StringFilter(Automaton automaton) {
+            this.runAutomaton = new ByteRunAutomaton(automaton);
+        }
+
+        /**
+         * Returns whether the given value is accepted based on the {@code include} & {@code exclude} patterns.
+         */
+        public boolean accept(BytesRef value) {
+            return runAutomaton.run(value.bytes, value.offset, value.length);
+        }
+    }
+
+    public static class OrdinalsFilter {
+
+        private final CompiledAutomaton compiled;
+
+        private OrdinalsFilter(Automaton automaton) {
+            this.compiled = new CompiledAutomaton(automaton);
+        }
+
+        /**
+         * Computes which global ordinals are accepted by this IncludeExclude instance.
+         */
+        public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) throws IOException {
+            LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
+            TermsEnum globalTermsEnum;
+            Terms globalTerms = new DocValuesTerms(globalOrdinals);
+            // TODO: specialize based on compiled.type: for ALL and prefixes (sinkState >= 0 ) we can avoid i/o and just set bits.
+            globalTermsEnum = compiled.getTermsEnum(globalTerms);
+            for (BytesRef term = globalTermsEnum.next(); term != null; term = globalTermsEnum.next()) {
+                acceptedGlobalOrdinals.set(globalTermsEnum.ord());
+            }
+            return acceptedGlobalOrdinals;
+        }
+
+    }
+
+    private final RegExp include, exclude;
+    private final SortedSet<BytesRef> includeValues, excludeValues;
 
     /**
      * @param include   The regular expression pattern for the terms to be included
-     *                  (may only be {@code null} if one of the other arguments is none-null.
-     * @param includeValues   The terms to be included
-     *                  (may only be {@code null} if one of the other arguments is none-null.
      * @param exclude   The regular expression pattern for the terms to be excluded
-     *                  (may only be {@code null} if one of the other arguments is none-null.
-     * @param excludeValues   The terms to be excluded
-     *                  (may only be {@code null} if one of the other arguments is none-null.
      */
-    public IncludeExclude(Pattern include, Pattern exclude, Set<BytesRef> includeValues, Set<BytesRef> excludeValues) {
-        assert includeValues != null || include != null || 
-                exclude != null || excludeValues != null : "includes & excludes cannot both be null"; // otherwise IncludeExclude object should be null
-        this.include = include != null ? include.matcher("") : null;
-        this.exclude = exclude != null ? exclude.matcher("") : null;
-        hasRegexTest = include != null || exclude != null;
+    public IncludeExclude(RegExp include, RegExp exclude) {
+        if (include == null && exclude == null) {
+            throw new IllegalArgumentException();
+        }
+        this.include = include;
+        this.exclude = exclude;
+        this.includeValues = null;
+        this.excludeValues = null;
+    }
+
+    /**
+     * @param includeValues   The terms to be included
+     * @param excludeValues   The terms to be excluded
+     */
+    public IncludeExclude(SortedSet<BytesRef> includeValues, SortedSet<BytesRef> excludeValues) {
+        if (includeValues == null && excludeValues == null) {
+            throw new IllegalArgumentException();
+        }
+        this.include = null;
+        this.exclude = null;
         this.includeValues = includeValues;
         this.excludeValues = excludeValues;
     }
 
     /**
-     * Returns whether the given value is accepted based on the {@code include} & {@code exclude} patterns.
+     * Terms adapter around doc values.
      */
-    public boolean accept(BytesRef value) {
+    private static class DocValuesTerms extends Terms {
 
-        if (hasRegexTest) {
-            // We need to perform UTF8 to UTF16 conversion for use in the regex matching
-            scratch.copyUTF8Bytes(value);            
-        }
-        return isIncluded(value, scratch.get()) && !isExcluded(value, scratch.get());
-    }
-    
-    private boolean isIncluded(BytesRef value, CharsRef utf16Chars) {
+        private final SortedSetDocValues values;
 
-        if ((includeValues == null) && (include == null)) {
-            // No include criteria to be tested.
-            return true;
+        DocValuesTerms(SortedSetDocValues values) {
+            this.values = values;
         }
-        
-        if (include != null) {
-            if (include.reset(scratch.get()).matches()) {
-                return true;
-            }
+
+        @Override
+        public TermsEnum iterator(TermsEnum reuse) throws IOException {
+            return values.termsEnum();
         }
-        if (includeValues != null) {
-            if (includeValues.contains(value)) {
-                return true;
-            }
+
+        @Override
+        public long size() throws IOException {
+            return -1;
         }
-        // Some include criteria was tested but no match found
-        return false;
-    }
-    
-    private boolean isExcluded(BytesRef value, CharsRef utf16Chars) {
-        if (exclude != null) {
-            if (exclude.reset(scratch.get()).matches()) {
-                return true;
-            }
+
+        @Override
+        public long getSumTotalTermFreq() throws IOException {
+            return -1;
         }
-        if (excludeValues != null) {
-            if (excludeValues.contains(value)) {
-                return true;
-            }
+
+        @Override
+        public long getSumDocFreq() throws IOException {
+            return -1;
         }
-        // No exclude criteria was tested or no match found
-        return false;
+
+        @Override
+        public int getDocCount() throws IOException {
+            return -1;
+        }
+
+        @Override
+        public boolean hasFreqs() {
+            return false;
+        }
+
+        @Override
+        public boolean hasOffsets() {
+            return false;
+        }
+
+        @Override
+        public boolean hasPositions() {
+            return false;
+        }
+
+        @Override
+        public boolean hasPayloads() {
+            return false;
+        }
+
     }
 
-    /**
-     * Computes which global ordinals are accepted by this IncludeExclude instance.
-     */
-    public LongBitSet acceptedGlobalOrdinals(RandomAccessOrds globalOrdinals, ValuesSource.Bytes.WithOrdinals valueSource) {
-        LongBitSet acceptedGlobalOrdinals = new LongBitSet(globalOrdinals.getValueCount());
-        // There are 3 ways of populating this bitset: 
-        // 1) Looking up the global ordinals for known "include" terms
-        // 2) Looking up the global ordinals for known "exclude" terms
-        // 3) Traversing the term enum for all terms and running past regexes
-        // Option 3 is known to be very slow in the case of high-cardinality fields and
-        // should be avoided if possible.
-        if (includeValues != null) {
-            // optimize for the case where the set of accepted values is a set
-            // of known terms, not a regex that would have to be tested against all terms in the index
-            for (BytesRef includeValue : includeValues) {
-                // We need to perform UTF8 to UTF16 conversion for use in the regex matching
-                scratch.copyUTF8Bytes(includeValue); 
-                if (!isExcluded(includeValue, scratch.get())) {
-                    long ord = globalOrdinals.lookupTerm(includeValue);
-                    if (ord >= 0) {
-                        acceptedGlobalOrdinals.set(ord);
-                    }
-                }
-            }
-        } else {
-            if(hasRegexTest) {
-                // We have includeVals that are a regex or only regex excludes - we need to do the potentially 
-                // slow option of hitting termsEnum for every term in the index.
-                TermsEnum globalTermsEnum = globalOrdinals.termsEnum();
-                try {
-                    for (BytesRef term = globalTermsEnum.next(); term != null; term = globalTermsEnum.next()) {
-                        if (accept(term)) {
-                            acceptedGlobalOrdinals.set(globalTermsEnum.ord());
-                        }
-                    }
-                } catch (IOException e) {
-                    throw ExceptionsHelper.convertToElastic(e);
-                }
-            } else {
-                // we only have a set of known values to exclude - create a bitset with all good values and negate the known bads
-                acceptedGlobalOrdinals.set(0, acceptedGlobalOrdinals.length());
-                for (BytesRef excludeValue : excludeValues) {
-                    long ord = globalOrdinals.lookupTerm(excludeValue);
-                    if (ord >= 0) {
-                        acceptedGlobalOrdinals.clear(ord);
-                    }
-                }
-                
-            }
-        }
-        return acceptedGlobalOrdinals;
-    }
+
 
     public static class Parser {
 
-        private final String aggName;
-        private final InternalAggregation.Type aggType;
-        private final SearchContext context;
-
         String include = null;
-        int includeFlags = 0; // 0 means no flags
         String exclude = null;
-        int excludeFlags = 0; // 0 means no flags
-        Set<BytesRef> includeValues;
-        Set<BytesRef> excludeValues;
-
-        public Parser(String aggName, InternalAggregation.Type aggType, SearchContext context) {
-            this.aggName = aggName;
-            this.aggType = aggType;
-            this.context = context;
-        }
+        SortedSet<BytesRef> includeValues;
+        SortedSet<BytesRef> excludeValues;
 
         public boolean token(String currentFieldName, XContentParser.Token token, XContentParser parser) throws IOException {
 
@@ -231,14 +232,14 @@ public class IncludeExclude {
                 }
                 return true;
             }
-            
+
             if (token == XContentParser.Token.START_ARRAY) {
                 if ("include".equals(currentFieldName)) {
-                     includeValues = parseArrayToSet(parser);
+                     includeValues = new TreeSet<>(parseArrayToSet(parser));
                      return true;
-                } 
+                }
                 if ("exclude".equals(currentFieldName)) {
-                      excludeValues = parseArrayToSet(parser);
+                      excludeValues = new TreeSet<>(parseArrayToSet(parser));
                       return true;
                 }
                 return false;
@@ -252,12 +253,6 @@ public class IncludeExclude {
                         } else if (token == XContentParser.Token.VALUE_STRING) {
                             if ("pattern".equals(currentFieldName)) {
                                 include = parser.text();
-                            } else if ("flags".equals(currentFieldName)) {
-                                includeFlags = Regex.flagsFromString(parser.text());
-                            }
-                        } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                            if ("flags".equals(currentFieldName)) {
-                                includeFlags = parser.intValue();
                             }
                         }
                     }
@@ -268,12 +263,6 @@ public class IncludeExclude {
                         } else if (token == XContentParser.Token.VALUE_STRING) {
                             if ("pattern".equals(currentFieldName)) {
                                 exclude = parser.text();
-                            } else if ("flags".equals(currentFieldName)) {
-                                excludeFlags = Regex.flagsFromString(parser.text());
-                            }
-                        } else if (token == XContentParser.Token.VALUE_NUMBER) {
-                            if ("flags".equals(currentFieldName)) {
-                                excludeFlags = parser.intValue();
                             }
                         }
                     }
@@ -298,19 +287,50 @@ public class IncludeExclude {
             }
             return set;
         }
-        
+
         public IncludeExclude includeExclude() {
-            if (include == null && exclude == null && includeValues == null && excludeValues == null) {
+            RegExp includePattern =  include != null ? new RegExp(include) : null;
+            RegExp excludePattern = exclude != null ? new RegExp(exclude) : null;
+            if (includePattern != null || excludePattern != null) {
+                if (includeValues != null || excludeValues != null) {
+                    throw new ElasticsearchIllegalArgumentException("Can only use regular expression include/exclude or a set of values, not both");
+                }
+                return new IncludeExclude(includePattern, excludePattern);
+            } else if (includeValues != null || excludeValues != null) {
+                return new IncludeExclude(includeValues, excludeValues);
+            } else {
                 return null;
             }
-            Pattern includePattern =  include != null ? Pattern.compile(include, includeFlags) : null;
-            Pattern excludePattern = exclude != null ? Pattern.compile(exclude, excludeFlags) : null;
-            return new IncludeExclude(includePattern, excludePattern, includeValues, excludeValues);
         }
     }
 
     public boolean isRegexBased() {
-        return hasRegexTest;
+        return include != null || exclude != null;
+    }
+
+    private Automaton toAutomaton() {
+        Automaton a = null;
+        if (include != null) {
+            a = include.toAutomaton();
+        } else if (includeValues != null) {
+            a = Automata.makeStringUnion(includeValues);
+        } else {
+            a = Automata.makeAnyString();
+        }
+        if (exclude != null) {
+            a = Operations.minus(a, exclude.toAutomaton(), Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+        } else if (excludeValues != null) {
+            a = Operations.minus(a, Automata.makeStringUnion(excludeValues), Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+        }
+        return a;
+    }
+
+    public StringFilter convertToStringFilter() {
+        return new StringFilter(toAutomaton());
+    }
+
+    public OrdinalsFilter convertToOrdinalsFilter() {
+        return new OrdinalsFilter(toAutomaton());
     }
 
     public LongFilter convertToLongFilter() {
@@ -329,6 +349,7 @@ public class IncludeExclude {
         }
         return result;
     }
+
     public LongFilter convertToDoubleFilter() {
         int numValids = includeValues == null ? 0 : includeValues.size();
         int numInvalids = excludeValues == null ? 0 : excludeValues.size();

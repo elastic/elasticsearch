@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -37,9 +38,7 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
     private Terms.ValueType valueType;
     private Terms.Order order;
     private String includePattern;
-    private int includeFlags;
     private String excludePattern;
-    private int excludeFlags;
     private String executionHint;
     private SubAggCollectionMode collectionMode;
     private Boolean showTermDocCountError;
@@ -88,26 +87,15 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
 
     /**
      * Define a regular expression that will determine what terms should be aggregated. The regular expression is based
-     * on the {@link java.util.regex.Pattern} class.
+     * on the {@link RegExp} class.
      *
-     * @see #include(String, int)
+     * @see {@link RegExp#RegExp(String)}
      */
     public TermsBuilder include(String regex) {
-        return include(regex, 0);
-    }
-
-    /**
-     * Define a regular expression that will determine what terms should be aggregated. The regular expression is based
-     * on the {@link java.util.regex.Pattern} class.
-     *
-     * @see java.util.regex.Pattern#compile(String, int)
-     */
-    public TermsBuilder include(String regex, int flags) {
         if (includeTerms != null) {
             throw new ElasticsearchIllegalArgumentException("exclude clause must be an array of strings or a regex, not both");
         }
         this.includePattern = regex;
-        this.includeFlags = flags;
         return this;
     }
     
@@ -160,29 +148,18 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
         }
         return termsAsString;
     }    
-    
-    /**
-     * Define a regular expression that will filter out terms that should be excluded from the aggregation. The regular
-     * expression is based on the {@link java.util.regex.Pattern} class.
-     *
-     * @see #exclude(String, int)
-     */
-    public TermsBuilder exclude(String regex) {
-        return exclude(regex, 0);
-    }
 
     /**
      * Define a regular expression that will filter out terms that should be excluded from the aggregation. The regular
-     * expression is based on the {@link java.util.regex.Pattern} class.
+     * expression is based on the {@link RegExp} class.
      *
-     * @see java.util.regex.Pattern#compile(String, int)
+     * @see {@link RegExp#RegExp(String)}
      */
-    public TermsBuilder exclude(String regex, int flags) {
+    public TermsBuilder exclude(String regex) {
         if (excludeTerms != null) {
             throw new ElasticsearchIllegalArgumentException("exclude clause must be an array of exact values or a regex, not both");
         }
         this.excludePattern = regex;
-        this.excludeFlags = flags;
         return this;
     }
     
@@ -287,27 +264,13 @@ public class TermsBuilder extends ValuesSourceAggregationBuilder<TermsBuilder> {
             builder.array("include", includeTerms);
         }
         if (includePattern != null) {
-            if (includeFlags == 0) {
-                builder.field("include", includePattern);
-            } else {
-                builder.startObject("include")
-                        .field("pattern", includePattern)
-                        .field("flags", includeFlags)
-                        .endObject();
-            }
+            builder.field("include", includePattern);
         }
         if (excludeTerms != null) {
             builder.array("exclude", excludeTerms);
         }
         if (excludePattern != null) {
-            if (excludeFlags == 0) {
-                builder.field("exclude", excludePattern);
-            } else {
-                builder.startObject("exclude")
-                        .field("pattern", excludePattern)
-                        .field("flags", excludeFlags)
-                        .endObject();
-            }
+            builder.field("exclude", excludePattern);
         }
         return builder;
     }

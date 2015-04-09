@@ -1054,4 +1054,10 @@ public abstract class Engine implements Closeable {
             }
         }
     }
+
+    /**
+     * Returns <code>true</code> the internal writer has any uncommitted changes. Otherwise <code>false</code>
+     * @return
+     */
+    public abstract boolean hasUncommittedChanges();
 }

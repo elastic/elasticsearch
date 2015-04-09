@@ -57,7 +57,7 @@ public class SignificantTermsParser implements Aggregator.Parser {
                 .scriptable(false)
                 .formattable(true)
                 .build();
-        IncludeExclude.Parser incExcParser = new IncludeExclude.Parser(aggregationName, SignificantStringTerms.TYPE, context);
+        IncludeExclude.Parser incExcParser = new IncludeExclude.Parser();
         aggParser.parse(aggregationName, parser, context, vsParser, incExcParser);
 
         TermsAggregator.BucketCountThresholds bucketCountThresholds = aggParser.getBucketCountThresholds();

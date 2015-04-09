@@ -209,9 +209,6 @@ including:
 
 `timeout`::     Timeout waiting for a shard to become available.
 
-`replication`:: deprecated[1.5.0, The ability to specify `async` replication is deprecated and will be removed in version 2.0.0] The replication type for the delete/index operation
-                (sync or async).
-
 `consistency`:: The write consistency of the index/delete operation.
 
 `refresh`::     Refresh the relevant primary and replica shards (not the whole

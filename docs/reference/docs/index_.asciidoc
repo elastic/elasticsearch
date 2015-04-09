@@ -329,7 +329,10 @@ More information can be found on the
 The index operation is directed to the primary shard based on its route
 (see the Routing section above) and performed on the actual node
 containing this shard. After the primary shard completes the operation,
-if needed, the update is distributed to applicable replicas.
+if needed, the update is distributed to applicable replicas. The index
+operation only returns after all shards within the
+replication group have indexed the document (sync replication).
+
 
 [float]
 [[index-consistency]]
@@ -347,24 +350,6 @@ Valid write consistency values are `one`, `quorum`, and `all`.
 Note, for the case where the number of replicas is 1 (total of 2 copies
 of the data), then the default behavior is to succeed if 1 copy (the primary)
 can perform the write.
-
-[float]
-[[index-replication]]
-=== Asynchronous Replication
-
-deprecated[1.5.0, The ability to specify `async` replication is deprecated and will be removed in version 2.0.0]
-
-By default, the index operation only returns after all shards within the
-replication group have indexed the document (sync replication). To
-enable asynchronous replication, causing the replication process to take
-place in the background, set the `replication` parameter to `async`.
-When asynchronous replication is used, the index operation will return
-as soon as the operation succeeds on the primary shard.
-
-The default value for the `replication` setting is `sync` and this default can
-be overridden on a node-by-node basis using the `action.replication_type`
-setting. Valid values for replication type are `sync` and `async`. To alter this
-behavior per-operation, the `replication` request parameter can be used.
 
 [float]
 [[index-refresh]]

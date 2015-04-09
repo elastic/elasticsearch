@@ -51,7 +51,7 @@ similar to the one used in the <<docs-multi-get,Multi GET API>>.
 }
 --------------------------------------------------
 
-coming[1.5.0] Finally, users can also provide documents not necessarily
+Finally, users can also provide documents not necessarily
 present in the index using a syntax is similar to
 <<docs-termvectors-artificial-doc,artificial documents>>.
 
@@ -196,12 +196,10 @@ input document. This could be useful in order to ignore highly frequent words
 such as stop words. Defaults to unbounded (`0`).
 
 `min_word_length`::
-The minimum word length below which the terms will be ignored. The old name
-`min_word_len` is deprecated. Defaults to `0`.
+The minimum word length below which the terms will be ignored. Defaults to `0`.
 
 `max_word_length`::
-The maximum word length above which the terms will be ignored. The old name
-`max_word_len` is deprecated. Defaults to unbounded (`0`).
+The maximum word length above which the terms will be ignored. Defaults to unbounded (`0`).
 
 `stop_words`::
 An array of stop words. Any word in this set is considered "uninteresting" and
@@ -223,8 +221,6 @@ number of terms that must match. The syntax is the same as the
 <<query-dsl-minimum-should-match,minimum should match>>. (Defaults to `"30%"`).
 
 `percent_terms_to_match`:: deprecated[1.5.0,Replaced by `minimum_should_match`]
-From the generated query, the percentage of terms that must match (float value
-between 0 and 1). Defaults to `0.3` (30 percent).
 
 `boost_terms`::
 Each term in the formed query could be further boosted by their tf-idf score.

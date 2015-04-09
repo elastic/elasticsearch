@@ -171,6 +171,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @throws CorruptIndexException if the lucene index is corrupted. This can be caused by a checksum mismatch or an
      *                               unexpected exception when opening the index reading the segments file.
+     * @throws IndexFormatTooOldException  if the lucene index is too old to be opened.
+     * @throws IndexFormatTooNewException  if the lucene index is too new to be opened.
      */
     public MetadataSnapshot getMetadataOrEmpty() throws IOException {
         try {
@@ -188,6 +190,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @throws CorruptIndexException  if the lucene index is corrupted. This can be caused by a checksum mismatch or an
      *                                unexpected exception when opening the index reading the segments file.
+     * @throws IndexFormatTooOldException  if the lucene index is too old to be opened.
+     * @throws IndexFormatTooNewException  if the lucene index is too new to be opened.
      * @throws FileNotFoundException  if one or more files referenced by a commit are not present.
      * @throws NoSuchFileException    if one or more files referenced by a commit are not present.
      * @throws IndexNotFoundException if no index / valid commit-point can be found in this store
@@ -202,6 +206,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      *
      * @throws CorruptIndexException  if the lucene index is corrupted. This can be caused by a checksum mismatch or an
      *                                unexpected exception when opening the index reading the segments file.
+     * @throws IndexFormatTooOldException  if the lucene index is too old to be opened.
+     * @throws IndexFormatTooNewException  if the lucene index is too new to be opened.
      * @throws FileNotFoundException  if one or more files referenced by a commit are not present.
      * @throws NoSuchFileException    if one or more files referenced by a commit are not present.
      * @throws IndexNotFoundException if the commit point can't be found in this store
@@ -538,7 +544,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @throws ElasticsearchIllegalStateException if the latest snapshot in this store differs from the given one after the cleanup.
      */
     public void cleanupAndVerify(String reason, MetadataSnapshot sourceMetaData) throws IOException {
-        failIfCorrupted();
         metadataLock.writeLock().lock();
         try (Lock writeLock = directory.makeLock(IndexWriter.WRITE_LOCK_NAME)) {
             if (!writeLock.obtain(IndexWriterConfig.getDefaultWriteLockTimeout())) { // obtain write lock

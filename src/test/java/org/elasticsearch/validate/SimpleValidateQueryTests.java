@@ -27,6 +27,7 @@ import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.cache.filter.AutoFilterCachingPolicy;
 import org.elasticsearch.index.cache.filter.FilterCacheModule;
@@ -48,6 +49,7 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -114,12 +116,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
     }
 
     private String filtered(String query) {
-        if (hasFilterCache) {
-            query = "filtered(" + query + ")";
-        } else {
-            query = "+" + query;
-        }
-        return query;
+        return "filtered(" + query + ")";
     }
 
     @Test
@@ -155,7 +152,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
         assertThat(response.getQueryExplanation().get(0).getError(), containsString("Failed to parse"));
         assertThat(response.getQueryExplanation().get(0).getExplanation(), nullValue());
 
-        final String typeFilter = (hasFilterCache ? "->" : " +") + filter("_type:type1");
+        final String typeFilter = "->" + filter("_type:type1");
         assertExplanation(QueryBuilders.queryStringQuery("_id:1"), equalTo(filtered("ConstantScore(_uid:type1#1)") + typeFilter));
 
         assertExplanation(QueryBuilders.idsQuery("type1").addIds("1").addIds("2"),
@@ -297,7 +294,7 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
         DateTime twoMonthsAgo = new DateTime(DateTimeZone.UTC).minusMonths(2).withTimeAtStartOfDay();
         DateTime now = new DateTime(DateTimeZone.UTC).plusDays(1).withTimeAtStartOfDay().minusMillis(1);
         assertThat(response.getQueryExplanation().get(0).getExplanation(),
-                equalTo("ConstantScore(past:[" + twoMonthsAgo.getMillis() + " TO " + now.getMillis() + "])"));
+                equalTo("past:[" + twoMonthsAgo.getMillis() + " TO " + now.getMillis() + "]"));
         assertThat(response.isValid(), equalTo(true));
     }
 
@@ -371,6 +368,50 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
     }
 
     @Test
+    public void explainWithRewriteValidateQuery() throws Exception {
+        client().admin().indices().prepareCreate("test")
+                .addMapping("type1", "field", "type=string,analyzer=whitespace")
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1).get();
+        indexRandom(true, 
+                client().prepareIndex("test", "type1", "1").setSource("field", "quick lazy huge brown pidgin"),
+                client().prepareIndex("test", "type1", "2").setSource("field", "the quick brown fox"),
+                client().prepareIndex("test", "type1", "3").setSource("field", "the quick lazy huge brown fox jumps over the tree"));
+                client().prepareIndex("test", "type1", "4").setSource("field", "the lazy dog quack like a duck");
+
+        // prefix queries
+        assertExplanation(QueryBuilders.matchPhrasePrefixQuery("field", "qu"),
+                containsString("field:quick"), true);
+        assertExplanation(QueryBuilders.matchPhrasePrefixQuery("field", "ju"),
+                containsString("field:jumps"), true);
+
+        // common terms queries
+        assertExplanation(QueryBuilders.commonTermsQuery("field", "huge brown pidgin").cutoffFrequency(1),
+                containsString("(field:huge field:brown) +field:pidgin"), true);
+        assertExplanation(QueryBuilders.commonTermsQuery("field", "the brown").analyzer("stop"),
+                containsString("field:brown"), true);
+        
+        // match queries with cutoff frequency
+        assertExplanation(QueryBuilders.matchQuery("field", "huge brown pidgin").cutoffFrequency(1),
+                containsString("(field:huge field:brown) +field:pidgin"), true);
+        assertExplanation(QueryBuilders.matchQuery("field", "the brown").analyzer("stop"),
+                containsString("field:brown"), true);
+
+        // fuzzy queries
+        assertExplanation(QueryBuilders.fuzzyQuery("field", "the").fuzziness(Fuzziness.fromEdits(2)),
+                containsString("field:the field:tree^0.3333333"), true);
+        assertExplanation(QueryBuilders.fuzzyQuery("field", "jump"),
+                containsString("field:jumps^0.75"), true);
+
+        // more like this queries
+        assertExplanation(QueryBuilders.moreLikeThisQuery("field").ids("1")
+                        .include(true).minTermFreq(1).minDocFreq(1).maxQueryTerms(3),
+                containsString("field:lazy field:huge field:pidgin"), true);
+        assertExplanation(QueryBuilders.moreLikeThisQuery("field").like("the quick lazy brown pidgin jumps over the dog")
+                        .minTermFreq(1).minDocFreq(1).maxQueryTerms(3),
+                containsString("field:jumps field:pidgin field:the"), true);
+    }
+
+    @Test
     public void irrelevantPropertiesBeforeQuery() throws IOException {
         createIndex("test");
         ensureGreen();
@@ -389,10 +430,15 @@ public class SimpleValidateQueryTests extends ElasticsearchIntegrationTest {
     }
 
     private void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher) {
+        assertExplanation(queryBuilder, matcher, false);
+    }
+
+    private void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher, boolean withRewrite) {
         ValidateQueryResponse response = client().admin().indices().prepareValidateQuery("test")
                 .setTypes("type1")
                 .setQuery(queryBuilder)
                 .setExplain(true)
+                .setRewrite(withRewrite)
                 .execute().actionGet();
         assertThat(response.getQueryExplanation().size(), equalTo(1));
         assertThat(response.getQueryExplanation().get(0).getError(), nullValue());

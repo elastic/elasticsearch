@@ -78,6 +78,11 @@ public class RestValidateQueryAction extends BaseRestHandler {
         } else {
             validateQueryRequest.explain(false);
         }
+        if (request.paramAsBoolean("rewrite", false)) {
+            validateQueryRequest.rewrite(true);
+        } else {
+            validateQueryRequest.rewrite(false);
+        }
 
         client.admin().indices().validateQuery(validateQueryRequest, new RestBuilderListener<ValidateQueryResponse>(channel) {
             @Override

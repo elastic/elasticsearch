@@ -77,14 +77,14 @@ curl -XGET 'http://localhost:9200/twitter/tweet/_validate/query?q=post_date:foo&
 --------------------------------------------------
 
 coming[1.6] When the query is valid, the explanation defaults to the string
-representation of that query. The explanation has been made more detailed to
-show the actual Lucene query that will be executed.
+representation of that query. With `rewrite` set to `true`, the explanation
+is more detailed showing the actual Lucene query that will be executed.
 
 For Fuzzy Queries:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/imdb/movies/_validate/query?explain=true'
+curl -XGET 'http://localhost:9200/imdb/movies/_validate/query?rewrite=true'
 {
   "query": {
     "fuzzy": {
@@ -119,7 +119,7 @@ For More Like This:
 
 [source,js]
 --------------------------------------------------
-curl -XGET 'http://localhost:9200/imdb/movies/_validate/query?explain=true'
+curl -XGET 'http://localhost:9200/imdb/movies/_validate/query?rewrite=true'
 {
   "query": {
     "more_like_this": {

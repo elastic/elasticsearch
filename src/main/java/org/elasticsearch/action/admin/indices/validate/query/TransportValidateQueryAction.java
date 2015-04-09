@@ -153,7 +153,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
             } else {
                 ShardValidateQueryResponse validateQueryResponse = (ShardValidateQueryResponse) shardResponse;
                 valid = valid && validateQueryResponse.isValid();
-                if (request.explain()) {
+                if (request.explain() || request.rewrite()) {
                     if (queryExplanations == null) {
                         queryExplanations = newArrayList();
                     }
@@ -195,7 +195,10 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
 
             valid = true;
             if (request.explain()) {
-                explanation = getExplanation(searcher.searcher(), searchContext.query());
+                explanation = searchContext.query().toString();
+            }
+            if (request.rewrite()) {
+                explanation = getRewrittenQuery(searcher.searcher(), searchContext.query());
             }   
         } catch (QueryParsingException e) {
             valid = false;
@@ -214,7 +217,7 @@ public class TransportValidateQueryAction extends TransportBroadcastOperationAct
         return new ShardValidateQueryResponse(request.shardId(), valid, explanation, error);
     }
 
-    private String getExplanation(IndexSearcher searcher, Query query) throws IOException {
+    private String getRewrittenQuery(IndexSearcher searcher, Query query) throws IOException {
         Query queryRewrite = searcher.rewrite(query);
         if (queryRewrite instanceof MatchNoDocsQuery || queryRewrite instanceof MatchNoDocsFilter) {
             return query.toString();

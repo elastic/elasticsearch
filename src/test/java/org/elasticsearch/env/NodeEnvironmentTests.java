@@ -237,36 +237,6 @@ public class NodeEnvironmentTests extends ElasticsearchTestCase {
     }
 
     @Test
-    public void testGetAllShards() throws Exception {
-        final NodeEnvironment env = newNodeEnvironment();
-        final int numIndices = randomIntBetween(1, 10);
-        final Set<ShardId> createdShards = new HashSet<>();
-        for (int i = 0; i < numIndices; i++) {
-            for (Path path : env.indexPaths(new Index("foo" + i))) {
-                final int numShards = randomIntBetween(1, 10);
-                for (int j = 0; j < numShards; j++) {
-                    Files.createDirectories(path.resolve(Integer.toString(j)));
-                    createdShards.add(new ShardId("foo" + i, j));
-                }
-            }
-        }
-        Set<ShardId> shards = env.findAllShardIds();
-        assertEquals(shards.size(), createdShards.size());
-        assertEquals(shards, createdShards);
-
-        Index index = new Index("foo" + randomIntBetween(1, numIndices));
-        shards = env.findAllShardIds(index);
-        for (ShardId id : createdShards) {
-            if (index.getName().equals(id.getIndex())) {
-                assertNotNull("missing shard " + id, shards.remove(id));
-            }
-        }
-        assertEquals("too many shards found", shards.size(), 0);
-        assertTrue("LockedShards: " + env.lockedShards(), env.lockedShards().isEmpty());
-        env.close();
-    }
-
-    @Test
     public void testStressShardLock() throws IOException, InterruptedException {
         class Int {
             int value = 0;

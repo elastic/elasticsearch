@@ -33,8 +33,14 @@ import static org.hamcrest.Matchers.*;
 @ClusterScope(scope = Scope.SUITE, randomDynamicTemplates = false)
 public class ManualExecutionTests extends AbstractWatcherIntegrationTests {
 
+    @Override
     protected boolean enableShield() {
         return false;
+    }
+
+    @Override
+    protected boolean timeWarped() {
+        return true;
     }
 
     @Test

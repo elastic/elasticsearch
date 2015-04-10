@@ -29,9 +29,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.WeakHashMap;
 
 /**
  * The {@link BasePolygonBuilder} implements the groundwork to create polygons. This contains
@@ -285,7 +285,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         Edge current = edge;
         Edge prev = edge;
         // bookkeep the source and sink of each visited coordinate
-        WeakHashMap<Coordinate, Pair<Edge, Edge>> visitedEdge = new WeakHashMap<>();
+        HashMap<Coordinate, Pair<Edge, Edge>> visitedEdge = new HashMap<>();
         do {
             current.coordinate = shift(current.coordinate, shiftOffset);
             current.component = id;
@@ -294,7 +294,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
                 // found a closed loop - we have two connected components so we need to slice into two distinct components
                 if (visitedEdge.containsKey(current.coordinate)) {
                     if (connectedComponents > 0 && current.next != edge) {
-                        throw new InvalidShapeException("Shape contains more than one tangential point");
+                        throw new InvalidShapeException("Shape contains more than one shared point");
                     }
 
                     // a negative id flags the edge as visited for the edges(...) method.

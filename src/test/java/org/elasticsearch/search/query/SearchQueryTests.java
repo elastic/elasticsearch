@@ -677,7 +677,7 @@ public class SearchQueryTests extends ElasticsearchIntegrationTest {
                 client().prepareIndex("test", "type1", "3").setSource("field2", "value2_3"),
                 client().prepareIndex("test", "type1", "4").setSource("field3", "value3_4"));
 
-        assertHitCount(client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), limitFilter(2))).get(), 2l);
+        assertHitCount(client().prepareSearch().setQuery(filteredQuery(matchAllQuery(), limitFilter(2))).get(), 4l); // no-op
     }
 
     @Test

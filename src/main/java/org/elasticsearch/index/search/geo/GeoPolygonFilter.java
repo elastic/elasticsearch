@@ -19,18 +19,23 @@
 
 package org.elasticsearch.index.search.geo;
 
-import java.io.IOException;
-import java.util.Arrays;
-
+import org.apache.commons.lang3.Validate;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocValuesDocIdSet;
 import org.apache.lucene.search.Filter;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.lucene.docset.AndDocIdSet;
+import org.elasticsearch.common.lucene.docset.DocIdSets;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+
+import java.io.IOException;
+import java.util.Arrays;
 
 /**
  *
@@ -38,12 +43,27 @@ import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 public class GeoPolygonFilter extends Filter {
 
     private final GeoPoint[] points;
+    private final Filter boundingBoxFilter;
 
     private final IndexGeoPointFieldData indexFieldData;
 
-    public GeoPolygonFilter(IndexGeoPointFieldData indexFieldData, GeoPoint...points) {
-        this.points = points;
+    public GeoPolygonFilter(IndexGeoPointFieldData indexFieldData, GeoPointFieldMapper mapper,
+                            GeoPoint[] points, String optimizeBbox) {
         this.indexFieldData = indexFieldData;
+        this.points = points;
+
+        if (optimizeBbox != null && !"none".equals(optimizeBbox)) {
+            BoundingBox boundingBox = getBoundingBox(points);
+            if ("memory".equals(optimizeBbox)) {
+                boundingBoxFilter = new InMemoryGeoBoundingBoxFilter(boundingBox.topLeft(), boundingBox.bottomRight(), indexFieldData);
+            } else if ("indexed".equals(optimizeBbox)) {
+                boundingBoxFilter = IndexedGeoBoundingBoxFilter.create(boundingBox.topLeft(), boundingBox.bottomRight(), mapper);
+            } else {
+                throw new ElasticsearchIllegalArgumentException("type [" + optimizeBbox + "] for bounding box optimization not supported");
+            }
+        } else {
+            boundingBoxFilter = null;
+        }
     }
 
     public GeoPoint[] points() {
@@ -56,8 +76,18 @@ public class GeoPolygonFilter extends Filter {
 
     @Override
     public DocIdSet getDocIdSet(LeafReaderContext context, Bits acceptedDocs) throws IOException {
-        final MultiGeoPointValues values = indexFieldData.load(context).getGeoPointValues();
-        return new GeoPolygonDocIdSet(context.reader().maxDoc(), acceptedDocs, values, points);
+        MultiGeoPointValues values = indexFieldData.load(context).getGeoPointValues();
+        GeoPolygonDocIdSet polygonDocSet = new GeoPolygonDocIdSet(context.reader().maxDoc(), acceptedDocs, values, points);
+
+        if (boundingBoxFilter == null) {
+            return polygonDocSet;
+        } else {
+            DocIdSet boundingBoxDocSet = boundingBoxFilter.getDocIdSet(context, acceptedDocs);
+            if (DocIdSets.isEmpty(boundingBoxDocSet)) { // Necessary to avoid a NullPointerException.
+                return polygonDocSet;
+            }
+            return new AndDocIdSet(new DocIdSet[]{boundingBoxDocSet, polygonDocSet});
+        }
     }
 
     @Override
@@ -104,6 +134,43 @@ public class GeoPolygonFilter extends Filter {
                 }
             }
             return inPoly;
+        }
+    }
+
+    private BoundingBox getBoundingBox(GeoPoint[] points) {
+        Validate.isTrue(points.length > 0);
+        double maxLat = points[0].lat();
+        double minLat = points[0].lat();
+        double maxLon = points[0].lon();
+        double minLon = points[0].lon();
+
+        for (int i = 1; i < points.length; i++) {
+            maxLat = Math.max(maxLat, points[i].lat());
+            minLat = Math.min(minLat, points[i].lat());
+            maxLon = Math.max(maxLon, points[i].lon());
+            minLon = Math.min(minLon, points[i].lon());
+        }
+
+        GeoPoint topLeft = new GeoPoint(maxLat, minLon);
+        GeoPoint bottomRight = new GeoPoint(minLat, maxLon);
+        return new BoundingBox(topLeft, bottomRight);
+    }
+
+    private static class BoundingBox {
+        private final GeoPoint topLeft;
+        private final GeoPoint bottomRight;
+
+        public BoundingBox(GeoPoint topLeft, GeoPoint bottomRight) {
+            this.topLeft = topLeft;
+            this.bottomRight = bottomRight;
+        }
+
+        public GeoPoint topLeft() {
+            return topLeft;
+        }
+
+        public GeoPoint bottomRight() {
+            return bottomRight;
         }
     }
 }

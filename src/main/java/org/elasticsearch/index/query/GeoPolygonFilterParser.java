@@ -74,6 +74,7 @@ public class GeoPolygonFilterParser implements FilterParser {
 
         List<GeoPoint> shell = Lists.newArrayList();
 
+        String optimizeBbox = "memory";
         boolean normalizeLon = true;
         boolean normalizeLat = true;
 
@@ -109,6 +110,8 @@ public class GeoPolygonFilterParser implements FilterParser {
                     cache = parseContext.parseFilterCachePolicy();
                 } else if ("_cache_key".equals(currentFieldName) || "_cacheKey".equals(currentFieldName)) {
                     cacheKey = new HashedBytesRef(parser.text());
+                } else if ("optimize_bbox".equals(currentFieldName)) {
+                    optimizeBbox = parser.textOrNull();
                 } else if ("normalize".equals(currentFieldName)) {
                     normalizeLat = parser.booleanValue();
                     normalizeLon = parser.booleanValue();
@@ -151,7 +154,9 @@ public class GeoPolygonFilterParser implements FilterParser {
         }
 
         IndexGeoPointFieldData indexFieldData = parseContext.getForField(mapper);
-        Filter filter = new GeoPolygonFilter(indexFieldData, shell.toArray(new GeoPoint[shell.size()]));
+        GeoPointFieldMapper geoMapper = (GeoPointFieldMapper) mapper;
+
+        Filter filter = new GeoPolygonFilter(indexFieldData, geoMapper, shell.toArray(new GeoPoint[shell.size()]), optimizeBbox);
         if (cache != null) {
             filter = parseContext.cacheFilter(filter, cacheKey, cache);
         }

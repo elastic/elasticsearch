@@ -26,12 +26,15 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ElasticsearchIntegrationTest;
 import org.junit.Test;
 
+import java.util.Arrays;
+
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.FilterBuilders.geoPolygonFilter;
 import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -50,7 +53,7 @@ public class GeoPolygonTests extends ElasticsearchIntegrationTest {
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
                 .field("name", "New York")
                 .startObject("location").field("lat", 40.714).field("lon", -74.006).endObject()
-                .endObject()), 
+                .endObject()),
         // to NY: 5.286 km
         client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
                 .field("name", "Times Square")
@@ -99,6 +102,34 @@ public class GeoPolygonTests extends ElasticsearchIntegrationTest {
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
+        }
+    }
+
+    @Test
+    public void testBoundingBoxOptimization() throws Exception {
+        // Check that the bounding box doesn't affect what the polygon filter returns (and so
+        // is truly just an optimization).
+        long numHits = -1;
+        for (String optimizeBbox : Arrays.asList("none", "memory", "indexed")) {
+            SearchResponse searchResponse = client().prepareSearch("test") // from NY
+                    .setQuery(filteredQuery(matchAllQuery(), geoPolygonFilter("location")
+                            .optimizeBbox(optimizeBbox)
+                            .addPoint(40.7, -74.0)
+                            .addPoint(40.7, -74.1)
+                            .addPoint(40.75, -74.2)
+                            .addPoint(40.8, -74.1)
+                            .addPoint(40.75, -74.05)
+                            .addPoint(40.8, -74.0)
+                            .addPoint(40.7, -74.0)))
+                            .execute().actionGet();
+
+            assertSearchResponse(searchResponse);
+            logger.info("{} -> {} hits", optimizeBbox, searchResponse.getHits().totalHits());
+            if (numHits < 0) {
+                numHits = searchResponse.getHits().getTotalHits();
+            } else {
+                assertThat(searchResponse.getHits().getTotalHits(), equalTo(numHits));
+            }
         }
     }
 }

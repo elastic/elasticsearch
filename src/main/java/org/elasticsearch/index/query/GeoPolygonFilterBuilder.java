@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.google.common.collect.Lists;
+
 import org.elasticsearch.common.geo.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -33,10 +34,12 @@ import java.util.List;
 public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
 
     public static final String POINTS = GeoPolygonFilterParser.POINTS;
-    
+
     private final String name;
 
     private final List<GeoPoint> shell = Lists.newArrayList();
+
+    private String optimizeBbox;
 
     private Boolean cache;
     private String cacheKey;
@@ -66,7 +69,12 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
         shell.add(point);
         return this;
     }
-    
+
+    public GeoPolygonFilterBuilder optimizeBbox(String optimizeBbox) {
+        this.optimizeBbox = optimizeBbox;
+        return this;
+    }
+
     /**
      * Sets the filter name for the filter that can be used when searching for matched_filters per hit.
      */
@@ -100,6 +108,9 @@ public class GeoPolygonFilterBuilder extends BaseFilterBuilder {
         builder.endArray();
         builder.endObject();
 
+        if (optimizeBbox != null) {
+            builder.field("optimize_bbox", optimizeBbox);
+        }
         if (filterName != null) {
             builder.field("_name", filterName);
         }

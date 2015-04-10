@@ -19,10 +19,15 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
+/**
+ * @deprecated Use {@link SearchRequestBuilder#setTerminateAfter(int)} instead.
+ */
+@Deprecated
 public class LimitFilterBuilder extends BaseFilterBuilder {
 
     private final int limit;

@@ -1281,20 +1281,6 @@ public class SimpleIndexQueryParserTests extends ElasticsearchSingleNodeTest {
     }
 
     @Test
-    public void testLimitFilter() throws Exception {
-        IndexQueryParserService queryParser = queryParser();
-        String query = copyToStringFromClasspath("/org/elasticsearch/index/query/limit-filter.json");
-        Query parsedQuery = queryParser.parse(query).query();
-        assertThat(parsedQuery, instanceOf(FilteredQuery.class));
-        FilteredQuery filteredQuery = (FilteredQuery) parsedQuery;
-        assertThat(filteredQuery.getFilter(), instanceOf(LimitFilter.class));
-        assertThat(((LimitFilter) filteredQuery.getFilter()).getLimit(), equalTo(2));
-
-        assertThat(filteredQuery.getQuery(), instanceOf(TermQuery.class));
-        assertThat(((TermQuery) filteredQuery.getQuery()).getTerm(), equalTo(new Term("name.first", "shay")));
-    }
-
-    @Test
     public void testTermFilterQuery() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/term-filter.json");

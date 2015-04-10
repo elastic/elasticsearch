@@ -1,7 +1,7 @@
 [[query-dsl-limit-filter]]
 === Limit Filter
 
-deprecated[2.0.0, Use <<search-request-body,terminate_after>> instead]
+deprecated[1.6.0, Use <<search-request-body,terminate_after>> instead]
 
 A limit filter limits the number of documents (per shard) to execute on.
 For example:
